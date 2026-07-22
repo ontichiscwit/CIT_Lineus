@@ -1,0 +1,598 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="boardDAO">
+	
+	<sql id="boardListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(board_gbn) != ''">
+			AND A.BOARD_GBN = #{board_gbn}
+		</if>	
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != ''">
+			AND TO_CHAR(A.REG_DATE , 'yyyyMMdd') BETWEEN #{search_start} AND #{search_end}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) == ''">
+			AND (A.ONLYME_OPEN_YN = 'N' OR A.ONLYME_OPEN_YN IS NULL OR (A.ONLYME_OPEN_YN ='Y' AND A.REG_ID = #{reg_id}))
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND (
+          (#{search_type1} = 'C001' AND ONLYME_OPEN_YN = 'N') OR
+          (#{search_type1} = 'C002' AND ONLYME_OPEN_YN = 'Y' AND A.REG_ID = #{reg_id})
+      )
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND WORK_TYPE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND (
+          (#{search_type3} = 'C001' AND BEST_FAQ = 'N') OR
+          (#{search_type3} = 'C002' AND BEST_FAQ = 'Y')
+           )
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND
+			<!-- foreach collection="search_text_arr" item="item" index="index" open="(" close=")" separator="OR"  >
+				UPPER(A.TITLE) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(A.REG_ID) LIKE '%'|| UPPER(#{item}) ||'%'
+			</foreach-->
+			(
+     			(UPPER(REPLACE(A.TITLE, ' ', '')) LIKE '%' || UPPER(REPLACE(#{search_text}, ' ', '')) || '%') OR
+     			(UPPER(REPLACE(A.CONTENT, ' ', '')) LIKE '%' || UPPER(REPLACE(#{search_text}, ' ', '')) || '%') OR
+				(UPPER(A.REG_ID) LIKE '%'|| UPPER(#{search_text}) ||'%') OR
+				(UPPER(C.CODE_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%') OR
+				(TO_CHAR(A.SEQ) = #{search_text})
+			)
+		</if>
+	</sql>
+	
+	<select id="getBoardListCnt" parameterType="boardVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(IN_TB.SEQ) FROM (
+		   			 SELECT 
+                            A.SEQ
+                            , A.TITLE
+                            , A.CONTENT
+                            , A.CNT
+                            , NVL(A.ATTACH_SEQ,0) ATTACH_SEQ
+                            , TO_CHAR(A.REG_DATE,'YYYY-MM-DD') REG_DATE
+                            , A.WORK_TYPE
+                            , C.CODE_NAME AS WORK_TYPE_NM
+                            , A.REG_ID
+                            , A.BOARD_GBN
+                            , ROW_NUMBER() OVER (ORDER BY A.SEQ) AS RNUM
+                            , B.EMP_NM
+                        FROM CRM_BOARD_MGT A
+                            , CRM_EMP_MGT B
+                            , CRM_CODE_DETAIL C
+                       WHERE A.REG_ID = B.EMP_NO
+                         AND C.CODE = NVL(A.WORK_TYPE,'P008')
+                         AND C.CODE_GROUP = 'AS'
+                         AND C.P_CODE = 'CD03'  
+	]]>
+		<include refid="boardListWhere"/>
+	<![CDATA[				        
+		) IN_TB 
+	]]>
+	</select>
+	
+	<select id="getBoardList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT IN_TB.* FROM (
+                      SELECT 
+                            A.SEQ
+                            , A.TITLE
+                            , A.CONTENT
+                            , A.CNT
+                            , NVL(A.ATTACH_SEQ,0) ATTACH_SEQ
+                            , TO_CHAR(A.REG_DATE,'YYYY-MM-DD') REG_DATE
+                            , A.WORK_TYPE
+                            , C.CODE_NAME AS WORK_TYPE_NM
+                            , A.REG_ID
+                            , A.BOARD_GBN
+                            , ROW_NUMBER() OVER (ORDER BY A.BEST_FAQ, A.SEQ) AS RNUM
+                            , B.EMP_NM
+                            , A.ONLYME_OPEN_YN
+                            , CASE WHEN TRUNC(SYSDATE - A.REG_DATE,0) <= 5 THEN 'Y' ELSE 'N' END AS latest_post
+                            , (SELECT COUNT(SEQ) FROM CRM_FAQ_ANSWER S WHERE S.FAQ_SEQ = A.SEQ ) FAQ_CNT
+                            , (SELECT COUNT(SEQ) FROM CRM_BOARD_LIKE T WHERE T.SEQ = A.SEQ AND T.LIKE_YN = 'Y') LIKE_CNT
+                            , A.BEST_FAQ
+                        FROM CRM_BOARD_MGT A
+                            , CRM_EMP_MGT B
+                            , CRM_CODE_DETAIL C
+                       WHERE A.REG_ID = B.EMP_NO
+                         AND C.CODE = NVL(A.WORK_TYPE,'P008')
+                         AND C.CODE_GROUP = 'AS' 
+                         AND C.P_CODE = 'CD03'
+
+	]]>
+		<include refid="boardListWhere"/>
+	<![CDATA[			        
+		) IN_TB 
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY IN_TB.RNUM DESC    
+	]]>
+	</select>
+		
+	<select id="getBoardInfo" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT IN_TB.* ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = IN_TB.REG_ID) AS EMP_NM FROM (
+				SELECT 
+					SEQ, TITLE, CONTENT, CNT, NVL(ATTACH_SEQ,0) ATTACH_SEQ,
+					REG_DATE, REG_ID, BOARD_GBN
+					,WORK_TYPE
+		            ,(
+			                SELECT
+			                    z.code_name
+			                FROM
+			                    crm_code_detail z
+			                WHERE
+			                    z.code_group = 'AS'
+			                    AND   z.p_code = 'CD03'
+			                    AND   z.code = nvl(work_type,'P008')
+			            ) AS work_type_nm /* 업무유형 */
+					,NVL(LEAD(SEQ,1) OVER (ORDER BY SEQ),0) NEXT_SEQ
+				    ,NVL(LAG(SEQ,1) OVER (ORDER BY SEQ),0) PREV_SEQ
+				    ,CASE WHEN onlyme_open_yn = 'N' THEN 'C001' ELSE 'C002' END AS OPEN_TYPE
+				    ,BEST_FAQ AS BEST_TYPE
+				FROM 
+					CRM_BOARD_MGT
+				WHERE 
+					BOARD_GBN = #{board_gbn}
+			) IN_TB
+			WHERE 	IN_TB.SEQ = #{seq}
+	]]>
+	</select>
+	
+	<select id="getFaqBoardInfo" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+	SELECT * FROM (
+		SELECT 
+			A.SEQ, A.TITLE, A.CONTENT, A.CNT, NVL(A.ATTACH_SEQ,0) ATTACH_SEQ,
+			A.REG_DATE, A.REG_ID, A.BOARD_GBN
+			,A.WORK_TYPE
+            ,(
+	                SELECT
+	                    z.code_name
+	                FROM
+	                    crm_code_detail z
+	                WHERE
+	                    z.code_group = 'AS'
+	                    AND   z.p_code = 'CD03'
+	                    AND   z.code = nvl(A.work_type,'P008')
+	            ) AS work_type_nm /* 업무유형 */
+			,NVL(LEAD(A.SEQ,1) OVER (ORDER BY A.SEQ),0) NEXT_SEQ
+		    ,NVL(LAG(A.SEQ,1) OVER (ORDER BY A.SEQ),0) PREV_SEQ
+		    ,CASE WHEN A.onlyme_open_yn = 'N' THEN 'C001' ELSE 'C002' END AS OPEN_TYPE
+            ,B.LIKE_YN
+		FROM 
+			CRM_BOARD_MGT A
+            INNER JOIN CRM_BOARD_LIKE B
+            ON A.SEQ = B.SEQ AND A.BOARD_GBN = B.BOARD_GBN
+		WHERE 
+			A.BOARD_GBN = #{board_gbn}
+            AND B.W_ID = #{emp_id}
+            AND A.ONLYME_OPEN_YN = 'N'
+	) IN_TB
+	WHERE IN_TB.SEQ = #{seq}
+	]]>
+	</select>
+	
+	<insert id="insertBoard" parameterType="boardVO">  
+	<![CDATA[
+		INSERT INTO CRM_BOARD_MGT 
+		(
+			SEQ, WORK_TYPE, TITLE, CONTENT, CNT, ATTACH_SEQ, REG_DATE, REG_ID, BOARD_GBN, ONLYME_OPEN_YN, BEST_FAQ
+		) 
+		VALUES 
+		(
+			#{seq}, #{work_type}, #{title}, #{content}, '0', #{attach_seq}, SYSDATE, #{reg_id}, #{board_gbn}, #{onlyme_open_yn}, #{best_faq}
+		)
+	]]>		        	
+	</insert>
+	
+	<update id="updateBoard" parameterType="boardVO">
+	<![CDATA[
+		UPDATE CRM_BOARD_MGT SET 
+			TITLE = #{title}
+			,CONTENT = #{content}
+			,ATTACH_SEQ = #{attach_seq}
+			,UPD_DATE = SYSDATE
+			,UPD_ID = #{reg_id}
+			,WORK_TYPE = #{work_type}
+			,ONLYME_OPEN_YN = #{onlyme_open_yn}
+			,BEST_FAQ = #{best_faq}
+		WHERE
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}
+	]]>
+	</update>
+	
+	<update id="setUpCount" parameterType="boardVO">
+	<![CDATA[
+		UPDATE CRM_BOARD_MGT SET
+			CNT = CNT+1
+		WHERE 
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}			
+	]]>
+	</update>		
+	
+	<select id="getMaxSeq" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX_BOARD_NO.NEXTVAL FROM DUAL
+	]]>
+	</select>		
+	
+	<delete id="deleteBoard">
+	<![CDATA[
+		DELETE CRM_BOARD_MGT
+		WHERE 
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}		 
+	]]>
+	</delete>
+	
+	<!-- 상담사례 댓글  -->
+ 	<select id="getFaqAwsListCnt" parameterType="boardAswVO" resultType="java.lang.Integer">
+		select COUNT(SEQ)
+			from CRM_FAQ_ANSWER
+			where FAQ_SEQ = #{faq_seq} 
+		
+	</select>
+	
+	<!-- 상담사례 좋아요 게시물 좋아요로 등록된 갯수  -->
+ 	<select id="getFaqLikeListCnt" parameterType="boardAswVO" resultType="java.lang.Integer">
+		select COUNT(SEQ)
+			from CRM_BOARD_LIKE
+			where SEQ = #{faq_seq}
+			and LIKE_YN = 'Y'
+	</select>
+	
+	<!-- 상담사례 좋아요 게시물 전체 갯수  -->
+ 	<select id="getFaqLikeStatusCnt" parameterType="boardAswVO" resultType="java.lang.Integer">
+		select COUNT(SEQ)
+			from CRM_BOARD_LIKE
+			where SEQ = #{seq}
+			and BOARD_GBN = #{board_gbn}
+			and CRM_CODE = #{crm_code}
+			and W_ID = #{w_id}
+	</select>
+	
+	<!-- 상담사례 좋아요 게시물 해당 고객 기준 좋아요로 등록된 갯수  -->
+ 	<select id="getFaqEmpLikeCnt" parameterType="boardAswVO" resultType="java.lang.Integer">
+		<![CDATA[
+		select COUNT(SEQ)
+			from CRM_BOARD_LIKE
+			where SEQ = #{seq}
+			and BOARD_GBN = #{board_gbn}
+			and CRM_CODE = #{crm_code}
+			and W_ID = #{w_id}
+			and LIKE_YN = 'Y'
+			]]>
+	</select>
+	
+	 <select id="listAsw" parameterType="boardAswVO" resultType="boardAswVO">
+		SELECT 
+			NVL((SELECT Z.CUST_KOR_NAME FROM CRM_CUST_MGT Z WHERE A.CRM_CODE = Z.CRM_CODE), '') AS W_CUST_NM,
+		 	A.SEQ,
+		    A.FAQ_SEQ,
+		    A.W_ID,
+		    A.W_CONTENT,
+		    to_char(A.W_DATE,'yyyy-mm-dd HH24:mi:ss') W_DATE,
+		    A.W_GUBUN,
+		    A.CRM_CODE,
+		    DECODE (
+		      A.W_GUBUN 
+		      ,'U' 
+		      ,NVL((
+		            SELECT X.EMP_NAME
+		            FROM CRM_CUST_ERP X
+		            WHERE A.W_ID = X.EMP_ID), '')
+		      ,'A'
+		      ,NVL((
+		            SELECT E.EMP_NM
+		            FROM CRM_EMP_MGT E
+		            WHERE A.W_ID = E.EMP_NO), '')       
+		      
+		  ) AS W_NM
+		FROM CRM_FAQ_ANSWER A
+		WHERE A.FAQ_SEQ = #{faq_seq} 
+		ORDER BY A.W_DATE DESC
+	</select>
+	
+	<select id="listLike" parameterType="boardAswVO" resultType="boardAswVO">
+		SELECT 
+			NVL((SELECT Z.CUST_KOR_NAME FROM CRM_CUST_MGT Z WHERE A.CRM_CODE = Z.CRM_CODE), '') AS W_CUST_NM,
+		 	A.SEQ,
+		 	A.BOARD_GBN,
+		 	A.CRM_CODE,
+		    A.W_ID,
+		    NVL((SELECT Y.TEL_NO FROM CRM_CUST_ERP Y WHERE A.CRM_CODE = Y.CUST_CODE AND A.W_ID = Y.EMP_ID), '') AS W_TEL_NO,
+		    to_char(A.W_DATE,'yyyy-mm-dd HH24:mi:ss') W_DATE,
+		    (SELECT T.TEL_NO FROM CRM_CUST_ERP T WHERE T.EMP_ID = A.W_ID) W_TEL_NO,
+		    (SELECT T.EMP_NAME FROM CRM_CUST_ERP T WHERE T.EMP_ID = A.W_ID) W_NM
+		FROM CRM_BOARD_LIKE A
+		WHERE A.SEQ = #{faq_seq}
+		AND A.LIKE_YN = 'Y'
+		ORDER BY A.W_DATE DESC
+	</select>
+	
+	<select id="getFaqLikeList" parameterType="boardAswVO" resultType="boardAswVO">
+		SELECT 
+			NVL((SELECT Z.CUST_KOR_NAME FROM CRM_CUST_MGT Z WHERE A.CRM_CODE = Z.CRM_CODE), '') AS W_CUST_NM,
+		 	A.SEQ,
+		 	A.BOARD_GBN,
+		 	A.CRM_CODE,
+		    A.W_ID,
+		    NVL((SELECT Y.TEL_NO FROM CRM_CUST_ERP Y WHERE A.CRM_CODE = Y.CUST_CODE AND A.W_ID = Y.EMP_ID), '') AS W_TEL_NO,
+		    to_char(A.W_DATE,'yyyy-mm-dd HH24:mi:ss') W_DATE,
+		    A.LIKE_YN
+		FROM CRM_BOARD_LIKE A
+		WHERE A.SEQ = #{seq}
+		AND A.W_ID = #{w_id}
+		AND A.CRM_CODE = #{crm_code}
+		ORDER BY A.W_DATE DESC
+	</select>
+	
+	<select id="getFaqLikeCnt" parameterType="boardAswVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(SEQ)
+			FROM CRM_BOARD_LIKE
+			WHERE SEQ = #{seq}
+            AND CRM_CODE = #{crm_code}
+            AND W_ID = #{w_id}
+            AND LIKE_YN = #{like_yn}
+    ]]>
+	</select>
+	
+	<select id="getBestFaqList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT ROWNUM AS RNUM, SEQ, TITLE, REG_DATE, LATEST_POST
+			FROM (
+			    SELECT SEQ,
+			           TITLE,
+			           TO_CHAR(REG_DATE,'yyyy-MM-dd') REG_DATE,
+			           CASE WHEN TRUNC(SYSDATE - REG_DATE,0) <= 5 THEN 'Y' ELSE 'N' END AS LATEST_POST
+			    FROM CRM_BOARD_MGT
+			    WHERE BOARD_GBN = '0001'
+			      AND ONLYME_OPEN_YN = 'N'
+			      AND BEST_FAQ = 'Y'
+			    ORDER BY REG_DATE DESC
+			)
+		]]>
+	</select>
+	
+	<insert id="insertFaqAsw" parameterType="boardAswVO">
+		<![CDATA[
+		INSERT INTO CRM_FAQ_ANSWER
+		(
+		    SEQ
+		    ,FAQ_SEQ
+		    ,W_ID
+		    ,W_CONTENT
+		    ,W_DATE
+		    ,W_GUBUN
+		    ,CRM_CODE
+		)
+		VALUES
+		(
+		    MAX_NOTICE_ANSWER_NO.NEXTVAL 
+		    ,#{faq_seq} 
+		    ,#{w_id} 
+		    ,#{w_content}
+		    ,SYSDATE -- 등록일
+		    ,#{w_gubun}
+		    ,#{crm_code}
+		)
+		]]>
+	</insert>
+	
+	<delete id="deleteFaqAsw" parameterType="boardAswVO">
+		delete from CRM_FAQ_ANSWER where SEQ = #{seq}
+	</delete>
+	
+	<insert id="insertFaqLike" parameterType="boardAswVO">
+		<![CDATA[
+		INSERT INTO CRM_BOARD_LIKE
+		(
+		    SEQ
+		    ,BOARD_GBN
+            ,CRM_CODE
+		    ,W_ID
+		    ,W_DATE
+		    ,LIKE_YN
+		)
+		VALUES
+		(
+		    #{seq}
+            ,#{board_gbn}
+            ,#{crm_code}
+		    ,#{w_id}
+		    ,SYSDATE -- 좋아요 등록일
+		    ,#{like_yn}
+		)
+		]]>
+	</insert>
+	
+	<update id="updateFaqLike" parameterType="boardAswVO">
+		<![CDATA[
+		UPDATE CRM_BOARD_LIKE
+			SET LIKE_YN = #{like_yn}, W_DATE = SYSDATE
+			WHERE SEQ = #{faq_seq}
+			AND CRM_CODE = #{crm_code}
+			AND W_ID = #{w_id}
+			]]>
+	</update>
+	
+	<select id="getNoticenum" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT SEQ FROM CRM_BOARD_MGT WHERE NOTICE_NUM = #{seq}
+		]]>
+  	</select>
+  	
+  	<select id="getNoticeexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT COUNT(*) AS CNT
+		    FROM CRM_BOARD_MGT 
+		    WHERE NOTICE_NUM = #{seq}
+		    AND BOARD_GBN = #{board_gbn}
+		]]>
+  	</select>
+  	
+  	<select id="getNoticeallexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT COUNT(*) AS CNT
+			FROM CRM_NOTICE_ACCESS A
+			INNER JOIN CRM_BOARD_MGT B
+			ON A.NOTICE_SEQ = B.SEQ
+			WHERE B.NOTICE_NUM = #{seq}
+			AND A.ALL_OPEN_YN = 'Y'
+		]]>
+  	</select>
+  	
+  	<select id="getNoticecustexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT A.CRM_CODE
+                FROM CRM_NOTICE_ACCESS A
+                INNER JOIN CRM_BOARD_MGT B
+                ON A.NOTICE_SEQ = B.SEQ
+                WHERE B.NOTICE_NUM = #{seq}
+                AND A.CRM_CODE != 'HOS00'
+		]]>
+  	</select>
+  	
+  	<select id="getFaqexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT COUNT(*) AS CNT
+		    FROM CRM_BOARD_MGT 
+		    WHERE SEQ = #{seq}
+		    AND BOARD_GBN = #{board_gbn}
+		]]>
+  	</select>
+  	
+  	<select id="getFaqallexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT COUNT(*) AS CNT
+		    FROM CRM_BOARD_MGT 
+		    WHERE SEQ = #{seq}
+		    AND BOARD_GBN = #{board_gbn}
+		    AND ONLYME_OPEN_YN = 'N'
+		]]>
+  	</select>
+  	
+  	<select id="getFaqonlymeexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT COUNT(*) AS CNT
+		    FROM CRM_BOARD_MGT 
+		    WHERE SEQ = #{seq}
+		    AND BOARD_GBN = #{board_gbn}
+		    AND ((ONLYME_OPEN_YN = 'N') OR (ONLYME_OPEN_YN = 'Y' AND REG_ID = #{emp_no}))
+		]]>
+  	</select>
+  	
+  	<select id="getDownexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT COUNT(*) AS CNT
+		    FROM CRM_BOARD_MGT 
+		    WHERE SEQ = #{seq}
+		    AND BOARD_GBN = #{board_gbn}
+		]]>
+  	</select>
+  	
+  	<select id="getDrugfaqexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT COUNT(*) AS CNT
+		    FROM CRM_BOARD_MGT 
+		    WHERE SEQ = #{seq}
+		    AND BOARD_GBN = #{board_gbn}
+		]]>
+  	</select>
+  	
+  	<select id="getVideofaqexist" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT COUNT(*) AS CNT
+		    FROM CRM_BOARD_MGT 
+		    WHERE SEQ = #{seq}
+		    AND BOARD_GBN = #{board_gbn}
+		]]>
+  	</select>
+  	
+  	<select id="getBestFaqBoardListCnt" parameterType="boardVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(*)
+			FROM
+			CRM_BOARD_MGT
+			WHERE BOARD_GBN = '0001'
+			AND BEST_FAQ = 'Y'
+			AND SEQ != #{seq}
+	]]>
+	</select>
+  	
+  	<insert id="insertBoardView" parameterType="boardVO">
+		<![CDATA[
+		INSERT INTO CRM_BOARD_VIEW
+		(
+		    SEQ
+		    ,BOARD_GBN
+            ,CUST_CODE
+		    ,EMP_ID
+		    ,VIEW_DATE
+		)
+		VALUES
+		(
+		    #{seq}
+            ,#{board_gbn}
+            ,#{cust_code}
+		    ,#{emp_id}
+		    ,SYSDATE -- 조회일
+		)
+		]]>
+	</insert>
+	
+	<insert id="insertBoardSearch" parameterType="boardVO">
+		<![CDATA[
+		INSERT INTO CRM_BOARD_SEARCH
+		(
+		    BOARD_GBN
+            ,CUST_CODE
+		    ,EMP_ID
+		    ,SEARCH_TEXT
+		    ,SEARCH_DATE
+		)
+		VALUES
+		(
+            #{board_gbn}
+            ,#{cust_code}
+		    ,#{emp_id}
+		    ,#{search_text}
+		    ,SYSDATE -- 검색일
+		)
+		]]>
+	</insert>
+	
+	<insert id="insertBoardSearchView" parameterType="boardVO">
+		<![CDATA[
+		INSERT INTO CRM_BOARD_SEARCH_VIEW
+		(
+		    SEQ
+		    ,BOARD_GBN
+            ,CUST_CODE
+		    ,EMP_ID
+		    ,SEARCH_TEXT
+		    ,SEARCHVIEW_DATE
+		)
+		VALUES
+		(
+            #{seq}
+            ,#{board_gbn}
+            ,#{cust_code}
+		    ,#{emp_id}
+		    ,#{search_text}
+		    ,SYSDATE -- 검색후조회일
+		)
+		]]>
+	</insert>
+	
+</mapper>

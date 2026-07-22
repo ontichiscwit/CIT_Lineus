@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="boardDAO">
+	
+	<sql id="boardListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(board_gbn) != ''">
+			AND A.BOARD_GBN = #{board_gbn}
+		</if>	
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != ''">
+			AND TO_CHAR(A.REG_DATE , 'yyyyMMdd') BETWEEN #{search_start} AND #{search_end}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND
+			<!-- foreach collection="search_text_arr" item="item" index="index" open="(" close=")" separator="OR"  >
+				UPPER(A.TITLE) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(A.REG_ID) LIKE '%'|| UPPER(#{item}) ||'%'
+			</foreach-->
+			(
+				UPPER(A.TITLE) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(A.REG_ID) LIKE '%'|| UPPER(#{search_text}) ||'%'
+			)
+		</if>
+	</sql>
+	
+	<select id="getBoardListCnt" parameterType="boardVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(IN_TB.SEQ) FROM (
+		    SELECT 
+		        A.SEQ, A.TITLE, A.CONTENT, A.CNT, NVL(A.ATTACH_SEQ,0) ATTACH_SEQ, 
+		        A.REG_DATE, A.REG_ID, A.BOARD_GBN, ROW_NUMBER() OVER (ORDER BY A.SEQ) AS RNUM
+		    FROM 
+		        CRM_BOARD_MGT A
+		    WHERE 1=1
+	]]>
+		<include refid="boardListWhere"/>
+	<![CDATA[				        
+		) IN_TB 
+	]]>
+	</select>
+	
+	<select id="getBoardList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT IN_TB.* FROM (
+		    SELECT 
+		        A.SEQ,  A.TITLE,       A.CONTENT,       A.CNT,       NVL(A.ATTACH_SEQ,0) ATTACH_SEQ, 
+		        TO_CHAR(A.REG_DATE,'yyyy-MM-dd') REG_DATE,
+                A.REG_ID,     A.BOARD_GBN,       ROW_NUMBER() OVER (ORDER BY A.SEQ) AS RNUM,     B.EMP_NM
+		    FROM 
+		        CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B
+                ON A.REG_ID = B.EMP_NO
+		    WHERE 1=1
+	]]>
+		<include refid="boardListWhere"/>
+	<![CDATA[			        
+		) IN_TB 
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY IN_TB.RNUM DESC    
+	]]>
+	</select>
+		
+	<select id="getBoardInfo" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+	SELECT * FROM (
+		SELECT 
+			SEQ, TITLE, CONTENT, CNT, NVL(ATTACH_SEQ,0) ATTACH_SEQ,
+			REG_DATE, REG_ID, BOARD_GBN
+			,NVL(LEAD(SEQ,1) OVER (ORDER BY SEQ),0) NEXT_SEQ
+		    ,NVL(LAG(SEQ,1) OVER (ORDER BY SEQ),0) PREV_SEQ
+		FROM 
+			CRM_BOARD_MGT
+		WHERE 
+			BOARD_GBN = #{board_gbn}
+	) IN_TB
+	WHERE 	IN_TB.SEQ = #{seq}
+	]]>
+	</select>
+		
+	<insert id="insertBoard" parameterType="boardVO">
+	<![CDATA[
+		INSERT INTO CRM_BOARD_MGT 
+		(
+			SEQ, TITLE, CONTENT, CNT, ATTACH_SEQ, REG_DATE, REG_ID, BOARD_GBN, WORK_TYPE, NOTICE_NUM, SYSTEM_TYPE
+		) 
+		VALUES 
+		(
+			#{seq}, #{title}, #{content}, '0', #{attach_seq}, SYSDATE, #{reg_id}, #{board_gbn}, #{work_type}, #{notice_num}, #{system_type}
+		)
+	]]>		        	
+	</insert>
+	
+	<update id="updateBoard" parameterType="boardVO">
+	<![CDATA[
+		UPDATE CRM_BOARD_MGT SET 
+			TITLE = #{title}
+			,CONTENT = #{content}
+			,ATTACH_SEQ = #{attach_seq}
+			,UPD_DATE = SYSDATE
+			,UPD_ID = #{reg_id}
+		WHERE
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}
+	]]>
+	</update>
+	
+	<update id="setUpCount" parameterType="boardVO">
+	<![CDATA[
+		UPDATE CRM_BOARD_MGT SET
+			CNT = CNT+1
+		WHERE 
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}			
+	]]>
+	</update>		
+	
+	<select id="getMaxSeq" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX_BOARD_NO.NEXTVAL FROM DUAL
+	]]>
+	</select>		
+	
+	<delete id="deleteBoard">
+	<![CDATA[
+		DELETE CRM_BOARD_MGT
+		WHERE 
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}		 
+	]]>
+	</delete>
+</mapper>

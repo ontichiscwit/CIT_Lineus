@@ -1,0 +1,527 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="mainCustDAO">
+	
+	<!-- 거래처 종류 카운팅 -->
+	<select id="getCustGubunCount" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		SELECT 
+		    C001 + C002 + C003 + C004 + C005 + C006 AS TOT_COUNT , 
+		    C003 + C004 AS FLAG1 , 
+		    C002 AS FLAG2 , 
+		    C001 AS FLAG3 , 
+		    C005 AS FLAG4 ,
+		    C006 AS FLAG5
+		FROM  (
+		
+			SELECT 
+			    SUM(DECODE(CM.CUST_GUBUN , 'C001' , 1 , 0)) C001 , 
+			    SUM(DECODE(CM.CUST_GUBUN , 'C002' , 1 , 0)) C002 , 
+			    SUM(DECODE(CM.CUST_GUBUN , 'C003' , 1 , 0)) C003 , 
+			    SUM(DECODE(CM.CUST_GUBUN , 'C004' , 1 , 0)) C004 , 
+			    SUM(DECODE(CM.CUST_GUBUN , 'C005' , 1 , 0)) C005 , 
+			    SUM(DECODE(CM.CUST_GUBUN , 'C006' , 1 , 0)) C006 
+			FROM
+			    CRM_CUST_MGT CM, CRM_CUST_OPERATE_INFO COI
+			WHERE 
+			    CM.SEQ = COI.SEQ
+			    AND COI.DEAL_CODE IN ('C001','C002')
+		    	AND COI.HIS_YN ='Y'
+			) IN_TB
+	]]>
+	</select>
+	
+	
+	<!--  HIS유지보수 계약종류별 거래처 수 -->
+	<select id="getPayInfoCount" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		WITH 
+			A AS(SELECT 
+			  COUNT(CM.SEQ) CNT 
+			  ,COI.DEAL_CODE CODE
+			FROM CRM_CUST_MGT CM, CRM_CUST_OPERATE_INFO COI
+			WHERE 1=1
+			  AND CM.SEQ(+) = COI.SEQ
+			  AND COI.HIS_YN ='Y'
+		]]>	    
+		
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "1"'>
+			AND CM.CUST_GUBUN IN('C003','C004')
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "2"'>
+			AND CM.CUST_GUBUN = 'C002'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "3"'>
+			AND CM.CUST_GUBUN = 'C001'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "4"'>
+			AND CM.CUST_GUBUN = 'C005'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "5"'>
+			AND CM.CUST_GUBUN = 'C006'
+		</if>
+		    GROUP BY COI.DEAL_CODE
+			),
+			B AS (
+			    SELECT 'C001' AS CODE FROM DUAL
+			    UNION ALL
+			    SELECT 'C002' AS CODE FROM DUAL
+			    UNION ALL
+			    SELECT 'C003' AS CODE FROM DUAL
+			    UNION ALL
+			    SELECT 'C005' AS CODE FROM DUAL
+			 )
+			 SELECT 
+			    NVL(CNT,'0')CNT, 
+			    B.CODE,
+			    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD03'AND Z.CODE =  B.CODE) CODE_NAME
+			 FROM A,B 
+			 WHERE 1=1 
+			 AND A.CODE(+) = B.CODE
+			 ORDER BY CNT DESC
+	</select>
+	
+	<!--  거래처구분 조건절    -->
+	<sql id="custGubunWhere">
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "1"'>
+			AND A.CUST_GUBUN IN('C003','C004')
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "2"'>
+			AND A.CUST_GUBUN = 'C002'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "3"'>
+			AND A.CUST_GUBUN = 'C001'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "4"'>
+			AND A.CUST_GUBUN = 'C005'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "5"'>
+			AND A.CUST_GUBUN = 'C006'
+		</if>	
+	</sql>
+	
+	<!--  유지보수 계약만료 거래처 수    -->
+	<select id="getDelPayInfoCount" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		SELECT SUM(FLAG1) AS FLAG1   --무상 계약만료
+		      ,SUM(FLAG2) AS FLAG2   --유상 계약만료
+		FROM (
+		        SELECT
+		        		0 AS FLAG1 			--무상
+		        		,COUNT(*) AS FLAG2  --유상
+		          FROM CRM_CUST_MGT A
+		               ,CRM_CUST_OPERATE_INFO B
+		               ,(SELECT *
+		                   FROM KYERP.TB_FI_AUTO_BILL D
+		                  WHERE D.HAEJI_FG = 'N'             --해지:N
+		                    AND D.POST_CODE = '63100'        --부서:MA사업팀
+		                    AND D.CODE_ITEM = 'C300000001'   --품목:ONTIC HIS 유보료
+		                 )C
+		         WHERE 1=1
+		            AND A.SEQ = B.SEQ
+		            AND A.CUST_CODE = C.CUST_CODE(+)
+		            AND B.HIS_YN = 'Y'
+		            AND B.DEAL_CODE = 'C002'
+		            AND C.END_DATE < TO_CHAR(SYSDATE,'YYYYMMDD')
+		            ]]>
+		            <include refid="custGubunWhere"/>
+		            <![CDATA[
+		        UNION ALL
+		
+		        SELECT 
+		              COUNT(*) AS FLAG1    --무상
+		              ,0 AS FLAG2		   --유상
+		          FROM CRM_CUST_MGT A            --Lineus 거래처 마스터 테이블
+		               ,CRM_CUST_OPERATE_INFO B  --Lineus 거래처 운영정보 테이블
+		               ,KYERP.TB_SD_MAINT_MST C  --ERP 무상계약 테이블
+		         WHERE 1=1
+		            AND A.SEQ = B.SEQ
+		            AND A.CUST_CODE = C.CUST_CODE(+)
+		            AND B.HIS_YN = 'Y'                  
+		            AND B.DEAL_CODE IN ('C001')
+		            AND C.MAINT_END_DATE < TO_CHAR(SYSDATE,'YYYYMMDD')
+		            ]]>
+		            <include refid="custGubunWhere"/>
+		            <![CDATA[
+		       )
+	]]>
+	</select>
+	
+	<!--  유지보수 계약 지연 거래처 수_old    -->
+	<select id="getDelPayInfoCount_old" parameterType="mainVO" resultType="map">
+		<![CDATA[
+		SELECT 
+		    SUM(DECODE(IN_TB.DEAL_CODE , 'C001' , 1 , 0)) FLAG1,
+		    SUM(DECODE(IN_TB.DEAL_CODE , 'C002' , 1 , 0)) FLAG2
+		FROM(SELECT 
+		    CM.SEQ ,
+		    CM.CRM_CODE,
+		    COI.DEAL_CODE
+		FROM
+		    CRM_CUST_MGT CM, CRM_CUST_OPERATE_INFO COI
+		WHERE 1=1 
+		    AND CM.SEQ = COI.SEQ
+		    AND COI.DEAL_CODE IN('C001','C002')
+		    AND COI.HIS_YN = 'Y'
+		]]>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "1"'>
+			AND CM.CUST_GUBUN IN('C003','C004')
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "2"'>
+			AND CM.CUST_GUBUN = 'C002'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "3"'>
+			AND CM.CUST_GUBUN = 'C001'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "4"'>
+			AND CM.CUST_GUBUN = 'C005'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "5"'>
+			AND CM.CUST_GUBUN = 'C006'
+		</if>
+		<![CDATA[    
+		    ) IN_TB,CRM_CUST_MAINTENANCE_HIST_CC CC
+			WHERE 1=1 
+			AND IN_TB.CRM_CODE = CC.CRM_CODE(+)
+			AND CC.BILL_CODE = #{search_type1} 
+			AND CC.MTAC_END_DT < TO_CHAR(SYSDATE,'YYYYMMDD')
+		]]>
+	</select>
+	 
+	<!-- 계약 상세 정보 리스트(무상) -->
+	<select id="getPayInfoListFree" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		SELECT ROW_NUMBER() OVER (ORDER BY F.FLAG4 ) AS RNUM
+           ,F.*
+	    FROM ( 
+	        SELECT D.CRM_CODE
+	           ,D.CUST_KOR_NAME
+	           ,D.CUST_ADDRESS
+	           ,D.DEAL_CODE
+	           ,D.DEAL_CODE_NAME
+	           ,(SELECT Z.BASE_CD_NM FROM KYERP.TB_CM_CODE_DTL Z WHERE Z.BASE_CD_GRP = 'CM0030' AND Z.BASE_CD = D.CONTRACT_KIND) AS ITEM_NM
+	           ,D.MTAC_START_DT
+	           ,D.MTAC_END_DT
+	           ,D.HIS_TREAT_CODE
+	           ,D.HIS_TREAT_CODE_NM
+	           ,D.FLAG1
+	           ,D.FLAG2
+	           ,'C001' AS BILL_CODE
+	           ,CASE 
+	                WHEN FLAG1 <> '0'AND FLAG2 <> '0' THEN TRUNC(FLAG2 / FLAG1*100)
+	                WHEN FLAG1 IS NULL AND FLAG2 IS NULL THEN NULL 
+	                ELSE 0 
+	              END FLAG3
+	            ,CASE
+	                 WHEN TRUNC(SYSDATE) < TO_DATE(D.MTAC_END_DT, 'YYYYMMDD') --계약기간이 남았으면
+	                    THEN (TO_DATE(D.MTAC_END_DT, 'YYYYMMDD') - TO_DATE(D.MTAC_START_DT, 'YYYYMMDD') ) - (TRUNC(SYSDATE) - TO_DATE(D.MTAC_START_DT, 'YYYYMMDD'))
+	                 WHEN FLAG1 IS NULL AND FLAG2 IS NULL THEN NULL
+	                 ELSE 0
+	              END FLAG4
+	        FROM(
+	            SELECT 
+	                   A.CRM_CODE
+	                   ,A.CUST_KOR_NAME
+	                   ,SUBSTR(A.CUST_ADDRESS, 1, (INSTR(A.CUST_ADDRESS, ' ')-1)) CUST_ADDRESS
+	                   ,B.DEAL_CODE                    --HIS 거래상태
+	                   ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST'AND Z.P_CODE = 'CD03' AND Z.CODE = B.DEAL_CODE)DEAL_CODE_NAME
+	                   ,C.CONTRACT_KIND 
+	                   ,C.MAINT_ST_DATE AS MTAC_START_DT
+	                   ,C.MAINT_END_DATE AS MTAC_END_DT
+	                   ,B.HIS_TREAT_CODE
+	                   ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD05' AND Z.CODE = B.HIS_TREAT_CODE) HIS_TREAT_CODE_NM
+	                   ,TO_DATE(C.MAINT_END_DATE, 'YYYYMMDD') - TO_DATE(C.MAINT_ST_DATE, 'YYYYMMDD') FLAG1
+	                   ,CASE
+	                        WHEN TRUNC(SYSDATE) < TO_DATE(C.MAINT_END_DATE, 'YYYYMMDD') THEN TRUNC(SYSDATE) - TO_DATE(C.MAINT_ST_DATE, 'YYYYMMDD')
+	                        ELSE TO_DATE(C.MAINT_END_DATE, 'YYYYMMDD') - TO_DATE(C.MAINT_ST_DATE, 'YYYYMMDD')
+	                    END FLAG2
+	
+	              FROM CRM_CUST_MGT A            --Lineus 거래처 마스터 테이블
+	                   ,CRM_CUST_OPERATE_INFO B  --Lineus 거래처 운영정보 테이블
+	                   ,KYERP.TB_SD_MAINT_MST C  --ERP 무상계약 테이블
+	             WHERE 1=1
+	                AND A.SEQ = B.SEQ
+	                AND A.CUST_CODE = C.CUST_CODE(+)
+	                AND B.HIS_YN = 'Y'                  
+	                AND B.DEAL_CODE = #{search_type2}    
+	                ]]>
+				<include refid="custGubunWhere"/>		
+			<![CDATA[
+	            )D  
+	         )F
+	    ORDER BY FLAG4, FLAG3 DESC 
+	 	]]>
+	 </select>
+	 
+	 <!-- 계약 상세 정보 리스트(유상,해지,중지,폐업) -->
+	<select id="getPayInfoListNotFree" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		SELECT ROW_NUMBER() OVER (ORDER BY F.FLAG4 ) AS RNUM
+	           ,F.*
+	     FROM (      
+	        SELECT CRM_CODE
+	                ,E.CUST_KOR_NAME
+	                ,E.CUST_ADDRESS
+	                ,E.DEAL_CODE
+	                ,E.DEAL_CODE_NAME
+	                ,E.BILL_CODE
+	                ,E.MTAC_START_DT
+	                ,E.MTAC_END_DT
+	                ,E.HIS_TREAT_CODE
+	                ,E.HIS_TREAT_CODE_NM
+	                ,E.CANCEL_DT    --해지일
+	                ,E.ITEM_NM
+	                ,E.FLAG1
+	                ,E.FLAG2
+	                ,CASE 
+	                    WHEN FLAG1 <> '0'AND FLAG2 <> '0' THEN TRUNC(FLAG2 / FLAG1*100)
+	                    WHEN FLAG1 IS NULL AND FLAG2 IS NULL THEN NULL 
+	                    ELSE 0 
+	                  END FLAG3
+	                ,CASE
+	                     WHEN TRUNC(SYSDATE) < TO_DATE(E.MTAC_END_DT, 'YYYYMMDD') --계약기간이 남았으면
+	                        THEN (TO_DATE(E.MTAC_END_DT, 'YYYYMMDD') - TO_DATE(E.MTAC_START_DT, 'YYYYMMDD') ) - (TRUNC(SYSDATE) - TO_DATE(E.MTAC_START_DT, 'YYYYMMDD'))
+	                     WHEN FLAG1 IS NULL AND FLAG2 IS NULL THEN NULL
+	                     ELSE 0
+	                  END FLAG4
+	                
+	         FROM 
+	            (SELECT 
+	                A.CRM_CODE
+	                ,A.CUST_KOR_NAME
+	                ,SUBSTR(A.CUST_ADDRESS, 1, (INSTR(A.CUST_ADDRESS, ' ')-1)) CUST_ADDRESS
+	                ,B.DEAL_CODE                    --HIS 거래상태
+	                ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST'AND Z.P_CODE = 'CD03' AND Z.CODE = B.DEAL_CODE)DEAL_CODE_NAME
+	                ,DECODE(C.CODE_ITEM, 'C300000001', 'C001', 'C300000005', 'C004', 'C300000006', 'C006', 'C009') AS BILL_CODE
+	                ,C.ST_DATE AS MTAC_START_DT     --계약 시작일
+	                ,C.END_DATE AS MTAC_END_DT      --계약 종료일
+	                ,B.HIS_TREAT_CODE               --진료버전 코드
+	                ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD05' AND Z.CODE = B.HIS_TREAT_CODE) HIS_TREAT_CODE_NM
+	                ,TO_DATE(C.END_DATE, 'YYYYMMDD') - TO_DATE(C.ST_DATE, 'YYYYMMDD') FLAG1
+	                ,CASE
+	                    WHEN TRUNC(SYSDATE) < TO_DATE(C.END_DATE, 'YYYYMMDD') THEN TRUNC(SYSDATE) - TO_DATE(C.ST_DATE, 'YYYYMMDD')
+	                    ELSE TO_DATE(C.END_DATE, 'YYYYMMDD') - TO_DATE(C.ST_DATE, 'YYYYMMDD')
+	                END FLAG2
+	                ,B.CANCEL_DT
+	                ,C.CODE_ITEM
+	                ,(SELECT Z.ITEM_NM FROM KYERP.TB_CM_ITEM_MST Z WHERE C.CODE_ITEM = Z.ITEM_CD ) ITEM_NM
+	            FROM 
+	                CRM_CUST_MGT A
+	                ,CRM_CUST_OPERATE_INFO B
+	                ,(SELECT 
+	                    D.PK_SEQ
+	                    ,D.CUST_CODE
+	                    ,D.EMP_NO
+	                    ,D.POST_CODE
+	                    ,D.CODE_ITEM
+	                    ,D.SUPP_AMT
+	                    ,D.VAT
+	                    ,D.ST_DATE
+	                    ,D.END_DATE
+	                    ,D.GYEYAG_IL
+	                    ,D.HAEJI_FG 
+	                FROM 
+	                    KYERP.TB_FI_AUTO_BILL D
+	                WHERE 1=1
+	                ]]>
+					<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) == "C002"'>
+	                    AND D.HAEJI_FG = 'N'             --유상이면 해지:N
+					</if>
+					<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != "C002"'>
+	                    AND D.HAEJI_FG = 'Y'             --중지,해지,폐업 이면 해지:Y
+					</if>
+					<![CDATA[
+	                    AND D.POST_CODE = '63100'        --부서:MA사업팀
+	                    AND D.CODE_ITEM = 'C300000001'   --품목:ONTIC HIS 유보료
+	                   )C
+	            WHERE 1=1
+	                AND A.SEQ = B.SEQ
+	                AND A.CUST_CODE = C.CUST_CODE(+)
+	                AND B.HIS_YN = 'Y'
+	                AND B.DEAL_CODE = #{search_type2}     -- C002:유상, C003:해지, C004:폐업, C005:중지
+	            ]]>
+				<include refid="custGubunWhere"/>
+			<![CDATA[
+	          )E
+	      )F
+	    ORDER BY FLAG4, FLAG3 DESC
+	 ]]>
+	 </select>
+	 
+	 <!-- 계약 상세 정보 리스트_old -->
+	<select id="getPayInfoList_old" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		SELECT 
+   			ROW_NUMBER() OVER (ORDER BY SORT_TB.FLAG4 ) AS RNUM,
+   			SORT_TB.*
+		FROM(SELECT 
+			  MAIN_TB.CRM_CODE ,
+			  MAIN_TB.CUST_KOR_NAME ,
+			  SUBSTR(MAIN_TB.CUST_ADDRESS, 1, (INSTR(MAIN_TB.CUST_ADDRESS, ' ')-1)) CUST_ADDRESS ,
+			  COI.DEAL_CODE ,
+			  (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD03' AND Z.CODE = COI.DEAL_CODE)DEAL_CODE_NAME ,
+			  MAIN_TB.BILL_CODE ,
+			  MAIN_TB.MTAC_START_DT ,
+			  MAIN_TB.MTAC_END_DT ,
+			  COI.HIS_TREAT_CODE ,
+			  (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD05'AND Z.CODE = COI.HIS_TREAT_CODE) HIS_TREAT_CODE_NM, 
+			  MAIN_TB.FLAG1,
+			  MAIN_TB.FLAG2,
+			  COI.CANCEL_DT,
+			  CASE 
+			       WHEN FLAG1 <> '0'  AND FLAG2 <> '0'  THEN TRUNC(FLAG2 / FLAG1*100)
+			       WHEN FLAG1 IS NULL AND FLAG2 IS NULL THEN NULL
+			       ELSE 0
+			       END FLAG3,
+			  CASE 
+			       WHEN TRUNC(SYSDATE) < TO_DATE(MAIN_TB.MTAC_END_DT, 'YYYYMMDD')  THEN (TO_DATE(MAIN_TB.MTAC_END_DT, 'YYYYMMDD') - TO_DATE(MAIN_TB.MTAC_START_DT, 'YYYYMMDD') ) - (TRUNC(SYSDATE) - TO_DATE(MAIN_TB.MTAC_START_DT, 'YYYYMMDD')) 
+			       WHEN FLAG1 IS NULL AND FLAG2 IS NULL THEN NULL
+			       ELSE 0
+			  END FLAG4,
+			  MAIN_TB.ITEM_NM
+		FROM(
+			SELECT 
+		    	*
+			FROM (
+				SELECT 
+					OUT_TB.VW_PK
+					,OUT_TB.ERP_CODE
+					,DECODE(OUT_TB.ITEM_CD,'C300000001','C001','C300000005','C004','C300000006','C006','C009') AS BILL_CODE    
+					,OUT_TB.TOT_AMT
+					,OUT_TB.ST_DATE AS MTAC_START_DT
+					,OUT_TB.END_DATE AS MTAC_END_DT
+					,TO_DATE(OUT_TB.END_DATE, 'YYYYMMDD') - TO_DATE(OUT_TB.ST_DATE, 'YYYYMMDD') FLAG1,
+		        	CASE 
+		    	      WHEN TRUNC(SYSDATE) < TO_DATE(OUT_TB.END_DATE, 'YYYYMMDD')  THEN TRUNC(SYSDATE) - TO_DATE(OUT_TB.ST_DATE, 'YYYYMMDD') 
+		    	       ELSE TO_DATE(OUT_TB.END_DATE, 'YYYYMMDD') - TO_DATE(OUT_TB.ST_DATE, 'YYYYMMDD')  
+		        	END FLAG2
+		        	, (SELECT Z.ITEM_NM FROM KYERP.TB_CM_ITEM_MST Z WHERE 1=1 AND OUT_TB.ITEM_CD = Z.ITEM_CD ) ITEM_NM 
+				FROM (
+		    		SELECT MAX(VW_PK) AS VW_PK
+		        		, ERP_CODE
+		        		, ITEM_CD
+		    		FROM VW_CUST_MAINTENANCE_HIST
+		    		GROUP BY ERP_CODE, ITEM_CD
+				)IN_TB, VW_CUST_MAINTENANCE_HIST OUT_TB
+				WHERE 1=1 
+					AND IN_TB.VW_PK = OUT_TB.VW_PK
+			)CON_TB,CRM_CUST_MGT CUS_TB
+			WHERE 1=1
+				AND CON_TB.BILL_CODE(+) = #{search_type1} 
+				AND CUS_TB.ERP_CODE = CON_TB.ERP_CODE(+) 
+			]]>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "1"'>
+			AND CUS_TB.CUST_GUBUN IN('C003','C004')
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "2"'>
+			AND CUS_TB.CUST_GUBUN = 'C002'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "3"'>
+			AND CUS_TB.CUST_GUBUN = 'C001'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "4"'>
+			AND CUS_TB.CUST_GUBUN = 'C005'
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "5"'>
+			AND CUS_TB.CUST_GUBUN = 'C006'
+		</if>	
+				
+		<![CDATA[
+		)MAIN_TB, CRM_CUST_OPERATE_INFO COI		
+		WHERE 1=1 
+			AND MAIN_TB.SEQ = COI.SEQ
+			AND COI.DEAL_CODE IN('C001','C002','C003','C005')
+			AND COI.HIS_YN = 'Y'
+			)SORT_TB
+		WHERE 1=1 
+			AND DEAL_CODE = #{search_type2}
+			ORDER BY FLAG4 
+		]]>	
+	
+	</select>
+	
+	<!-- A/S현황  AS접수건수 -->
+	<select id="getAsInfoCount" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		SELECT 
+			 IN_TB.TOT_COUNT
+			,IN_TB.FLAG1
+			,IN_TB.FLAG2
+		FROM(SELECT 
+			COUNT(AS_NO) TOT_COUNT,
+			SUM(DECODE(CUST_CODE , #{search_type1}  , 1 , 0)) FLAG1,
+			SUM(CASE WHEN CUST_CODE = #{search_type1} AND PROC_STATUS ='C005' THEN 1 ELSE 0 END) FLAG2   
+		FROM 
+			CRM_AS_MGT
+		WHERE 1=1
+			AND AS_NO BETWEEN  #{search_type2} || '01000' AND #{search_type3} || '31999'    
+			AND DEL_YN IS NULL
+		)IN_TB
+	]]>
+	</select>
+	
+	
+	
+	<!-- A/S현황 AS문의유형-->
+	<select id="getAsServiceCateInfoCount" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		SELECT 
+		    IN_TB.SERVICE_CATE
+		    ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = IN_TB.SERVICE_CATE)SERVICE_CATE_NM
+		    ,IN_TB.SERVICE_COUNT
+		FROM(SELECT
+			SERVICE_CATE,
+			COUNT(SERVICE_CATE) SERVICE_COUNT
+		FROM CRM_AS_MGT 
+		WHERE 1=1
+		AND AS_NO BETWEEN  #{search_type2} || '01000' AND #{search_type3} || '31999'
+		AND CUST_CODE =  #{search_type1}  
+		AND DEL_YN IS NULL
+		GROUP BY SERVICE_CATE
+		ORDER BY COUNT(SERVICE_CATE) DESC
+		)IN_TB
+		WHERE 1=1 
+		AND ROWNUM < 6  
+	]]>
+	</select>
+	
+	<!-- A/S현황 AS상태-->
+	<select id="getAsStatusInfoCount" parameterType="mainVO" resultType="map">
+	<![CDATA[
+		SELECT 
+		    COUNT(AS_NO)CNT,
+		    PROC_STATUS,
+		    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD01' AND Z.CODE = PROC_STATUS) PROC_STATUS_NM
+		FROM CRM_AS_MGT 
+		WHERE 1=1 
+		    AND CUST_CODE = #{search_type1}
+		    AND AS_NO BETWEEN  #{search_type2} || '01000' AND #{search_type3} || '31999'
+		    AND DEL_YN IS NULL
+		GROUP BY PROC_STATUS  
+		ORDER BY COUNT(AS_NO)
+	]]>
+	</select>
+	
+	<select id="getHisCustList" resultType="custVO">
+	/* 메인 대시보드 엑셀 다운로드 */
+		SELECT ROW_NUMBER() OVER (ORDER BY C.DEAL_CODE, C.CRM_CODE ) AS RNUM
+		       , C.* 
+		  FROM (
+		        SELECT 
+		            A.CUST_KOR_NAME
+		            , A.CRM_CODE
+		            , B.DEAL_CODE
+		            , (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD03' AND  Z.CODE = B.DEAL_CODE) AS DEAL_CODE_NM
+		            , (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD05' AND Z.CODE = B.HIS_TREAT_CODE) AS HIS_TREAT_CODE_NM
+		            , SUBSTR(A.CUST_ADDRESS, 1, (INSTR(A.CUST_ADDRESS, ' ')-1)) CUST_ADDRESS
+		        FROM CRM_CUST_MGT A
+		             , CRM_CUST_OPERATE_INFO B
+		        WHERE 1=1 
+		            AND A.SEQ = B.SEQ
+		            AND B.HIS_YN = 'Y'
+		        )C
+	</select>
+ 	 
+		
+</mapper>

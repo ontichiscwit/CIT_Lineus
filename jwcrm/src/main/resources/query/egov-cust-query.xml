@@ -1,0 +1,1202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="custDAO">
+	
+	<resultMap type="custVO" id="custResultMap"></resultMap>
+	
+    <select id="getCustList" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_AD_LIST(
+			#{search_type1},	#{search_type2},	#{search_type3},	#{search_type4},	#{search_type5},
+			#{search_type6},	#{search_type7},	#{search_type8},	#{search_type9},	#{search_text},
+			#{pageType},		#{startRow},			#{endRow},			#{search_type15},
+			#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>
+	</select>
+	
+	<!-- 20181204수정 -->
+	<select id="getSolutionHist" parameterType="custVO" resultType="map">
+		SELECT T1.RECV_CUST_CD AS CUST_CD
+		     , T1.RECV_CUST_NM AS CUST_NM
+		     , T4.BASE_CD_NM AS ITEM_GRP1_NM
+		     , T2.ITEM_CD
+		     , T3.ITEM_NM
+		     , T1.ISSUE_DT
+		     , SUM(T2.SUPP_WON_AMT) AS SUPP_WON_AMT
+		     , SUM(T2.VAT_WON_AMT) AS VAT_WON_AMT
+		     , SUM(T2.SUPP_WON_AMT) + SUM(T2.VAT_WON_AMT) AS TOTAL_AMT 
+		  FROM KYERP.TB_SD_TAX_BILL_MST T1
+		     , KYERP.TB_SD_TAX_BILL_DTL T2
+		     , KYERP.TB_CM_ITEM_MST     T3
+		     , KYERP.TB_CM_CODE_DTL     T4
+		     , KYERP.TB_SD_SALES_ORDER_MST T6
+		 WHERE 1=1
+		   AND T1.TAX_BILL_NUMB = T2.TAX_BILL_NUMB
+		   AND T3.ITEM_CD = T2.ITEM_CD
+		   AND T4.BASE_CD_GRP = 'CM0004'
+		   AND T4.LANG_CD = 'KO'
+		   AND T4.BASE_CD = T3.ITEM_GRP1
+		   AND T1.SALE_TYPE = '00001'
+		   AND T3.ITEM_GRP1 = '00002' 
+		   AND (T1.RECV_CUST_CD = #{erp_code} OR T6.DELIVERY_CUST_CD= #{erp_code})
+		   AND T6.ORDER_NUMB = T2.ORDER_NUMB
+		   AND T6.ORDER_NUMB NOT IN ( 'DO201710310035' 
+                , 'DO201802280014' 
+                , 'DO201711300012' 
+                , 'DO201711300014' 
+                , 'DO201711300011' 
+                , 'DO201711300013' 
+                , 'DO201710310034' 
+                , 'DO201802280016' 
+                , 'DO201805020108'
+                , 'DO201802280015'
+         )
+		 GROUP BY 
+		       T1.RECV_CUST_CD
+		     , T1.RECV_CUST_NM
+		     , T1.ISSUE_DT
+		     , T4.BASE_CD_NM
+		     , T2.ITEM_CD
+		     , T3.ITEM_NM
+		 ORDER BY 
+		       T1.ISSUE_DT DESC
+	</select>
+	
+	<!--ERP거래처 바로선택 -->
+	<select id="getLinkCustInfo_one" parameterType="custVO" resultType="custVO">
+	<![CDATA[
+		
+	SELECT 
+		CUST_CD , 
+		CUST_NM , 
+		REPRESENT , 
+		BIZ_REG_NO , 
+		CORP_REG_NO , 
+		BIZ_CONDITION , 
+		BIZ_TYPE , 
+		ZIP_NM , 
+		ADDR_DETAIL ,
+        ZIP_CD        
+	FROM KYERP.TB_CM_CUSTOMER
+	WHERE 
+		CUST_CD = #{erp_code}
+		
+	]]>		        	
+	</select>
+	
+	<!--ERP 거래처 리스트  -->
+	<select id="getLinkCustInfo" parameterType="custVO" resultType="custVO">
+		SELECT OUT_TB.* FROM (
+			SELECT 
+				IN_TB.*, 
+				ROW_NUMBER() OVER (ORDER BY IN_TB.CUST_CD ) AS RNUM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'COMMON' AND Z.P_CODE = 'CD09' AND Z.CODE = IS_YN) AS IS_YN_NM
+				FROM (
+					SELECT 
+					    A.CUST_CD , 
+					    A.CUST_NM , 
+					    A.REPRESENT , 
+					    A.BIZ_CONDITION ,  
+					    A.BIZ_TYPE , 
+					    A.PUR_USE_YN , <!-- (Y:중지, N:사용) -->
+					    A.ADDR_DETAIL , 
+					    A.CORP_REG_NO , 
+					    A.BIZ_REG_NO,
+					    A.ZIP_NM,
+					    A.ZIP_CD,
+					    NVL2(B.ERP_CODE,'C001','C002') IS_YN
+					FROM KYERP.TB_CM_CUSTOMER A, CRM_CUST_MGT B
+			   WHERE 1=1
+			   <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_nm) != ''">
+				AND UPPER(A.CUST_NM) LIKE UPPER('%'|| #{cust_nm} ||'%')
+			   </if>
+			    AND A.CUST_CD = B.ERP_CODE(+)
+		   	   	AND A.PUR_USE_YN  = 'N'
+			    AND A.TRANS_GBN ='00005'
+			) IN_TB
+			WHERE 1=1
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(is_yn) != ''">
+				AND IN_TB.IS_YN = #{is_yn}
+			</if>
+		) OUT_TB
+	WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC
+	</select>
+	
+	<!-- erpcode  -->
+	<select id="getLinkCustInfoCnt" parameterType="custVO" resultType="java.lang.Integer">
+		SELECT COUNT(OUT_TB.CUST_CD)
+			FROM(
+				SELECT IN_TB.* 
+		 FROM (
+		     SELECT 
+			    A.CUST_CD , 
+			    A.CUST_NM , 
+			    A.REPRESENT , 
+			    A.BIZ_CONDITION ,  
+			    A.BIZ_TYPE , 
+			    A.PUR_USE_YN , 
+			    A.ADDR_DETAIL , 
+			    A.CORP_REG_NO , 
+			    A.BIZ_REG_NO,
+			    A.ZIP_NM,
+			    A.TRANS_GBN,
+         		NVL2(B.ERP_CODE, 'C001', 'C002') IS_YN
+			 FROM
+			   KYERP.TB_CM_CUSTOMER A, CRM_CUST_MGT B
+			 WHERE 1=1
+			 	AND A.CUST_CD = B.ERP_CODE(+)
+         		AND A.PUR_USE_YN = 'N'
+         		AND A.TRANS_GBN ='00005'   
+			   <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_nm) != ''">
+				AND	UPPER(A.CUST_NM) LIKE UPPER('%'|| #{cust_nm} ||'%')
+		   	   </if>
+		  	)IN_TB
+			WHERE 1=1 
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(is_yn) != ''">
+				AND IN_TB.IS_YN = #{is_yn}
+			</if>
+		)OUT_TB
+	</select>
+	
+	
+	
+	
+	
+	<select id="crmCodeChk" parameterType="custVO" resultType="int">
+		SELECT COUNT(*) FROM CRM_CUST_MGT WHERE CRM_CODE = #{crm_code}
+	</select>
+	
+	
+	<update id="updateInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_MGT_REGIST(
+		#{seq},						#{erp_code},			#{erp_code},			#{ceo},						#{treat_no},
+		#{cust_nm},				#{cust_no},				#{law_no},				#{buss_condition},		#{buss_item},
+		#{zip_code},				#{cust_address},		#{cust_kor_name},	#{crm_code},				#{cust_gubun},			
+		#{foundation_code},	#{foundation_dt},	#{contract_dt},		#{sales},						#{bed_count},			
+		#{payment_code},		#{director_no},		#{director_addr},		#{director_dtl},			#{sales_grade},		
+		#{foundation_grade},	#{detail_etc},			#{detail_etc2},			#{reg_id},					#{pageType}
+		,#{maintenance_raise_dt}	 	
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<update id="insertIssue" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_ISSUE_REGIST(
+		#{seq},							#{dtl_seq},					#{gubun_code},				#{contents},				#{reg_id},
+		#{action_result_code},	#{action_result_etc},	#{action_change_date},	#{action_emp_id},	#{pageType}	 	
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<select id="getCustInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_MGT_DETAIL(
+		#{seq},
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>	
+	</select>
+	
+	<select id="getCustIssueList" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_ISSUE_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}	
+	]]>	
+	</select>
+	
+	<update id="updateProject" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_REGIST(
+		#{seq},				    #{open_dt},				#{approval_dt},   	#{package_code},				#{term_start_dt},		#{term_end_dt},
+		#{term_person_count},	#{mtac_month},			#{test_dt},						#{pm},						#{version},	 	
+		#{formation_code},		#{server_code},			#{model_code},				#{os},						#{ram},	 	
+		#{sid},							#{oracle_version},		#{server_ip},					#{server_id},			#{server_pw},	 	
+		#{dur_ip},					#{mtac_contract_dt},	#{pc},								#{cust_kor_name},	#{crm_code},	 	
+		#{cust_gubun},				#{ceo},							#{cust_no},						#{law_no},				#{treat_no},	 	
+		#{accident_no},			#{tel_no},					#{fax_no},						#{post_no},				#{buss_open_dt},
+		#{addr},						#{email},						#{homepage},					#{buss_condition},	#{buss_item},
+		#{basic_etc},				#{bed_count},				#{medical_office},				#{support_office},		#{medical_office2},
+		#{specially_code},			#{doctor_count},			#{nurse_count},				#{veterans_yn},		#{military_yn},
+		#{new_code},				#{old_company_nm},	#{come_count},				#{average_count},	#{outside_cust_code},
+		#{charge_yn},				#{detail_etc},				#{pageType},					#{p_lock}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<update id="updateMtac" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_MTAC_REGIST(
+		#{seq},							#{dtl_seq},					#{mtac_cust_code},			#{reg_id},				#{pageType}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<update id="updateVc" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_VC_REGIST(
+		#{seq},							#{dtl_seq},					#{vc_code},			#{reg_id},				#{pageType}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<update id="updateBd" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_BD_REGIST(
+		#{seq},							#{dtl_seq},					#{bd_code},			#{bd_etc},			#{reg_id},				#{pageType}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<update id="updateCharge" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_CHAR_REGIST(
+		#{seq},							#{dtl_seq},					#{charge_code},			#{charge_nm},			#{company_tel_no},				
+		#{hp_no},						#{email},						#{etc},						#{pageType}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<select id="getProjectInfoCnt" parameterType="custVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(*) FROM CRM_CUST_PROJECT_MGT WHERE SEQ = #{seq}
+	]]>
+	</select>
+	
+	<select id="getProjectInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_DETAIL(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>
+	</select>
+	
+	<select id="getMtacHistInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_MAIN_HIST_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>
+	</select>
+	
+	<select id="getMtacInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_MTAC_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>
+	</select>
+	
+	<select id="getVcInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_VC_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}	
+	]]>
+	</select>
+	
+	<select id="getBdInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_BD_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}	
+	]]>
+	</select>
+	
+	<select id="getChargeInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_PROJECT_CHARGE_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}	
+	]]>
+	</select>
+	
+	<!-- 관리문서 상세 -->
+	<!-- <select id="getDocInfo" parameterType="custVO" resultType="custVO">
+		SELECT 
+		  A.SEQ as doc_seq ,
+		  A.CUST_SEQ,
+		  A.CRM_CODE as D_CRM_CODE ,
+		  A.FILE_SEQ ,
+		  (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD44' AND Z.CODE = A.DOC_TYPE)  as D_DOC_TYPE ,
+		  (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = A.DOC_TYPE AND Z.CODE = A.DETAIL_TYPE) as D_DETAIL_TYPE ,
+		  A.STD_DT as D_STD_DT ,
+		  A.DOC_COMMENT as D_DOC_COMMENT ,
+		  A.REG_DATE as D_REG_DATE ,
+		  A.REG_ID as D_REG_ID ,
+		  A.DEL_DATE as D_DEL_DATE ,
+		  A.DEL_ID as D_DEL_ID ,
+		  A.DEL_YN as D_DEL_YN,
+		  B.EMP_NM
+		FROM CRM_CUST_DOC_MGT A INNER JOIN CRM_EMP_MGT B ON A.REG_ID = B.EMP_NO
+		WHERE A.CUST_SEQ = #{cust_seq}
+	</select>
+	 -->
+	
+	
+	<!-- 관리문서 상세 -->
+	<select id="getDocInfo" parameterType="custVO" resultType="custVO">
+		SELECT 
+		  A.SEQ as doc_seq ,
+		  A.CUST_SEQ,
+		  A.CRM_CODE as D_CRM_CODE ,
+		  (
+		    SELECT CODE_NAME
+		    FROM CRM_CODE_DETAIL Z
+		    WHERE Z.CODE_GROUP = 'CUST'
+		      AND Z.P_CODE = 'CD44'
+		      AND Z.CODE = A.DOC_TYPE) as D_DOC_TYPE ,
+		  (
+		    SELECT CODE_NAME
+		    FROM CRM_CODE_DETAIL Z
+		    WHERE Z.CODE_GROUP = 'CUST'
+		      AND Z.P_CODE = A.DOC_TYPE
+		      AND Z.CODE = A.DETAIL_TYPE) as D_DETAIL_TYPE ,
+		  A.STD_DT as D_STD_DT ,
+		  A.DOC_COMMENT as D_DOC_COMMENT ,
+		  NVL((
+				 SELECT E.EMP_NM
+				 FROM CRM_EMP_MGT E
+				 WHERE A.REG_ID = E.EMP_NO), '') as REG_NM,
+		  A.REG_ID as D_REG_ID ,
+		  to_char(A.REG_DATE,'yyyy-mm-dd HH24:mi:ss') as D_REG_DATE,
+		  A.DEL_ID as D_DEL_ID ,
+		  A.DEL_YN as D_DEL_YN,
+		  A.FILE_SEQ,
+		  F.ATTACH_SAVE_NM,
+		  F.ATTACH_PATH,
+		  F.ATTACH_PATH_DTL,
+		  F.ATTACH_ORI_NM,
+		  F.ATTACH_ORD
+		FROM 
+		CRM_CUST_DOC_MGT A,
+		CRM_ATTACH_MGT F
+		WHERE 
+		A.CUST_SEQ = #{cust_seq}
+		AND A.FILE_SEQ = F.ATTACH_SEQ
+		ORDER BY SEQ 
+	</select>
+	
+	
+	
+	<!-- 문서등록 -->
+	<insert id="insertDoc" parameterType="custVO">
+		INSERT INTO CRM_CUST_DOC_MGT(
+			SEQ
+			,REG_DATE
+			,FILE_SEQ
+			,DOC_TYPE
+			,DETAIL_TYPE
+			,STD_DT
+			,REG_ID
+			,CUST_SEQ
+			,DOC_COMMENT
+		)VALUES(
+			MAX_DOC_SEQ.NEXTVAL
+			,SYSDATE
+			,#{file_seq}
+			,#{d_doc_type}
+			,#{d_detail_type}
+			,#{d_std_dt}
+			,#{d_reg_id}
+			,#{cust_seq}
+			,#{d_doc_comment}
+		)
+	</insert>
+	
+	
+	<!-- 문서 삭제  -->
+	<delete id="deleteDoc" parameterType="custVO">
+		DELETE CRM_cust_doc_mgt
+		WHERE SEQ = #{doc_seq} 
+	</delete>
+	
+	
+	<!-- 거래처관리-운영 담당자 검색  -->
+	<select id="getChargeEmpCnt" parameterType="custVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+		    COUNT(A.SEQ)
+		FROM 
+		    CRM_CUST_OPERATE_CHARGE A
+		WHERE 1 =1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_code) != ''">
+			AND SEQ IN (
+				SELECT SEQ
+				FROM CRM_CUST_MGT
+				WHERE CRM_CODE = #{cust_code}
+			)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND  UPPER(A.CHARGE_NM) LIKE '%'|| UPPER(#{search_text}) ||'%'  
+		</if>
+	</select>
+	
+    <select id="getChargeEmpList" parameterType="custVO" resultType="custVO">
+	<![CDATA[
+		SELECT OUT_TB.* FROM (
+			SELECT IN_TB.* , ROW_NUMBER() OVER (ORDER BY IN_TB.DTL_SEQ ) AS RNUM FROM (
+				SELECT 
+				    SEQ , 
+				    (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD27' AND Z.CODE = CHARGE_CODE) AS CHARGE_CODE ,
+				    CHARGE_NM,
+				    COMPANY_TEL_NO , 
+				    HP_NO ,  
+				    EMAIL,
+				    ETC,
+				    DTL_SEQ
+				FROM
+				    CRM_CUST_OPERATE_CHARGE
+			) IN_TB
+			WHERE 1 =1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_code) != ''">
+			AND SEQ IN (
+				SELECT SEQ
+				FROM CRM_CUST_MGT
+				WHERE CRM_CODE = #{cust_code}
+			)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND  UPPER(CHARGE_NM) LIKE '%'|| UPPER(#{search_text}) ||'%'  
+		</if>
+	<![CDATA[
+		) OUT_TB
+			WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY RNUM DESC
+	]]>
+	</select>
+	
+	<select id="getSelectOneChargeInfo" parameterType="custVO" resultType="custVO">
+	   <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(tel_type) == 'COMPANY_TEL_NO'.toString()">
+			SELECT 
+				COMPANY_TEL_NO , 
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(tel_type) == 'HP_NO'.toString()">
+			SELECT 
+				HP_NO , 
+		</if>
+		<![CDATA[
+			SEQ ,
+			CHARGE_NM ,
+			EMAIL
+		FROM CRM_CUST_OPERATE_CHARGE
+		WHERE 1= 1
+		 ]]>
+		 <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_seq) != ''">
+			AND SEQ = #{cust_seq}
+		 </if>
+		  <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(dtl_seq) != ''">     
+			AND DTL_SEQ = #{dtl_seq} 
+		</if>
+	</select>
+		
+
+
+	<update id="updateOperate" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_INFO_REGIST(
+		#{seq},						#{deal_code},				#{his_basic_code},	#{his_treat_code},		#{his_work_code},				
+		#{his_claim_code},		#{specially_code},		#{bed_count},			#{veterans_yn},			#{military_yn},
+		#{choice_yn},				#{dentist_yn},				#{mental_yn},			#{oriental_yn},			#{hemodialysis_yn},
+		#{care_yn},					#{emergencyop_yn},			#{nedis_yn},			#{narcotics_yn},		#{onticsense_yn},
+		#{van_yn},
+		#{medicine_info_cust_code},	#{emergency_type_code},		#{card_van_cust_code},	#{examination_cust_code}, #{pasc_cust_code},	
+		#{doctor_count},			#{nurse_count},		#{care_grade},			#{new_code},
+		#{old_company_nm},	#{outside_cust_code},	#{average_count},	#{come_count},			#{charge_yn},
+		#{detail_etc},				#{pageType},
+		#{formation_code},		#{server_code},			#{model_code},		#{os},							#{ram},		
+		#{sid},							#{oracle_version},		#{server_ip},			#{server_id},				#{server_pw},		
+		#{dur_ip},					#{mtac_contract_dt},	#{pc},		#{cancel_dt},	#{checkup_yn},	#{his_yn}, #{ch_cancel_dt},
+		#{ch_deal_code},		   	#{ecfc},		#{kiosk_usage},		#{eform_usage}, #{hie}, #{issmgt_yn}, #{sms_yn}, #{alimtalk_yn}, #{qkact_yn}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<update id="updateOperateCharge" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_CHAR_REGIST(
+		#{seq},							#{dtl_seq},					#{charge_code},				#{charge_nm},					#{company_tel_no},				
+		#{hp_no},					#{email},						#{etc},								#{pageType}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<update id="updateOperateNote" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_NOTE_REGIST(
+		#{seq},					#{dtl_seq},					#{gubun},				#{contents},					#{reg_id},				
+		#{etc},					#{pageType}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<select id="getOperateInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_INFO_DETAIL(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>
+	</select>
+	
+	<select id="getOperateChargeInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_CHAR_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}	
+	]]>
+	</select>
+	
+	<select id="getOperateNoteInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_NOTE_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}	
+	]]>
+	</select>
+	
+	<!-- 유지보수 -->
+	<update id="updateMtacList" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_MAIN_HIST_REGIST(
+		#{seq},					#{dtl_seq},					#{contract_seq},			#{contract_nm},					#{contract_dt},				
+		#{bill_code},			#{mtac_code},			#{mtac_start_dt},		#{mtac_end_dt},					#{mon_off_amt},				
+		#{year_off_amt},	#{etc},						#{reg_id},					#{pageType},						#{ht_cnt},
+		#{deal_code},			#{buy_busi_name},		#{buy_cost},				#{service_period},				#{service_method},
+		#{auto_renew_yn}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<select id="getErpList" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_ERP_CODE_LIST(
+			#{seq},
+			#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>		        
+	</select>
+	
+	<select id="getGroupCodeList" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_GROUP_CODE_LIST(
+			#{base_cd_grp},
+			#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>		        
+	</select>
+	
+	<update id="updateInstall" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_INSTALL_HIST_REGIST(
+		#{seq},					#{dtl_seq},					#{erp_code},					#{group_code1},					#{group_code2},				
+		#{group_code3},	#{matr_code},				#{reg_id},						#{etc},									#{serial_no},				
+		#{pageType},		#{ins_cnt}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<select id="getForm4List" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_INSTALL_HIST_LIST(
+			#{seq},
+			#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>		        
+	</select>
+	
+	<select id="getForm4List2" parameterType="custVO" resultType="CustVO">
+	<![CDATA[
+		SELECT * FROM VW_CUST_INSTALL_HIST
+		WHERE ERP_CODE = #{erp_code}
+	]]>		        
+	</select>
+	
+	<update id="updateOperateForProcject" parameterType="custVO">
+	<![CDATA[
+		UPDATE CRM_CUST_OPERATE_INFO
+		SET
+			SPECIALLY_CODE 			= #{specially_code, jdbcType=VARCHAR},
+			BED_COUNT 					= #{bed_count, jdbcType=VARCHAR},
+			VETERANS_YN 				= #{veterans_yn, jdbcType=VARCHAR},
+			MILITARY_YN 				= #{military_yn, jdbcType=VARCHAR},
+			
+			DOCTOR_COUNT 			= #{doctor_count, jdbcType=VARCHAR},		
+			NURSE_COUNT 			= #{nurse_count, jdbcType=VARCHAR}	,		
+			CARE_GRADE 				= #{care_grade, jdbcType=VARCHAR},
+			NEW_CODE					= #{new_code, jdbcType=VARCHAR}		,		
+			OLD_COMPANY_NM 		= #{old_company_nm, jdbcType=VARCHAR},
+			COME_COUNT 				= #{come_count, jdbcType=VARCHAR},
+			AVERAGE_COUNT 			= #{average_count, jdbcType=VARCHAR},	
+			OUTSIDE_CUST_CODE 	= #{outside_cust_code, jdbcType=VARCHAR},
+			CHARGE_YN 					= #{charge_yn, jdbcType=VARCHAR},
+			FORMATION_CODE 		= #{formation_code, jdbcType=VARCHAR},  
+			SERVER_CODE 				= #{server_code, jdbcType=VARCHAR},
+			MODEL_CODE 				= #{model_code, jdbcType=VARCHAR},
+            OS 								= #{os, jdbcType=VARCHAR},
+            RAM 								= #{ram, jdbcType=VARCHAR},
+            SID 								= #{sid, jdbcType=VARCHAR},
+            ORACLE_VERSION 		= #{oracle_version, jdbcType=VARCHAR},     
+            SERVER_IP 					= #{server_ip, jdbcType=VARCHAR},
+            SERVER_ID 					= #{server_id, jdbcType=VARCHAR},
+            SERVER_PW 					= #{server_pw, jdbcType=VARCHAR},
+            DUR_IP 						= #{dur_ip, jdbcType=VARCHAR},
+            MTAC_CONTRACT_DT 	= #{mtac_contract_dt, jdbcType=VARCHAR},  
+            PC 								= #{pc, jdbcType=VARCHAR},
+            ECFC 								= #{ecfc, jdbcType=VARCHAR},
+            KIOSK_USAGE 					= #{kiosk_usage, jdbcType=VARCHAR},
+            EFORM_USAGE 					= #{eform_usage, jdbcType=VARCHAR},
+            HIE 					= #{hie, jdbcType=VARCHAR}
+		WHERE 
+			SEQ = #{seq} 
+	]]>
+	</update>
+	
+	<select id="getPayInfo" parameterType="custVO" resultType="custVO">
+	<![CDATA[
+		SELECT 
+			X.ERP_CODE,
+			SUBSTR(SALE_DT,1,6) SALE_YM, 
+		    SUM(NVL(UBO_AMT,0)) UBO_AMT, 
+		    SUM(NVL(SU_AMT,0)) SU_AMT    
+		FROM ( 
+		        SELECT DISTINCT ERP_CODE FROM CRM_CUST_MGT_HIST
+		        WHERE CRM_CODE = #{crm_code, jdbcType=VARCHAR}
+		     ) X,
+		     (SELECT CUST_CD,SALE_DT,WON_AMT + VAT_AMT UBO_AMT ,COLL_WON_AMT SU_AMT
+		      FROM   KYERP.TB_SD_RECEIVABLE_DTL
+		      WHERE 1=1
+		       AND  CURRENCY  = '00001'
+			   AND  SALE_TYPE = '00001'
+			   AND  STATUS    = '00002' -- 매출확정
+			   AND  RV_SLIP_NUMB IS NOT NULL -- 전표발생분
+		      ]]>
+		      <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(bill_code) == 'C300000005' ">
+		      		AND  ITEM_CD     IN('C300000005','C300000005')
+		      </if>
+		      <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(bill_code) == 'C300000001' ">
+		      		AND  ITEM_CD     IN('C300000001','H000000110')
+		      </if>		      
+		      <![CDATA[
+		      
+		     ) Y
+		WHERE X.ERP_CODE = Y.CUST_CD(+)  
+	]]>
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != ''">
+		<![CDATA[AND Y.SALE_DT >= #{search_start} || '01']]>
+	</if>
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_end) != ''">
+		<![CDATA[AND Y.SALE_DT <= #{search_end} || '31']]>
+	</if>	
+	<![CDATA[		
+		GROUP BY X.ERP_CODE,SUBSTR(SALE_DT,1,6)
+		ORDER BY 1,2 ASC
+	]]>			
+	</select>
+
+	<update id="updateOperateMtac" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_MTAC_REGIST(
+		#{seq},							#{dtl_seq},					#{mtac_cust_code},			#{reg_id},				#{pageType}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+
+	<update id="updateOperateVc" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_VC_REGIST(
+		#{seq},							#{dtl_seq},					#{vc_code},			#{reg_id},				#{pageType}
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+
+	<update id="updateOperateState" parameterType="custVO">
+	<![CDATA[
+		UPDATE CRM_CUST_OPERATE_INFO
+		SET
+			DEAL_CODE = 'C005'
+		WHERE 
+			SEQ = #{seq, jdbcType=INTEGER}
+	]]>
+	</update>
+	
+	<select id="testSelect" parameterType="java.lang.String" resultType="custVO">
+		SELECT * FROM CRM_CUST_OPERATE_INFO WHERE SEQ = #{seq, jdbcType=INTEGER}
+	</select>
+	
+	<select id="getOperateMtacInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_MTAC_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>
+	</select>
+
+	<select id="getOperateVcInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_OPERATE_VC_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}	
+	]]>
+	</select>
+	
+	<select id="getErpMtList" parameterType="custVO" resultType="erpMtHistVO">
+	<![CDATA[
+	SELECT
+	    A.VW_PK,
+	    B.MTAC_CODE,
+	    A.T_CODE,
+	    A.PK_SEQ,
+	    A.ERP_CODE,
+	    A.ITEM_CD,
+	    A.ITEM_NM,
+	    A.ITEM_GRP1_NM,
+	    A.ITEM_GRP2_NM,
+	    A.ITEM_GRP3_NM,
+	    A.SUPP_AMT,
+	    A.VAT,
+	    A.TOT_AMT,
+	    A.ST_DATE,
+	    A.END_DATE,
+	    A.CONTRACT_DATE,
+	    A.MEMO,
+	    A.REG_ID
+	FROM
+	    VW_CUST_MAINTENANCE_HIST A, CRM_CUST_MAINTENANCE_ADD B
+	WHERE
+	    A.ERP_CODE IN (
+	        SELECT DISTINCT
+	            ERP_CODE
+	        FROM
+	            CRM_CUST_MGT_HIST
+	        WHERE
+	            CRM_CODE = #{crm_code}
+	    )
+	    AND A.VW_PK = B.VW_PK(+)
+	ORDER BY
+	    A.ITEM_CD, A.VW_PK DESC
+	]]>
+	</select>
+	
+	<select id="selectCustMgtByPk" parameterType="java.lang.String" resultType="custVO">
+		SELECT * FROM CRM_CUST_MGT WHERE SEQ=#{seq}
+	</select>
+	
+	<update id="systemHistUpdateInsert" parameterType="systemHistVO">
+	<![CDATA[
+		MERGE INTO 
+		    CRM_CUST_INSTALL_HIST
+		USING DUAL 
+		    ON (SEQ = #{seq}  AND DTL_SEQ = #{dtl_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				    ERP_CODE = #{erp_code}
+				    ,GROUP_CODE1 = #{group_code1}
+				    ,GROUP_CODE2 = #{group_code2}
+				    ,GROUP_CODE3 = #{group_code3}
+				    ,ITEM_NM = #{item_nm}
+				    ,REG_DATE = sysdate
+				    ,REG_ID = #{reg_id}
+				    ,ETC = #{etc}
+				    ,SERIAL_NO = #{serial_no}
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			        SEQ
+					,DTL_SEQ
+					,ERP_CODE
+					,GROUP_CODE1
+					,GROUP_CODE2
+					,GROUP_CODE3
+					,ITEM_NM
+					,REG_DATE
+					,REG_ID
+					,ETC
+					,SERIAL_NO
+				)
+		        VALUES(
+					#{seq}
+					,#{dtl_seq}
+					,#{erp_code}
+					,#{group_code1}
+					,#{group_code2}
+					,#{group_code3}
+					,#{item_nm}
+					,sysdate
+					,#{reg_id}
+					,#{etc}
+					,#{serial_no}
+		        )
+	]]>
+	</update>
+	
+	<delete id="systemHistDelete" parameterType="systemHistVO">
+		DELETE CRM_CUST_INSTALL_HIST
+		WHERE SEQ = #{seq}  
+			AND DTL_SEQ = #{dtl_seq}
+	</delete>
+	
+	<select id="systemHistList" parameterType="systemHistVO" resultType="systemHistVO">
+		select 
+			A.SEQ
+			,A.DTL_SEQ
+			,'U' AS ACTION_TYPE
+			,A.ERP_CODE
+			,A.GROUP_CODE1
+			,A.GROUP_CODE2
+			,A.GROUP_CODE3
+			,A.ITEM_NM
+			,TO_CHAR(A.REG_DATE,'YYYY-MM-DD') AS REG_DATE
+			,A.REG_ID
+			,(
+			SELECT 
+				EMP_NM
+				FROM CRM_EMP_MGT
+			WHERE EMP_NO = A.REG_ID
+			) AS REG_NM
+			,A.ETC
+			,A.SERIAL_NO
+		FROM CRM_CUST_INSTALL_HIST A
+		WHERE A.SEQ = #{seq}
+		ORDER BY A.DTL_SEQ
+	</select>
+	
+	<select id="getVirtualContractInfo" parameterType="virtualContactVO" resultType="virtualContactVO">
+		SELECT 
+			SEQ
+			,CUST_CODE
+			,CODE_ITEM
+			,SUPP_AMT
+			,VAT
+			,ST_DATE
+			,END_DATE
+			,GYEYAG_IL
+			,MEMO
+			,REG_ID
+		FROM CRM_VIRTUAL_CONTRACT
+		WHERE SEQ = #{seq}
+	</select>
+	
+	<update id="inupVirtualContract" parameterType="virtualContactVO">
+	MERGE INTO CRM_VIRTUAL_CONTRACT A
+		USING DUAL
+		ON (
+		    A.SEQ = #{seq}
+		)
+		WHEN MATCHED THEN
+		    UPDATE SET
+		        A.CUST_CODE = #{cust_code} , 
+		        A.CODE_ITEM = #{code_item} , 
+		        A.SUPP_AMT = #{supp_amt} , 
+		        A.VAT = #{vat},
+		        A.ST_DATE = #{st_date},
+				A.END_DATE = #{end_date},
+				A.GYEYAG_IL = #{gyeyag_il},
+				A.MEMO = #{memo},
+				A.REG_ID = #{reg_id}
+		WHEN NOT MATCHED THEN
+		    INSERT(
+		    	A.SEQ,
+				A.CUST_CODE,
+				A.CODE_ITEM,
+				A.SUPP_AMT,
+				A.VAT,
+				A.ST_DATE,
+				A.END_DATE,
+				A.GYEYAG_IL,
+				A.MEMO,
+				A.REG_ID
+		    )VALUES(
+		    	VIRTUAL_CONTRACT_SEQ.NEXTVAL,
+				#{cust_code},
+				#{code_item},
+				#{supp_amt},
+				#{vat},
+				#{st_date},
+				#{end_date},
+				#{gyeyag_il},
+				#{memo},
+				#{reg_id}
+		    )
+	</update>
+	
+	<select id="getMaintenanceAddInfo" parameterType="maintenanceAddVO" resultType="maintenanceAddVO">
+	<![CDATA[
+		SELECT 
+			VW_PK
+			,CONTRACT_SEQ
+			,CONTRACT_NM
+			,BILL_CODE
+			,MTAC_CODE
+			,MON_OFF_AMT
+			,YEAR_OFF_AMT
+			,ETC
+			,REG_ID
+			,REG_DATE
+			,DEAL_CODE
+			,BUY_BUSI_NAME
+			,BUY_COST
+			,SERVICE_PERIOD
+			,SERVICE_METHOD
+			,AUTO_RENEW_YN
+		FROM CRM_CUST_MAINTENANCE_ADD
+		WHERE
+		VW_PK = #{vw_pk}
+	]]>	
+	</select>
+	
+	<update id="inupMaintenanceAdd" parameterType="maintenanceAddVO">
+	<![CDATA[
+	MERGE INTO 
+    	CRM_CUST_MAINTENANCE_ADD
+	USING DUAL 
+	    ON (VW_PK = #{vw_pk})
+	    WHEN MATCHED THEN     
+	        UPDATE SET
+	            CONTRACT_SEQ = #{contract_seq}
+	            ,CONTRACT_NM = #{contract_nm}
+	            ,BILL_CODE = #{bill_code}
+	            ,MTAC_CODE = #{mtac_code}
+	            ,MON_OFF_AMT = #{mon_off_amt}
+	            ,YEAR_OFF_AMT = #{year_off_amt}
+	            ,ETC = #{etc}
+	            ,REG_ID = #{reg_id}
+	            ,REG_DATE = sysdate
+	            ,DEAL_CODE = #{deal_code}
+	            ,BUY_BUSI_NAME = #{buy_busi_name}
+	            ,BUY_COST = #{buy_cost}
+	            ,SERVICE_PERIOD = #{service_period}
+	            ,SERVICE_METHOD = #{service_method}
+	            ,AUTO_RENEW_YN = #{auto_renew_yn}
+	    WHEN NOT MATCHED THEN
+	        INSERT (
+	            VW_PK
+	            ,CONTRACT_SEQ
+	            ,CONTRACT_NM
+	            ,BILL_CODE
+	            ,MTAC_CODE
+	            ,MON_OFF_AMT
+	            ,YEAR_OFF_AMT
+	            ,ETC
+	            ,REG_ID
+	            ,REG_DATE
+	            ,DEAL_CODE
+	            ,BUY_BUSI_NAME
+	            ,BUY_COST
+	            ,SERVICE_PERIOD
+	            ,SERVICE_METHOD
+	            ,AUTO_RENEW_YN
+	        )
+	        VALUES(
+	            #{vw_pk}
+	            ,#{contract_seq}
+	            ,#{contract_nm}
+	            ,#{bill_code}
+	            ,#{mtac_code}
+	            ,#{mon_off_amt}
+	            ,#{year_off_amt}
+	            ,#{etc}
+	            ,#{reg_id}
+	            ,sysdate
+	            ,#{deal_code}
+	            ,#{buy_busi_name}
+	            ,#{buy_cost}
+	            ,#{service_period}
+	            ,#{service_method}
+	            ,#{auto_renew_yn}
+	        )
+	]]>
+	</update>
+	
+	
+	<delete id="delMaintenanceAdd" parameterType="maintenanceAddVO">
+		DELETE FROM CRM_CUST_MAINTENANCE_ADD
+		WHERE VW_PK = #{vw_pk}
+	</delete>
+	
+	<delete id="delVirtualContract" parameterType="virtualContactVO">
+		DELETE FROM CRM_VIRTUAL_CONTRACT
+		WHERE SEQ = #{seq}
+	</delete>
+	
+	<select id="getCustMgtByPK" parameterType="custVO" resultType="custVO">
+	select * from crm_cust_mgt where seq = #{seq}
+	</select>
+	
+	<!-- 가상계약 자동등록 -->
+	<insert id="insertVirtualContractAuto">
+		INSERT INTO CRM_VIRTUAL_CONTRACT (
+		    SEQ, CUST_CODE, CODE_ITEM, SUPP_AMT, VAT, ST_DATE, END_DATE, GYEYAG_IL, MEMO, REG_ID
+		)
+		SELECT 
+		    CM.SEQ
+		    ,CM.CUST_CODE
+		    ,'C300000001' AS CODE_ITEM
+		    ,0 AS SUPP_AMT
+		    ,0 AS VAT
+		    ,CPM.TERM_END_DT AS ST_DATE
+		    ,TO_CHAR(ADD_MONTHS(TO_DATE(CPM.TERM_END_DT),CPM.MTAC_MONTH),'YYYYMMDD') AS END_DATE
+		    ,CPM.TERM_END_DT AS GYEYAG_IL
+		    ,'자동생성' AS MEMO
+		    ,'SYSTEM' AS REG_ID
+		FROM crm_cust_project_mgt CPM, CRM_CUST_OPERATE_INFO COI, CRM_CUST_MGT CM
+		WHERE CM.SEQ = CPM.SEQ
+		AND CPM.SEQ NOT IN (SELECT SEQ FROM CRM_VIRTUAL_CONTRACT)
+		AND CPM.SEQ = COI.SEQ
+		AND COI.DEAL_CODE IN ('C001')
+		AND CPM.TERM_END_DT IS NOT NULL
+		AND CPM.MTAC_MONTH IS NOT NULL
+		AND ADD_MONTHS(TO_DATE(CPM.TERM_END_DT),CPM.MTAC_MONTH) > SYSDATE
+	</insert>
+	
+	<!-- 추가정보 자동 등록 -->
+	<insert id="insertCustMaintenanceAddAuto">
+		INSERT INTO CRM_CUST_MAINTENANCE_ADD
+		(VW_PK, CONTRACT_SEQ, CONTRACT_NM, MTAC_CODE, ETC, REG_ID,AUTO_RENEW_YN)
+		SELECT IN_TB.VW_PK, IN_TB.CONTRACT_SEQ ,IN_TB.CONTRACT_NM ,IN_TB.MTAC_CODE ,IN_TB.ETC ,IN_TB.REG_ID ,IN_TB.AUTO_RENEW_YN
+		FROM (
+		    SELECT 'Z'||VC.SEQ||'0' AS VW_PK
+		        ,'TBD' AS CONTRACT_SEQ
+		        ,'TBD' AS CONTRACT_NM
+		        ,'C003' AS MTAC_CODE -- HIS 무상유지보수
+		        ,'자동등록' AS ETC
+		        ,'admin' AS REG_ID
+		        ,'N' AS AUTO_RENEW_YN
+		    FROM crm_virtual_contract VC, CRM_CUST_OPERATE_INFO COI, crm_cust_project_mgt CPM
+		    WHERE VC.SEQ = COI.SEQ
+		    AND VC.SEQ = CPM.SEQ
+		    AND CPM.TERM_END_DT IS NOT NULL
+		    AND CPM.MTAC_MONTH IS NOT NULL
+		    AND ADD_MONTHS(TO_DATE(CPM.TERM_END_DT),CPM.MTAC_MONTH) > SYSDATE
+		    AND COI.DEAL_CODE IN ('C001')
+		    )IN_TB
+		WHERE IN_TB.VW_PK NOT IN (SELECT VW_PK FROM CRM_CUST_MAINTENANCE_ADD)
+	</insert>
+	
+	<select id="selectErpHistBySeq" parameterType="map" resultType="map">
+		SELECT
+		    CMH.SEQ
+		    ,CMH.DTL_SEQ
+		    ,KCC.CUST_CD
+		    ,KCC.CUST_NM
+		    ,KCC.BIZ_REG_NO
+		    ,KCC.CORP_REG_NO
+		    ,KCC.REPRESENT
+		    ,NVL((SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = CMH.REG_ID),CMH.REG_ID) || '[' || CMH.REG_ID  || ']' AS REG_ID
+		    ,TO_CHAR(CMH.REG_DATE,'YYYY/MM/DD HH24:MI:SS') AS REG_DATE
+		FROM CRM_CUST_MGT_HIST CMH, KYERP.TB_CM_CUSTOMER KCC
+		WHERE CMH.SEQ=#{seq}
+		AND CMH.ERP_CODE = KCC.CUST_CD
+		ORDER BY CMH.DTL_SEQ DESC
+	</select>
+	
+	<delete id="deleteErpHistByPk" parameterType="map">
+		DELETE FROM CRM_CUST_MGT_HIST
+		WHERE SEQ = #{seq} AND DTL_SEQ = #{dtlSeq}
+		
+	</delete>
+	
+	<select id="chkTreatNo" parameterType="custVO" resultType="java.lang.Integer">
+		SELECT 
+    		COUNT(*) 
+		FROM CRM_CUST_PROJECT_MGT 
+		WHERE 1=1 AND TREAT_NO = #{treat_no}
+	</select>
+	
+	<!-- ERP 무상 계약 이력 조회 -->
+	<select id="getErpFreeContract" parameterType="custVO" resultType="erpMtHistVO">
+	/*[egov-cust-query.xml] custDAO.getErpFreeContract*/
+		SELECT 
+		    A.CUST_CODE
+		    ,B.CUST_NM  --	거래처명
+		    ,(SELECT Z.BASE_CD_NM FROM KYERP.TB_CM_CODE_DTL Z WHERE Z.BASE_CD_GRP = 'CM0030' AND Z.BASE_CD = A.CONTRACT_KIND) AS CONTRACT_KIND --계약서종류
+		    ,A.CONTRACT_DATE	--계약일
+		    ,A.MAINT_ST_DATE ST_DATE	--시작일
+		    ,A.MAINT_END_DATE END_DATE	--종료일
+		    ,A.MAINT_MONTH_AMT	--유지보수금액	
+		    ,A.MEMO
+		    ,A.CREATE_USER_ID REG_ID --등록자 사번
+		    ,C.EMP_NM REG_NM --등록자명
+		FROM 
+		    KYERP.TB_SD_MAINT_MST A
+		    ,KYERP.TB_CM_CUSTOMER B
+		    ,KYERP.TB_HR_EMPLOYEE C 
+		WHERE 1=1
+		    AND A.CUST_CODE = B.CUST_CD (+)
+		    AND A.CREATE_USER_ID = C.EMP_CD (+)
+			AND A.CUST_CODE = #{erp_code}
+	</select>
+	
+	<!-- ERP 유상 최신계약 이력 조회 -->
+	<select id="getErpBill" parameterType="custVO" resultType="erpMtHistVO">
+	/*[egov-cust-query.xml] custDAO.getErpBill*/
+		SELECT 
+			A.CUST_CODE -- 거래처코드
+			,B.CUST_NM --	거래처명
+			,A.CODE_ITEM -- 품목코드
+			,D.ITEM_NM  -- 품명c
+			,A.SUPP_AMT + A.VAT AS MAINT_MONTH_AMT --유지보수금액
+			,A.GYEYAG_IL CONTRACT_DATE --계약일
+			,A.ST_DATE -- 시작일
+			,A.END_DATE -- 종료일
+			,A.MEMO -- 메모
+			,A.SYS_DATE REG_DATE-- 등록일
+			,A.SYS_EMP_NO REG_ID --등록자 사번
+			,C.EMP_NM REG_NM -- 등록자명
+		FROM 
+			KYERP.TB_FI_AUTO_BILL A
+			,KYERP.TB_CM_CUSTOMER B
+			,KYERP.TB_HR_EMPLOYEE C
+			,KYERP.TB_CM_ITEM_MST D
+		WHERE 1=1
+			AND A.CUST_CODE = B.CUST_CD (+)
+			AND A.SYS_EMP_NO = C.EMP_CD (+)
+			AND A.CODE_ITEM = D.ITEM_CD (+)
+			AND A.CUST_CODE = #{erp_code}
+		ORDER BY A.CODE_ITEM  		
+	</select>
+	
+	<!-- ERP 유상 이전계약 이력 조회 -->
+	<select id="getErpBillHsty" parameterType="custVO" resultType="erpMtHistVO">
+	/*[egov-cust-query.xml] custDAO.getErpBillHsty*/
+		SELECT 
+			A.CUST_CODE -- 거래처
+			,B.CUST_NM -- 거래처명
+			,A.CODE_ITEM -- 품목코드
+			,D.ITEM_NM -- 품목명
+			,A.SUPP_AMT + A.VAT AS MAINT_MONTH_AMT --유지보수금액
+			,A.GYEYAG_IL CONTRACT_DATE -- 계약일
+			,A.ST_DATE -- 시작일
+			,A.END_DATE -- 종료일
+			,A.SYS_DATE REG_DATE-- 등록일
+			,A.SYS_EMP_NO REG_ID --등록자 사번
+			,C.EMP_NM REG_NM--등록자명
+		FROM 
+			KYERP.TB_FI_AUTO_BILL_HSTY A
+			,KYERP.TB_CM_CUSTOMER B
+			,KYERP.TB_HR_EMPLOYEE C
+			,KYERP.TB_CM_ITEM_MST D
+			,KYERP.TB_FI_AUTO_BILL E
+		WHERE 1=1
+			AND A.CUST_CODE = B.CUST_CD (+)
+			AND A.SYS_EMP_NO = C.EMP_CD (+)
+			AND A.CODE_ITEM = D.ITEM_CD (+)
+			AND A.PK_SEQ = E.PK_SEQ (+) 
+			AND A.CUST_CODE = #{erp_code}	
+		ORDER BY A.CODE_ITEM, A.SYS_DATE DESC	
+	</select>
+</mapper>

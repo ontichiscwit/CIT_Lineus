@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+				http://www.springframework.org/schema/beans/spring-beans-3.2.xsd 
+				http://www.springframework.org/schema/mvc  
+				http://www.springframework.org/schema/mvc/spring-mvc-3.0.xsd
+                http://www.springframework.org/schema/context 
+                http://www.springframework.org/schema/context/spring-context-3.2.xsd
+                http://www.springframework.org/schema/task 
+				http://www.springframework.org/schema/task/spring-task-3.1.xsd"
+	xmlns:mvc="http://www.springframework.org/schema/mvc">
+
+	<context:annotation-config />
+	<context:component-scan base-package="egovframework.com" />
+	<bean
+		class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter">
+		<property name="webBindingInitializer">
+			<bean class="egovframework.com.comm.EgovBindingInitializer" />
+		</property>
+		<property name="messageConverters">
+            <list>
+                <bean class="org.springframework.http.converter.json.MappingJacksonHttpMessageConverter">
+                    <property name="supportedMediaTypes">
+                        <list>
+                            <value>application/json; charset=UTF-8</value>
+                            <value>application/x-www-form-urlencoded; charset=UTF-8</value>
+                        </list>
+                    </property>
+                </bean> 
+            </list>
+        </property>
+	</bean>
+
+	<bean class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping" />
+
+	<bean id="localeResolver" class="org.springframework.web.servlet.i18n.SessionLocaleResolver">
+		<property name="defaultLocale" value="ko" />
+	</bean>
+
+<!-- 	<bean class="org.springframework.web.servlet.handler.SimpleMappingExceptionResolver"> -->
+	<bean class="egovframework.com.comm.LineusExceptionHandler">
+		<property name="defaultErrorView" value="/WEB-INF/jsp/cm/error/error500.jsp" />
+		<property name="exceptionMappings">
+			<props>
+				<prop key="org.springframework.dao.DataAccessException">cm/error/error500</prop>
+				<prop key="org.springframework.transaction.TransactionException">cm/error/error500</prop>
+				<prop key="egovframework.rte.fdl.cmmn.exception.EgovBizException">cm/error/error500</prop>
+				<prop key="org.springframework.web.HttpSessionRequiredException">cm/error/error500</prop>
+			</props>
+		</property>
+	</bean>
+	
+
+	<bean id="tilesViewResolver" class="org.springframework.web.servlet.view.UrlBasedViewResolver">
+		<property name="viewClass" value="org.springframework.web.servlet.view.tiles3.TilesView" />
+		<property name="order" value="1" />
+	</bean>
+
+	<bean id="tilesConfigurer" class="org.springframework.web.servlet.view.tiles3.TilesConfigurer">
+		<property name="definitions">
+			<list>
+				<value>classpath:layout/layout.xml</value>
+			</list>
+		</property>
+	</bean>
+
+
+	<bean id="jsonView" class="net.sf.json.spring.web.servlet.view.JsonView" />
+	<bean id="viewResolver" class="org.springframework.web.servlet.view.BeanNameViewResolver">
+		<property name="order" value="2"></property>
+	</bean>
+	
+	<!-- 메일 발송 처리  -->
+	<!-- bean id="mailSender" class="org.springframework.mail.javamail.JavaMailSenderImpl">
+		<property name="host" value="192.168.221.12"/>
+		<property name="port" value="25"/>
+	</bean-->
+	
+	<bean id="mailSender" class ="org.springframework.mail.javamail.JavaMailSenderImpl" > 
+		<property name="host" value="smtp.worksmobile.com" /> 
+		<property name="port" value="465" /> 
+		<property name="defaultEncoding" value="utf-8" /> 
+		<property name="username" value="admin@cwit.co.kr" /> 
+		<property name="password" value="citadmin" /> 
+		<property name="javaMailProperties"> 
+			<props> 
+				<prop key="mail.smtp.ssl.enable">true</prop>
+				<prop key="mail.smtp.ssl.trust">smtp.worksmobile.com</prop> 
+				<prop key="mail.smtp.auth">true</prop> 
+			</props> 
+		</property> 
+	</bean>
+	
+	
+	<bean id="treeCodeManager" class="egovframework.com.comm.TreeCodeManager" scope="singleton" />
+	
+	
+	
+	
+	<!-- Scheduler : AS 처리예정일 D-2 메일 알림 배치 -->
+	<bean class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+		<property name="triggers">
+			<list>
+				<ref bean="asD2MailJobTrigger"/>
+			</list>
+		</property>
+		<property name="quartzProperties">
+			<props>
+				<prop key="org.quartz.threadPool.class">org.quartz.simpl.SimpleThreadPool</prop>
+				<prop key="org.quartz.threadPool.threadCount">3</prop>
+				<prop key="org.quartz.threadPool.threadPriority">4</prop>
+				<prop key="org.quartz.jobStore.class">org.quartz.simpl.RAMJobStore</prop>
+				<prop key="org.quartz.jobStore.misfireThreshold">60000</prop>
+			</props>
+		</property>
+	</bean>
+
+	<!-- Job -->
+	<bean id="asD2MailJob" class="org.springframework.scheduling.quartz.JobDetailFactoryBean">
+		<property name="jobClass" value="egovframework.com.comm.controller.AsD2MailQuartzJob"/>
+		<property name="durability" value="true"/>
+	</bean>
+
+	<!-- Trigger : 매일 오전 08:00 -->
+	<bean id="asD2MailJobTrigger" class="org.springframework.scheduling.quartz.CronTriggerFactoryBean">
+		<property name="jobDetail" ref="asD2MailJob"/>
+		<property name="cronExpression" value="0 0 8 * * ?"/>
+	</bean>
+	
+</beans>

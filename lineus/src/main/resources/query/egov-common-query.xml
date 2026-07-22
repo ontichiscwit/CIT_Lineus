@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="commmonDAO">
+	
+ 	<resultMap type="menuVO" id="menuResultMap"></resultMap>
+ 	<resultMap type="commonCodeVO" id="codeResultMap"></resultMap>
+ 	
+ 	<select id="getMenuList" parameterType="menuVO" statementType="CALLABLE">
+	{CALL PROC_MENU_LIST(#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=menuResultMap})}
+	</select>
+ 	<select id="getCodeList" parameterType="commonCodeVO" statementType="CALLABLE">
+	{CALL PROC_CODE_LIST(#{code_group} , #{p_code} , #{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=codeResultMap})}
+	</select>
+	
+	<select id="getPcodeList" parameterType="commonCodeVO" resultType="commonCodeVO">
+		SELECT 
+			*
+		FROM CRM_CODE_MASTER 
+		WHERE 1=1 
+		AND CODE_GROUP = #{code_group} 
+	</select>
+	
+ 	<select id="maxSeq" parameterType="fileVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX_ATTACH.NEXTVAL FROM DUAL
+	]]>	
+	</select>
+	
+ 	<update id="insertFile" parameterType="fileVO" >
+	<![CDATA[
+		MERGE INTO CRM_ATTACH_MGT A
+            USING DUAL
+            ON (
+                A.ATTACH_SEQ = #{attach_seq, jdbcType=INTEGER}
+                AND A.ATTACH_ORD = #{attach_ord, jdbcType=INTEGER}
+                )
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        A.ATTACH_ORI_NM 	= #{attach_ori_nm, jdbcType=VARCHAR},
+                        A.ATTACH_SAVE_NM	= #{attach_save_nm, jdbcType=VARCHAR},
+						A.ATTACH_PATH			= #{attach_path, jdbcType=VARCHAR},
+						A.ATTACH_PATH_DTL	= #{attach_path_dtl, jdbcType=VARCHAR},
+						A.UPD_ID					= #{reg_id, jdbcType=VARCHAR},	
+						A.UPD_DATE				= SYSDATE
+            WHEN NOT MATCHED THEN
+                INSERT(
+                    A.ATTACH_SEQ,				A.ATTACH_ORD,		A.ATTACH_ORI_NM,		A.ATTACH_SAVE_NM,		A.ATTACH_PATH,
+					A.ATTACH_PATH_DTL,		A.REG_ID,				A.REG_DATE
+					
+                )VALUES(
+                   	#{attach_seq, jdbcType=INTEGER},				#{attach_ord, jdbcType=INTEGER},	#{attach_ori_nm, jdbcType=VARCHAR},		#{attach_save_nm, jdbcType=VARCHAR},		#{attach_path, jdbcType=VARCHAR},
+					#{attach_path_dtl, jdbcType=VARCHAR},		#{reg_id, jdbcType=VARCHAR},			SYSDATE			
+                )
+	]]>	
+	</update>
+	
+ 	<select id="getFileList" parameterType="fileVO" resultType="fileVO">
+	<![CDATA[
+		SELECT 
+			ATTACH_SEQ , 
+			ATTACH_ORD , 
+			ATTACH_ORI_NM ,
+			ATTACH_SAVE_NM ,
+			ATTACH_PATH ,
+			ATTACH_PATH_DTL
+		FROM
+			CRM_ATTACH_MGT
+		WHERE 
+			ATTACH_SEQ = #{attach_seq, jdbcType=INTEGER}
+		ORDER BY ATTACH_ORD 	
+	]]>	
+	</select>
+	
+ 	<select id="getFileInfo" parameterType="fileVO" resultType="fileVO">
+	<![CDATA[
+		SELECT 
+			ATTACH_SEQ , 
+			ATTACH_ORD , 
+			ATTACH_ORI_NM ,
+			ATTACH_SAVE_NM ,
+			ATTACH_PATH ,
+			ATTACH_PATH_DTL
+		FROM
+			CRM_ATTACH_MGT
+		WHERE 
+			ATTACH_SEQ = #{attach_seq, jdbcType=INTEGER}
+		AND
+			ATTACH_ORD = #{attach_ord, jdbcType=INTEGER}
+	]]>	
+	</select>
+	
+ 	<delete id="deleteFileInfo" parameterType="fileVO">
+	<![CDATA[
+		DELETE FROM CRM_ATTACH_MGT
+		WHERE 
+			ATTACH_SEQ = #{attach_seq, jdbcType=INTEGER}
+		AND
+			ATTACH_ORD = #{attach_ord, jdbcType=INTEGER}
+	]]>	
+	</delete>
+	
+	
+ 	<select id="getCodeNm" parameterType="commonCodeVO" resultType="commonCodeVO">
+	<![CDATA[
+		SELECT 
+			CODE_NAME
+		FROM
+			CRM_CODE_DETAIL
+		WHERE 
+			CODE_GROUP = #{code_group, jdbcType=VARCHAR}
+		AND
+			P_CODE = #{p_code, jdbcType=VARCHAR}
+		AND
+			CODE = #{code, jdbcType=VARCHAR}
+		 	
+	]]>	
+	</select>
+	
+	<select id="maxOrd" parameterType="fileVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT NVL(MAX(ATTACH_ORD), 0) + 1 FROM CRM_ATTACH_MGT WHERE ATTACH_SEQ = #{attach_seq, jdbcType=INTEGER}
+	]]>	
+	</select>
+	
+	<select id="getCodeGroupSort" parameterType="commonCodeVO" resultType="commonCodeVO">
+	<![CDATA[
+		SELECT 
+			DISTINCT(CODE_GROUP) AS CODE_GROUP
+		FROM 
+			CRM_CODE_MASTER
+		ORDER BY CODE_GROUP
+	]]>
+	</select>
+	
+	
+	<select id="getCodeGroupList" parameterType="commonCodeVO" resultType="commonCodeVO">
+	<![CDATA[
+		SELECT 
+			CODE_GROUP, P_CODE, USE_YN, P_CODE_NAME 
+		FROM CRM_CODE_MASTER WHERE CODE_GROUP = #{code_group, jdbcType=VARCHAR}
+	]]>
+	</select>
+	
+	<select id="getCodeDetailList" parameterType="commonCodeVO" resultType="commonCodeVO">
+	<![CDATA[
+		SELECT 
+        CODE_GROUP, P_CODE, CODE, USE_YN AS USE_YN_DTL, CODE_NAME ,
+        VAL1, VAL2, VAL3, VAL4, VAL5, VAL6, VAL7, VAL8, VAL9, VAL10, SORT_ORD
+		FROM CRM_CODE_DETAIL 
+		WHERE CODE_GROUP = #{code_group, jdbcType=VARCHAR}
+		AND P_CODE = #{p_code, jdbcType=VARCHAR}
+	]]>
+	</select>
+	
+	
+	
+	<delete id="deleteCodeMaster" parameterType="commonCodeVO">
+	<![CDATA[ 
+		DELETE FROM CRM_CODE_MASTER WHERE CODE_GROUP = #{code_group, jdbcType=VARCHAR} AND P_CODE = #{p_code, jdbcType=VARCHAR}
+	]]>
+	</delete>
+	
+	<delete id="deleteCodeDetailAll" parameterType="commonCodeVO">
+	<![CDATA[ 
+		DELETE FROM CRM_CODE_DETAIL WHERE CODE_GROUP = #{code_group, jdbcType=VARCHAR} AND P_CODE = #{p_code, jdbcType=VARCHAR}
+	]]>
+	</delete>
+	
+	<delete id="deleteCodeDetail" parameterType="commonCodeVO">
+	<![CDATA[ 
+		DELETE FROM CRM_CODE_DETAIL WHERE CODE_GROUP = #{code_group, jdbcType=VARCHAR} AND P_CODE = #{p_code, jdbcType=VARCHAR} AND CODE = #{code}
+	]]>
+	</delete>
+	
+	<update id="updateCodeMasterMerge" parameterType="commonCodeVO">
+	<![CDATA[ 
+		MERGE INTO CRM_CODE_MASTER A
+		USING DUAL
+		ON (
+		    A.CODE_GROUP = #{code_group, jdbcType=VARCHAR}
+		    AND A.P_CODE = #{p_code, jdbcType=VARCHAR}
+		)
+		WHEN MATCHED THEN
+		    UPDATE SET
+		        A.P_CODE_NAME = #{p_code_name, jdbcType=VARCHAR} , 
+		        A.USE_YN = #{use_yn, jdbcType=VARCHAR} , 
+		        A.UPD_ID = #{reg_id, jdbcType=VARCHAR} , 
+		        A.UPD_DATE = SYSDATE
+		WHEN NOT MATCHED THEN
+		    INSERT(
+		    	A.CODE_GROUP, A.P_CODE, A.P_CODE_NAME , A.USE_YN , A.REG_ID , A.REG_DATE
+		    )VALUES(
+		    	#{code_group, jdbcType=VARCHAR},
+		    	#{p_code, jdbcType=VARCHAR}, 
+		    	#{p_code_name, jdbcType=VARCHAR}, 
+		    	#{use_yn, jdbcType=VARCHAR}, 
+		    	#{reg_id, jdbcType=VARCHAR}, 
+		    	SYSDATE
+		    )
+	]]>
+	</update>
+	
+	<update id="updateCodeDetailMerge" parameterType="commonCodeVO">
+	<![CDATA[ 
+		MERGE INTO CRM_CODE_DETAIL A
+		USING DUAL
+		ON (
+		    A.CODE_GROUP = #{code_group, jdbcType=VARCHAR}
+		    AND A.P_CODE = #{p_code, jdbcType=VARCHAR}
+		    AND A.CODE = #{code, jdbcType=VARCHAR}
+		)
+		WHEN MATCHED THEN
+		    UPDATE SET
+		        A.CODE_NAME = #{code_name, jdbcType=VARCHAR} , 
+		        A.USE_YN = #{use_yn, jdbcType=VARCHAR} , 
+		        A.UPD_ID = #{reg_id, jdbcType=VARCHAR} , 
+		        A.UPD_DATE = SYSDATE,
+		        A.VAL1 = #{val1, jdbcType=VARCHAR} , /*추가된 필드*/ 
+				A.VAL2 = #{val2, jdbcType=VARCHAR} , /*추가된 필드*/ 
+				A.VAL3 = #{val3, jdbcType=VARCHAR} , /*추가된 필드*/
+				A.VAL4 = #{val4, jdbcType=VARCHAR} , /*추가된 필드*/
+				A.VAL5 = #{val5, jdbcType=VARCHAR} , /*추가된 필드*/
+				A.VAL6 = #{val6, jdbcType=VARCHAR} , /*추가된 필드*/
+				A.VAL7 = #{val7, jdbcType=VARCHAR} , /*추가된 필드*/
+				A.VAL8 = #{val8, jdbcType=VARCHAR} , /*추가된 필드*/
+				A.VAL9 = #{val9, jdbcType=VARCHAR} , /*추가된 필드*/
+				A.VAL10 = #{val10, jdbcType=VARCHAR} , /*추가된 필드*/
+				A.SORT_ORD = #{sort_ord, jdbcType=VARCHAR}  /*추가된 필드*/
+      
+		WHEN NOT MATCHED THEN
+		    INSERT(
+		    	A.CODE_GROUP, A.P_CODE, A.CODE , A.CODE_NAME , A.USE_YN , A.REG_ID , A.REG_DATE,
+				VAL1, VAL2, VAL3, VAL4, VAL5, VAL6, VAL7, VAL8, VAL9, VAL10, SORT_ORD 
+		    )VALUES(
+		    	#{code_group, jdbcType=VARCHAR}, #{p_code, jdbcType=VARCHAR}, #{code, jdbcType=VARCHAR}, 
+		    	#{code_name, jdbcType=VARCHAR}, #{use_yn, jdbcType=VARCHAR}, #{reg_id, jdbcType=VARCHAR}, 
+		    	SYSDATE,
+		    	#{val1, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val2, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val3, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val4, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val5, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val6, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val7, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val8, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val9, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{val10, jdbcType=VARCHAR}, /*추가된 필드*/
+				#{sort_ord, jdbcType=VARCHAR}  /*추가된 필드*/
+		    	
+		    )
+	]]>
+	</update>
+	
+	<!-- 무한 depth 코드관리 관련 -->
+	<select id="selectCode2" parameterType="code2VO" resultType="code2VO">
+		select p_code
+			, code
+			, code_type
+			, code_nm
+			, ord_no
+			, reg_id
+			, to_char(reg_date,'yyyy-mm-dd') as reg_date
+			, up_id
+			, to_char(up_date,'yyyy-mm-dd') as up_date
+			, use_yn
+		from crm_code2
+		
+		where 1=1
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(p_code) != ''">
+			AND p_code = #{p_code}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(code) != ''">
+			AND code = #{code}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(code_type) != ''">
+			AND code_type = #{code_type}
+		</if>
+		order by p_code, code, ord_no
+	</select>
+	
+	<update id="updateCode2" parameterType="code2VO">
+		update crm_code2 set
+		UP_DATE = SYSDATE
+		,UP_ID = #{up_id}
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(code_nm) != ''">
+			,code_nm = #{code_nm}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(code_type) != ''">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(code_type) != 'S'">
+				,code_type = #{code_type}
+			</if>
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(ord_no) != ''">
+			,ord_no = #{ord_no}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(use_yn) != ''">
+			,use_yn = #{use_yn}
+		</if>
+		where 1=1
+		AND p_code = #{p_code}
+		AND code = #{code}
+	</update>
+	
+	<insert id="insertCode2" parameterType="code2VO">
+		insert into crm_code2 (p_code, code, code_type, code_nm, ord_no, reg_id, reg_date, use_yn)
+		values (
+			#{p_code}
+			,#{code}
+			,#{code_type}
+			,#{code_nm}
+			,#{ord_no}
+			,#{reg_id}
+			,sysdate
+			,#{use_yn}
+		)
+	</insert>
+	
+	<delete id="deleteCode2" parameterType="code2VO">
+		delete from crm_code2
+		where 1=1
+		AND p_code = #{p_code}
+		AND code = #{code}
+	</delete>
+	
+<!-- 	패스워드 암호화 저장 마이그용 -->
+	<select id="getUserPass" resultType="map">
+		select to_char(seq) as seq, pass_back from crm_cust_erp where emp_grade = 'C001' and pass_back is not null
+	</select>
+	
+	<update id="setUserPass" parameterType="map">
+		update crm_cust_erp set pass = #{pass} where seq = #{seq}
+	</update>
+	
+	<select id="getNoticeNum" resultType="map">
+		select notice_num from asis_notice_info2 order by notice_num asc
+	</select>
+	
+	<update id="setSeqByNoticeNum" parameterType="map">
+		update crm_board_mgt set seq = MAX_BOARD_NO.nextval where notice_num = #{notice_num}
+	</update>
+
+</mapper>

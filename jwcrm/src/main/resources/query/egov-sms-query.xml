@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="smsDAO">
+
+	<sql id="smsListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(sms_code_grp) != ''">AND SMS_CODE_GRP = #{sms_code_grp}</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(sms_code) != ''">AND SMS_CODE = #{sms_code}</if>
+	</sql>
+
+	<select id="getList" parameterType="smsVO" resultType="smsVO">
+	<![CDATA[
+		SELECT
+		    SMS_CODE_GRP 		    ,SMS_CODE		    ,USE_YN		    ,TITLE
+		    ,CNTN						    ,REG_ID			    ,REG_DATE	    ,UPD_ID
+		    ,UPD_DATE   
+		FROM 
+		    CRM_SMS_MGT
+		WHERE 1=1
+	]]>
+	<include refid="smsListWhere"/>
+	</select>	
+
+	<select id="getDetail" parameterType="smsVO" resultType="smsVO">
+	<![CDATA[
+		SELECT
+		    TITLE ,CNTN	, USE_YN
+		FROM 
+		    CRM_SMS_MGT
+		WHERE 
+			SMS_CODE_GRP = #{sms_code_grp}
+		AND
+			SMS_CODE = #{sms_code}
+	]]>
+	</select>	
+	
+	<update id="smsInsertProc" parameterType="smsVO">
+	<![CDATA[ 
+		MERGE INTO CRM_SMS_MGT A
+		USING DUAL
+		ON (
+		    A.SMS_CODE_GRP = #{sms_code_grp}
+		    AND
+		    A.SMS_CODE = #{sms_code}
+		)
+		WHEN MATCHED THEN
+		    UPDATE SET
+		        A.USE_YN = #{use_yn} 
+		        ,A.UPD_ID = #{reg_id}
+		        ,A.UPD_DATE = SYSDATE
+		WHEN NOT MATCHED THEN
+		    INSERT(
+				SMS_CODE_GRP		,SMS_CODE		    ,USE_YN		    ,TITLE
+		    	,CNTN						,REG_ID			    ,REG_DATE		,GUBUN	   
+		    )VALUES(
+				#{sms_code_grp}		,#{sms_code}		,#{use_yn}		,#{title}
+		    	,#{cntn}					,#{reg_id}				,SYSDATE	  		,#{gubun}
+		    )
+	]]>
+	</update>	
+		
+	<update id="smsUpdateProc" parameterType="smsVO">
+	<![CDATA[ 
+		MERGE INTO CRM_SMS_MGT A
+		USING DUAL
+		ON (
+		    A.SMS_CODE_GRP = #{sms_code_grp}
+		    AND
+		    A.SMS_CODE = #{sms_code}
+		)
+		WHEN MATCHED THEN
+		    UPDATE SET
+		        A.USE_YN = #{use_yn} 
+		        ,A.TITLE = #{title}
+		        ,A.CNTN = #{cntn}
+		        ,A.UPD_ID = #{reg_id}
+		        ,A.UPD_DATE = SYSDATE
+		WHEN NOT MATCHED THEN
+		    INSERT(
+				SMS_CODE_GRP		,SMS_CODE		    ,USE_YN		    ,TITLE
+		    	,CNTN						,REG_ID			    ,REG_DATE		,GUBUN	   
+		    )VALUES(
+				#{sms_code_grp}		,#{sms_code}		,#{use_yn}		,#{title}
+		    	,#{cntn}					,#{reg_id}				,SYSDATE	  		,#{gubun}
+		    )
+	]]>
+	</update>
+		
+</mapper>

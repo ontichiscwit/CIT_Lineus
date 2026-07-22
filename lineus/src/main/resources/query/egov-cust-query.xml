@@ -1,0 +1,3401 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="custDAO">
+	
+	<resultMap type="custVO" id="custResultMap"></resultMap>
+	
+   
+	<!-- =======================================거래처관리=================================================  -->
+	<sql id="CustListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.CUST_GUBUN = #{search_type1}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND IN_TB.DEAL_CODE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND IN_TB.AS_APPROVAL_YN  = #{search_type3}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			 <!-- 통합검색  -->
+			AND
+			(
+				UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(IN_TB.ERP_CODE) LIKE '%'|| UPPER(#{search_text}) ||'%'  OR
+				UPPER(IN_TB.CHARGER_NM) LIKE '%'|| UPPER(#{search_text}) ||'%'	
+			)
+		</if>		
+	</sql>
+	
+	<select id="getCustListCnt" parameterType="custVO" resultType="java.lang.Integer">
+	<![CDATA[
+	    SELECT 
+	        COUNT(IN_TB.SEQ) 
+	    FROM (
+	        SELECT 
+			      A.SEQ --SEQ
+			      ,A.ERP_CODE --ERP코드
+			      ,A.CEO-- 대표자명
+			      ,A.CUST_NO --사업자번호
+			      ,A.LAW_NO --법인등록번호
+			      ,A.BUSS_CONDITION --업태
+			      ,A.BUSS_ITEM--종목
+			      ,A.CUST_ADDRESS -- 주소
+			      ,A.CUST_KOR_NAME --거래처명
+			      ,A.CUST_GUBUN --거래처 구분
+			      ,A.REG_DATE -- 등록일
+			      ,A.AS_APPROVAL_YN -- AS 결재프로세스 
+			      ,A.CHARGER_NO -- 대표담당자명 
+			      ,A.DEAL_CODE -- 거래상태
+			      ,(SELECT EMP_NM FROM CRM_EMP_MGT E WHERE 1=1 AND A.CHARGER_NO = E.EMP_NO) CHARGER_NM
+			    FROM CRM_CUST_MGT A
+	    ) IN_TB
+	]]>
+		WHERE 1=1
+		<include refid="CustListWhere"/>		
+	</select>
+	<select id="getCustList" parameterType="custVO" resultType="custVO">
+		SELECT 
+			OUT_TB.*
+		FROM
+		(SELECT
+            in_tb.*,
+            ROW_NUMBER() OVER(
+                ORDER BY
+                    IN_TB.SEQ
+            ) AS RNUM
+        FROM
+            (
+				SELECT 
+			      A.SEQ --SEQ
+			      ,A.ERP_CODE --ERP코드
+			      ,A.CEO-- 대표자명
+			      ,A.CUST_NM --거래처명
+			      ,A.CUST_NO --사업자번호
+			      ,A.LAW_NO --법인등록번호
+			      ,A.BUSS_CONDITION --업태
+			      ,A.BUSS_ITEM--종목
+			      ,A.CUST_ADDRESS -- 주소
+			      ,A.CUST_KOR_NAME --거래처명
+			      ,A.CUST_GUBUN --거래처 구분
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD01' AND C.CODE = A.CUST_GUBUN ) CUST_GUBUN_NM--거래처구분   
+			      ,A.FOUNDATION_DT --설립일
+			      ,A.REG_DATE -- 등록일
+			      ,A.REG_ID --등록자
+			      ,A.DEAL_CODE --거래상태
+			      ,A.AS_APPROVAL_YN -- AS 결재프로세스 
+			   	  ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD04' AND C.CODE = A.AS_APPROVAL_YN ) AS_APPROVAL_YN_NM--거래상태        
+    		      ,A.CHARGER_NO -- 대표관리자  
+			      ,(SELECT EMP_NM FROM CRM_EMP_MGT E WHERE 1=1 AND A.CHARGER_NO = E.EMP_NO) CHARGER_NM  -- 대표관리자  
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD03' AND C.CODE = A.DEAL_CODE ) DEAL_CODE_NM--거래상태        
+    		   FROM CRM_CUST_MGT A
+    		   WHERE 1=1
+		    )IN_TB
+			WHERE 1=1
+			
+			<include refid="CustListWhere"/>
+		)OUT_TB
+	    <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC    
+		</if>	
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
+			ORDER BY RNUM DESC    
+		</if>
+	</select>
+	
+	
+	<!-- =======================================서버관리리스트=================================================  -->
+	<sql id="ServerListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.CUST_GUBUN = #{search_type1}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND IN_TB.DEAL_CODE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND (IN_TB.CUST_NM LIKE '%'|| UPPER(#{search_type3}) ||'%' OR
+				 IN_TB.ERP_CODE LIKE '%'|| UPPER(#{search_type3}) ||'%' 
+				)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ''">
+			AND IN_TB.SERVER_STATUS  = #{search_type4}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type5) != ''">
+			AND IN_TB.OS  = #{search_type5}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) != ''">
+			AND IN_TB.SERIAL_NUMBER  = #{search_type6}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type7) != ''">
+			AND IN_TB.MAIN_MNG  = #{search_type7}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type8) != ''">
+			AND (IN_TB.WORKER_ID  LIKE  '%'|| UPPER(#{search_type8}) ||'%' OR
+				 IN_TB.CUST_WORKER  LIKE  '%'|| UPPER(#{search_type8}) ||'%'
+				 )
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type13) != ''">
+			AND (IN_TB.SERVER_IP  LIKE '%'|| UPPER(#{search_type13}) ||'%' OR
+				 IN_TB.PB_IP  LIKE '%'|| UPPER(#{search_type13}) ||'%'
+				)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type10) != ''">
+			AND IN_TB.SERVER_STATUS  = #{search_type10}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type11) != ''">
+			AND IN_TB.SERVER_TYPE  = #{search_type11}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type12) != ''">
+			AND IN_TB.DBMS_TYPE  = #{search_type12}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND IN_TB.SERVER_NM LIKE '%'|| UPPER(#{search_text}) ||'%'
+		</if>		
+	</sql>
+	
+	<select id="getServerListCnt" parameterType="serverVO" resultType="java.lang.Integer">
+	<![CDATA[
+	    SELECT 
+	        COUNT(IN_TB.SEQ) 
+	    FROM (
+	        SELECT 
+			  A.SEQ --SEQ
+			  ,A.CUST_SEQ
+			  ,M.CUST_GUBUN
+			  ,M.CUST_KOR_NAME
+			  ,M.ERP_CODE 
+			  ,A.SERVER_TYPE--사용용도
+			  ,A.SERVER_NM --서버명칭
+			  ,A.SERVER_STATUS --서버상태
+			  ,A.OS --OS
+			  ,A.DBMS_TYPE --DBMS_종류
+			  ,A.DBMS_VERSION --DBMS_버전
+			  ,A.SERVER_IP --내부 IP
+			  ,A.PB_IP --내부 IP
+			  ,A.CONTRACT_CONDITION --유무상구분
+			  ,A.SERIAL_NUMBER --시리얼 넘버
+			  ,A.MAIN_MNG --관리주체
+		  	  ,A.WORKER_ID --담당자 
+		  	  ,A.CUST_WORKER -- 외부담당자 이름
+			FROM CRM_SERVER_MGT A , CRM_CUST_MGT M
+			WHERE 1=1 
+    		AND A.CUST_SEQ = M.SEQ
+	    ) IN_TB
+	]]>
+		WHERE 1=1
+		<include refid="ServerListWhere"/>		
+	</select>
+	<select id="getServerList" parameterType="serverVO" resultType="serverVO">
+		SELECT 
+			OUT_TB.*
+		FROM
+		(SELECT
+            in_tb.*,
+            ROW_NUMBER() OVER(
+                ORDER BY
+                    IN_TB.SEQ
+            ) AS RNUM
+        FROM
+            (
+				SELECT 
+				   A.SEQ --SEQ
+				  ,A.CUST_SEQ
+				  ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD01' AND C.CODE = M.CUST_GUBUN ) CUST_GUBUN_NM   
+				  ,M.CUST_GUBUN
+				  ,M.CUST_KOR_NAME
+				  ,M.ERP_CODE 
+				  ,A.SERVER_TYPE--사용용도
+				  ,A.SERVER_NM --서버명칭
+				  ,A.SERVER_STATUS --서버상태
+				  ,A.OS --OS
+				  ,A.DBMS_TYPE --DBMS_종류
+				  ,A.DBMS_VERSION --DBMS_버전
+				  ,A.SERVER_IP --내부 IP
+				  ,A.PB_IP --내부 IP
+				  ,A.CONTRACT_CONDITION --유무상구분
+				  ,A.SERIAL_NUMBER --시리얼 넘버
+				  ,A.MAIN_MNG --관리주체
+			  	  ,A.WORKER_ID --담당자 
+			  	  ,A.CUST_WORKER -- 외부담당자 이름
+				  ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV15' AND C.CODE = A.SERVER_TYPE ) SERVER_TYPE_NM   
+				  ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV14' AND C.CODE = A.SERVER_STATUS ) SERVER_STATUS_NM   
+				  ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV09' AND C.CODE = A.OS ) OS_NM  
+				  ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV03' AND C.CODE = A.DBMS_TYPE ) DBMS_TYPE_NM  
+				  ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV02' AND C.CODE = A.CONTRACT_CONDITION ) CONTRACT_CONDITION_NM  
+				  ,(SELECT E.EMP_NM FROM CRM_EMP_MGT E WHERE A.WORKER_ID = E.EMP_NO ) EMP_NM --담당자명
+				FROM CRM_SERVER_MGT A , CRM_CUST_MGT M
+				WHERE 1=1
+				AND A.CUST_SEQ = M.SEQ
+		    )IN_TB
+			WHERE 1=1
+			<include refid="ServerListWhere"/>
+		)OUT_TB
+	    <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC    
+		</if>	
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
+			ORDER BY RNUM DESC    
+		</if>
+	</select>
+	
+	<select id="getMaxServerSeq" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX_MAX_SERVER_SEQ.NEXTVAL FROM DUAL
+	]]>
+	</select>		
+	
+	<select id="getServerInfo" parameterType="serverVO" resultType="serverVO">
+		SELECT  
+			  SEQ                  ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE 1=1 AND WORKER_ID = EMP_NO) WORKER_NM          
+			 ,CUST_SEQ             ,WORKER_ID                                                                               
+			 ,SERVER_TYPE          ,CUST_WORKER                                                                             
+			 ,SERVER_NM            ,CUST_TEL                                                                                
+			 ,SERVER_MNF           ,TAKE_DT                                                                                 
+			 ,SERVER_MODEL         ,LOCATION_PC                                                                             
+			 ,SERVER_ID            ,MNG_CUST                                                                                
+			 ,SERVER_PASS          ,TERM_START_DT                                                                           
+			 ,SERVER_IP            ,TERM_END_DT                                                                             
+			 ,SERVER_STATUS        ,CONTRACT_CONDITION                                                                      
+			 ,PB_IP                ,FREE_START_DT                                                                           
+			 ,UNSED_STATUS         ,FREE_END_DT                                                                             
+			 ,SERIAL_NUMBER        ,OS                                                                                      
+			 ,MAIN_MNG             ,ACCESS_TYPE                                                                             
+			 ,VACCINE_TYPE         ,RAM_TYPE                                                                                
+			 ,DUR_IP               ,RAM_NUM                                                                                 
+			 ,DBMS_TYPE            ,USE_VPN       
+			 ,DBMS_VERSION         ,VPN_ADDR      
+			 ,DISK_TYPE            ,VPN_ID        
+			 ,DISK_VOLUME          ,VPN_PASS      
+			 ,DUPLEX_CDT           ,STORAGE_VOLUME
+			 ,THIRD_SOLUTION       ,STORAGE_HOST  
+			 ,RAID_TYPE            ,REG_DATE      
+			 ,DISK_NUM             ,UPD_DATE      
+			 ,DISK_INFO            ,REG_ID        
+			 ,UPD_ID        
+		 FROM 
+			CRM_SERVER_MGT
+		WHERE 1=1
+		AND SEQ = #{seq}  
+		AND CUST_SEQ = #{cust_seq}
+	</select>
+	
+	<select id="getServerInfo2" parameterType="serverVO" resultType="serverVO">
+		SELECT  
+			SEQ
+			,CUST_SEQ
+			,SERVER_TYPE
+			,SERVER_NM
+			,SERVER_STATUS
+			,PB_IP
+			,SERVER_IP
+			,OS
+			,MAIN_MNG
+			,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE WORKER_ID = EMP_NO ) WORKER_NM
+			,CUST_WORKER
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV15' AND C.CODE = SERVER_TYPE ) SERVER_TYPE_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV09' AND C.CODE = OS ) OS_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV15' AND C.CODE = SERVER_STATUS ) SERVER_STATUS_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV08' AND C.CODE = MAIN_MNG ) MAIN_MNG_NM  
+			,CASE
+				WHEN MAIN_MNG='C001' THEN  WORKER_NM
+				WHEN MAIN_MNG='C002' THEN  CUST_WORKER
+			END EMP_NM
+		FROM 
+			CRM_SERVER_MGT
+		WHERE 1=1
+		AND SEQ = #{seq}  
+		AND CUST_SEQ = #{cust_seq}
+	</select>
+	
+	<insert id="insertServer" parameterType="serverVO">
+		INSERT INTO CRM_SERVER_MGT( 
+		  SEQ           ,SERVER_ID       ,SERIAL_NUMBER    ,TAKE_DT              ,FREE_START_DT   
+		 ,CUST_SEQ      ,SERVER_PASS     ,MAIN_MNG         ,LOCATION_PC          ,FREE_END_DT     
+		 ,SERVER_TYPE   ,SERVER_IP       ,MNG_CUST         ,OS              
+		 ,SERVER_NM     ,SERVER_STATUS   ,WORKER_ID        ,TERM_START_DT        ,ACCESS_TYPE     
+		 ,SERVER_MNF    ,PB_IP           ,CUST_WORKER      ,TERM_END_DT          ,RAM_TYPE        
+		 ,SERVER_MODEL  ,UNSED_STATUS    ,CUST_TEL         ,CONTRACT_CONDITION   ,RAM_NUM         
+		                                                               
+		 ,VACCINE_TYPE  ,DUPLEX_CDT      ,VPN_ADDR         ,REG_ID    
+		 ,DUR_IP        ,THIRD_SOLUTION  ,VPN_ID                       
+		 ,DBMS_TYPE     ,RAID_TYPE       ,VPN_PASS                  
+		 ,DBMS_VERSION  ,DISK_NUM        ,STORAGE_VOLUME            
+		 ,DISK_TYPE     ,DISK_INFO       ,STORAGE_HOST              
+		 ,DISK_VOLUME   ,USE_VPN         ,REG_DATE 
+		)VALUES(
+		  MAX_SERVER_SEQ.NEXTVAL		  ,#{server_id, 	jdbcType=VARCHAR},#{serial_number, jdbcType=VARCHAR},#{take_dt, 	jdbcType=VARCHAR},#{free_start_dt,  jdbcType=VARCHAR}
+		 ,#{cust_seq, 	 jdbcType=INTEGER},#{server_pass,   jdbcType=VARCHAR},#{main_mng, 	   jdbcType=VARCHAR},#{location_pc, jdbcType=VARCHAR},#{free_end_dt, 	jdbcType=VARCHAR}
+		 ,#{server_type, jdbcType=VARCHAR},#{server_ip, 	jdbcType=VARCHAR},#{mng_cust, 	   jdbcType=VARCHAR},#{os, 			jdbcType=VARCHAR}
+		 ,#{server_nm,   jdbcType=VARCHAR},#{server_status, jdbcType=VARCHAR},#{worker_id, 	   jdbcType=VARCHAR},#{term_start_dt,jdbcType=VARCHAR},#{access_type, 	jdbcType=VARCHAR}
+		 ,#{server_mnf,  jdbcType=VARCHAR},#{pb_ip, 		jdbcType=VARCHAR},#{cust_worker,   jdbcType=VARCHAR},#{term_end_dt, jdbcType=VARCHAR},#{ram_type, 		jdbcType=VARCHAR}
+		 ,#{server_model,jdbcType=VARCHAR},#{unsed_status,  jdbcType=VARCHAR},#{cust_tel, 	   jdbcType=VARCHAR},#{contract_condition, jdbcType=VARCHAR},#{ram_num, jdbcType=VARCHAR}
+		 
+		 ,#{vaccine_type,  jdbcType=VARCHAR},#{duplex_cdt, 	   jdbcType=VARCHAR},#{vpn_addr, 	jdbcType=VARCHAR},#{reg_id, jdbcType=VARCHAR}  
+		 ,#{dur_ip,  	   jdbcType=VARCHAR},#{third_solution, jdbcType=VARCHAR},#{vpn_id, 		jdbcType=VARCHAR}
+		 ,#{dbms_type,     jdbcType=VARCHAR},#{raid_type, 	   jdbcType=VARCHAR},#{vpn_pass, 	jdbcType=VARCHAR}
+		 ,#{dbms_version,  jdbcType=VARCHAR},#{disk_num, 	   jdbcType=VARCHAR},#{storage_volume, jdbcType=VARCHAR}
+		 ,#{disk_type,     jdbcType=VARCHAR},#{disk_info, 	   jdbcType=VARCHAR},#{storage_host, jdbcType=VARCHAR}
+		 ,#{disk_volume,   jdbcType=VARCHAR},#{use_vpn, 	   jdbcType=VARCHAR}, SYSDATE              
+		 )              
+	</insert>	 
+	
+	<update id="updateServer" parameterType="serverVO">
+		UPDATE CRM_SERVER_MGT
+			SET
+			 SERVER_TYPE   =#{server_type},		CONTRACT_CONDITION =#{contract_condition} 
+			 ,SERVER_NM     =#{server_nm},		FREE_START_DT      =#{free_start_dt} 
+			 ,SERVER_MNF    =#{server_mnf},		FREE_END_DT        =#{free_end_dt} 
+			 ,SERVER_MODEL  =#{server_model},	OS                 =#{os} 
+			 ,SERVER_ID     =#{server_id},		ACCESS_TYPE        =#{access_type} 
+			 ,SERVER_PASS   =#{server_pass},	RAM_TYPE           =#{ram_type} 
+			 ,SERVER_IP     =#{server_ip},		RAM_NUM            =#{ram_num} 
+			 ,SERVER_STATUS =#{server_status},	VACCINE_TYPE       =#{vaccine_type} 
+			 ,PB_IP         =#{pb_ip},			DUR_IP             =#{dur_ip} 
+			 ,UNSED_STATUS  =#{unsed_status},	DBMS_TYPE          =#{dbms_type} 
+			 ,SERIAL_NUMBER =#{serial_number},	DBMS_VERSION       =#{dbms_version} 
+			 ,MAIN_MNG      =#{main_mng},		DISK_TYPE          =#{disk_type} 
+			 ,DISK_VOLUME   =#{disk_volume} 
+			 ,WORKER_ID     =#{worker_id},		DUPLEX_CDT         =#{duplex_cdt} 
+			 ,CUST_WORKER   =#{cust_worker},	THIRD_SOLUTION     =#{third_solution} 
+			 ,CUST_TEL      =#{cust_tel},		RAID_TYPE          =#{raid_type} 
+			 ,TAKE_DT       =#{take_dt},		DISK_NUM           =#{disk_num} 
+			 ,LOCATION_PC   =#{location_pc},	DISK_INFO          =#{disk_info} 
+			 ,MNG_CUST      =#{mng_cust},		USE_VPN            =#{use_vpn} 
+			 ,TERM_START_DT =#{term_start_dt},	VPN_ADDR           =#{vpn_addr} 
+			 ,TERM_END_DT   =#{term_end_dt},	VPN_ID             =#{vpn_id} 
+			 ,VPN_PASS      =#{vpn_pass},		UPD_DATE           =SYSDATE                                                                                          
+			 ,STORAGE_VOLUME=#{storage_volume},	UPD_ID             =#{reg_id} 
+			 ,STORAGE_HOST  =#{storage_host}     
+		WHERE 1=1                                   
+		AND SEQ = #{seq}          
+		AND CUST_SEQ = #{cust_seq}
+
+	</update>
+	
+	<!-- =======================================DB관리리스트=================================================  -->
+	<select id="getDbList" parameterType="dbVO" resultType="dbVO">
+		SELECT 
+			OUT_TB.*
+		FROM
+		(SELECT
+            in_tb.*,
+            ROW_NUMBER() OVER(ORDER BY IN_TB.SEQ) AS RNUM
+        FROM
+            (
+				SELECT 
+	                SEQ         
+                    ,CUST_SEQ    
+                    ,SERVER_SEQ  
+                    ,DB_NAME     
+                    ,DBMS_TYPE   
+                    ,DBMS_VERSION
+                    ,DB_HOST     
+                    ,DB_PORT     
+                    ,DB_SID      
+                    ,SERVICE_NAME
+                    ,DB_USER_NAME 
+                    ,DB_USER_PASS 
+                    ,DB_LINK      
+                    ,ARCHIVE_MODE 
+                    ,BACKUP       
+                    ,BACKUP_DT    
+                    ,DB_ETC       
+                    ,REG_ID       
+                    ,REG_DATE
+   					,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = 'DB02' AND Z.CODE = DBMS_TYPE) as DBMS_TYPE_NM 
+   					,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = DBMS_TYPE AND Z.CODE = DBMS_VERSION) as DBMS_VERSION_NM
+   					,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = 'DB01' AND Z.CODE = ARCHIVE_MODE) as ARCHIVE_MODE_NM
+    			FROM CRM_DB_MGT
+			WHERE 1=1
+				AND CUST_SEQ = #{cust_seq} 
+				AND SERVER_SEQ = #{server_seq}
+			)IN_TB
+		)OUT_TB
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC  	
+	</select>
+	
+	
+	<select id="getDbListCnt" parameterType="dbVO" resultType="java.lang.Integer">
+		SELECT 
+			COUNT(IN_TB.SEQ)
+		FROM(
+				SELECT 
+               		SEQ         
+                  ,CUST_SEQ    
+                  ,SERVER_SEQ  
+                  ,DB_NAME     
+                  ,DBMS_TYPE   
+                  ,DBMS_VERSION
+                  ,DB_HOST     
+                  ,DB_PORT     
+                  ,DB_SID      
+                  ,SERVICE_NAME
+                  ,DB_USER_NAME 
+                  ,DB_USER_PASS 
+                  ,DB_LINK      
+                  ,ARCHIVE_MODE 
+                  ,BACKUP       
+                  ,BACKUP_DT    
+                  ,DB_ETC       
+                  ,REG_ID       
+                  ,REG_DATE
+ 				  ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = 'DB02' AND Z.CODE = DBMS_TYPE) as DBMS_TYPE_NM 
+   				  ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = DBMS_TYPE AND Z.CODE = DBMS_VERSION) as DBMS_VERSION_NM
+   				  ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = 'DB01' AND Z.CODE = ARCHIVE_MODE) as ARCHIVE_MODE_NM
+  			FROM CRM_DB_MGT
+	WHERE 1=1
+		AND CUST_SEQ = #{cust_seq} 
+		AND SERVER_SEQ = #{server_seq}
+		)IN_TB
+			
+	</select>
+	
+	<select id="getDbInfo" parameterType="dbVO" resultType="dbVO">
+		SELECT 
+		   	SEQ             
+		  	,CUST_SEQ        
+		  	,SERVER_SEQ      
+		  	,DB_NAME         
+		  	,DBMS_TYPE       
+		  	,DBMS_VERSION    
+		  	,DB_HOST         
+		  	,DB_PORT         
+		  	,DB_SID             
+		  	,SERVICE_NAME
+		  	,DB_USER_NAME 
+		  	,DB_USER_PASS 
+			,DB_LINK      
+			,ARCHIVE_MODE 
+			,BACKUP       
+			,BACKUP_DT    
+			,DB_ETC       
+			,REG_ID       
+			,REG_DATE
+			,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = 'DB02' AND Z.CODE = DBMS_TYPE) as DBMS_TYPE_NM 
+  			,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = DBMS_TYPE AND Z.CODE = DBMS_VERSION) as DBMS_VERSION_NM
+   			,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'DB' AND Z.P_CODE = 'DB01' AND Z.CODE = ARCHIVE_MODE) as ARCHIVE_MODE_NM	 
+		FROM
+			CRM_DB_MGT
+		WHERE 
+			1=1
+		AND SEQ  = #{seq, jdbcType=INTEGER}
+		AND SERVER_SEQ  = #{server_seq, jdbcType=INTEGER}
+		AND CUST_SEQ  = #{cust_seq, jdbcType=INTEGER}	
+		 
+	</select>
+	
+	
+	<insert id="insertDb" parameterType="dbVO">
+		INSERT INTO CRM_DB_MGT 
+		(  SEQ             ,DB_USER_NAME 
+		  ,CUST_SEQ        ,DB_USER_PASS 
+		  ,SERVER_SEQ      ,DB_LINK      
+		  ,DB_NAME         ,ARCHIVE_MODE 
+		  ,DBMS_TYPE       ,BACKUP       
+		  ,DBMS_VERSION    ,BACKUP_DT    
+		  ,DB_HOST         ,DB_ETC       
+		  ,DB_PORT         ,REG_ID       
+		  ,DB_SID          ,REG_DATE	    
+		  ,SERVICE_NAME
+ 		)VALUES(
+		   MAX_DB_SEQ.NEXTVAL 			  ,#{db_user_name,  jdbcType=VARCHAR}
+		  ,#{cust_seq, 	jdbcType=INTEGER} ,#{db_user_pass,  jdbcType=VARCHAR}
+		  ,#{server_seq,jdbcType=INTEGER} ,#{db_link, 		jdbcType=VARCHAR}
+		  ,#{db_name, 	jdbcType=VARCHAR} ,#{archive_mode, 	jdbcType=VARCHAR}
+		  ,#{dbms_type, jdbcType=VARCHAR} ,#{backup, 		jdbcType=VARCHAR}
+		  ,#{dbms_version, jdbcType=VARCHAR} ,#{backup_dt,  jdbcType=VARCHAR}
+		  ,#{db_host, 	jdbcType=VARCHAR} ,#{db_etc, 		jdbcType=VARCHAR}
+		  ,#{db_port, 	jdbcType=VARCHAR} ,#{reg_id, 		jdbcType=VARCHAR}
+		  ,#{db_sid, 	jdbcType=VARCHAR} ,SYSDATE                            
+		  ,#{service_name, jdbcType=VARCHAR} 
+		)
+	</insert>
+	<update id="updateDb" parameterType="dbVO" >
+		UPDATE CRM_DB_MGT 
+			 SET
+			   DB_NAME           = #{db_name, 		jdbcType=VARCHAR} 
+			  ,DBMS_TYPE         = #{dbms_type, 	jdbcType=VARCHAR} 
+			  ,DBMS_VERSION      = #{dbms_version, 	jdbcType=VARCHAR} 
+			  ,DB_HOST           = #{db_host, 		jdbcType=VARCHAR} 
+			  ,DB_PORT           = #{db_port, 		jdbcType=VARCHAR} 
+			  ,DB_SID            = #{db_sid, 		jdbcType=VARCHAR} 
+			  ,SERVICE_NAME      = #{service_name,  jdbcType=VARCHAR} 
+			  ,DB_USER_NAME      = #{db_user_name,  jdbcType=VARCHAR} 
+			  ,DB_USER_PASS      = #{db_user_pass,  jdbcType=VARCHAR} 
+			  ,DB_LINK           = #{db_link, 		jdbcType=VARCHAR} 
+			  ,ARCHIVE_MODE      = #{archive_mode,  jdbcType=VARCHAR} 
+			  ,BACKUP            = #{backup, 		jdbcType=VARCHAR} 
+			  ,BACKUP_DT         = #{backup_dt, 	jdbcType=VARCHAR} 
+			  ,DB_ETC            = #{db_etc, 		jdbcType=VARCHAR}
+			  ,UPD_ID		     = #{reg_id, 		jdbcType=VARCHAR}
+			  ,UPD_DATE			 = SYSDATE
+		WHERE 1=1
+			AND SEQ               = #{seq, jdbcType=INTEGER} 
+			AND CUST_SEQ          = #{cust_seq, jdbcType=INTEGER} 
+			AND SERVER_SEQ        = #{server_seq, jdbcType=INTEGER}
+	</update>
+	
+	<delete  id="deleteDb"  parameterType="dbVO">
+		DELETE FROM CRM_DB_MGT 
+		WHERE 1=1 
+			AND SEQ               = #{seq, jdbcType=INTEGER}        
+		    AND CUST_SEQ          = #{cust_seq, jdbcType=INTEGER}  
+	        AND SERVER_SEQ        = #{server_seq, jdbcType=INTEGER}
+	</delete>
+	
+	
+	
+	<!-- =======================================APP관리리스트=================================================  -->
+	<select id="getAppList" parameterType="appVO" resultType="appVO">
+		SELECT 
+			OUT_TB.*
+		FROM
+		(SELECT
+            in_tb.*,
+            ROW_NUMBER() OVER(ORDER BY IN_TB.SEQ) AS RNUM
+        FROM
+            (
+				SELECT 
+	               SEQ                                                                                                                                 
+                  ,CUST_SEQ                                                                                                                            
+                  ,SERVER_SEQ                                                                                                                          
+                  ,APP_NAME                                                                                                                            
+                  ,APP_TYPE                                                                                                                            
+                  ,LAN_TYPE                                                                                                                            
+                  ,DEVELOPMENT_TOOL                                                                                                                    
+                  ,REG_DATE                                                                                                                            
+                  ,MANAGEMENT_TOOL                                                                                                                     
+                  ,MANAGEMENT_ADDR                                                                                                                     
+                  ,SITE_ADDR                                                                                                                           
+                  ,SITE_ID                                                                                                                             
+                  ,SITE_PASS                                                                                                                           
+                  ,APP_ETC                                                                                                                             
+                  ,REG_ID                                                                                                                              
+                  ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'APP' AND Z.P_CODE = 'AP01' AND Z.CODE = APP_TYPE) as APP_TYPE_NM     
+                  ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'APP' AND Z.P_CODE = 'AP02' AND Z.CODE = LAN_TYPE) as LANGUAGE_NM     
+                FROM CRM_APP_MGT
+			WHERE 1=1
+				AND CUST_SEQ = #{cust_seq} 
+				AND SERVER_SEQ = #{server_seq}
+			)IN_TB
+		)OUT_TB
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC  
+	</select>
+	
+	
+	<select id="getAppListCnt" parameterType="appVO" resultType="java.lang.Integer">
+		SELECT 
+			COUNT(IN_TB.SEQ)
+		FROM(
+			    SELECT                                                                                                                                
+                    SEQ                                                                                                                                
+                   ,CUST_SEQ                                                                                                                           
+                   ,SERVER_SEQ                                                                                                                         
+                   ,APP_NAME                                                                                                                           
+                   ,APP_TYPE                                                                                                                           
+                   ,LAN_TYPE                                                                                                                           
+                   ,DEVELOPMENT_TOOL                                                                                                                   
+                   ,REG_DATE                                                                                                                           
+                   ,MANAGEMENT_TOOL                                                                                                                    
+                   ,MANAGEMENT_ADDR                                                                                                                    
+                   ,SITE_ADDR                                                                                                                          
+                   ,SITE_ID                                                                                                                            
+                   ,SITE_PASS                                                                                                                          
+                   ,APP_ETC                                                                                                                            
+                   ,REG_ID                                                                                                                             
+                   ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'APP' AND Z.P_CODE = 'AP01' AND Z.CODE = APP_TYPE) as APP_TYPE_NM    
+                   ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'APP' AND Z.P_CODE = 'AP02' AND Z.CODE = LAN_TYPE) as LANGUAGE_NM    
+                 FROM CRM_APP_MGT                                                                                                                      
+ 		WHERE 1=1
+			AND CUST_SEQ = #{cust_seq} 
+			AND SERVER_SEQ = #{server_seq}
+		)IN_TB
+	</select>
+	
+	
+	<select id="getAppInfo" parameterType="appVO" resultType="appVO">
+		SELECT 
+			 SEQ             
+			,CUST_SEQ        
+			,SERVER_SEQ      
+			,APP_NAME        
+			,APP_TYPE        
+			,LAN_TYPE        
+			,DEVELOPMENT_TOOL
+			,REG_DATE        
+			,MANAGEMENT_TOOL 
+			,MANAGEMENT_ADDR 
+			,SITE_ADDR       
+			,SITE_ID         
+			,SITE_PASS       
+			,APP_ETC         
+			,REG_ID
+		FROM CRM_APP_MGT
+		WHERE 1=1
+			AND SEQ               = #{seq, jdbcType=INTEGER} 
+			AND CUST_SEQ          = #{cust_seq, jdbcType=INTEGER} 
+			AND SERVER_SEQ        = #{server_seq, jdbcType=INTEGER}
+	</select>
+	
+	<insert id="insertApp" parameterType="appVO">
+		INSERT INTO CRM_APP_MGT(
+		   SEQ                  ,MANAGEMENT_TOOL
+		  ,CUST_SEQ             ,MANAGEMENT_ADDR
+		  ,SERVER_SEQ           ,SITE_ADDR      
+		  ,APP_NAME             ,SITE_ID        
+		  ,APP_TYPE             ,SITE_PASS      
+		  ,LAN_TYPE             ,APP_ETC
+		  ,DEVELOPMENT_TOOL     ,REG_ID 
+		  ,REG_DATE
+		)VALUES(
+		   MAX_APP_SEQ.NEXTVAL					,#{management_tool,jdbcType=VARCHAR}    
+		  ,#{cust_seq,jdbcType=INTEGER}         ,#{management_addr,jdbcType=VARCHAR}    
+		  ,#{server_seq,jdbcType=INTEGER}       ,#{site_addr,jdbcType=VARCHAR}    
+		  ,#{app_name,jdbcType=VARCHAR}         ,#{site_id,jdbcType=VARCHAR}    
+		  ,#{app_type,jdbcType=VARCHAR}         ,#{site_pass,jdbcType=VARCHAR}    
+		  ,#{lan_type,jdbcType=VARCHAR}         ,#{app_etc,jdbcType=VARCHAR}    
+		  ,#{development_tool,jdbcType=VARCHAR} ,#{reg_id,jdbcType=VARCHAR}    
+		  ,SYSDATE			  
+		)
+	</insert>
+	
+	<update id="updateApp" parameterType="appVO">
+		UPDATE CRM_APP_MGT 
+		  SET
+			 APP_NAME            = #{app_name,jdbcType=VARCHAR}
+			,APP_TYPE            = #{app_type,jdbcType=VARCHAR}
+			,LAN_TYPE            = #{lan_type,jdbcType=VARCHAR}
+			,DEVELOPMENT_TOOL    = #{development_tool,jdbcType=VARCHAR}
+			,MANAGEMENT_TOOL     = #{management_tool,jdbcType=VARCHAR}
+			,MANAGEMENT_ADDR     = #{management_addr,jdbcType=VARCHAR}
+			,SITE_ADDR           = #{site_addr,jdbcType=VARCHAR}
+			,SITE_ID             = #{site_id,jdbcType=VARCHAR}
+			,SITE_PASS           = #{site_pass,jdbcType=VARCHAR}
+			,APP_ETC             = #{app_etc,jdbcType=VARCHAR}
+			,UPD_ID              = #{reg_id,jdbcType=VARCHAR}
+			,UPD_DATE	         = SYSDATE
+		WHERE 1=1
+		AND SEQ 			 = #{seq,jdbcType=INTEGER}
+		AND CUST_SEQ		 = #{cust_seq,jdbcType=INTEGER}	
+		AND SERVER_SEQ       = #{server_seq,jdbcType=INTEGER}
+	</update>
+	
+	<delete id="deleteApp" parameterType="appVO">
+		DELETE FROM CRM_APP_MGT 
+		WHERE 1=1 
+		AND SEQ               = #{seq, jdbcType=INTEGER} 
+		AND CUST_SEQ          = #{cust_seq, jdbcType=INTEGER} 
+		AND SERVER_SEQ        = #{server_seq, jdbcType=INTEGER} 
+	</delete>
+	
+	
+	
+	<!-- =======================================서비스관리리스트=================================================  -->
+	<select id="getServiceList" parameterType="serviceVO" resultType="serviceVO">
+		SELECT 
+			OUT_TB.*
+		FROM
+		(SELECT
+            in_tb.*,
+            ROW_NUMBER() OVER(ORDER BY IN_TB.SEQ) AS RNUM
+        FROM
+            (
+				SELECT 
+	               SEQ                                                                                                                                 
+                  ,CUST_SEQ                                                                                                                            
+                  ,SERVER_SEQ                                                                                                                          
+                  ,SERVICE_NAME                                                                                                                            
+                  ,SERVICE_TYPE                                                                                                                            
+                  ,SERVICE_IP                                                                                                                            
+                  ,SERVICE_ROUTE                                                                                                                    
+                  ,REG_DATE                                                                                                                            
+                  ,SERVICE_ID                                                                                                                     
+                  ,SERVICE_PASS                                                                                                                     
+                  ,ACCOUNT_ETC                                                                                                                        
+                  ,STR_DT                                                                                                                             
+                  ,END_DT                                                                                                                           
+                  ,SERVICE_ETC                                                                                                                             
+                  ,REG_ID                                                                                                                              
+                  ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'SERVICE' AND Z.P_CODE = 'SV01' AND Z.CODE = SERVICE_TYPE) as SERVICE_TYPE_NM     
+                 FROM CRM_SERVICE_MGT
+			WHERE 1=1
+				AND CUST_SEQ = #{cust_seq} 
+				AND SERVER_SEQ = #{server_seq}
+			)IN_TB
+		)OUT_TB
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC  
+	</select>
+	
+	
+	<select id="getServiceListCnt" parameterType="serviceVO" resultType="java.lang.Integer">
+		SELECT 
+			COUNT(IN_TB.SEQ)
+		FROM(
+			    SELECT                                                                                                                                
+                   SEQ                                                                                                                                         
+					,CUST_SEQ                                                                                                                                    
+					,SERVER_SEQ                                                                                                                                  
+					,SERVICE_NAME                                                                                                                                
+					,SERVICE_TYPE                                                                                                                                
+					,SERVICE_IP                                                                                                                                  
+					,SERVICE_ROUTE                                                                                                                               
+					,REG_DATE                                                                                                                                    
+					,SERVICE_ID                                                                                                                                  
+					,SERVICE_PASS                                                                                                                                
+					,ACCOUNT_ETC                                                                                                                                 
+					,STR_DT                                                                                                                                      
+					,END_DT                                                                                                                                      
+					,SERVICE_ETC                                                                                                                                 
+					,REG_ID                                                                                                                                      
+					,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'SERVICE' AND Z.P_CODE = 'SV01' AND Z.CODE = SERVICE_TYPE) as SERVICE_TYPE_NM 
+                  FROM CRM_SERVICE_MGT                                                                                                                      
+ 		WHERE 1=1
+			AND CUST_SEQ = #{cust_seq} 
+			AND SERVER_SEQ = #{server_seq}
+		)IN_TB
+	</select>
+	
+	
+	<select id="getServiceInfo" parameterType="serviceVO" resultType="serviceVO">
+		SELECT 
+			SEQ                                                                                                                                              
+			,CUST_SEQ                                                                                                                                       
+			,SERVER_SEQ                                                                                                                                     
+			,SERVICE_NAME                                                                                                                                   
+			,SERVICE_TYPE                                                                                                                                   
+			,SERVICE_IP                                                                                                                                     
+			,SERVICE_ROUTE                                                                                                                                  
+			,REG_DATE                                                                                                                                       
+			,SERVICE_ID                                                                                                                                     
+			,SERVICE_PASS                                                                                                                                   
+			,ACCOUNT_ETC                                                                                                                                    
+			,STR_DT                                                                                                                                         
+			,END_DT                                                                                                                                         
+			,SERVICE_ETC                                                                                                                                    
+			,REG_ID                                                                                                                                         
+			,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'SERVICE' AND Z.P_CODE = 'SV01' AND Z.CODE = SERVICE_TYPE) as SERVICE_TYPE_NM    
+		FROM CRM_SERVICE_MGT
+		WHERE 1=1
+			AND SEQ               = #{seq, jdbcType=INTEGER} 
+			AND CUST_SEQ          = #{cust_seq, jdbcType=INTEGER} 
+			AND SERVER_SEQ        = #{server_seq, jdbcType=INTEGER}
+	</select>
+	
+	<insert id="insertService" parameterType="serviceVO">
+		INSERT INTO CRM_SERVICE_MGT(
+		  	SEQ             
+			,CUST_SEQ       
+			,SERVER_SEQ     
+			,SERVICE_NAME   
+			,SERVICE_TYPE   
+			,SERVICE_IP     
+			,SERVICE_ROUTE  
+			,SERVICE_ID     
+			,SERVICE_PASS   
+			,ACCOUNT_ETC    
+			,STR_DT         
+			,END_DT         
+			,SERVICE_ETC    
+			,REG_ID         
+		  	,REG_DATE
+		  )VALUES(
+		   MAX_SERVICE_SEQ.NEXTVAL
+		   ,#{cust_seq}      
+		   ,#{server_seq}    
+		   ,#{service_name}  
+		   ,#{service_type}  
+		   ,#{service_ip}    
+		   ,#{service_route} 
+		   ,#{service_id}    
+		   ,#{service_pass}  
+		   ,#{account_etc}   
+		   ,#{str_dt}        
+		   ,#{end_dt}        
+		   ,#{service_etc}   
+		   ,#{reg_id}        
+		   ,SYSDATE		  
+		)
+	</insert>
+	
+	<update id="updateService" parameterType="serviceVO">
+		UPDATE CRM_SERVICE_MGT 
+		  SET
+			 SERVICE_NAME   = #{service_name} 
+			,SERVICE_TYPE   = #{service_type} 
+			,SERVICE_IP     = #{service_ip}   
+			,SERVICE_ROUTE  = #{service_route}
+			,REG_DATE       = #{reg_date}     
+			,SERVICE_ID     = #{service_id}   
+			,SERVICE_PASS   = #{service_pass} 
+			,ACCOUNT_ETC    = #{account_etc}  
+			,STR_DT         = #{str_dt}       
+			,END_DT         = #{end_dt}       
+			,SERVICE_ETC    = #{service_etc}  
+			,UPD_ID         = #{reg_id}       
+			,UPD_DATE       = SYSDATE
+		WHERE 1=1
+		AND SEQ 			 = #{seq,jdbcType=INTEGER}
+		AND CUST_SEQ		 = #{cust_seq,jdbcType=INTEGER}	
+		AND SERVER_SEQ       = #{server_seq,jdbcType=INTEGER}
+	</update>
+	
+	<delete id="deleteService" parameterType="serviceVO">
+		DELETE FROM CRM_SERVICE_MGT 
+		WHERE 1=1 
+		AND SEQ               = #{seq, jdbcType=INTEGER} 
+		AND CUST_SEQ          = #{cust_seq, jdbcType=INTEGER} 
+		AND SERVER_SEQ        = #{server_seq, jdbcType=INTEGER} 
+	</delete>
+	
+	
+	
+	
+	
+	<!-- =====================================Server Hist 관리리스트=================================================  -->
+	<select id="getServerHistInfo" parameterType="custVO" resultType="custVO">
+		SELECT 
+			*
+			,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'HIS' AND Z.P_CODE = 'HS01' AND Z.CODE = INFRA_TYPE) as INFRA_TYPE_NM 
+			,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'HIS' AND Z.P_CODE = 'HS02' AND Z.CODE = WORK_TYPE) as WORK_TYPE_NM
+		FROM CRM_SERVER_HIST 
+	</select>
+	
+	<insert id="insertServerHistInfo" parameterType="custVO" >
+		INSERT INTO CRM_SERVER_HIS 
+		  (SEQ               ,WORK_CUST   
+		  ,SERVER_SEQ        ,CUST_CHARGE 
+		  ,CUST_SEQ          ,END_DT      
+		  ,INFRA_TYPE        ,WORK_TIME   
+		  ,WORK_TYPE         ,HIST_ETC    
+		  ,EQUIPMENT_NM      ,REG_ID      
+		  ,WORK_CONTENT      ,REG_DATE   
+		  ,WORK_CHARGE      
+		  )VALUES(
+		   #{seq            , jdbcType=VARCHAR}  ,#{work_cust      , jdbcType=VARCHAR}
+		  ,#{server_seq     , jdbcType=INTEGER}  ,#{cust_charge    , jdbcType=VARCHAR}
+		  ,#{cust_seq       , jdbcType=INTEGER}  ,#{end_dt         , jdbcType=VARCHAR}
+		  ,#{infra_type     , jdbcType=VARCHAR}  ,#{work_time      , jdbcType=VARCHAR} 
+		  ,#{work_type      , jdbcType=VARCHAR}  ,#{hist_etc       , jdbcType=VARCHAR} 
+		  ,#{equipment_nm   , jdbcType=VARCHAR}  ,#{reg_id         , jdbcType=VARCHAR} 
+		  ,#{work_content   , jdbcType=VARCHAR}  ,SYSDATE                              
+		  ,#{work_charge    , jdbcType=VARCHAR} 
+		  ) 
+	</insert>
+	
+	<update id="updateServerHistInfo">
+		UPDATE CRM_SERVER_HIST
+		 SET
+		   INFRA_TYPE       =#{ infra_type     ,jdbcType = VARCHAR}
+		  ,WORK_TYPE        =#{ work_type      ,jdbcType = VARCHAR}
+		  ,EQUIPMENT_NM     =#{ equipment_nm   ,jdbcType = VARCHAR}
+		  ,WORK_CONTENT     =#{ work_content   ,jdbcType = VARCHAR}
+		  ,WORK_CHARGE      =#{ work_charge    ,jdbcType = VARCHAR}
+		  ,WORK_CUST        =#{ work_cust      ,jdbcType = VARCHAR}
+		  ,CUST_CHARGE      =#{ cust_charge    ,jdbcType = VARCHAR}
+		  ,END_DT           =#{ end_dt         ,jdbcType = VARCHAR}
+		  ,WORK_TIME        =#{ work_time      ,jdbcType = VARCHAR}
+		  ,HIST_ETC         =#{ hist_etc       ,jdbcType = VARCHAR}
+		  ,UPD_ID            =#{ reg_id          ,jdbcType = VARCHAR}
+		  ,UPD_DATE          =SYSDATE
+		 WHERE 1=1
+		  AND SEQ               = #{seq           , jdbcType=INTEGER} 
+		  AND CUST_SEQ          = #{cust_seq      , jdbcType=INTEGER} 
+		  AND SERVER_SEQ        = #{server_seq    , jdbcType=INTEGER} 
+	</update>
+	
+	<delete id="deleteServerHistInfo">
+		DELETE FROM CRM_SERVER_HIST
+		WHERE 1=1 
+			AND SEQ	=#{seq , jdbcType=INTEGER} 
+			AND CUST_SEQ	=#{cust_seq , jdbcType=INTEGER} 
+			AND SERVER_SEQ	=#{server_seq , jdbcType=INTEGER} 
+	</delete>
+	
+	<!-- =====================================네트워크 관리리스트=================================================  -->
+	<sql id="NetworkListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.CUST_GUBUN = #{search_type1}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND IN_TB.DEAL_CODE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND (
+				UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_type3}) ||'%' OR
+				 UPPER(IN_TB.ERP_CODE) LIKE '%'|| UPPER(#{search_type3}) ||'%' 
+				)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ''">
+			AND IN_TB.EQUIPMENT  = #{search_type4}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type5) != ''">
+			AND IN_TB.NETWORK_MNF  = #{search_type5}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) != ''">
+			AND IN_TB.NETWORK_MODEL  = #{search_type6}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type7) != ''">
+			AND IN_TB.USE_TYPE  = #{search_type7}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type8) != ''">
+			AND IN_TB.CONTRACT_CONDITION  = #{search_type8}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type9) != ''">
+			AND IN_TB.UNSED_STATUS  = #{search_type9}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type10) != ''">
+			AND IN_TB.IP LIKE  '%'|| #{search_type10} ||'%'
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type11) != ''">
+			AND IN_TB.ID  LIKE '%'|| #{search_type11}||'%'
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type12) != ''">
+			AND IN_TB.SERIAL_NUMBER  LIKE '%'|| #{search_type12} ||'%'
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND IN_TB.NETWORK_NM  LIKE '%'|| #{search_text}||'%'
+		</if>		
+	</sql>
+	
+	<select id="getNetworkCnt" parameterType="networkVO" resultType="java.lang.Integer">
+	<![CDATA[
+	    SELECT 
+	        COUNT(IN_TB.SEQ) 
+	    FROM (
+	        SELECT 
+			      A.SEQ --SEQ
+			      ,R.ERP_CODE --ERP코드
+			      ,R.DEAL_CODE-- 거래구분
+			      ,R.ERP_CODE-- 거래구분
+			      ,R.CUST_KOR_NAME --거래처명
+			      ,R.CUST_GUBUN --거래처 구분
+			      ,A.CONTRACT_CONDITION --유무상구분
+			      ,A.EQUIPMENT --장비구분
+			      ,A.ID --ID
+			      ,A.IP -- IP
+			      ,A.NETWORK_MNF --제조사
+			      ,A.NETWORK_MODEL --모델 
+			      ,A.SERIAL_NUMBER --시리얼넘버
+			      ,A.UNSED_STATUS --유휴폐기여부
+			      ,A.USE_TYPE -- 사용구분
+			      ,A.NETWORK_NM
+			    FROM CRM_NETWORK_MGT A, CRM_CUST_MGT R
+			    WHERE 1=1
+			    AND A.CUST_SEQ = R.SEQ
+	    ) IN_TB
+	]]>
+		WHERE 1=1
+		<include refid="NetworkListWhere"/>		
+	</select>
+	<select id="getNetworkList" parameterType="networkVO" resultType="networkVO">
+		SELECT 
+			OUT_TB.*
+		FROM
+		(SELECT in_tb.*,
+		        ROW_NUMBER() OVER(ORDER BY IN_TB.SEQ ) AS RNUM
+		 FROM
+		    (  SELECT
+				   A.SEQ --SEQ
+			      ,A.CUST_SEQ --거래처 seq
+			      ,R.CUST_GUBUN
+			      ,R.DEAL_CODE
+			      ,R.CUST_KOR_NAME
+			      ,R.ERP_CODE-- 거래구분
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD01' AND C.CODE = R.CUST_GUBUN ) CUST_GUBUN_NM--거래처구분   
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD03' AND C.CODE = R.DEAL_CODE ) DEAL_CODE_NM--거래상태
+			      ,A.EQUIPMENT --장비
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='NETWORK' AND C.P_CODE='NT01' AND C.CODE = A.EQUIPMENT ) EQUIPMENT_NM--장비
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='NETWORK' AND C.P_CODE='NT02' AND C.CODE = A.NETWORK_MNF ) NETWORK_MNF_NM--제조사명
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='NETWORK' AND C.P_CODE='NT03' AND C.CODE = A.USE_TYPE ) USE_TYPE_NM--제조사명
+			      ,A.NETWORK_MNF --제조사
+			      ,A.NETWORK_MODEL
+			      ,A.SERIAL_NUMBER
+			      ,A.IP
+			      ,A.ID
+			      ,A.NETWORK_NM
+			      ,A.UNSED_STATUS
+			      ,A.CONTRACT_CONDITION
+			      ,A.ADOPT_DT
+			      ,A.USE_TYPE
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='NETWORK' AND C.P_CODE='NT08' AND C.CODE = A.CONTRACT_CONDITION ) CONTRACT_CONDITION_NM
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='NETWORK' AND C.P_CODE='NT07' AND C.CODE = A.UNSED_STATUS ) UNSED_STATUS_NM
+			   FROM CRM_NETWORK_MGT A, CRM_CUST_MGT R
+			   WHERE 1=1 
+			   AND A.CUST_SEQ = R.SEQ
+		    )IN_TB
+		    WHERE 1=1
+		    <include refid="NetworkListWhere"/>
+		   
+		 )out_tb
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC    
+		</if>	
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
+			ORDER BY RNUM DESC    
+		</if>
+	</select>
+	
+	<select id="getMaxNetworkSeq" resultType="java.lang.Integer" >
+		SELECT MAX_NETWORK_SEQ.NEXTVAL FROM DUAL
+	</select>
+	
+	<select id="getNetworkInfo" parameterType="networkVO" resultType="networkVO">
+	    SELECT 
+			 N.SEQ                ,N.NETWORK_NM          
+            ,N.CUST_SEQ           ,N.UNSED_STATUS        
+            ,N.ADOPT_DT           ,N.LOCATION_NET        
+            ,N.EQUIPMENT          ,N.CUST_WORKER         
+            ,N.NETWORK_MNF        ,N.CUST_TEL            
+            ,N.NETWORK_MODEL      ,N.CONTRACT_CONDITION  
+            ,N.SERIAL_NUMBER      ,N.FREE_END_DT         
+            ,N.NETWORK_TYPE       ,N.FREE_START_DT       
+            ,N.IP                 ,N.UPD_ID              
+            ,N.ID                 ,N.UPD_DATE             
+            ,N.PASS               ,N.REG_ID               
+            ,N.PORT_NUM           ,N.REG_DATE             
+            ,N.ACCESS_TYPE        ,N.USE_TYPE 
+            ,C.CUST_NM
+            ,C.CUST_ADDRESS
+            ,C.ERP_CODE
+            ,(SELECT EMP_NAME FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = C.ERP_CODE AND Z.EMP_GRADE = 'C001' ) DAM_EMP_NAME 
+		    ,(SELECT TEL_NO FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = C.ERP_CODE AND Z.EMP_GRADE = 'C001' ) DAM_TEL_NO           
+    	FROM CRM_NETWORK_MGT N, CRM_CUST_MGT C 
+			WHERE 1=1
+		AND  N.CUST_SEQ = C.SEQ 	
+		AND N.SEQ =#{seq}
+	</select>
+	
+	<update id="updateNetwork" parameterType="networkVO" >
+		UPDATE CRM_NETWORK_MGT
+		SET
+		   ADOPT_DT              =#{adopt_dt}
+		  ,EQUIPMENT             =#{equipment}
+		  ,NETWORK_MNF           =#{network_mnf}
+		  ,NETWORK_MODEL         =#{network_model}
+		  ,SERIAL_NUMBER         =#{serial_number}
+		  ,NETWORK_TYPE          =#{network_type}
+		  ,IP                    =#{ip}
+		  ,ID                    =#{id}
+		  ,PASS                  =#{pass}
+		  ,PORT_NUM              =#{port_num}
+		  ,ACCESS_TYPE           =#{access_type}
+		  ,USE_TYPE              =#{use_type}
+		  ,UNSED_STATUS          =#{unsed_status}
+		  ,LOCATION_NET          =#{location_net}
+		  ,CUST_WORKER           =#{cust_worker}
+		  ,CUST_TEL              =#{cust_tel}
+		  ,CONTRACT_CONDITION    =#{contract_condition}
+		  ,FREE_END_DT           =#{free_end_dt}
+		  ,FREE_START_DT         =#{free_start_dt}
+		  ,UPD_ID                =#{reg_id}
+		  ,UPD_DATE              =SYSDATE
+		  WHERE 1=1
+		 AND SEQ  	     =#{seq}
+	</update>
+	<insert id="insertNetwork" parameterType="networkVO" >
+		INSERT INTO CRM_NETWORK_MGT
+		(
+		   SEQ            ,PORT_NUM           
+		  ,CUST_SEQ	      ,ACCESS_TYPE        
+		  ,ADOPT_DT        ,USE_TYPE                  
+		  ,EQUIPMENT      ,UNSED_STATUS             
+		  ,NETWORK_MNF    ,LOCATION_NET             
+		  ,NETWORK_MODEL  ,CUST_WORKER              
+		  ,SERIAL_NUMBER  ,CUST_TEL                 
+		  ,NETWORK_TYPE   ,CONTRACT_CONDITION       
+		  ,IP             ,FREE_END_DT              
+		  ,ID             ,FREE_START_DT            
+		  ,PASS           ,REG_ID                   
+		  ,REG_DATE       ,NETWORK_NM    
+		)VALUES(
+		  #{seq} 					 		 		,#{port_num}     
+		  ,#{cust_seq}					         	,#{access_type}     
+		  ,#{adopt_dt}					         	,#{use_type}     
+		  ,#{equipment}					         	,#{unsed_status}     
+		  ,#{network_mnf}					        ,#{location_net}     
+		  ,#{network_model}						    ,#{cust_worker}     
+		  ,#{serial_number}						    ,#{cust_tel}     
+		  ,#{network_type}						    ,#{contract_condition}     
+		  ,#{ip}						         	,#{free_end_dt}     
+		  ,#{id}         							,#{free_start_dt}     
+		  ,#{pass}					         		,#{reg_id}     
+		  ,SYSDATE									,#{network_nm}
+		)
+	</insert>
+	<!-- =====================================네트워크 HIST 관리리스트=================================================  -->
+	<select id="selectNetHistList" parameterType="networkVO" resultType="networkVO">
+	SELECT 
+		*
+	FROM 
+	CRM_NETWORK_HIST
+	WHERE 1=1
+		AND NETWORK_SEQ = #{network_seq}
+	</select>
+	
+	<update id="updateNetworkHist" parameterType="networkVO">
+	<![CDATA[
+		MERGE INTO 
+		    CRM_NETWORK_HIST
+		USING DUAL 
+		    ON (NETWORK_SEQ = #{network_seq}  AND HIST_SEQ = #{hist_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				    WORK_CUST = #{work_cust}
+				    ,CUST_CHARGE = #{cust_charge}
+				    ,WORK_TYPE = #{work_type}
+				    ,WORK_TIME = #{work_time}
+				    ,INFRA_GUBUN = #{infra_gubun}
+				    ,EQUIPMENT_NM = #{equipment_nm}
+				    ,HIST_ETC = #{hist_etc}
+				    ,WORK_CONTENT = #{work_content}
+				    ,REG_ID = #{reg_id}
+				    ,WORK_CHARGE = #{work_charge}
+				    ,UPD_DATE = SYSDATE
+				    ,UPD_ID = #{reg_id}
+				    ,END_DT = #{end_dt}
+				    ,STR_DT = #{str_dt}
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			          HIST_SEQ       ,END_DT        
+					 ,CUST_SEQ       ,WORK_TIME     
+					 ,WORK_TYPE      ,TIME_GUBUN    
+					 ,INFRA_GUBUN    ,HIST_ETC      
+					 ,EQUIPMENT_NM   ,REG_ID        
+					 ,WORK_CONTENT   ,REG_DATE      
+					 ,WORK_CHARGE    ,NETWORK_SEQ   
+					 ,WORK_CUST      ,STR_DT        
+					 ,CUST_CHARGE    
+				)
+		        VALUES(
+					 MAX_NETWORK_HIST_SEQ.NEXTVAL 		,#{end_dt}  
+					 ,#{cust_seq} 		,#{work_time}  
+					 ,#{work_type} 		,#{time_gubun}  
+					 ,#{infra_gubun} 	,#{hist_etc}  
+					 ,#{equipment_nm} 	,#{reg_id}  
+					 ,#{work_content} 	,#{reg_date}  
+					 ,#{work_charge} 	,#{network_seq}  
+					 ,#{work_cust} 		,#{str_dt}  
+					 ,#{cust_charge}
+		        )
+			]]>
+	</update>
+	
+	<delete id="deleteNetHist" parameterType="networkVO">
+		DELETE FROM CRM_NETWORK_HIST
+		WHERE 1=1
+		AND  HIST_SEQ = #{hist_seq}
+		AND  NETWORK_SEQ = #{network_seq}
+	</delete>
+	
+	<!-- =====================================네트워크 담당자 관리리스트=================================================  -->
+	<select id="selectNetChargeList" parameterType="networkVO" resultType="networkVO">
+	SELECT 
+		*
+	FROM 
+	CRM_NETWORK_CHARGE
+	WHERE 1=1
+		AND NETWORK_SEQ = #{network_seq}
+	</select>
+	
+	<update id="updateNetworkCharge" parameterType="networkVO">
+	<![CDATA[
+		MERGE INTO 
+		    CRM_NETWORK_CHARGE
+		USING DUAL 
+		    ON (NETWORK_SEQ = #{network_seq}  AND CH_SEQ = #{ch_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				    CHARGE_CODE = #{charge_code}
+				    ,CHARGE_NM = #{charge_nm}
+				    ,COMPANY_TEL_NO = #{company_tel_no}
+				    ,HP_NO = #{hp_no}
+				    ,EMAIL = #{email}
+				    ,CH_ETC = #{ch_etc}
+				    ,COMPANY_NM = #{company_nm}
+				    ,REG_DATE = SYSDATE
+				    ,REG_ID = #{reg_id}
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			          NETWORK_SEQ    ,CH_SEQ        
+					 ,CHARGE_CODE    ,CHARGE_NM     
+					 ,COMPANY_TEL_NO ,HP_NO    
+					 ,EMAIL          ,CH_ETC      
+					 ,COMPANY_NM     ,REG_ID        
+					 ,REG_DATE       
+				)
+		        VALUES(
+					  #{network_seq} 	,MAX_NETWORK_CHARGE_SEQ.NEXTVAL  
+					 ,#{charge_code} 	,#{charge_nm}  
+					 ,#{company_tel_no} ,#{hp_no}  
+					 ,#{email} 			,#{ch_etc}  
+					 ,#{company_nm} 	,#{reg_id}  
+					 ,SYSDATE
+		        )
+			]]>
+	</update>
+	<delete id="deleteNetCharge" parameterType="networkVO">
+		DELETE FROM CRM_NETWORK_CHARGE
+		WHERE 1=1
+		AND  CH_SEQ = #{ch_seq}
+		AND  NETWORK_SEQ = #{network_seq}
+	</delete>
+	
+	
+	
+	
+<!-- =====================================프로젝트관리=================================================  -->
+	
+	<sql id="ProjectListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.CUST_GUBUN = #{search_type1}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND IN_TB.DEAL_CODE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND (
+				 UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_type3}) ||'%' OR
+				 UPPER(IN_TB.ERP_CODE) LIKE '%'|| UPPER(#{search_type3}) ||'%' 
+				)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ''">
+			AND IN_TB.SYSTEM_CODE  = #{search_type4}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type5) != ''">
+			AND IN_TB.STATE_TYPE  = #{search_type5}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start1) != '' ">
+				<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_end1) != '' ">
+				AND IN_TB.TERM_START_DT BETWEEN #{search_start1} AND #{search_end1}
+				</if>
+			</if>
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type9) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start2) != '' ">
+				<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_end2) != '' ">
+				AND IN_TB.TERM_END_DT BETWEEN #{search_start2} AND #{search_end2}
+				</if>
+			</if>
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND ( 
+				 UPPER(IN_TB.PROJECT_NM)  LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+				 UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+				 UPPER(IN_TB.ERP_CODE) LIKE '%'|| UPPER(#{search_text}) ||'%' 
+				)
+		</if>
+				
+	</sql>
+	
+	<select id="getProjectCnt" parameterType="projectVO" resultType="java.lang.Integer">
+	<![CDATA[
+	    SELECT 
+	        COUNT(IN_TB.PRO_SEQ) 
+	    FROM (
+	        SELECT 
+			      A.PRO_SEQ --SEQ
+			      ,R.ERP_CODE --ERP코드
+			      ,R.DEAL_CODE-- 거래구분
+			      ,R.CUST_KOR_NAME --거래처명
+			      ,R.CUST_GUBUN --거래처 구분
+			      ,A.PACKAGE_CODE --유무상구분
+			      ,A.TERM_START_DT --장비구분
+			      ,A.TERM_END_DT --ID
+			      ,A.MTAC_MONTH -- IP
+			      ,A.PROJECT_NM --제조사
+			      ,A.SYSTEM_CODE --모델 
+			      ,A.STATE_TYPE --시리얼넘버
+			    FROM CRM_PROJECT_MGT A, CRM_CUST_MGT R
+			    WHERE 1=1
+			    AND A.CUST_SEQ = R.SEQ
+	    ) IN_TB
+	]]>
+		WHERE 1=1
+		<include refid="ProjectListWhere"/>		
+	</select>
+	<select id="getProjectList" parameterType="projectVO" resultType="projectVO">
+		SELECT 
+			OUT_TB.*
+		FROM
+		(SELECT in_tb.*,
+		        ROW_NUMBER() OVER(ORDER BY IN_TB.PRO_SEQ ) AS RNUM
+		 FROM
+		    (   SELECT
+				   A.PRO_SEQ --SEQ
+			      ,A.CUST_SEQ --거래처 seq
+			      ,R.CUST_GUBUN
+			      ,R.DEAL_CODE
+			      ,R.CUST_KOR_NAME
+			      ,R.ERP_CODE-- 거래구분
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD01' AND C.CODE = R.CUST_GUBUN ) CUST_GUBUN_NM--거래처구분   
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD03' AND C.CODE = R.DEAL_CODE ) DEAL_CODE_NM--거래상태
+			      ,A.PACKAGE_CODE --PACKAGE
+			      ,A.SYSTEM_CODE
+			      ,A.STATE_TYPE
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR03' AND C.CODE = A.PACKAGE_CODE ) PACKAGE_NM--
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR02' AND C.CODE = A.SYSTEM_CODE ) SYSTEM_CODE_NM--
+			      ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR01' AND C.CODE = A.STATE_TYPE ) STATE_TYPE_NM--
+			      ,A.TERM_START_DT 
+			      ,A.TERM_END_DT
+			      ,A.PROJECT_NM
+			      ,A.REG_DATE
+			      ,A.REG_ID
+			   FROM CRM_PROJECT_MGT A, CRM_CUST_MGT R
+			   WHERE 1=1 
+			   AND A.CUST_SEQ = R.SEQ
+		    )IN_TB
+		    WHERE 1=1
+		    <include refid="ProjectListWhere"/>
+		   
+		 )out_tb
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC    
+		</if>	
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
+			ORDER BY RNUM DESC    
+		</if>
+	</select>
+	
+	<select id="getMaxProjectSeq" resultType="java.lang.Integer" >
+		SELECT MAX_PROJECT_SEQ.NEXTVAL FROM DUAL
+	</select>
+	
+	<select id="getProjectInfo" parameterType="projectVO" resultType="projectVO">
+	  SELECT  
+		    P.PRO_SEQ
+		    ,P.CUST_SEQ
+		    ,P.OPEN_DT
+		    ,P.PACKAGE_CODE
+		    ,P.TERM_START_DT
+		    ,P.TERM_END_DT
+		    ,P.MTAC_MONTH
+		    ,P.TEST_DT
+		    ,P.ERP_CODE
+		    ,P.PROJECT_NM
+		    ,P.SYSTEM_CODE
+		    ,P.STATE_TYPE
+		    ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR01' AND C.CODE = state_type ) STATE_TYPE_NM
+		    ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR02' AND C.CODE = system_code ) SYSTEM_CODE_NM
+		    ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR03' AND C.CODE = package_code ) PACKAGE_CODE_NM  
+		    ,P.REG_ID
+		    ,P.REG_DATE
+		    ,C.CUST_NM
+		    ,C.CUST_ADDRESS
+		    ,C.ERP_CODE
+		    ,P.PJT_CODE
+		    ,P.WORKER_FIX
+		    ,(SELECT EMP_NAME FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = C.ERP_CODE AND Z.EMP_GRADE = 'C001' ) DAM_EMP_NAME 
+		    ,(SELECT TEL_NO FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = C.ERP_CODE AND Z.EMP_GRADE = 'C001' ) DAM_TEL_NO  
+		FROM CRM_PROJECT_MGT P , CRM_CUST_MGT C
+		WHERE 1=1
+				AND P.CUST_SEQ = C.SEQ 	
+				AND P.PRO_SEQ =#{pro_seq} 
+	</select>
+	
+	<update id="updateProject" parameterType="projectVO" >
+		UPDATE CRM_PROJECT_MGT
+		SET
+		   OPEN_DT             =#{open_dt}
+		  ,PACKAGE_CODE        =#{package_code}
+		  ,TERM_START_DT       =#{term_start_dt}
+		  ,TERM_END_DT         =#{term_end_dt}
+		  ,MTAC_MONTH          =#{mtac_month}
+		  ,TEST_DT             =#{test_dt}
+		  ,ERP_CODE            =#{erp_code}
+		  ,PROJECT_NM          =#{project_nm}
+		  ,SYSTEM_CODE         =#{system_code}
+		  ,STATE_TYPE          =#{state_type}
+		  ,PJT_CODE            =#{pjt_code}
+		  ,WORKER_FIX          =#{worker_fix}
+		  ,UPD_ID              =#{reg_id}
+		  ,UPD_DATE            =sysdate
+		 WHERE 1=1
+		AND PRO_SEQ  	     	   =#{pro_seq}
+	</update>
+	<insert id="insertProject" parameterType="projectVO" >
+		INSERT INTO CRM_PROJECT_MGT
+		(
+		   PRO_SEQ
+		  ,CUST_SEQ                
+		  ,OPEN_DT                 
+		  ,PACKAGE_CODE               
+		  ,TERM_START_DT            
+		  ,TERM_END_DT              
+		  ,MTAC_MONTH               
+		  ,TEST_DT                  
+		  ,ERP_CODE                 
+		  ,PROJECT_NM               
+		  ,SYSTEM_CODE              
+		  ,STATE_TYPE
+		  ,PJT_CODE
+		  ,WORKER_FIX               
+		  ,REG_ID                  
+		  ,REG_DATE
+		)VALUES(
+		  #{pro_seq}                      
+         ,#{cust_seq}       
+         ,#{open_dt}        
+         ,#{package_code}   
+         ,#{term_start_dt}  
+         ,#{term_end_dt}    
+         ,#{mtac_month}     
+         ,#{test_dt}        
+         ,#{erp_code}       
+         ,#{project_nm}     
+         ,#{system_code}    
+         ,#{state_type}
+         ,#{pjt_code}
+         ,#{worker_fix}
+         ,#{reg_id}
+         ,SYSDATE         
+         )
+	</insert>
+	
+	<select id="getProjectByPjtCode" parameterType="projectVO" resultType="projectVO">
+		SELECT
+		  A.PJT_CODE  --수주심의코드
+		 ,PJT_ST_DT AS TERM_START_DT
+		 ,PJT_END_DT  AS TERM_END_DT
+		 ,HOSPITAL_GBN AS PROJECT_NM
+		FROM KYERP.TB_SD_PJT_CUSTCODE@DL_ONTIC A, KYERP.TB_SD_PJT_MST@DL_ONTIC B
+		WHERE 1=1 
+		AND A.PJT_CODE = B.PJT_CODE(+)
+		AND A.PJT_CODE = #{pjt_code}
+	</select>
+	
+	
+	<!-- 담당자정보 -->
+	<select id="selectProjectChargeList" parameterType="projectVO" resultType="projectVO">
+	SELECT 
+		*
+	FROM 
+	CRM_PROJECT_CHARGE
+	WHERE 1=1
+		AND PRO_SEQ = #{pro_seq}
+	</select>
+	
+	<update id="updateProjectCharge" parameterType="projectVO">
+	<![CDATA[
+		MERGE INTO 
+		    CRM_PROJECT_CHARGE
+		USING DUAL 
+		    ON (PRO_SEQ = #{pro_seq}  AND CH_SEQ = #{ch_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				    CHARGE_CODE = #{charge_code}
+				    ,CHARGE_NM = #{charge_nm}
+				    ,COMPANY_TEL_NO = #{company_tel_no}
+				    ,HP_NO = #{hp_no}
+				    ,EMAIL = #{email}
+				    ,CH_ETC = #{ch_etc}
+				    ,COMPANY_NM = #{company_nm}
+				    
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			          PRO_SEQ    ,CH_SEQ        
+					 ,CHARGE_CODE    ,CHARGE_NM     
+					 ,COMPANY_TEL_NO ,HP_NO    
+					 ,EMAIL          ,CH_ETC      
+					 ,COMPANY_NM     ,REG_ID        
+					 ,REG_DATE       
+				)
+		        VALUES(
+					  #{pro_seq} 	,MAX_PROJECT_CHARGE_SEQ.NEXTVAL  
+					 ,#{charge_code} 	,#{charge_nm}  
+					 ,#{company_tel_no} ,#{hp_no}  
+					 ,#{email} 			,#{ch_etc}  
+					 ,#{company_nm} 	,#{reg_id}  
+					 ,SYSDATE
+		        )
+			]]>
+	</update>
+	<delete id="deleteProjectCharge" parameterType="projectVO">
+		DELETE FROM CRM_PROJECT_CHARGE
+		WHERE 1=1
+		AND  CH_SEQ = #{ch_seq}
+		AND  PRO_SEQ = #{pro_seq}
+	</delete>
+	
+	
+	<!-- 참여인력 정보-->
+	<select id="selectProjectWorkerList" parameterType="projectVO" resultType="projectVO">
+	SELECT 
+		*
+	FROM 
+	CRM_PROJECT_WORKER
+	WHERE 1=1
+		AND PRO_SEQ = #{pro_seq}
+	</select>
+	
+	<update id="updateProjectWorker" parameterType="projectVO">
+	<![CDATA[
+		MERGE INTO 
+		    CRM_PROJECT_WORKER
+		USING DUAL 
+		    ON (PRO_SEQ = #{pro_seq}  AND WK_SEQ = #{wk_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				    TASK_CODE = #{task_code}
+				    ,WORKER_NM = #{worker_nm}
+				    ,WORK_START_DT = #{work_start_dt}
+				    ,WORK_END_DT = #{work_end_dt}
+				    ,WK_HP_NO = #{wk_hp_no}
+				    
+				    ,WK_EMAIL = #{wk_email}
+				    ,WK_COMPANY = #{wk_company}
+				    ,WK_ETC = #{wk_etc}
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			         WK_SEQ
+			        ,PRO_SEQ
+			        ,TASK_CODE           
+					,WORKER_NM           
+					,WORK_START_DT   
+					,WORK_END_DT       
+					,WK_HP_NO             
+					,WK_EMAIL                   
+					,WK_COMPANY               
+					,WK_ETC                 
+					,REG_DATE                
+					,REG_ID 
+				)
+		        VALUES(
+					 MAX_PROJECT_WORKER_SEQ.NEXTVAL 
+				    ,#{pro_seq}
+					,#{task_code}
+					,#{worker_nm}
+					,#{work_start_dt}
+					,#{work_end_dt}
+					,#{wk_hp_no}
+					,#{wk_email}
+					,#{wk_company}
+					,#{wk_etc}
+					,SYSDATE
+					,#{reg_id}
+		        )
+			]]>
+	</update>
+	<delete id="deleteProjectWorker" parameterType="projectVO">
+		DELETE FROM CRM_PROJECT_WORKER
+		WHERE 1=1
+		AND  WK_SEQ = #{wk_seq}
+		AND  PRO_SEQ = #{pro_seq}
+	</delete>
+	
+	
+	<!-- 서버연결정보-->
+	<select id="selectProjectServerList" parameterType="projectVO" resultType="projectVO">
+		SELECT  
+			 P.DTL_SEQ
+			,P.SERVER_SEQ
+			,P.PRO_SEQ
+			,S.CUST_SEQ
+			,S.SERVER_TYPE
+			,S.SERVER_NM
+			,S.SERVER_STATUS
+			,S.PB_IP
+			,S.SERVER_IP
+			,S.OS
+			,S.MAIN_MNG
+			,S.WORKER_NM
+			,S.CUST_WORKER
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV15' AND C.CODE = S.SERVER_TYPE ) SERVER_TYPE_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV09' AND C.CODE = S.OS ) OS_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV15' AND C.CODE = S.SERVER_STATUS ) SERVER_STATUS_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV08' AND C.CODE = S.MAIN_MNG ) MAIN_MNG_NM  
+			
+			,CASE
+				WHEN MAIN_MNG='C001' THEN  S.WORKER_NM
+				WHEN MAIN_MNG='C002' THEN  S.CUST_WORKER
+			END EMP_NM
+		FROM 
+			CRM_PROJECT_SERVER P, CRM_SERVER_MGT S
+		WHERE 1=1
+		AND P.PRO_SEQ = #{pro_seq}
+		AND P.SERVER_SEQ = S.SEQ
+	</select>
+	
+	<update id="updateProjectServer" parameterType="projectVO">
+	    INSERT INTO 
+		    CRM_PROJECT_SERVER(
+		         DTL_SEQ
+		        ,PRO_SEQ
+		        ,SERVER_SEQ           
+				,REG_DATE                
+				,REG_ID 
+			)
+	       VALUES(
+				 MAX_PROJECT_SERVER_SEQ.NEXTVAL 
+			    ,#{pro_seq}
+				,#{server_seq}
+				,SYSDATE
+				,#{reg_id}
+	        )
+	</update>
+	<delete id="deleteProjectServer" parameterType="projectVO">
+		DELETE FROM CRM_PROJECT_SERVER
+		WHERE 1=1
+		AND  DTL_SEQ = #{dtl_seq}
+		AND  PRO_SEQ = #{pro_seq}
+	</delete>
+	
+	
+
+
+
+<!-- =====================================운영정보관리=================================================  -->
+	
+	<sql id="OperateListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.CUST_GUBUN = #{search_type1}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND IN_TB.DEAL_CODE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND (
+				UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_type3}) ||'%' OR
+				 UPPER(IN_TB.ERP_CODE) LIKE '%'|| UPPER(#{search_type3}) ||'%' 
+				)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ''">
+			AND IN_TB.SYSTEM_CODE  = #{search_type4}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type5) != ''">
+			AND IN_TB.WK_EMP_NM  LIKE '%'|| #{search_type5}||'%' 
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) != ''">
+			AND IN_TB.STATE_TYPE  = #{search_type6}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND (
+				IN_TB.PROJECT_NM  LIKE '%'|| #{search_text}||'%' OR
+				IN_TB.SYSTEM_NM  LIKE '%'|| #{search_text}||'%' OR
+				IN_TB.SERVER_IP  LIKE '%'|| #{search_text}||'%' OR
+				IN_TB.PB_IP  LIKE '%'|| #{search_text}||'%' OR
+				IN_TB.CUST_KOR_NAME LIKE '%'|| #{search_text} ||'%' OR
+				UPPER(IN_TB.ERP_CODE) LIKE '%'|| UPPER(#{search_text}) ||'%' 
+				)
+		</if>
+				
+	</sql>
+	
+	<select id="getOperateCnt" parameterType="operateVO" resultType="java.lang.Integer">
+	<![CDATA[
+	   SELECT
+		    count(DISTINCT IN_TB.oper_seq)
+			FROM(SELECT 
+			    CON_TB.*
+			    ,(SELECT SERVER_IP FROM CRM_SERVER_MGT Z WHERE 1=1 AND Z.SEQ = CON_TB.SERVER_SEQ) SERVER_IP
+				,(SELECT PB_IP FROM CRM_SERVER_MGT Z WHERE 1=1 AND Z.SEQ = CON_TB.SERVER_SEQ) PB_IP
+				,(SELECT EMP_NM FROM CRM_EMP_MGT E WHERE 1=1 AND E.EMP_NO = CON_TB.WK_EMP_NO) WK_EMP_NM
+			FROM(SELECT 
+			  A.OPER_SEQ --OPER_SEQ
+			  ,R.ERP_CODE --ERP코드
+			  ,R.DEAL_CODE 
+			  ,R.CUST_KOR_NAME --거래처명
+			  ,R.CUST_GUBUN --거래처 구분
+			  ,A.PACKAGE_CODE 
+			  ,A.PROJECT_NM
+			  ,A.SYSTEM_CODE 
+			  ,A.STATE_TYPE 
+			  ,A.SYSTEM_NM
+			  ,S.SERVER_SEQ
+			  ,W.WK_EMP_NO
+			FROM CRM_OPERATE_MGT A, CRM_CUST_MGT R, CRM_OPERATE_SERVER S, CRM_OPERATE_WORKER W
+			WHERE 1=1
+			AND A.CUST_SEQ = R.SEQ
+			AND A.OPER_SEQ = S.OPER_SEQ(+)
+			AND A.OPER_SEQ = W.OPER_SEQ(+)
+		)CON_TB)IN_TB
+
+	]]>
+		WHERE 1=1
+		<include refid="OperateListWhere"/>		
+	</select>
+	<select id="getOperateList" parameterType="operateVO" resultType="operateVO">
+		SELECT
+			OUT_TB.*
+		FROM(SELECT 
+			LAB_TB.*,
+			ROW_NUMBER() OVER(ORDER BY  LAB_TB.OPER_SEQ ) AS RNUM
+		FROM
+		(SELECT DISTINCT IN_TB.OPER_SEQ, IN_TB.ERP_CODE,IN_TB.CUST_GUBUN_NM, IN_TB.DEAL_CODE_NM, IN_TB.CUST_KOR_NAME, IN_TB.PROJECT_NM, IN_TB.SYSTEM_NM, IN_TB.SYSTEM_CODE_NM,IN_TB.STATE_TYPE_NM
+		 FROM
+		    (   SELECT 
+				    CON_TB.*
+				    ,(SELECT SERVER_IP FROM CRM_SERVER_MGT Z WHERE 1=1 AND Z.SEQ = CON_TB.SERVER_SEQ) SERVER_IP
+					,(SELECT SERVER_IP FROM CRM_SERVER_MGT Z WHERE 1=1 AND Z.SEQ = CON_TB.SERVER_SEQ) PB_IP
+					,(SELECT EMP_NM FROM CRM_EMP_MGT E WHERE 1=1 AND E.EMP_NO = CON_TB.WK_EMP_NO) WK_EMP_NM
+					,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD01' AND C.CODE = CON_TB.CUST_GUBUN ) CUST_GUBUN_NM   
+			     	,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='CUST' AND C.P_CODE='CD03' AND C.CODE = CON_TB.DEAL_CODE ) DEAL_CODE_NM
+			     	,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR02' AND C.CODE = CON_TB.SYSTEM_CODE ) SYSTEM_CODE_NM
+			        ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='OPERATE' AND C.P_CODE='OP01' AND C.CODE = CON_TB.STATE_TYPE ) STATE_TYPE_NM
+			    FROM(SELECT 
+				  A.OPER_SEQ 
+				  ,R.ERP_CODE 
+				  ,R.DEAL_CODE 
+				  ,R.CUST_KOR_NAME 
+				  ,R.CUST_GUBUN 
+				  ,A.PACKAGE_CODE 
+				  ,A.PROJECT_NM
+				  ,A.SYSTEM_CODE 
+				  ,A.STATE_TYPE 
+				  ,A.SYSTEM_NM
+				  ,S.SERVER_SEQ
+				  ,W.WK_EMP_NO
+				FROM CRM_OPERATE_MGT A, CRM_CUST_MGT R, CRM_OPERATE_SERVER S, CRM_OPERATE_WORKER W
+				WHERE 1=1
+				AND A.CUST_SEQ = R.SEQ
+				AND A.OPER_SEQ = S.OPER_SEQ(+)
+				AND A.OPER_SEQ = W.OPER_SEQ(+)
+			)CON_TB)IN_TB
+		    WHERE 1=1
+			<include refid="OperateListWhere"/>
+		 )lab_tb)out_tb
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC    
+		</if>	
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
+			ORDER BY RNUM DESC    
+		</if>
+	</select>
+	
+	<select id="getMaxOperateSeq" resultType="java.lang.Integer" >
+		SELECT MAX_OPERATE_SEQ.NEXTVAL FROM DUAL
+	</select>
+	
+	<select id="getOperateInfo" parameterType="operateVO" resultType="operateVO">
+	  SELECT  
+		    P.OPER_SEQ
+		    ,P.CUST_SEQ
+		    ,P.OPEN_DT
+		    ,P.PACKAGE_CODE
+		    ,P.TEST_DT
+		    ,P.ERP_CODE
+		    ,P.PROJECT_NM
+		    ,P.SYSTEM_NM
+		    ,P.SYSTEM_CODE
+		    ,P.STATE_TYPE
+		    ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='OPERATE' AND C.P_CODE='OP01' AND C.CODE = state_type ) STATE_TYPE_NM
+		    ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR02' AND C.CODE = system_code ) SYSTEM_CODE_NM
+		    ,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR03' AND C.CODE = package_code ) PACKAGE_CODE_NM  
+		    ,P.REG_ID
+		    ,P.REG_DATE
+		    ,C.CUST_NM
+		    ,C.CUST_ADDRESS
+		    ,C.ERP_CODE
+		    ,(SELECT EMP_NAME FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = C.ERP_CODE AND Z.EMP_GRADE = 'C001' ) DAM_EMP_NAME 
+		    ,(SELECT TEL_NO FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = C.ERP_CODE AND Z.EMP_GRADE = 'C001' ) DAM_TEL_NO  
+		FROM CRM_OPERATE_MGT P , CRM_CUST_MGT C
+		WHERE 1=1
+				AND P.CUST_SEQ = C.SEQ 	
+				AND P.OPER_SEQ =#{oper_seq} 
+	</select>
+	
+	<update id="updateOperate" parameterType="operateVO" >
+		UPDATE CRM_OPERATE_MGT
+		SET
+		   OPEN_DT             =#{open_dt}
+		  ,PACKAGE_CODE        =#{package_code}
+		  ,TEST_DT             =#{test_dt}
+		  ,ERP_CODE            =#{erp_code}
+		  ,PROJECT_NM          =#{project_nm}
+		  ,SYSTEM_NM           =#{system_nm}
+		  ,SYSTEM_CODE         =#{system_code}
+		  ,STATE_TYPE          =#{state_type}
+		  ,UPD_ID              =#{reg_id}
+		  ,UPD_DATE            =SYSDATE
+		 WHERE 1=1
+		AND OPER_SEQ  	     =#{oper_seq}
+	</update>
+	<insert id="insertOperate" parameterType="operateVO" >
+		INSERT INTO CRM_OPERATE_MGT
+		(
+		   OPER_SEQ
+		  ,CUST_SEQ                
+		  ,OPEN_DT                 
+		  ,PACKAGE_CODE               
+		  ,TEST_DT                  
+		  ,ERP_CODE                 
+		  ,PROJECT_NM               
+		  ,SYSTEM_NM               
+		  ,SYSTEM_CODE              
+		  ,STATE_TYPE               
+		  ,REG_ID                  
+		  ,REG_DATE
+		)VALUES(
+		  #{oper_seq}                      
+         ,#{cust_seq}       
+         ,#{open_dt}        
+         ,#{package_code}   
+         ,#{test_dt}        
+         ,#{erp_code}       
+         ,#{project_nm}     
+         ,#{system_nm}     
+         ,#{system_code}    
+         ,#{state_type}     
+         ,#{reg_id}
+         ,SYSDATE         
+         )
+	</insert>
+	
+	<!-- 담당자정보 -->
+	
+	<select id="selectOperateChargeList" parameterType="operateVO" resultType="operateVO">
+	SELECT 
+		*
+	FROM 
+	CRM_OPERATE_CHARGE
+	WHERE 1=1
+		AND OPER_SEQ = #{oper_seq}
+	</select>
+	
+	<update id="updateOperateCharge" parameterType="operateVO">
+	<![CDATA[
+		MERGE INTO 
+		    CRM_OPERATE_CHARGE
+		USING DUAL 
+		    ON (OPER_SEQ = #{oper_seq}  AND CH_SEQ = #{ch_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				    CHARGE_CODE = #{charge_code}
+				    ,CHARGE_NM = #{charge_nm}
+				    ,COMPANY_TEL_NO = #{company_tel_no}
+				    ,HP_NO = #{hp_no}
+				    ,EMAIL = #{email}
+				    ,CH_ETC = #{ch_etc}
+				    ,COMPANY_NM = #{company_nm}
+				    
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			          OPER_SEQ    ,CH_SEQ        
+					 ,CHARGE_CODE    ,CHARGE_NM     
+					 ,COMPANY_TEL_NO ,HP_NO    
+					 ,EMAIL          ,CH_ETC      
+					 ,COMPANY_NM     ,REG_ID        
+					 ,REG_DATE       
+				)
+		        VALUES(
+					  #{oper_seq} 	    ,MAX_OPERATE_CHARGE_SEQ.NEXTVAL  
+					 ,#{charge_code} 	,#{charge_nm}  
+					 ,#{company_tel_no} ,#{hp_no}  
+					 ,#{email} 			,#{ch_etc}  
+					 ,#{company_nm} 	,#{reg_id}  
+					 ,SYSDATE
+		        )
+			]]>
+	</update>
+	<delete id="deleteOperateCharge" parameterType="operateVO">
+		DELETE FROM CRM_OPERATE_CHARGE
+		WHERE 1=1
+		AND  CH_SEQ = #{ch_seq}
+		AND  OPER_SEQ = #{oper_seq}
+	</delete>
+	
+	
+	<!-- 운영인력 정보-->
+	<select id="selectOperateWorkerList" parameterType="operateVO" resultType="operateVO">
+		 SELECT  
+		     A.WK_SEQ
+		    ,A.OPER_SEQ
+		    ,A.TASK_CODE
+		    ,A.WK_HP_NO
+		    ,A.WK_EMAIL
+		    ,A.WK_ETC
+		    ,A.REG_DATE
+		    ,A.REG_ID
+		    ,A.WK_EMP_NO
+		    ,A.IS_USE
+		    ,A.MASTER_YN
+		    ,B.EMP_NM AS worker_nm
+		    ,B.DEPT2_NM AS worker_dept2_nm
+		  FROM CRM_OPERATE_WORKER A, CRM_EMP_MGT B
+		  WHERE 1=1 
+		  	AND A.WK_EMP_NO = B.EMP_NO
+		  	AND A.OPER_SEQ = #{oper_seq}
+	</select>
+	
+	<update id="updateOperateWorker" parameterType="operateVO">
+	<![CDATA[
+		MERGE INTO 
+		    CRM_OPERATE_WORKER
+		USING DUAL 
+		    ON (OPER_SEQ = #{oper_seq}  AND WK_SEQ = #{wk_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				    TASK_CODE = #{task_code}
+				    ,WK_EMP_NO = #{wk_emp_no}
+				    ,WK_HP_NO = #{wk_hp_no}
+				    ,WK_EMAIL = #{wk_email}
+				    ,MASTER_YN = #{master_yn}
+				    ,WK_ETC = #{wk_etc}
+				    ,IS_USE = #{is_use}
+				    
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			         WK_SEQ
+			        ,OPER_SEQ
+			        ,TASK_CODE           
+					,WK_EMP_NO           
+					,WK_HP_NO             
+					,WK_EMAIL                   
+					,MASTER_YN
+					,IS_USE
+					,WK_ETC                 
+					,REG_DATE                
+					,REG_ID 
+				)
+		        VALUES(
+					 MAX_OPERATE_WORKER_SEQ.NEXTVAL 
+				    ,#{oper_seq}
+					,#{task_code}
+					,#{wk_emp_no}
+					,#{wk_hp_no}
+					,#{wk_email}
+					,#{master_yn}
+					,#{is_use}
+					,#{wk_etc}
+					,SYSDATE
+					,#{reg_id}
+		        )
+			]]>
+	</update>
+	<delete id="deleteOperateWorker" parameterType="operateVO">
+		DELETE FROM CRM_OPERATE_WORKER
+		WHERE 1=1
+		AND  WK_SEQ = #{wk_seq}
+		AND  OPER_SEQ = #{oper_seq}
+	</delete>
+	
+	
+	<!-- 서버연결정보-->
+	<select id="selectOperateServerList" parameterType="operateVO" resultType="operateVO">
+		SELECT  
+			 P.DTL_SEQ
+			,P.SERVER_SEQ
+			,P.OPER_SEQ
+			,S.CUST_SEQ
+			,S.SERVER_TYPE
+			,S.SERVER_NM
+			,S.SERVER_STATUS
+			,S.PB_IP
+			,S.SERVER_IP
+			,S.OS
+			,S.MAIN_MNG
+			,S.WORKER_NM
+			,S.CUST_WORKER
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV15' AND C.CODE = S.SERVER_TYPE ) SERVER_TYPE_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV09' AND C.CODE = S.OS ) OS_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV15' AND C.CODE = S.SERVER_STATUS ) SERVER_STATUS_NM  
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='SERVER' AND C.P_CODE='SV08' AND C.CODE = S.MAIN_MNG ) MAIN_MNG_NM  
+			
+			,CASE
+				WHEN MAIN_MNG='C001' THEN  S.WORKER_NM
+				WHEN MAIN_MNG='C002' THEN  S.CUST_WORKER
+			END EMP_NM
+		FROM 
+			CRM_OPERATE_SERVER P, CRM_SERVER_MGT S
+		WHERE 1=1
+		AND P.OPER_SEQ = #{oper_seq}
+		AND P.SERVER_SEQ = S.SEQ
+	</select>
+	
+	<update id="updateOperateServer" parameterType="operateVO">
+	    INSERT INTO 
+		    CRM_OPERATE_SERVER(
+		         DTL_SEQ
+		        ,OPER_SEQ
+		        ,SERVER_SEQ           
+				,REG_DATE                
+				,REG_ID 
+			)
+	       VALUES(
+				 MAX_OPERATE_SERVER_SEQ.NEXTVAL 
+			    ,#{oper_seq}
+				,#{server_seq}
+				,SYSDATE
+				,#{reg_id}
+	        )
+	</update>
+	<delete id="deleteOperateServer" parameterType="operateVO">
+		DELETE FROM CRM_OPERATE_SERVER
+		WHERE 1=1
+		AND  DTL_SEQ = #{dtl_seq}
+		AND  OPER_SEQ = #{oper_seq}
+	</delete>
+	
+	<!-- 관리비고정보-->
+	<select id="selectOperateNoteList" parameterType="operateVO" resultType="operateVO">
+		SELECT  
+			 P.NT_SEQ
+			,P.OPER_SEQ
+			,P.NOTE_CODE
+			,P.CONTENT
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='OPERATE' AND C.P_CODE='OP02' AND C.CODE =   P.NOTE_CODE ) NOTE_CODE_NM  
+			,P.REG_ID
+			,P.REG_DATE 
+			,(SELECT E.EMP_NM FROM CRM_EMP_MGT E WHERE P.REG_ID = E.EMP_NO) REG_NM
+		FROM 
+			CRM_OPERATE_NOTE P 
+		WHERE 1=1
+		AND OPER_SEQ = #{oper_seq}
+	</select>
+	
+	
+	
+	
+	<update id="updateOperateNote" parameterType="operateVO">
+	    <![CDATA[
+		MERGE INTO 
+		    CRM_OPERATE_NOTE
+		USING DUAL 
+		    ON (OPER_SEQ = #{oper_seq}  AND NT_SEQ = #{nt_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				 NOTE_CODE =#{note_code} 
+				,CONTENT=#{content}
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			        NT_SEQ
+		        	,OPER_SEQ
+		        	,NOTE_CODE
+		        	,CONTENT           
+					,REG_DATE                
+					,REG_ID 
+				)
+		        VALUES(
+			    	MAX_OPERATE_NOTE_SEQ.NEXTVAL 
+			    	,#{oper_seq}
+					,#{note_code}
+					,#{content}
+					,SYSDATE
+					,#{reg_id}
+		        )
+			]]>
+	</update>
+	<delete id="deleteOperateNote" parameterType="operateVO">
+		DELETE FROM CRM_OPERATE_NOTE
+		WHERE 1=1
+		AND  NT_SEQ = #{nt_seq}
+		AND  OPER_SEQ = #{oper_seq}
+	</delete>
+	
+	
+<!-- =================================================================================== -->
+	<select id="selectSystemInfoBySeq" parameterType="operateVO" resultType="operateVO" >
+		<![CDATA[
+		SELECT 
+			(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='PROJECT' AND C.P_CODE='PR02' AND C.CODE = SYSTEM_CODE )AS CODE_NM  
+			,SYSTEM_CODE AS CODE
+			,OPER_SEQ
+			,SYSTEM_NM
+			,STATE_TYPE
+			,(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='OPERATE' AND C.P_CODE='OP01' AND C.CODE = STATE_TYPE )AS STATE_NM  
+			
+		FROM CRM_OPERATE_MGT 
+		WHERE 1=1 
+		AND CUST_SEQ = #{cust_seq}
+		]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'insert'">
+		AND	STATE_TYPE NOT IN('C003') --상태값 해지는 제외
+		</if>
+		ORDER BY CODE ASC
+	</select>
+
+<!-- 원본  -->
+	<select id="getOperTasks" parameterType="operateVO" resultType="operateVO" > 
+		<![CDATA[
+		SELECT 
+			(SELECT C.CODE_NAME FROM CRM_CODE_DETAIL C WHERE C.CODE_GROUP='OPERATE' AND C.P_CODE=#{system_code} AND C.CODE = TASK_CODE )AS CODE_NM  
+			,TASK_CODE AS CODE
+			,WK_EMP_NO
+			,EMP_NM as worker_nm
+			,IS_USE
+			
+		FROM CRM_OPERATE_WORKER , CRM_EMP_MGT 
+		WHERE 1=1
+			AND WK_EMP_NO = EMP_NO
+			AND OPER_SEQ = #{oper_seq}
+			AND MASTER_YN = 'Y'
+		]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'insert'">
+			AND IS_USE = 'C001'
+		</if>
+		ORDER BY CODE
+	</select>
+	
+	
+	<!-- 변형  2023.05.23-->
+	
+ <select id="getOperTask" parameterType="operateVO" resultType="operateVO" > 
+		<![CDATA[
+SELECT C.CODE_NAME AS CODE_NM
+       , A.TASK_CODE AS CODE
+       , A.WK_EMP_NO
+       , B.EMP_NM AS worker_nm
+       , A.IS_USE
+  FROM CRM_OPERATE_WORKER A 
+       , CRM_EMP_MGT B 
+       , CRM_CODE_DETAIL C       
+ WHERE 1=1
+   AND A.WK_EMP_NO = B.EMP_NO
+   AND A.TASK_CODE  = C.CODE
+   AND A.OPER_SEQ = #{oper_seq}      
+   AND A.MASTER_YN = 'Y'
+   AND C.CODE_GROUP = 'OPERATE'
+   AND C.P_CODE = #{system_code}        
+   AND #{accept_dt} BETWEEN C.VAL7 AND C.VAL8
+		]]>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'insert'">
+			AND A.IS_USE = 'C001'
+		</if>
+		ORDER BY C.CODE
+	</select>
+	  
+	
+	
+	<select id="getLinkCustInfo" parameterType="custVO" resultType="custVO">
+		SELECT OUT_TB.* FROM (
+			SELECT 
+				IN_TB.*, 
+				ROW_NUMBER() OVER (ORDER BY IN_TB.CUST_CD ) AS RNUM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'COMMON' AND Z.P_CODE = 'CD09' AND Z.CODE = IS_YN) AS IS_YN_NM
+				FROM (
+					SELECT 
+					    A.CUST_CD , 
+					    A.CUST_NM , 
+					    A.REPRESENT , 
+					    A.BIZ_CONDITION ,  
+					    A.BIZ_TYPE , 
+					    A.PUR_USE_YN , <!-- (Y:중지, N:사용) -->
+					    A.ADDR_DETAIL , 
+					    A.CORP_REG_NO , 
+					    A.BIZ_REG_NO,
+					    A.ZIP_NM,
+					    NVL2(B.ERP_CODE,'C001','C002') IS_YN
+				FROM
+				   KYERP.TB_CM_CUSTOMER@DL_ONTIC A, CRM_CUST_MGT B
+			   WHERE 1=1
+			   <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_nm) != ''">
+				AND UPPER(A.CUST_NM) LIKE UPPER('%'|| #{cust_nm} ||'%')
+			   </if>
+			    AND A.CUST_CD = B.ERP_CODE(+)
+		   	   	AND A.PUR_USE_YN  = 'N'
+			    AND A.TRANS_GBN ='00005'
+			) IN_TB
+			WHERE 1=1
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(is_yn) != ''">
+				AND IN_TB.IS_YN = #{is_yn}
+			</if>
+		) OUT_TB
+	WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC
+	</select>
+	
+	
+	
+	
+	<select id="getLinkCustInfoCnt" parameterType="custVO" resultType="java.lang.Integer">
+		SELECT COUNT(OUT_TB.CUST_CD)
+			FROM(
+				SELECT IN_TB.* 
+		 FROM (
+		     SELECT 
+			    A.CUST_CD , 
+			    A.CUST_NM , 
+			    A.REPRESENT , 
+			    A.BIZ_CONDITION ,  
+			    A.BIZ_TYPE , 
+			    A.PUR_USE_YN , 
+			    A.ADDR_DETAIL , 
+			    A.CORP_REG_NO , 
+			    A.BIZ_REG_NO,
+			    A.ZIP_NM,
+			    A.TRANS_GBN,
+         		NVL2(B.ERP_CODE, 'C001', 'C002') IS_YN
+			 FROM
+			   KYERP.TB_CM_CUSTOMER@DL_ONTIC A, CRM_CUST_MGT B
+			 WHERE 1=1
+			 	AND A.CUST_CD = B.ERP_CODE(+)
+         		AND A.PUR_USE_YN = 'N'
+         		AND A.TRANS_GBN ='00005'   
+			   <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_nm) != ''">
+				AND	UPPER(A.CUST_NM) LIKE UPPER('%'|| #{cust_nm} ||'%')
+		   	   </if>
+		  	)IN_TB
+			WHERE 1=1 
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(is_yn) != ''">
+				AND IN_TB.IS_YN = #{is_yn}
+			</if>
+		)OUT_TB
+	</select>
+	
+	
+	<select id="getLinkCustOne" parameterType="custVO" resultType="custVO">
+		SELECT 
+		    CUST_CD , 
+		    CUST_NM , 
+		    REPRESENT , 
+		    BIZ_CONDITION ,  
+		    BIZ_TYPE , 
+		    PUR_USE_YN , 
+		    ADDR_DETAIL , 
+		    CORP_REG_NO , 
+		    BIZ_REG_NO,
+		    ZIP_NM 
+		FROM
+		   KYERP.TB_CM_CUSTOMER@DL_ONTIC
+	   WHERE 1=1
+		AND CUST_CD = #{cust_cd}
+	</select>
+	
+			
+	
+	<select id="crmCodeChk" parameterType="custVO" resultType="int">
+		SELECT COUNT(*) FROM CRM_CUST_MGT WHERE CRM_CODE = #{crm_code}
+	</select>
+	
+	<update id="updateInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_MGT_REGIST(
+		#{seq},					#{erp_code},			#{ceo},						
+		#{cust_nm},				#{cust_no},				#{law_no},				#{buss_condition},		#{buss_item},
+		#{cust_address},		#{cust_kor_name},		#{cust_gubun},			
+		#{foundation_code},	#{foundation_dt},	#{contract_dt},		#{sales},									
+		#{payment_code},	#{sales_grade},		
+		#{foundation_grade},	#{detail_etc},			#{detail_etc2},			#{reg_id},					#{pageType},
+		#{maintenance_raise_dt}, #{as_approval_yn}, 	#{tel_no},				#{deal_code},
+		#{charger_tel}, #{charger_email}, #{charger_no},
+		
+		#{v_return_seq, mode=OUT, jdbcType=VARCHAR},
+		#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<update id="insertIssue" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_ISSUE_REGIST(
+		#{seq},							#{dtl_seq},					#{gubun_code},				#{contents},				#{reg_id},
+		#{action_result_code},	#{action_result_etc},	#{action_change_date},	#{action_emp_id},	#{pageType}	 	
+		,#{v_return_seq, mode=OUT, jdbcType=VARCHAR}
+		,#{v_message, mode=OUT, jdbcType=VARCHAR})}
+	]]>
+	</update>
+	
+	<select id="getCustInfo" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_MGT_DETAIL(
+		#{seq},
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}
+	]]>	
+	</select>
+	
+	<select id="getCustIssueList" parameterType="custVO" statementType="CALLABLE">
+	<![CDATA[
+		{CALL PROC_CUST_ISSUE_LIST(
+		#{seq},	
+		#{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=custResultMap})}	
+	]]>	
+	</select>
+	
+	<!-- 관리문서 상세 -->
+	<select id="getDocInfo" parameterType="custVO" resultType="custVO">
+		SELECT 
+		  A.SEQ as doc_seq ,
+		  A.CUST_SEQ,
+		  A.CRM_CODE as D_CRM_CODE ,
+		  (
+		    SELECT CODE_NAME
+		    FROM CRM_CODE_DETAIL Z
+		    WHERE Z.CODE_GROUP = 'CUST'
+		      AND Z.P_CODE = 'CD44'
+		      AND Z.CODE = A.DOC_TYPE) as D_DOC_TYPE ,
+		  (
+		    SELECT CODE_NAME
+		    FROM CRM_CODE_DETAIL Z
+		    WHERE Z.CODE_GROUP = 'CUST'
+		      AND Z.P_CODE = A.DOC_TYPE
+		      AND Z.CODE = A.DETAIL_TYPE) as D_DETAIL_TYPE ,
+		  A.STD_DT as D_STD_DT ,
+		  A.DOC_COMMENT as D_DOC_COMMENT ,
+		  NVL((
+				 SELECT E.EMP_NM
+				 FROM CRM_EMP_MGT E
+				 WHERE A.REG_ID = E.EMP_NO), '') as REG_NM,
+		  A.REG_ID as D_REG_ID ,
+		  to_char(A.REG_DATE,'yyyy-mm-dd HH24:mi:ss') as D_REG_DATE,
+		  A.DEL_ID as D_DEL_ID ,
+		  A.DEL_YN as D_DEL_YN,
+		  A.FILE_SEQ,
+		  F.ATTACH_SAVE_NM,
+		  F.ATTACH_PATH,
+		  F.ATTACH_PATH_DTL,
+		  F.ATTACH_ORI_NM,
+		  F.ATTACH_ORD
+		FROM 
+		CRM_CUST_DOC_MGT A,
+		CRM_ATTACH_MGT F
+		WHERE 
+		A.CUST_SEQ = #{cust_seq}
+		AND A.FILE_SEQ = F.ATTACH_SEQ
+		ORDER BY SEQ 
+	</select>
+	
+	
+	
+	<!-- 문서등록 -->
+	<insert id="insertDoc" parameterType="custVO">
+		INSERT INTO CRM_CUST_DOC_MGT(
+			SEQ
+			,REG_DATE
+			,FILE_SEQ
+			,DOC_TYPE
+			,DETAIL_TYPE
+			,STD_DT
+			,REG_ID
+			,CUST_SEQ
+			,DOC_COMMENT
+		)VALUES(
+			MAX_DOC_SEQ.NEXTVAL
+			,SYSDATE
+			,#{file_seq}
+			,#{d_doc_type}
+			,#{d_detail_type}
+			,#{d_std_dt}
+			,#{d_reg_id}
+			,#{cust_seq}
+			,#{d_doc_comment}
+		)
+	</insert>
+	
+	
+	<!-- 문서 삭제  -->
+	<delete id="deleteDoc" parameterType="custVO">
+		DELETE CRM_cust_doc_mgt
+		WHERE SEQ = #{doc_seq} 
+	</delete>
+	
+	
+	
+	
+	<!-- 거래처관리-운영 담당자 검색  -->
+	<select id="getChargeEmpCnt" parameterType="custVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+		    COUNT(A.SEQ)
+		FROM 
+		    CRM_CUST_OPERATE_CHARGE A
+		WHERE 1 =1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_code) != ''">
+			AND SEQ IN (
+				SELECT SEQ
+				FROM CRM_CUST_MGT
+				WHERE CRM_CODE = #{cust_code}
+			)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND  UPPER(A.CHARGE_NM) LIKE '%'|| UPPER(#{search_text}) ||'%'  
+		</if>
+	</select>
+	
+    <select id="getChargeEmpList" parameterType="custVO" resultType="custVO">
+	<![CDATA[
+		SELECT OUT_TB.* FROM (
+			SELECT IN_TB.* , ROW_NUMBER() OVER (ORDER BY IN_TB.DTL_SEQ ) AS RNUM FROM (
+				SELECT 
+				    SEQ , 
+				    (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD27' AND Z.CODE = CHARGE_CODE) AS CHARGE_CODE ,
+				    CHARGE_NM,
+				    COMPANY_TEL_NO , 
+				    HP_NO ,  
+				    EMAIL,
+				    ETC,
+				    DTL_SEQ
+				FROM
+				    CRM_CUST_OPERATE_CHARGE
+			) IN_TB
+			WHERE 1 =1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_code) != ''">
+			AND SEQ IN (
+				SELECT SEQ
+				FROM CRM_CUST_MGT
+				WHERE CRM_CODE = #{cust_code}
+			)
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND  UPPER(CHARGE_NM) LIKE '%'|| UPPER(#{search_text}) ||'%'  
+		</if>
+	<![CDATA[
+		) OUT_TB
+			WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY RNUM DESC
+	]]>
+	</select>
+	
+	<select id="getSelectOneChargeInfo" parameterType="custVO" resultType="custVO">
+	   <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(tel_type) == 'COMPANY_TEL_NO'.toString()">
+			SELECT 
+				COMPANY_TEL_NO , 
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(tel_type) == 'HP_NO'.toString()">
+			SELECT 
+				HP_NO , 
+		</if>
+		<![CDATA[
+			SEQ ,
+			CHARGE_NM ,
+			EMAIL
+		FROM CRM_CUST_OPERATE_CHARGE
+		WHERE 1= 1
+		 ]]>
+		 <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_seq) != ''">
+			AND SEQ = #{cust_seq}
+		 </if>
+		  <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(dtl_seq) != ''">     
+			AND DTL_SEQ = #{dtl_seq} 
+		</if>
+	</select>
+		
+	
+	
+	
+	<select id="getPayInfo" parameterType="custVO" resultType="custVO">
+	<![CDATA[
+		SELECT 
+			X.ERP_CODE,
+			SUBSTR(SALE_DT,1,6) SALE_YM, 
+		    SUM(NVL(UBO_AMT,0)) UBO_AMT, 
+		    SUM(NVL(SU_AMT,0)) SU_AMT    
+		FROM ( 
+		        SELECT DISTINCT ERP_CODE FROM CRM_CUST_MGT_HIST
+		        WHERE CRM_CODE = #{crm_code, jdbcType=VARCHAR}
+		     ) X,
+		     (SELECT CUST_CD,SALE_DT,WON_AMT + VAT_AMT UBO_AMT ,COLL_WON_AMT SU_AMT
+		      FROM KYERP.TB_SD_RECEIVABLE_DTL@DL_ONTIC
+		      WHERE 1=1
+		       AND  CURRENCY  = '00001'
+			   AND  SALE_TYPE = '00001'
+			   AND  STATUS    = '00002' -- 매출확정
+			   AND  RV_SLIP_NUMB IS NOT NULL -- 전표발생분
+		      ]]>
+		      <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(bill_code) == 'C300000005' ">
+		      		AND  ITEM_CD     IN('C300000005','C300000005')
+		      </if>
+		      <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(bill_code) == 'C300000001' ">
+		      		AND  ITEM_CD     IN('C300000001','H000000110')
+		      </if>		      
+		      <![CDATA[
+		      
+		     ) Y
+		WHERE X.ERP_CODE = Y.CUST_CD(+)  
+	]]>
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != ''">
+		<![CDATA[AND Y.SALE_DT >= #{search_start} || '01']]>
+	</if>
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_end) != ''">
+		<![CDATA[AND Y.SALE_DT <= #{search_end} || '31']]>
+	</if>	
+	<![CDATA[		
+		GROUP BY X.ERP_CODE,SUBSTR(SALE_DT,1,6)
+		ORDER BY 1,2 ASC
+	]]>			
+	</select>
+
+	
+	
+	<select id="getErpMtList" parameterType="custVO" resultType="map">
+	<![CDATA[
+		SELECT '1' AS COST_GUBUN /*유무상구분*/
+		  ,
+		  A.CUST_CODE AS CUST_CODE /*거래처코드*/
+		  ,
+		  KYERP.FN_GET_CM_CUSTOMER_NM@DL_ONTIC(A.CUST_CODE) AS CUST_NM ,
+		  B.ITEM_GRP3 AS ITEM_GRP3 /*소분류*/
+		  ,
+		  KYERP.FN_GET_CM_CODE_NM@DL_ONTIC('CM0006', B.ITEM_GRP3, 'KO') AS ITEM_GRP3_NM /*소분류명*/
+		  ,
+		  A.CODE_ITEM AS ITEM_CD /*품목코드*/
+		  ,
+		  B.ITEM_NM AS ITEM_NM /*품목명*/
+		  ,
+		  A.ST_DATE AS CONTR_ST_DT /*계약시작일*/
+		  ,
+		  A.END_DATE AS CONTR_END_DT /*계약종료일*/
+		  ,
+		  A.ST_DATE || '~' || A.END_DATE AS CONTR_DT /*계약일자*/
+		  ,
+		  A.SUPP_AMT + A.VAT AS AMT /*유보금액*/
+		FROM KYERP.TB_FI_AUTO_BILL@DL_ONTIC A ,
+		  KYERP.TB_CM_ITEM_MST@DL_ONTIC B ,
+		  KYERP.TB_CM_CODE_DTL@DL_ONTIC C
+		WHERE 1=1
+		  AND A.CUST_CODE = #{erp_code}
+		  AND A.HAEJI_FG = 'N'
+		  AND B.ITEM_CD = A.CODE_ITEM
+		  AND C.BASE_CD_GRP = 'CM0006'
+		  AND C.BASE_CD = B.ITEM_GRP3
+		  AND C.VAL6 = 'B'
+		  AND (A.CUST_CODE,
+		      A.CODE_ITEM,
+		      A.PK_SEQ) IN (
+		    SELECT CUST_CODE,
+		      CODE_ITEM,
+		      MAX(PK_SEQ)
+		    FROM KYERP.TB_FI_AUTO_BILL@DL_ONTIC
+		    WHERE HAEJI_FG = 'N'
+		    GROUP BY CUST_CODE, CODE_ITEM )
+		UNION ALL
+		SELECT '2' AS COST_GUBUN /*유무상구분*/
+		  ,
+		  A.CUST_CODE AS CUST_CODE /*거래처코드*/
+		  ,
+		  KYERP.FN_GET_CM_CUSTOMER_NM@DL_ONTIC(A.CUST_CODE) AS CUST_NM ,
+		  C.ITEM_GRP3 AS ITEM_GRP3 /*소분류*/
+		  ,
+		  KYERP.FN_GET_CM_CODE_NM@DL_ONTIC('CM0006', C.ITEM_GRP3, 'KO') AS ITEM_GRP3_NM /*소분류명*/
+		  ,
+		  C.ITEM_CD AS ITEM_CD /*품목코드*/
+		  ,
+		  C.ITEM_NM AS ITEM_NM /*품목명*/
+		  ,
+		  A.MAINT_ST_DATE AS CONTR_ST_DT /*계약시작일*/
+		  ,
+		  A.MAINT_END_DATE AS CONTR_END_DT /*계약종료일*/
+		  ,
+		  A.MAINT_ST_DATE || '~' || A.MAINT_END_DATE AS CONTR_DT /*계약일자*/
+		  ,
+		  NVL(A.MAINT_MONTH_AMT, 0) AS AMT /*유보금액*/
+		FROM KYERP.TB_SD_MAINT_MST@DL_ONTIC A ,
+		  KYERP.TB_CM_CODE_DTL@DL_ONTIC B ,
+		  KYERP.TB_CM_ITEM_MST@DL_ONTIC C ,
+		  KYERP.TB_CM_CODE_DTL@DL_ONTIC D
+		WHERE 1=1
+		  AND A.COSTS_GUBUN = '2' /*무상*/
+		  AND B.BASE_CD_GRP = 'CM0030'
+		  AND B.BASE_CD = A.CONTRACT_KIND
+		  AND C.ITEM_CD = B.VAL2
+		  AND D.BASE_CD_GRP = 'CM0006'
+		  AND D.BASE_CD = C.ITEM_GRP3
+		  AND D.VAL6 = 'B' /*유보품목코드*/
+		  AND A.CUST_CODE =  #{erp_code}
+		  AND (A.CUST_CODE,
+		      A.CONTRACT_KIND,
+		      A.CONTRACT_NO) IN (
+		    SELECT CUST_CODE,
+		      CONTRACT_KIND,
+		      MAX(CONTRACT_NO)
+		    FROM KYERP.TB_SD_MAINT_MST@DL_ONTIC
+		    WHERE COSTS_GUBUN = '2' /*무상*/
+		    GROUP BY CUST_CODE, CONTRACT_KIND )
+	]]>
+	</select>
+	
+	<select id="selectCustMgtByPk" parameterType="java.lang.String" resultType="custVO">
+		SELECT * FROM CRM_CUST_MGT WHERE SEQ=#{seq}
+	</select>
+	
+	<update id="systemHistUpdateInsert" parameterType="systemHistVO">
+	<![CDATA[
+		MERGE INTO 
+		    CRM_CUST_INSTALL_HIST
+		USING DUAL 
+		    ON (SEQ = #{seq}  AND DTL_SEQ = #{dtl_seq})
+		    WHEN MATCHED THEN     
+		        UPDATE SET
+				    ERP_CODE = #{erp_code}
+				    ,GROUP_CODE1 = #{group_code1}
+				    ,GROUP_CODE2 = #{group_code2}
+				    ,GROUP_CODE3 = #{group_code3}
+				    ,ITEM_NM = #{item_nm}
+				    ,REG_DATE = sysdate
+				    ,REG_ID = #{reg_id}
+				    ,ETC = #{etc}
+				    ,SERIAL_NO = #{serial_no}
+		    WHEN NOT MATCHED THEN
+		        INSERT (
+			        SEQ
+					,DTL_SEQ
+					,ERP_CODE
+					,GROUP_CODE1
+					,GROUP_CODE2
+					,GROUP_CODE3
+					,ITEM_NM
+					,REG_DATE
+					,REG_ID
+					,ETC
+					,SERIAL_NO
+				)
+		        VALUES(
+					#{seq}
+					,#{dtl_seq}
+					,#{erp_code}
+					,#{group_code1}
+					,#{group_code2}
+					,#{group_code3}
+					,#{item_nm}
+					,sysdate
+					,#{reg_id}
+					,#{etc}
+					,#{serial_no}
+		        )
+	]]>
+	</update>
+	
+	<delete id="systemHistDelete" parameterType="systemHistVO">
+		DELETE CRM_CUST_INSTALL_HIST
+		WHERE SEQ = #{seq}  
+			AND DTL_SEQ = #{dtl_seq}
+	</delete>
+	
+	<select id="systemHistList" parameterType="systemHistVO" resultType="systemHistVO">
+		select 
+			A.SEQ
+			,A.DTL_SEQ
+			,'U' AS ACTION_TYPE
+			,A.ERP_CODE
+			,A.GROUP_CODE1
+			,A.GROUP_CODE2
+			,A.GROUP_CODE3
+			,A.ITEM_NM
+			,TO_CHAR(A.REG_DATE,'YYYY-MM-DD') AS REG_DATE
+			,A.REG_ID
+			,(
+			SELECT 
+				EMP_NM
+				FROM CRM_EMP_MGT
+			WHERE EMP_NO = A.REG_ID
+			) AS REG_NM
+			,A.ETC
+			,A.SERIAL_NO
+		FROM CRM_CUST_INSTALL_HIST A
+		WHERE A.SEQ = #{seq}
+		ORDER BY A.DTL_SEQ
+	</select>
+	
+	<select id="getVirtualContractInfo" parameterType="virtualContactVO" resultType="virtualContactVO">
+		SELECT 
+			SEQ
+			,CUST_CODE
+			,CODE_ITEM
+			,SUPP_AMT
+			,VAT
+			,ST_DATE
+			,END_DATE
+			,GYEYAG_IL
+			,MEMO
+			,REG_ID
+		FROM CRM_VIRTUAL_CONTRACT
+		WHERE SEQ = #{seq}
+	</select>
+	
+	<update id="inupVirtualContract" parameterType="virtualContactVO">
+	MERGE INTO CRM_VIRTUAL_CONTRACT A
+		USING DUAL
+		ON (
+		    A.SEQ = #{seq}
+		)
+		WHEN MATCHED THEN
+		    UPDATE SET
+		        A.CUST_CODE = #{cust_code} , 
+		        A.CODE_ITEM = #{code_item} , 
+		        A.SUPP_AMT = #{supp_amt} , 
+		        A.VAT = #{vat},
+		        A.ST_DATE = #{st_date},
+				A.END_DATE = #{end_date},
+				A.GYEYAG_IL = #{gyeyag_il},
+				A.MEMO = #{memo},
+				A.REG_ID = #{reg_id}
+		WHEN NOT MATCHED THEN
+		    INSERT(
+		    	A.SEQ,
+				A.CUST_CODE,
+				A.CODE_ITEM,
+				A.SUPP_AMT,
+				A.VAT,
+				A.ST_DATE,
+				A.END_DATE,
+				A.GYEYAG_IL,
+				A.MEMO,
+				A.REG_ID
+		    )VALUES(
+		    	VIRTUAL_CONTRACT_SEQ.NEXTVAL,
+				#{cust_code},
+				#{code_item},
+				#{supp_amt},
+				#{vat},
+				#{st_date},
+				#{end_date},
+				#{gyeyag_il},
+				#{memo},
+				#{reg_id}
+		    )
+	</update>
+	
+	<select id="getMaintenanceAddInfo" parameterType="maintenanceAddVO" resultType="maintenanceAddVO">
+	<![CDATA[
+		SELECT 
+			VW_PK
+			,CONTRACT_SEQ
+			,CONTRACT_NM
+			,BILL_CODE
+			,MTAC_CODE
+			,MON_OFF_AMT
+			,YEAR_OFF_AMT
+			,ETC
+			,REG_ID
+			,REG_DATE
+			,DEAL_CODE
+			,BUY_BUSI_NAME
+			,BUY_COST
+			,SERVICE_PERIOD
+			,SERVICE_METHOD
+			,AUTO_RENEW_YN
+		FROM CRM_CUST_MAINTENANCE_ADD
+		WHERE
+		VW_PK = #{vw_pk}
+	]]>	
+	</select>
+	
+	<update id="inupMaintenanceAdd" parameterType="maintenanceAddVO">
+	<![CDATA[
+	MERGE INTO 
+    	CRM_CUST_MAINTENANCE_ADD
+	USING DUAL 
+	    ON (VW_PK = #{vw_pk})
+	    WHEN MATCHED THEN     
+	        UPDATE SET
+	            CONTRACT_SEQ = #{contract_seq}
+	            ,CONTRACT_NM = #{contract_nm}
+	            ,BILL_CODE = #{bill_code}
+	            ,MTAC_CODE = #{mtac_code}
+	            ,MON_OFF_AMT = #{mon_off_amt}
+	            ,YEAR_OFF_AMT = #{year_off_amt}
+	            ,ETC = #{etc}
+	            ,REG_ID = #{reg_id}
+	            ,REG_DATE = sysdate
+	            ,DEAL_CODE = #{deal_code}
+	            ,BUY_BUSI_NAME = #{buy_busi_name}
+	            ,BUY_COST = #{buy_cost}
+	            ,SERVICE_PERIOD = #{service_period}
+	            ,SERVICE_METHOD = #{service_method}
+	            ,AUTO_RENEW_YN = #{auto_renew_yn}
+	    WHEN NOT MATCHED THEN
+	        INSERT (
+	            VW_PK
+	            ,CONTRACT_SEQ
+	            ,CONTRACT_NM
+	            ,BILL_CODE
+	            ,MTAC_CODE
+	            ,MON_OFF_AMT
+	            ,YEAR_OFF_AMT
+	            ,ETC
+	            ,REG_ID
+	            ,REG_DATE
+	            ,DEAL_CODE
+	            ,BUY_BUSI_NAME
+	            ,BUY_COST
+	            ,SERVICE_PERIOD
+	            ,SERVICE_METHOD
+	            ,AUTO_RENEW_YN
+	        )
+	        VALUES(
+	            #{vw_pk}
+	            ,#{contract_seq}
+	            ,#{contract_nm}
+	            ,#{bill_code}
+	            ,#{mtac_code}
+	            ,#{mon_off_amt}
+	            ,#{year_off_amt}
+	            ,#{etc}
+	            ,#{reg_id}
+	            ,sysdate
+	            ,#{deal_code}
+	            ,#{buy_busi_name}
+	            ,#{buy_cost}
+	            ,#{service_period}
+	            ,#{service_method}
+	            ,#{auto_renew_yn}
+	        )
+	]]>
+	</update>
+	
+	
+	<delete id="delMaintenanceAdd" parameterType="maintenanceAddVO">
+		DELETE FROM CRM_CUST_MAINTENANCE_ADD
+		WHERE VW_PK = #{vw_pk}
+	</delete>
+	
+	<delete id="delVirtualContract" parameterType="virtualContactVO">
+		DELETE FROM CRM_VIRTUAL_CONTRACT
+		WHERE SEQ = #{seq}
+	</delete>
+	
+	<select id="getCustMgtByPK" parameterType="custVO" resultType="custVO">
+	select * from crm_cust_mgt where seq = #{seq}
+	</select>
+	
+	<!-- 가상계약 자동등록 -->
+	<insert id="insertVirtualContractAuto">
+		INSERT INTO CRM_VIRTUAL_CONTRACT (
+		    SEQ, CUST_CODE, CODE_ITEM, SUPP_AMT, VAT, ST_DATE, END_DATE, GYEYAG_IL, MEMO, REG_ID
+		)
+		SELECT 
+		    CM.SEQ
+		    ,CM.CUST_CODE
+		    ,'C300000001' AS CODE_ITEM
+		    ,0 AS SUPP_AMT
+		    ,0 AS VAT
+		    ,CPM.TERM_END_DT AS ST_DATE
+		    ,TO_CHAR(ADD_MONTHS(TO_DATE(CPM.TERM_END_DT),CPM.MTAC_MONTH),'YYYYMMDD') AS END_DATE
+		    ,CPM.TERM_END_DT AS GYEYAG_IL
+		    ,'자동생성' AS MEMO
+		    ,'SYSTEM' AS REG_ID
+		FROM crm_cust_project_mgt CPM, CRM_CUST_OPERATE_INFO COI, CRM_CUST_MGT CM
+		WHERE CM.SEQ = CPM.SEQ
+		AND CPM.SEQ NOT IN (SELECT SEQ FROM CRM_VIRTUAL_CONTRACT)
+		AND CPM.SEQ = COI.SEQ
+		AND COI.DEAL_CODE IN ('C001')
+		AND CPM.TERM_END_DT IS NOT NULL
+		AND CPM.MTAC_MONTH IS NOT NULL
+		AND ADD_MONTHS(TO_DATE(CPM.TERM_END_DT),CPM.MTAC_MONTH) > SYSDATE
+	</insert>
+	
+	<!-- 추가정보 자동 등록 -->
+	<insert id="insertCustMaintenanceAddAuto">
+		INSERT INTO CRM_CUST_MAINTENANCE_ADD
+		(VW_PK, CONTRACT_SEQ, CONTRACT_NM, MTAC_CODE, ETC, REG_ID,AUTO_RENEW_YN)
+		SELECT IN_TB.VW_PK, IN_TB.CONTRACT_SEQ ,IN_TB.CONTRACT_NM ,IN_TB.MTAC_CODE ,IN_TB.ETC ,IN_TB.REG_ID ,IN_TB.AUTO_RENEW_YN
+		FROM (
+		    SELECT 'Z'||VC.SEQ||'0' AS VW_PK
+		        ,'TBD' AS CONTRACT_SEQ
+		        ,'TBD' AS CONTRACT_NM
+		        ,'C003' AS MTAC_CODE -- HIS 무상유지보수
+		        ,'자동등록' AS ETC
+		        ,'admin' AS REG_ID
+		        ,'N' AS AUTO_RENEW_YN
+		    FROM crm_virtual_contract VC, CRM_CUST_OPERATE_INFO COI, crm_cust_project_mgt CPM
+		    WHERE VC.SEQ = COI.SEQ
+		    AND VC.SEQ = CPM.SEQ
+		    AND CPM.TERM_END_DT IS NOT NULL
+		    AND CPM.MTAC_MONTH IS NOT NULL
+		    AND ADD_MONTHS(TO_DATE(CPM.TERM_END_DT),CPM.MTAC_MONTH) > SYSDATE
+		    AND COI.DEAL_CODE IN ('C001')
+		    )IN_TB
+		WHERE IN_TB.VW_PK NOT IN (SELECT VW_PK FROM CRM_CUST_MAINTENANCE_ADD)
+	</insert>
+	
+	<select id="selectErpHistBySeq" parameterType="map" resultType="map">
+		SELECT
+		    CMH.SEQ
+		    ,CMH.DTL_SEQ
+		    ,KCC.CUST_CD
+		    ,KCC.CUST_NM
+		    ,KCC.BIZ_REG_NO
+		    ,KCC.CORP_REG_NO
+		    ,KCC.REPRESENT
+		    ,NVL((SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = CMH.REG_ID),CMH.REG_ID) || '[' || CMH.REG_ID  || ']' AS REG_ID
+		    ,TO_CHAR(CMH.REG_DATE,'YYYY/MM/DD HH24:MI:SS') AS REG_DATE
+		FROM CRM_CUST_MGT_HIST CMH, KYERP.TB_CM_CUSTOMER@DL_ONTIC KCC
+		WHERE CMH.SEQ=#{seq}
+		AND CMH.ERP_CODE = KCC.CUST_CD
+		ORDER BY CMH.DTL_SEQ DESC
+	</select>
+	
+	<delete id="deleteErpHistByPk" parameterType="map">
+		DELETE FROM CRM_CUST_MGT_HIST
+		WHERE SEQ = #{seq} AND DTL_SEQ = #{dtlSeq}
+		
+	</delete>
+	
+	<select id="getCustInfoBySeq" parameterType="custVO" resultType="custVO">
+	<![CDATA[
+		SELECT 
+		    A.SEQ , 
+		    A.CUST_KOR_NAME , 
+		    A.CUST_ADDRESS , 
+		    A.ZIP_CODE , 
+		    A.ERP_CODE, 
+    		(SELECT TEL_NO FROM CRM_CUST_EMP WHERE A.ERP_CODE = CUST_CODE AND  EMP_GRADE='C001') AS TEL_NO,
+    		A.AS_APPROVAL_YN,
+    		A.CUST_GUBUN  /* 거래처구분 추가 2020.08.27. */
+		FROM 
+		    CRM_CUST_MGT A
+		WHERE 1=1
+		   AND A.SEQ = #{cust_seq, jdbcType=VARCHAR}
+		]]>
+	</select>
+	
+	
+	<select id="selectIsAsApproval1" parameterType="userVO" resultType="custVO">
+		SELECT 
+			AS_APPROVAL_YN 
+		FROM CRM_CUST_MGT M 
+		WHERE 1=1
+		AND M.ERP_CODE = #{cust_code}
+	</select>
+	
+	<select id="selectIsAsApproval2" parameterType="commonCodeVO" resultType="custVO">
+		SELECT 
+			COUNT(SEQ) CNT 	
+		FROM CRM_APPROVAL_AUTH A 
+		WHERE 1=1
+		AND A.P_CODE = #{p_code}
+		AND A.CODE = #{code}
+		AND A.CUST_CODE = #{cust_code}
+	</select>
+	
+	<select id="selectIsAsApproval3" parameterType="userVO" resultType="userVO">
+		SELECT 
+			APPROVAL_AUTH
+		FROM CRM_CUST_EMP
+		WHERE 1=1
+		AND EMP_ID	= #{emp_id}
+	</select>
+	
+	
+	<select id="checkOperdel" parameterType="operateVO" resultType ="java.lang.Integer">
+		SELECT 
+			COUNT(*)
+		FROM CRM_AS_MGT
+		WHERE 1=1
+		AND OPER_SEQ = #{oper_seq, jdbcType=VARCHAR}
+	</select>
+		
+	
+	<delete id="delOperateProc" parameterType="operateVO">
+		DELETE FROM CRM_OPERATE_MGT
+		WHERE OPER_SEQ = #{oper_seq, jdbcType=VARCHAR}
+	</delete>
+	
+	<select id="selectSystemNameBySeq" parameterType="operateVO" resultType ="operateVO">
+		SELECT SYSTEM_NM FROM CRM_OPERATE_MGT 
+		WHERE 1=1 
+		AND OPER_SEQ = #{oper_seq}
+	</select>
+	
+	
+	<select id="getRetireListCnt" parameterType="retireVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(*) FROM (
+		
+					   SELECT  COMPANYID -- 회사CD 
+		                     , COMPANY_NM --회사NM
+		                     , USERID    -- 사번 
+		                     , USERNM    -- 성명 
+		                     , DEPTID    -- 부서CD 
+		                     , DEPTNM    -- 부서명 
+		                     , RETIREDT  -- 퇴사일자 
+		                     , DECODE(CNT,'1','C002','0','C001') AS RETIRE_FLAG --퇴사 FLAG(C002 : 사간이동, C001 : 퇴사)
+                             , NVL(CONF,'미완료') CONF
+		                FROM ( 
+		                        SELECT ROW_NUMBER() OVER(PARTITION BY EMP.USERID ORDER BY EMP.STA_YMD DESC) ROW_NUM 
+		                             , EMP.COMPANYID
+		                             , (SELECT CODE_NAME 
+		                                FROM   CRM_CODE_DETAIL
+		                                WHERE  EMP.COMPANYID = CODE
+		                                AND    CODE_GROUP = 'RETIRE'
+		                                AND    P_CODE = 'RT02') AS COMPANY_NM
+		                             , EMP.USERID 
+		                             , EMP.USERNM 
+		                             , EMP.DEPTID 
+		                             , DPT.DEPTNM 
+		                             , EMP.RETIREDT 
+		                             , EMP.STA_YMD 
+		                             , EMP.END_YMD 
+		                             , (SELECT COUNT(*) FROM CWC_USER_NEW@DL_JWHR_H552 WHERE IN_OFFI_YN = 'Y' AND USERID = EMP.USERID AND SYSDATE BETWEEN STA_YMD AND END_YMD) AS CNT
+                                     , CRM.CONF
+		                         FROM CWC_USER_NEW@DL_JWHR_H552 EMP
+		                         	 , CWC_DPT_NEW@DL_JWHR_H552 DPT
+                                        ,(
+                                            SELECT AA.EMP_NO, CASE WHEN COUNT(*) = SUM(CASE WHEN NVL(CHECK_YN,'N') = 'Y' THEN 1 ELSE 0 END) THEN '완료' ELSE '미완료' END CONF
+                                            FROM (
+                                                    SELECT CODE,Y.*
+                                                    FROM  CRM_CODE_DETAIL X,
+                                                          (SELECT DISTINCT EMP_NO,RETIRE_DATE
+                                                           FROM CRM_RETIRE_MGT
+                                                          ) Y
+                                                    WHERE CODE_GROUP = 'RETIRE'  
+                                                    AND   P_CODE     = 'RT04'  
+                                                    AND   RETIRE_DATE BETWEEN VAL1 AND VAL2
+                                                 ) AA,
+                                                 CRM_RETIRE_MGT BB
+                                            WHERE AA.EMP_NO = BB.EMP_NO(+)
+                                            AND   AA.CODE = BB.CHECK_CD(+)
+                                            GROUP BY AA.EMP_NO
+                                        )CRM
+		                        WHERE EMP.DEPTID = DPT.DEPTID 
+		                          AND EMP.COMPANYID = DPT.COMPANYID 
+		                          AND EMP.RETIREDT BETWEEN DPT.STA_YMD AND DPT.END_YMD 
+		                          AND EMP.USERID = NVL(NULL , EMP.USERID) 
+		                          AND DPT.COMPANYID = NVL(NULL , DPT.COMPANYID) 
+		                          AND EMP.IN_OFFI_YN = 'N' 
+                   ]]>
+                   <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != '' ">
+					  AND EMP.RETIREDT BETWEEN REPLACE(#{search_start},'/','') AND REPLACE(#{search_end},'/','') 
+				   </if>
+                   <![CDATA[
+                     AND EMP.USERID = CRM.EMP_NO(+)
+                     ) 
+               WHERE ROW_NUM = '1'
+		 )  
+		WHERE 1=1
+	]]>
+		<include refid="RetireListWhere"/> 
+	</select>
+	
+	<select id="getRetireList" parameterType="retireVO" resultType="retireVO">
+	<![CDATA[
+		SELECT OUT_TB.* FROM(
+		        SELECT IN_TB.* 
+		               , ROW_NUMBER() OVER(ORDER BY IN_TB.RETIREDT ) AS RNUM
+		        FROM (SELECT  COMPANYID -- 회사CD 
+		                     , COMPANY_NM --회사NM
+		                     , USERID    -- 사번 
+		                     , USERNM    -- 성명 
+		                     , DEPTID    -- 부서CD 
+		                     , DEPTNM    -- 부서명 
+		                     , RETIREDT  -- 퇴사일자 
+		                     , DECODE(CNT,'1','C002','0','C001') AS RETIRE_FLAG --퇴사 FLAG(C002 : 사간이동, C001 : 퇴사)
+                             , NVL(CONF,'미완료') CONF
+		                FROM ( 
+		                        SELECT ROW_NUMBER() OVER(PARTITION BY EMP.USERID ORDER BY EMP.STA_YMD DESC) ROW_NUM 
+		                             , EMP.COMPANYID
+		                             , (SELECT CODE_NAME 
+		                                FROM CRM_CODE_DETAIL
+		                                WHERE EMP.COMPANYID = CODE
+		                                AND CODE_GROUP = 'RETIRE'
+		                                AND P_CODE = 'RT02') AS COMPANY_NM
+		                             , EMP.USERID 
+		                             , EMP.USERNM 
+		                             , EMP.DEPTID 
+		                             , DPT.DEPTNM 
+		                             , EMP.RETIREDT 
+		                             , EMP.STA_YMD 
+		                             , EMP.END_YMD 
+		                             , (SELECT COUNT(*) FROM CWC_USER_NEW@DL_JWHR_H552 WHERE IN_OFFI_YN = 'Y' AND USERID = EMP.USERID AND SYSDATE BETWEEN STA_YMD AND END_YMD) AS CNT
+                                     , CRM.CONF
+		                         FROM CWC_USER_NEW@DL_JWHR_H552 EMP
+		                         	 , CWC_DPT_NEW@DL_JWHR_H552 DPT
+                                        ,(
+                                            SELECT AA.EMP_NO, CASE WHEN COUNT(*) = SUM(CASE WHEN NVL(CHECK_YN,'N') = 'Y' THEN 1 ELSE 0 END) THEN '완료' ELSE '미완료' END CONF
+                                            FROM (
+                                                    SELECT CODE,Y.*
+                                                    FROM  CRM_CODE_DETAIL X,
+                                                          (SELECT DISTINCT EMP_NO,RETIRE_DATE
+                                                           FROM CRM_RETIRE_MGT
+                                                          ) Y
+                                                    WHERE CODE_GROUP = 'RETIRE'  
+                                                    AND   P_CODE     = 'RT04'  
+                                                    AND   RETIRE_DATE BETWEEN VAL1 AND VAL2
+                                                 ) AA,
+                                                 CRM_RETIRE_MGT BB
+                                            WHERE AA.EMP_NO = BB.EMP_NO(+)
+                                            AND   AA.CODE = BB.CHECK_CD(+)
+                                            GROUP BY AA.EMP_NO
+                                        )CRM
+		                        WHERE EMP.DEPTID = DPT.DEPTID 
+		                          AND EMP.COMPANYID = DPT.COMPANYID 
+		                          AND EMP.RETIREDT BETWEEN DPT.STA_YMD AND DPT.END_YMD 
+		                          AND EMP.USERID = NVL(NULL , EMP.USERID) 
+		                          AND DPT.COMPANYID = NVL(NULL , DPT.COMPANYID) 
+		                          AND EMP.IN_OFFI_YN = 'N' 
+                          ]]>
+                            <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != '' ">
+								  AND EMP.RETIREDT BETWEEN REPLACE(#{search_start},'/','') AND REPLACE(#{search_end},'/','') 
+							</if>
+                          <![CDATA[	 
+                    			AND EMP.USERID = CRM.EMP_NO(+)
+		                      ) 
+		                WHERE ROW_NUM = '1'
+		                ORDER BY RETIREDT
+		            )IN_TB  
+		            WHERE 1=1
+		]]>	
+	        <include refid="RetireListWhere"/>    
+       <![CDATA[
+		      )OUT_TB
+       		WHERE RNUM BETWEEN #{startRow} AND #{endRow} 
+       		ORDER BY RNUM DESC 
+       ]]>	
+	</select>
+	
+	<sql id="RetireListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND COMPANYID = #{search_type1}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) == 'C001'">
+			AND CONF = '완료'
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) == 'C002'">
+			AND CONF = '미완료'
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ''">
+			AND RETIRE_FLAG = #{search_type4}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND
+			(
+				UPPER(COMPANYID) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(COMPANY_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(USERID) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(USERNM) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(DEPTNM) LIKE '%'|| UPPER(#{search_text}) ||'%' 
+			)
+		</if>
+	</sql>
+	
+	<select id="getRetireInfo" parameterType="retireVO" resultType="retireVO">
+	<![CDATA[	 	
+		SELECT OUT_TB.* FROM(  
+        SELECT IN_TB.* 
+               , ROW_NUMBER() OVER(ORDER BY IN_TB.RETIREDT ) AS RNUM
+        FROM (SELECT  COMPANYID -- 회사CD 
+                     , COMPANY_NM --회사NM
+                     , USERID    -- 사번 
+                     , USERNM    -- 성명 
+                     , DEPTID    -- 부서CD 
+                     , DEPTNM    -- 부서명 
+                     , RETIREDT  -- 퇴사일자 
+                     , DECODE(CNT,'1','C002','0','C001') AS RETIRE_FLAG --퇴사 FLAG(C002 : 사간이동, C001 : 퇴사)
+                FROM ( 
+                        SELECT ROW_NUMBER() OVER(PARTITION BY EMP.USERID ORDER BY EMP.STA_YMD DESC) ROW_NUM 
+                             , EMP.COMPANYID
+                             , (SELECT CODE_NAME 
+                                FROM CRM_CODE_DETAIL
+                                WHERE EMP.COMPANYID = CODE
+                                AND CODE_GROUP = 'RETIRE'
+                                AND P_CODE = 'RT02') AS COMPANY_NM
+                             , EMP.USERID 
+                             , EMP.USERNM 
+                             , EMP.DEPTID 
+                             , DPT.DEPTNM 
+                             , EMP.RETIREDT 
+                             , EMP.STA_YMD 
+                             , EMP.END_YMD 
+                             , (SELECT COUNT(*) FROM CWC_USER_NEW@DL_JWHR_H552 WHERE IN_OFFI_YN = 'Y' AND USERID = EMP.USERID AND SYSDATE BETWEEN STA_YMD AND END_YMD) AS CNT 
+                         FROM CWC_USER_NEW@DL_JWHR_H552 EMP, CWC_DPT_NEW@DL_JWHR_H552 DPT 
+                        WHERE EMP.DEPTID = DPT.DEPTID 
+                          AND EMP.COMPANYID = DPT.COMPANYID 
+                          AND EMP.RETIREDT BETWEEN DPT.STA_YMD AND DPT.END_YMD 
+                          AND EMP.USERID = NVL(NULL , EMP.USERID) 
+                          AND DPT.COMPANYID = NVL(NULL , DPT.COMPANYID) 
+                          AND EMP.IN_OFFI_YN = 'N' 
+                      ) 
+                WHERE ROW_NUM = '1'
+                ORDER BY RETIREDT
+            )IN_TB  
+            WHERE 1=1
+    ]]>
+        <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(userid) != '' ">
+	  		AND USERID = #{userid}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(retiredt) != '' ">
+	  		AND RETIREDT = #{retiredt}  
+		</if>
+    <![CDATA[	 
+      )OUT_TB
+		
+	]]>
+	</select>
+	
+	<select id="getRetireInitCnt" parameterType="retireVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(*) FROM CRM_CODE_DETAIL
+		WHERE CODE_GROUP = 'RETIRE'
+		AND P_CODE = 'RT04'	
+		AND USE_YN = 'Y'
+		AND #{retiredt} BETWEEN VAL1 AND VAL2
+	]]>
+	</select>
+	
+	<select id="getRetireInit" parameterType="retireVO" resultType="retireVO">
+	<![CDATA[
+		SELECT CODE
+			 , CODE_NAME 
+		FROM CRM_CODE_DETAIL
+		WHERE CODE_GROUP = 'RETIRE'
+		AND P_CODE = 'RT04'
+		AND USE_YN = 'Y'
+		AND #{retiredt} BETWEEN VAL1 AND VAL2
+	]]>
+	</select>
+	
+	<select id="getRetireCheckCnt" parameterType="retireVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(*) FROM CRM_RETIRE_MGT 
+		WHERE EMP_NO = #{emp_no}
+		AND RETIRE_DATE = #{retire_date}
+	]]>
+	</select>
+	
+	<select id="getRetireCheck" parameterType="retireVO" resultType="retireVO">
+	<![CDATA[
+		SELECT A.EMP_NO
+			 , A.RETIRE_DATE
+			 , A.CHECK_CD
+			 , A.CHECK_YN
+			 , A.REG_ID
+			 , (SELECT E.EMP_NM FROM CRM_EMP_MGT E WHERE E.EMP_NO = A.REG_ID) AS REG_NM
+			 , A.REG_DATE
+			 , A.NOTE
+		FROM CRM_RETIRE_MGT A
+		WHERE EMP_NO = #{emp_no}
+		AND RETIRE_DATE = #{retire_date}
+	]]>
+	</select>
+	
+	<update id="mergeRetire" parameterType="retireVO">
+	<![CDATA[
+		MERGE INTO CRM_RETIRE_MGT
+		    USING DUAL
+		    ON( 
+		    	EMP_NO = #{emp_no} 
+		        AND RETIRE_DATE = #{retire_date} 
+		        AND CHECK_CD = #{check_cd}
+		        )
+		    WHEN MATCHED THEN
+		        UPDATE SET
+		            CHECK_YN = #{check_yn}
+		            , NOTE = #{note}
+		            , REG_ID = #{reg_id}
+				]]>
+		        <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(reg_date) != ''">
+		            , REG_DATE = #{reg_date}
+		        </if>
+		        <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(reg_date) == ''">
+		            , REG_DATE = DECODE(#{check_yn}, 'Y', TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI'), DECODE(#{note}, NULL, NULL, TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI')) )
+		        </if>
+				<![CDATA[	        	             
+		    WHEN NOT MATCHED THEN
+		        INSERT(
+		                EMP_NO
+		              , RETIRE_DATE
+		              , CHECK_CD
+		              , CHECK_YN
+		              , REG_ID
+		              , REG_DATE
+		              , NOTE
+		              )
+		        VALUES( 
+		                #{emp_no}
+		              , #{retire_date}
+		              , #{check_cd}
+		              , #{check_yn}
+		              , DECODE(#{check_yn}, 'Y', #{reg_id}, DECODE(#{note}, NULL, NULL, #{reg_id}) )
+		              , DECODE(#{check_yn}, 'Y', TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI'), DECODE(#{note}, NULL, NULL, TO_CHAR(SYSDATE,'YYYY-MM-DD HH24:MI')) )
+		              , #{note}
+		              )
+	]]> 	              
+	</update>
+	
+	<select id="getRetireExl" parameterType="retireVO" resultType="retireVO">
+	<![CDATA[
+		SELECT IN_TB.USERID AS USERID 
+			     , IN_TB.USERNM AS USERNM
+			     , TO_CHAR(TO_DATE(IN_TB.RETIREDT, 'YYYYMMDD'), 'YYYY-MM-DD') AS RETIRE_DATE
+			     , IN_TB.COMPANYID
+			     , IN_TB.COMPANY_NM AS COMPANY_NM 
+			     , IN_TB.DEPTNM AS DEPTNM
+			     , IN_TB.RETIRE_FLAG AS RETIRE_FLAG
+			     , (SELECT D.CODE_NAME FROM CRM_CODE_DETAIL D WHERE CODE_GROUP = 'RETIRE' AND P_CODE= 'RT03' AND D.CODE = RETIRE_FLAG) AS RETIRE_FLAG_NM
+			     , A.CHECK_CD
+			     , (SELECT D.CODE_NAME FROM CRM_CODE_DETAIL D WHERE CODE_GROUP = 'RETIRE' AND P_CODE= 'RT04' AND D.CODE = CHECK_CD) AS CHECk_NM
+			     , A.CHECK_YN
+			     , A.REG_ID
+			     , (SELECT E.EMP_NM FROM CRM_EMP_MGT E WHERE E.EMP_NO = A.REG_ID) AS REG_NM
+			     , A.REG_DATE
+			     , A.NOTE
+                 , IN_TB.CONF
+			FROM CRM_RETIRE_MGT A
+			     , (
+			        SELECT  COMPANYID -- 회사CD 
+		                     , COMPANY_NM --회사NM
+		                     , USERID    -- 사번 
+		                     , USERNM    -- 성명 
+		                     , DEPTID    -- 부서CD 
+		                     , DEPTNM    -- 부서명 
+		                     , RETIREDT  -- 퇴사일자 
+		                     , DECODE(CNT,'1','C002','0','C001') AS RETIRE_FLAG --퇴사 FLAG(C002 : 사간이동, C001 : 퇴사)
+                             , NVL(CONF,'미완료') CONF
+		                FROM ( 
+		                        SELECT ROW_NUMBER() OVER(PARTITION BY EMP.USERID ORDER BY EMP.STA_YMD DESC) ROW_NUM 
+		                             , EMP.COMPANYID
+		                             , (SELECT CODE_NAME 
+		                                FROM CRM_CODE_DETAIL
+		                                WHERE EMP.COMPANYID = CODE
+		                                AND CODE_GROUP = 'RETIRE'
+		                                AND P_CODE = 'RT02') AS COMPANY_NM
+		                             , EMP.USERID 
+		                             , EMP.USERNM 
+		                             , EMP.DEPTID 
+		                             , DPT.DEPTNM 
+		                             , EMP.RETIREDT 
+		                             , EMP.STA_YMD 
+		                             , EMP.END_YMD 
+		                             , (SELECT COUNT(*) FROM CWC_USER_NEW@DL_JWHR_H552 WHERE IN_OFFI_YN = 'Y' AND USERID = EMP.USERID AND SYSDATE BETWEEN STA_YMD AND END_YMD) AS CNT
+                                     , CRM.CONF
+		                         FROM CWC_USER_NEW@DL_JWHR_H552 EMP
+		                         	 , CWC_DPT_NEW@DL_JWHR_H552 DPT
+                                        ,(
+                                            SELECT AA.EMP_NO, CASE WHEN COUNT(*) = SUM(CASE WHEN NVL(CHECK_YN,'N') = 'Y' THEN 1 ELSE 0 END) THEN '완료' ELSE '미완료' END CONF
+                                            FROM (
+                                                    SELECT CODE,Y.*
+                                                    FROM  CRM_CODE_DETAIL X,
+                                                          (SELECT DISTINCT EMP_NO,RETIRE_DATE
+                                                           FROM CRM_RETIRE_MGT
+                                                          ) Y
+                                                    WHERE CODE_GROUP = 'RETIRE'  
+                                                    AND   P_CODE     = 'RT04'  
+                                                    AND   RETIRE_DATE BETWEEN VAL1 AND VAL2
+                                                 ) AA,
+                                                 CRM_RETIRE_MGT BB
+                                            WHERE AA.EMP_NO = BB.EMP_NO(+)
+                                            AND   AA.CODE = BB.CHECK_CD(+)
+                                            GROUP BY AA.EMP_NO
+                                        )CRM
+		                        WHERE EMP.DEPTID = DPT.DEPTID 
+		                          AND EMP.COMPANYID = DPT.COMPANYID 
+		                          AND EMP.RETIREDT BETWEEN DPT.STA_YMD AND DPT.END_YMD 
+		                          AND EMP.USERID = NVL(NULL , EMP.USERID) 
+		                          AND DPT.COMPANYID = NVL(NULL , DPT.COMPANYID) 
+		                          AND EMP.IN_OFFI_YN = 'N' 
+			                ]]>
+                            <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != '' ">
+								  AND EMP.RETIREDT BETWEEN REPLACE(#{search_start},'/','') AND REPLACE(#{search_end},'/','')
+								  AND EMP.USERID = CRM.EMP_NO(+) 
+							</if>
+                          <![CDATA[	 
+			                )
+			          WHERE ROW_NUM = '1'
+			             )IN_TB
+			WHERE 1=1
+			AND A.EMP_NO(+) = IN_TB.USERID
+			AND A.RETIRE_DATE(+) = IN_TB.RETIREDT
+			]]>	
+	        <include refid="RetireListWhere"/>    
+       		<![CDATA[
+			 ORDER BY RETIRE_DATE, USERID, CHECK_CD  
+	]]> 	
+	</select>
+	
+</mapper>
+
+
+

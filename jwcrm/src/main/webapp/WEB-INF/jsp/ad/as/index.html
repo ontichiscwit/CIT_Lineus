@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>MediCare A/S 대시보드 리뉴얼 UI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg-main: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-sidebar: #020617;
+      --bg-sidebar-soft: #0b1120;
+      --accent-teal: #14b8a6;
+      --accent-blue: #2563eb;
+      --accent-green: #16a34a;
+      --accent-orange: #f97316;
+      --text-main: #111827;
+      --text-sub: #6b7280;
+      --border-soft: #e5e7eb;
+      --radius-lg: 18px;
+      --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: radial-gradient(circle at top left, #eff6ff, #f9fafb 42%);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app-shell {
+      display: flex;
+      height: 100vh;
+      max-height: 100vh;
+    }
+
+    /* 왼쪽 메인 메뉴바 */
+
+    .sidebar {
+      width: 82px;
+      background: radial-gradient(circle at top, #0f172a, #020617 55%);
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 18px 10px;
+      gap: 16px;
+    }
+
+    .logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 15px;
+      background: radial-gradient(circle at top left, #22c55e, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 0.02em;
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.55);
+    }
+
+    .logo span {
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    .nav-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .nav-item {
+      width: 54px;
+      border-radius: 14px;
+      padding: 8px 4px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition:
+        background 0.22s ease,
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        color 0.18s ease;
+      color: #9ca3af;
+    }
+
+    .nav-item svg {
+      width: 22px;
+      height: 22px;
+      opacity: 0.9;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .nav-item:hover {
+      transform: translateY(-2px);
+      background: rgba(15, 23, 42, 0.95);
+      color: #e5e7eb;
+    }
+
+    .nav-item.active {
+      background: radial-gradient(circle at top, #22c55e, #0ea5e9);
+      color: white;
+      box-shadow: 0 12px 30px rgba(56, 189, 248, 0.6);
+    }
+
+    .nav-item.active svg {
+      opacity: 1;
+    }
+
+    .sidebar-bottom {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: radial-gradient(circle at top, #38bdf8, #4f46e5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: white;
+      box-shadow: 0 10px 25px rgba(59, 130, 246, 0.65);
+    }
+
+    /* 선택된 메뉴의 세부 메뉴 패널 */
+
+    .sidebar-secondary {
+      width: 230px;
+      background: rgba(15, 23, 42, 0.02);
+      backdrop-filter: blur(10px);
+      border-right: 1px solid rgba(15, 23, 42, 0.06);
+      padding: 18px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .submenu-header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .submenu-title {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .submenu-pill {
+      font-size: 11px;
+      color: var(--accent-teal);
+      background: rgba(45, 212, 191, 0.08);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-weight: 600;
+    }
+
+    .submenu-caption {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .submenu-section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+
+    .submenu-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .submenu-item {
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition:
+        background 0.18s ease,
+        color 0.18s ease;
+      color: #4b5563;
+    }
+
+    .submenu-item span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .submenu-item small {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .submenu-item:hover {
+      background: rgba(15, 23, 42, 0.04);
+    }
+
+    .submenu-item.active {
+      background: rgba(56, 189, 248, 0.12);
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    .submenu-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.09);
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+
+    /* 메인 컨텐츠 래퍼 */
+
+    .main {
+      flex: 1;
+      padding: 18px 22px 22px;
+      overflow: auto;
+    }
+
+    .main-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .page-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .page-title-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 9px;
+      background: rgba(45, 212, 191, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-teal);
+    }
+
+    .page-subtitle {
+      font-size: 13px;
+      color: var(--text-sub);
+    }
+
+    .main-header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(255, 255, 255, 0.9);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .pill strong {
+      font-weight: 600;
+    }
+
+    .pill-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.07);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    /* 카드 행 */
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .summary-card {
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      color: white;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(8px);
+    }
+
+    .summary-card:nth-child(1) {
+      background: radial-gradient(circle at top left, #22c55e, #0f766e);
+    }
+
+    .summary-card:nth-child(2) {
+      background: radial-gradient(circle at top left, #2563eb, #1d4ed8);
+    }
+
+    .summary-card:nth-child(3) {
+      background: radial-gradient(circle at top left, #22c55e, #059669);
+    }
+
+    .summary-card:nth-child(4) {
+      background: radial-gradient(circle at top left, #f97316, #ea580c);
+    }
+
+    .summary-card::after {
+      content: "";
+      position: absolute;
+      right: -20px;
+      bottom: -24px;
+      width: 120px;
+      height: 120px;
+      opacity: 0.2;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.35), transparent);
+    }
+
+    .summary-label {
+      font-size: 13px;
+      opacity: 0.9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .summary-value {
+      margin-top: 14px;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .summary-meta {
+      margin-top: 4px;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .summary-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.16);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+
+    /* 그래프 카드 */
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-soft);
+      padding: 14px 16px 16px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-title-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--accent-blue);
+    }
+
+    .card-body {
+      margin-top: 6px;
+    }
+
+    .chart-placeholder {
+      height: 200px;
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 55%),
+        radial-gradient(circle at bottom right, rgba(45, 212, 191, 0.08), transparent 55%),
+        linear-gradient(to bottom right, #f9fafb, #e5e7eb);
+      border: 1px dashed rgba(148, 163, 184, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    /* 최근 활동 */
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .table-head {
+      display: grid;
+      grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr 0.9fr 0.8fr;
+      font-size: 12px;
+      font-weight: 600;
+      color: #9ca3af;
+      padding: 4px 4px 6px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .table-row {
+      display: grid;
+      grid-template-columns: 1.2fr 1.6fr 1.2fr 0.9fr 0.9fr 0.8fr;
+      font-size: 13px;
+      padding: 8px 4px;
+      align-items: center;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .table-row:last-child {
+      border-bottom: none;
+    }
+
+    .link {
+      color: var(--accent-blue);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .status-pill {
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-pill.processing {
+      background: rgba(59, 130, 246, 0.09);
+      color: #2563eb;
+    }
+
+    .status-pill.done {
+      background: rgba(22, 163, 74, 0.12);
+      color: #15803d;
+    }
+
+    .status-pill.pending {
+      background: rgba(234, 179, 8, 0.12);
+      color: #b45309;
+    }
+
+    .status-pill.error {
+      background: rgba(248, 113, 113, 0.13);
+      color: #b91c1c;
+    }
+
+    .time-label {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    @media (max-width: 1120px) {
+      .summary-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .grid-two {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 880px) {
+      .sidebar-secondary {
+        display: none;
+      }
+      .main {
+        padding: 16px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .summary-row {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 왼쪽 메인 메뉴 -->
+    <aside class="sidebar">
+      <div class="logo">MC</div>
+
+      <div class="nav-group">
+        <button class="nav-item active" data-menu="dashboard">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M4 13a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6H4v-6Z" fill="currentColor" opacity="0.88" />
+            <path d="M14 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14h-6V5Z" fill="currentColor" />
+            <path d="M9 5.5A2.5 2.5 0 1 1 4 5.5 2.5 2.5 0 0 1 9 5.5Z" fill="currentColor" opacity="0.7" />
+          </svg>
+          <span class="nav-label">Dashboard</span>
+        </button>
+
+        <button class="nav-item" data-menu="requests">
+          <svg viewBox="0 0 24 24" fill="none">
+            <rect x="4" y="4" width="16" height="16" rx="3" ry="3" stroke="currentColor" stroke-width="1.6" />
+            <path d="M8 10h8M8 14h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+          <span class="nav-label">A/S</span>
+        </button>
+
+        <button class="nav-item" data-menu="devices">
+          <svg viewBox="0 0 24 24" fill="none">
+            <rect x="3.5" y="6" width="17" height="11" rx="2" ry="2" stroke="currentColor" stroke-width="1.6" />
+            <path d="M9 19h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+          <span class="nav-label">Devices</span>
+        </button>
+
+        <button class="nav-item" data-menu="analytics">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M5 11.5V19M12 7v12M19 5v14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+          </svg>
+          <span class="nav-label">Reports</span>
+        </button>
+
+        <button class="nav-item" data-menu="settings">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" stroke="currentColor" stroke-width="1.6" />
+            <path
+              d="M4.8 9.7a1 1 0 0 0 .2-1.1l-.9-1.6a1 1 0 0 1 .4-1.4l1.3-.8a1 1 0 0 1 1.2.1l1.4 1a1 1 0 0 0 1.1.1l1.1-.4a1 1 0 0 0 .6-.9l.1-1.6A1 1 0 0 1 12 2h1.6a1 1 0 0 1 1 .8l.2 1.6a1 1 0 0 0 .6.9l1.1.4a1 1 0 0 0 1.1-.1l1.4-1a1 1 0 0 1 1.2-.1l1.3.8a1 1 0 0 1 .4 1.4l-.9 1.6a1 1 0 0 0 .2 1.1l.9 1.3a1 1 0 0 1 0 1.2l-.9 1.3a1 1 0 0 0-.2 1.1l.9 1.6a1 1 0 0 1-.4 1.4l-1.3.8a1 1 0 0 1-1.2-.1l-1.4-1a1 1 0 0 0-1.1-.1l-1.1.4a1 1 0 0 0-.6.9L14.6 21a1 1 0 0 1-1 .8H12a1 1 0 0 1-1-.8l-.2-1.6a1 1 0 0 0-.6-.9l-1.1-.4a1 1 0 0 0-1.1.1l-1.4 1a1 1 0 0 1-1.2.1l-1.3-.8a1 1 0 0 1-.4-1.4l.9-1.6a1 1 0 0 0-.2-1.1L3 12.2a1 1 0 0 1 0-1.2l1.8-1.3Z"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              opacity="0.7"
+            />
+          </svg>
+          <span class="nav-label">Settings</span>
+        </button>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="user-avatar">HJ</div>
+        <span style="font-size: 10px;">온라인</span>
+      </div>
+    </aside>
+
+    <!-- 선택된 메뉴의 세부 메뉴 -->
+    <aside class="sidebar-secondary">
+      <div class="submenu-header">
+        <div class="submenu-title">
+          <span id="submenu-title">대시보드</span>
+          <span class="submenu-pill">Overview</span>
+        </div>
+        <p class="submenu-caption">
+          의료장비 A/S 현황을 한눈에 모니터링합니다.
+        </p>
+      </div>
+
+      <div>
+        <div class="submenu-section-label">Sections</div>
+        <ul class="submenu-list" id="submenu-list">
+          <!-- JS에서 자동 렌더링 -->
+        </ul>
+      </div>
+    </aside>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="main">
+      <header class="main-header">
+        <div class="page-title-group">
+          <h1 class="page-title">
+            <span class="page-title-icon">📊</span>
+            대시보드
+          </h1>
+          <p class="page-subtitle">
+            이번 달 의료장비 A/S 접수와 처리 현황을 확인할 수 있습니다.
+          </p>
+        </div>
+
+        <div class="main-header-right">
+          <button class="pill">
+            <div class="pill-icon">⏱</div>
+            <span>평균 처리 시간 <strong>4.5시간</strong></span>
+          </button>
+          <button class="pill">
+            <span>이번 달</span>
+            <strong>2025.11</strong>
+          </button>
+        </div>
+      </header>
+
+      <!-- 상단 요약 카드 -->
+      <section class="summary-row">
+        <article class="summary-card">
+          <div class="summary-label">
+            <div class="summary-icon">📥</div>
+            총 접수 건수
+          </div>
+          <div class="summary-value">156</div>
+          <div class="summary-meta">이번 달 접수된 전체 요청</div>
+        </article>
+
+        <article class="summary-card">
+          <div class="summary-label">
+            <div class="summary-icon">⚙️</div>
+            처리 중
+          </div>
+          <div class="summary-value">23</div>
+          <div class="summary-meta">현재 진행 중인 요청</div>
+        </article>
+
+        <article class="summary-card">
+          <div class="summary-label">
+            <div class="summary-icon">✅</div>
+            완료
+          </div>
+          <div class="summary-value">118</div>
+          <div class="summary-meta">완료된 요청</div>
+        </article>
+
+        <article class="summary-card">
+          <div class="summary-label">
+            <div class="summary-icon">⏰</div>
+            평균 처리 시간
+          </div>
+          <div class="summary-value">4.5</div>
+          <div class="summary-meta">요청당 평균 소요 시간 (시간)</div>
+        </article>
+      </section>
+
+      <!-- 그래프 두 개 -->
+      <section class="grid-two">
+        <article class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <div class="card-title-icon">📈</div>
+              상태별 현황
+            </div>
+            <span style="font-size:11px;color:#9ca3af;">도넛 차트 자리</span>
+          </div>
+          <div class="card-body">
+            <div class="chart-placeholder">
+              실제 데이터 연동 시 도넛 차트가 들어갑니다.
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <div class="card-title-icon">📊</div>
+              월별 추이
+            </div>
+            <span style="font-size:11px;color:#9ca3af;">6월 - 11월</span>
+          </div>
+          <div class="card-body">
+            <div class="chart-placeholder">
+              실제 데이터 연동 시 라인 차트가 들어갑니다.
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 최근 활동 -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <div class="card-title-icon">📋</div>
+            최근 활동
+          </div>
+          <button class="pill">
+            전체 보기
+          </button>
+        </div>
+
+        <div class="card-body">
+          <div class="table-head">
+            <span>요청 번호</span>
+            <span>장비명</span>
+            <span>위치</span>
+            <span>담당자</span>
+            <span>상태</span>
+            <span>시간</span>
+          </div>
+
+          <div class="table-row">
+            <span class="link">AS-2024-0156</span>
+            <span>MRI 스캐너 · GE Discovery MR750</span>
+            <span>영상의학과 2층</span>
+            <span>김기술</span>
+            <span>
+              <span class="status-pill processing">처리중</span>
+            </span>
+            <span class="time-label">2시간 전</span>
+          </div>
+
+          <div class="table-row">
+            <span class="link">AS-2024-0155</span>
+            <span>초음파 진단기 · Philips EPIQ 7</span>
+            <span>산부인과 3층</span>
+            <span>이엔지</span>
+            <span>
+              <span class="status-pill done">완료</span>
+            </span>
+            <span class="time-label">5시간 전</span>
+          </div>
+
+          <div class="table-row">
+            <span class="link">AS-2024-0154</span>
+            <span>인공호흡기 · Medtronic PB980</span>
+            <span>중환자실 5층</span>
+            <span>박서비스</span>
+            <span>
+              <span class="status-pill pending">부품 주문</span>
+            </span>
+            <span class="time-label">1일 전</span>
+          </div>
+
+          <div class="table-row">
+            <span class="link">AS-2024-0153</span>
+            <span>X-Ray 촬영기 · Siemens Mobiloet XP</span>
+            <span>응급실 1층</span>
+            <span>최정비</span>
+            <span>
+              <span class="status-pill error">검수 대기</span>
+            </span>
+            <span class="time-label">2일 전</span>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <span>최근 30일 기준</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const menuConfig = {
+      dashboard: {
+        title: "대시보드",
+        caption: "의료장비 A/S 현황을 실시간으로 확인합니다.",
+        sections: [
+          { label: "요약 보기", hint: "KPI 카드", badge: "Live" },
+          { label: "상태별 현황", hint: "도넛 차트" },
+          { label: "월별 추이", hint: "라인 차트" },
+          { label: "최근 활동", hint: "테이블" }
+        ]
+      },
+      requests: {
+        title: "A/S 요청",
+        caption: "새로운 서비스 요청을 등록하고 진행 상황을 관리합니다.",
+        sections: [
+          { label: "요청 목록", hint: "전체 요청" },
+          { label: "신규 요청 등록", hint: "폼" },
+          { label: "우선순위 큐", hint: "중요도" },
+          { label: "SLA 모니터링", hint: "지연 알림", badge: "Soon" }
+        ]
+      },
+      devices: {
+        title: "장비 관리",
+        caption: "병원 내 의료장비 자산 정보를 관리합니다.",
+        sections: [
+          { label: "장비 인벤토리", hint: "리스트" },
+          { label: "보증 기간", hint: "만료 예정" },
+          { label: "점검 일정", hint: "캘린더" }
+        ]
+      },
+      analytics: {
+        title: "리포트",
+        caption: "서비스 품질과 운영 데이터를 분석합니다.",
+        sections: [
+          { label: "월간 리포트", hint: "PDF 내보내기" },
+          { label: "장비별 통계", hint: "사용률" },
+          { label: "엔지니어별 성과", hint: "처리 시간", badge: "Beta" }
+        ]
+      },
+      settings: {
+        title: "설정",
+        caption: "조직 정보와 사용자 권한 등을 구성합니다.",
+        sections: [
+          { label: "조직 설정", hint: "병원 정보" },
+          { label: "사용자 관리", hint: "권한" },
+          { label: "알림 설정", hint: "메일 · SMS" },
+          { label: "연동 관리", hint: "EMR · ERP" }
+        ]
+      }
+    };
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const menuButtons = document.querySelectorAll(".nav-item[data-menu]");
+      const submenuTitle = document.getElementById("submenu-title");
+      const submenuList = document.getElementById("submenu-list");
+
+      function renderSubmenu(key) {
+        const menu = menuConfig[key];
+        if (!menu) return;
+
+        submenuTitle.textContent = menu.title;
+        submenuList.innerHTML = "";
+
+        menu.sections.forEach((section, idx) => {
+          const li = document.createElement("li");
+          li.className = "submenu-item" + (idx === 0 ? " active" : "");
+          li.innerHTML =
+            '<span>' +
+            "<span>" +
+            section.label +
+            "</span>" +
+            (section.hint ? "<small>" + section.hint + "</small>" : "") +
+            "</span>" +
+            (section.badge
+              ? '<span class="submenu-badge">' + section.badge + "</span>"
+              : "");
+          submenuList.appendChild(li);
+
+          li.addEventListener("click", () => {
+            document
+              .querySelectorAll(".submenu-item")
+              .forEach((el) => el.classList.remove("active"));
+            li.classList.add("active");
+          });
+        });
+      }
+
+      function setActiveMenu(key) {
+        menuButtons.forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.menu === key);
+        });
+        renderSubmenu(key);
+      }
+
+      menuButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setActiveMenu(btn.dataset.menu);
+        });
+      });
+
+      // 초기값
+      setActiveMenu("dashboard");
+    });
+  </script>
+</body>
+</html>

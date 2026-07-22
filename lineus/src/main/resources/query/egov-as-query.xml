@@ -1,0 +1,2272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="asDAO">
+	
+	<!-- AS답변검색 -->
+	<sql id="AsAnswerWhere"> 
+		<!-- 답변작성일 -->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_type1) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_start1) != '' ">
+				AND A.W_DATE BETWEEN #{aw_search_start1} AND #{aw_search_end1}
+			</if>
+		</if>
+		<!--AS접수일-->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_type2) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_start2) != '' ">
+				AND IN_TB.ACCEPT_DT BETWEEN #{aw_search_start2} AND #{aw_search_end2}
+			</if>
+		</if>
+		
+		<!--작성자구분-->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_gubun) != '' ">
+			AND IN_TB.AW_GUBUN = #{aw_gubun}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_text3) != '' ">
+			AND  IN_TB.CUST_KOR_NAME LIKE '%'|| #{aw_search_text3} ||'%'
+		</if> 
+		
+		<!--답변내용-->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_text5) != '' ">
+			AND IN_TB.W_CONTENT LIKE '%'|| #{aw_search_text5} ||'%'
+		</if>
+	</sql>
+	
+	<select id="getAsAnswerList" parameterType="asVO" resultType="asVO">
+		<![CDATA[
+			SELECT IN_TB.*
+				FROM (
+				    SELECT 
+				      A.AS_NO ,
+				      A.W_ID ,
+				      A.W_CONTENT ,
+				      TO_CHAR(A.W_DATE, 'YYYY-MM-DD HH24:MI:SS') AS W_AN_DATE ,
+				      A.W_GUBUN ,
+				      A.ATTACH_SEQ ,
+				      M.APPLY_NM ,
+				      M.APPLY_ID ,
+				      M.CALL_CONTENT ,
+				      M.CUST_CODE ,
+				      A.W_DATE,
+				      (
+				        SELECT CUST_KOR_NAME
+				        FROM CRM_CUST_MGT C
+				        WHERE C.ERP_CODE = M.CUST_CODE ) AS CUST_KOR_NAME,
+				      DECODE( TO_CHAR(A.W_DATE, 'YYYYMMDD'), TO_CHAR(SYSDATE, 'YYYYMMDD'), '1', '0') AS TODAY_GUBUN ,
+				      M.ACCEPT_DT
+				      
+				      ]]>
+				      
+			      	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_gubun) == 'A'.toString() ">
+			     		,(
+					      SELECT EMP_NM
+					      FROM CRM_EMP_MGT E
+					      WHERE E.EMP_NO= A.W_ID
+					     ) AS W_NM 
+				 	</if>
+			     
+			     	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_gubun) == 'U'.toString()">
+			     		,(
+					      SELECT EMP_NAME
+					      FROM CRM_CUST_EMP E
+					      WHERE E.EMP_ID= A.W_ID
+					     ) AS W_NM 
+			     	</if>
+				      
+		<![CDATA[
+				    FROM CRM_AS_MGT_ANSWER A,
+				      CRM_AS_MGT M
+				    WHERE 1=1
+				      AND A.AS_NO =M.AS_NO )IN_TB
+				WHERE 1=1
+		]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_type1) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_start1) != '' ">
+				AND TO_CHAR(IN_TB.W_DATE,'YYYYMMDD') BETWEEN #{aw_search_start1} AND #{aw_search_end1}
+			</if>
+		</if>
+		<!--AS접수일-->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_type2) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_start2) != '' ">
+				AND IN_TB.ACCEPT_DT BETWEEN #{aw_search_start2} AND #{aw_search_end2}
+			</if>
+		</if>
+		<!--작성자구분-->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_gubun) != '' ">
+			AND IN_TB.W_GUBUN = #{aw_gubun}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_text3) != '' ">
+			AND  IN_TB.CUST_KOR_NAME LIKE '%'|| #{aw_search_text3} ||'%'
+		</if> 
+		<!--답변내용-->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_text5) != '' ">
+			AND IN_TB.W_CONTENT LIKE '%'|| #{aw_search_text5} ||'%'
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(aw_search_text4) != '' "> 
+			AND IN_TB.W_NM LIKE '%'|| #{aw_search_text4} ||'%'	     	
+		</if>
+				     
+		<![CDATA[ 
+		 	ORDER BY W_DATE DESC 		
+		 ]]>
+	</select>
+	
+	
+	<sql id="AsListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNullArray(procSelectArray) != ''">
+			AND IN_TB.PROC_STATUS IN
+			<foreach collection="procSelectArray" item="procSelectArray" open="(" close=")" separator=",">
+				#{procSelectArray}
+			</foreach>	
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND IN_TB.CAUSE_TYPE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND IN_TB.ACTION_TYPE = #{search_type3}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ''">
+			AND UPPER(IN_TB.AS_NO) LIKE '%'|| UPPER(#{search_type4}) ||'%'
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type5) != ''">
+			AND (
+				 UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_type5}) ||'%' OR
+				 UPPER(IN_TB.CUST_CODE) LIKE '%'|| UPPER(#{search_type5}) ||'%' 
+				)
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type7) != ''">
+			AND IN_TB.SYSTEM_TYPE = #{search_type7}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type8) != ''">
+			AND IN_TB.INQUIRY_TYPE = #{search_type8}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type9) != ''">
+			AND IN_TB.INPORTANCE = #{search_type9}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type10) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != '' ">
+				AND IN_TB.ACCEPT_DT BETWEEN #{search_start} AND #{search_end}
+			</if>
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type14) != ''">
+			AND UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{search_type14}) ||'%'
+		</if>
+						
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type11) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start2) != '' ">
+			AND IN_TB.COMPLETE_DT BETWEEN #{search_start2} AND #{search_end2}
+			</if>
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type12) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start3) != '' ">
+			AND IN_TB.INQUIRY_DT BETWEEN #{search_start3} AND #{search_end3}
+			</if>
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type18) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start4) != '' ">
+			AND IN_TB.APPR_DATE2 BETWEEN #{search_start4} AND #{search_end4}
+			</if>
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) != ''">
+			AND IN_TB.PROC_GRADE = #{search_type6}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type13) != ''">
+			AND IN_TB.CUST_GUBUN = #{search_type13}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type15) != ''">
+			AND IN_TB.ACCEPT_ROUTE = #{search_type15}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type16) != ''">        
+			AND UPPER(IN_TB.DEPT2_NM) LIKE '%'|| UPPER(#{search_type16}) ||'%'
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type17) != ''">      
+			AND IN_TB.REQUEST_TYPE = #{search_type17} 
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			 <!-- 통합검색  -->
+			AND
+			(
+				UPPER(IN_TB.AS_NO) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(IN_TB.CN_AS_NO) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(IN_TB.CUST_CODE) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+				UPPER(IN_TB.CALL_CONTENT) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+				UPPER(IN_TB.ACTION_CONTENT) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+				UPPER(IN_TB.APPLY_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+				UPPER(IN_TB.PROC_BUILD_INFO) LIKE '%'|| UPPER(#{search_text}) ||'%'
+				
+			)
+		</if>		
+	</sql>
+	
+	<sql id="AsListWhere2">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.PROC_STATUS = #{search_type1}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_searh) != ''">
+			AND IN_TB.CUST_CODE  IN ( SELECT TRIM(REGEXP_SUBSTR(ITEM_CD, '[^,]+', 1, LEVEL)) AS ITEM_CD
+                                                                      FROM (SELECT #{cust_searh} AS ITEM_CD FROM DUAL)
+                                                                      CONNECT BY INSTR(ITEM_CD, ',', 1, LEVEL - 1) > 0)
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != '' ">
+			AND IN_TB.ACCEPT_DT BETWEEN #{search_start} AND #{search_end}
+			</if>
+		</if>	
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start2) != '' ">
+			AND IN_TB.INQUIRY_DT BETWEEN #{search_start2} AND #{search_end2}
+			</if>
+		</if>			
+		
+	</sql>
+
+
+	<select id="getAsListCnt" parameterType="asVO" resultType="java.lang.Integer">
+	<![CDATA[
+	    SELECT 
+	        COUNT(IN_TB.AS_NO) 
+	    FROM (
+	        SELECT
+	            A.AS_NO          ,A.CN_AS_NO         ,A.APPLY_NM     
+	            ,A.PROC_STATUS   ,A.CUST_CODE        ,A.SYSTEM_TYPE     
+	            ,A.INQUIRY_TYPE  ,A.INPORTANCE       ,A.CAUSE_TYPE       
+	            ,A.ACTION_TYPE   ,A.ASSIGN_ID        ,A.STAR_STATE       
+	            ,B.ERP_CODE      ,B.CUST_KOR_NAME 	 ,A.DEL_YN
+	            ,A.PROC_GRADE		
+	            ,(SELECT z.dept2_nm FROM crm_emp_mgt z WHERE z.emp_no = A.ASSIGN_ID) dept2_nm 
+	            ,(SELECT Z.EMP_NM FROM CRM_EMP_MGT Z WHERE Z.EMP_NO = A.ASSIGN_ID) emp_nm  
+	            ,A.ACCEPT_DT
+	            ,A.INQUIRY_DT
+	            ,A.CALL_CONTENT
+	            ,A.ACTION_CONTENT
+	            ,A.COMPLETE_DT
+	            ,B.CUST_GUBUN
+	            ,A.ACCEPT_ROUTE
+	            ,A.REQUEST_TYPE
+	            ,A.APPR_DATE2
+	            ,A.PROC_BUILD_INFO
+	        FROM         
+	            CRM_AS_MGT A 
+	            INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.ERP_CODE
+	    ) IN_TB
+	    WHERE 1=1 
+	    	AND IN_TB.DEL_YN IS NULL	    	
+	    	
+	]]>
+		<include refid="AsListWhere"/>		
+	</select>
+	
+	
+	<select id="getAsListCnt2" parameterType="asVO" resultType="java.lang.Integer">
+	<![CDATA[
+	    SELECT 
+	        COUNT(IN_TB.AS_NO) 
+	    FROM (
+	        SELECT
+	            A.AS_NO          ,A.CN_AS_NO         ,A.APPLY_NM     
+	            ,A.PROC_STATUS   ,A.CUST_CODE        ,A.SYSTEM_TYPE     
+	            ,A.INQUIRY_TYPE  ,A.INPORTANCE       ,A.CAUSE_TYPE       
+	            ,A.ACTION_TYPE   ,A.ASSIGN_ID        ,A.STAR_STATE       
+	            ,B.ERP_CODE      ,B.CUST_KOR_NAME 	 ,A.DEL_YN
+	            ,A.PROC_GRADE		      
+	            ,(SELECT Z.EMP_NM FROM CRM_EMP_MGT Z WHERE Z.EMP_NO = A.ASSIGN_ID) emp_nm  
+	            ,A.ACCEPT_DT
+	            ,A.INQUIRY_DT
+	            ,A.CALL_CONTENT
+	            ,A.ACTION_CONTENT
+	            ,A.COMPLETE_DT
+	            ,B.CUST_GUBUN
+	            ,A.ACCEPT_ROUTE
+	        FROM         
+	            CRM_AS_MGT A 
+	            INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.ERP_CODE
+	    ) IN_TB
+	    WHERE 1=1 
+	    	AND IN_TB.DEL_YN IS NULL    	    	
+	]]>
+		<include refid="AsListWhere2"/>		
+	</select>
+	
+	<select id="getAsListCnt4" parameterType="asStatsVo" resultType="java.lang.Integer">
+	<![CDATA[
+	
+		SELECT 
+			COUNT(*)
+    	FROM (
+		    SELECT ROW_NUMBER() OVER(ORDER BY SYSTEM_TYPE) AS RNUM
+				     , SYSTEM_TYPE
+				     , (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'PROJECT'  AND   Z.P_CODE = 'PR02' AND   Z.CODE = SYSTEM_TYPE) AS SYSTEM_TYPE_NM 
+			FROM  CRM_AS_MGT
+			WHERE 1=1 
+			AND SYSTEM_TYPE NOT IN ('S012', 'S024', 'S028' ,'S029')
+			AND PROC_STATUS NOT IN ('C000','C006','C009','C011','C013')
+			AND DEL_YN IS NULL
+			AND SYSTEM_TYPE IS NOT NULL 
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type7) != ''">
+			AND SYSTEM_TYPE = #{search_type7}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type13) != ''">
+			AND (SELECT Z.CUST_GUBUN FROM CRM_CUST_MGT Z WHERE Z.SEQ = CUST_SEQ ) = #{search_type13}
+		</if>
+	<![CDATA[		
+	        GROUP BY ROLLUP(SYSTEM_TYPE)
+	        	ORDER BY RNUM
+            )
+	]]>
+	</select>
+	
+	
+	<!-- A/S관리 AS조회리스트 조회화면 및 엑셀다운로드 쿼리 -->
+	<select id="getAsList" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+	SELECT
+	    out_tb.*,
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD01' AND   z.code = out_tb.proc_status) AS proc_status_nm, /* 처리상태 명칭 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD02' AND   z.code = out_tb.accept_route) AS accept_route_nm, /* 접수경로 명칭 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'PROJECT'  AND   z.p_code = 'PR02' AND   z.code = out_tb.system_type) AS system_type_nm, /* 시스템카테고리 명칭 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'OPERATE'  AND   z.p_code = out_tb.system_type AND   z.code = out_tb.inquiry_type) AS inquiry_type_nm, /* 업무유형 명칭 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD04' AND   z.code = out_tb.inportance) AS inportance_nm, /* 중요도 명칭 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD03' AND   z.code = out_tb.request_type) AS request_type_nm, /* 문의유형 명칭 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD05' AND   z.code = out_tb.cause_type) AS cause_type_nm, /* 원인유형 명칭 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD06' AND   z.code = out_tb.action_type) AS action_type_nm, /* 조치유형 명칭 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD07' AND   z.code = out_tb.proc_grade) AS proc_grade_nm, /* 처리등급 명칭 */
+		(SELECT w_content FROM crm_as_mgt_answer WHERE (seq,as_no) in (select seq, max(as_no) as as_no from crm_as_mgt_answer where seq = 
+																	   (SELECT MAX(seq) FROM crm_as_mgt_answer WHERE as_no = out_tb.as_no AND   w_gubun = 'U')group by seq)) AS last_coment, /* 고객 최종 코멘트 */
+		TO_CHAR(TO_DATE(out_tb.complete_dt,'yyyyMMdd'),'yyyy-MM-dd') complete_dt, /* 처리완료일 */
+		TO_CHAR(TO_DATE(out_tb.accept_dt,'yyyyMMdd'),'yyyy-MM-dd') accept_dt, /* 접수일 */
+		TO_CHAR(TO_DATE(out_tb.inquiry_dt,'yyyyMMdd'),'yyyy-MM-dd') inquiry_dt, /* 처리요청일 */
+		TO_CHAR(out_tb.star_state_date,'yyyy-MM-dd') star_state_date, /* DECODE(d.w_gubun,'U',1,0) aws_cnt */
+		(SELECT count(crm_as_mgt_answer.seq)FROM crm_as_mgt_answer WHERE as_no = out_tb.as_no) AS total_aws_cnt, /* 고객 답변수 */
+		(SELECT decode(w_gubun,'U',1,0) FROM crm_as_mgt_answer WHERE SEQ = (select MAX(SEQ) from crm_as_mgt_answer where AS_NO=out_tb.as_no)AND AS_NO = out_tb.as_no) AS aws_cnt,
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD08' AND   z.code = out_tb.proc_gubun) AS proc_gubun_nm, /* 처리구분 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD10' AND   z.code = out_tb.cmc_pic) AS cmc_pic_nm, /* CMC담당자 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD11' AND   z.code = out_tb.program_satisfaction) AS program_satisfaction_nm, /* 프로그램 만족도 */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD12' AND   z.code = out_tb.module_name) AS module_name_nm,
+		(SELECT Z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND  z.p_code = 'CD13'  AND    z.code = out_tb.category_id)as category_name,
+		(SELECT Z.program_nm  FROM crm_as_program_mgt z WHERE z.program_code = program_id) AS program_name /*프로그램*/
+	FROM
+	    (
+	        SELECT
+	            in_tb.*,
+	            ROW_NUMBER() OVER(ORDER BY in_tb.as_no) AS rnum
+	        FROM
+	            (
+	                SELECT
+						a.as_no,
+						a.cn_as_no,
+						a.apply_nm,
+						a.proc_status, 	/* 처리상태 C */
+						a.proc_dt, 		/* 처리예정 일자 C */
+						a.proc_time,	/* 처리예정 시각 */
+						a.cust_code, 	/* 거래처 코드 (cust_code) */
+						b.cust_kor_name,/* 거래처명 */
+						a.accept_route, /* 접수경로 C */
+						a.system_type, 	/* 시스템카테고리 C */
+						a.inquiry_type, /* 업무유형 C */
+						a.inportance, 	/* 중요도 C */
+						a.cause_type, 	/* 원인유형 C */
+						a.action_type, 	/* 조치유형 C */
+						a.assign_id, 	/* 처리담당자 아이디 */
+						a.star_state, 	/* 고객평가 */
+						a.call_content, /* 요청내용 */
+						a.expected_work_time,
+						a.progress_rate,
+						a.target_project,
+						a.work_time,
+						b.erp_code,
+						a.del_yn,
+						a.accept_dt,
+						a.inquiry_dt,
+						a.star_state_date,
+						a.proc_grade,
+						a.action_content,/* 조치내용 */
+						(SELECT z.dept2_nm FROM crm_emp_mgt z WHERE z.emp_no = a.assign_id) dept2_nm, 	/* 처리부서명  추가 2020.08.26. */ 
+						(SELECT z.emp_nm FROM crm_emp_mgt z WHERE z.emp_no = a.assign_id) emp_nm, 		/* 처리담당자 이름 */
+						a.complete_dt,	/* 처리완료일 */
+						b.cust_gubun,
+						a.request_type,
+						a.proc_gubun,
+						
+						a.proc_build_info,
+						a.proc_file_info,
+						a.proc_db_info,
+						a.proc_test_info,
+						
+						a.proc_process_sp,
+						a.proc_function_sp,
+						a.proc_screen_sp,
+						a.proc_table_sp,
+						a.proc_interface_sp,
+						a.proc_erd_sp,
+						
+                        a.appr_yn1,      		/* 팀장승인여부 (Y:결재, N:미결, R:부결) */  
+                        a.appr_emp1,      		/* 팀장승인 승인자 */                        
+                        (SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = a.APPR_EMP1 ) APPR_EMP1_NM, /*팀장승인자 이름*/                         
+                        a.appr_date1,     		/* 팀장승인 승인일자 */                      
+                        a.appr_yn2,       		/* 배포승인여부 (Y:결재, N:미결, R:부결) */  
+                        a.appr_emp2,      		/* 배포승인 승인자 */                       
+                        (SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = a.APPR_EMP2 ) APPR_EMP2_NM,                          
+                        a.appr_date2,			/* 배포승인 승인일자 */ 
+                        a.appr_time2,     		/* 배포승인 승인시간 */                     
+                        a.distr_filepath, 		/* 배포경로 및 배포파일명 */                 
+                        a.distr_svn_ver,  		/* SVN버전 */                                
+                        a.distr_dt,        		/* 배포일자 */                                
+                        a.cmc_pic, 				/* CMC담당자 (AS-CD10)*/
+						a.program_satisfaction,	/* 프로그램 만족도 (AS-CD11)*/
+						a.module_name, 			/* 모듈(AS-CD12)*/
+						a.category_id,			/* 중분류ID*/
+						a.program_id 			/* 프로그램ID*/ 
+					FROM
+	                    crm_as_mgt a
+	                    INNER JOIN crm_cust_mgt b ON a.cust_code = b.erp_code
+	            ) in_tb
+	        WHERE 1=1
+	            AND in_tb.del_yn IS NULL	 	                
+	]]>
+		<include refid="AsListWhere"/>		
+	
+	<![CDATA[
+		) OUT_TB
+	]]>
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+			WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+			ORDER BY RNUM DESC    
+	</if>	
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
+		ORDER BY RNUM DESC    
+	</if>		
+	</select>
+	
+	
+	<!-- A/S현황  조회화면 및 엑셀다운로드 쿼리 -->	
+	<select id="getAsList2" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+	SELECT
+	    out_tb.*
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD01' AND   z.code = out_tb.proc_status) AS proc_status_nm /* 처리상태 명칭 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD02' AND   z.code = out_tb.accept_route) AS accept_route_nm /* 접수경로 명칭 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'PROJECT'  AND   z.p_code = 'PR02' AND   z.code = out_tb.system_type) AS system_type_nm /* 시스템카테고리 명칭 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'OPERATE'  AND   z.p_code = out_tb.system_type AND   z.code = out_tb.inquiry_type) AS inquiry_type_nm /* 업무유형 명칭 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD04' AND   z.code = out_tb.inportance) AS inportance_nm /* 중요도 명칭 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD03' AND   z.code = out_tb.request_type) AS request_type_nm /* 문의유형 명칭 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD05' AND   z.code = out_tb.cause_type) AS cause_type_nm /* 원인유형 명칭 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD06' AND   z.code = out_tb.action_type) AS action_type_nm /* 조치유형 명칭 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD07' AND   z.code = out_tb.proc_grade) AS proc_grade_nm /* 처리등급 명칭 */
+		, (SELECT w_content FROM crm_as_mgt_answer WHERE (seq,as_no) in (select seq, max(as_no) as as_no from crm_as_mgt_answer where seq = 
+																	   (SELECT MAX(seq) FROM crm_as_mgt_answer WHERE as_no = out_tb.as_no AND   w_gubun = 'U')group by seq)) AS last_coment /* 고객 최종 코멘트 */
+		, TO_CHAR(TO_DATE(out_tb.complete_dt,'yyyyMMdd'),'yyyy-MM-dd') complete_dt /* 처리완료일 */
+		, TO_CHAR(TO_DATE(out_tb.accept_dt,'yyyyMMdd'),'yyyy-MM-dd') accept_dt
+		, TO_CHAR(out_tb.star_state_date,'yyyy-MM-dd') star_state_date /* DECODE(d.w_gubun,'U',1,0) aws_cnt */
+		, (SELECT count(crm_as_mgt_answer.seq)FROM crm_as_mgt_answer WHERE as_no = out_tb.as_no) AS total_aws_cnt /* 고객 답변수 */
+		, (SELECT decode(w_gubun,'U',1,0) FROM crm_as_mgt_answer WHERE SEQ = (select MAX(SEQ) from crm_as_mgt_answer where AS_NO=out_tb.as_no)AND AS_NO = out_tb.as_no) AS aws_cnt
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD08' AND   z.code = out_tb.proc_gubun) AS proc_gubun_nm /* 처리구분 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD10' AND   z.code = out_tb.cmc_pic) AS cmc_pic_nm /* CMC담당자 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD11' AND   z.code = out_tb.program_satisfaction) AS program_satisfaction_nm /* 프로그램 만족도 */
+		, (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD12' AND   z.code = out_tb.module_name) AS module_name_nm
+		, (SELECT Z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND  z.p_code = 'CD13'  AND    z.code = category_id) category_name
+		, (SELECT Z.program_nm  FROM crm_as_program_mgt z WHERE z.program_code = program_id) AS program_name /*프로그램*/
+		
+	FROM
+	    (
+	        SELECT
+	            in_tb.*
+	            , ROW_NUMBER() OVER(ORDER BY in_tb.as_no) AS rnum
+	        FROM
+	            (
+	                SELECT
+						a.as_no
+						, a.cn_as_no
+						, a.apply_nm
+						, a.proc_status 	/* 처리상태 C */
+						, a.proc_dt 		/* 처리완료예정일 C */
+						, a.cust_code 	 	/* 거래처 코드 (cust_code) */
+						, b.cust_kor_name 	/* 거래처명 */
+						, a.accept_route  	/* 접수경로 C */
+						, a.system_type   	/* 시스템카테고리 C */
+						, a.inquiry_type  	/* 업무유형 C */
+						, a.inportance    	/* 중요도 C */
+						, a.cause_type    	/* 원인유형 C */
+						, a.action_type   	/* 조치유형 C */
+						, a.assign_id     	/* 처리담당자 아이디 */
+						, a.star_state   	/* 고객평가 */
+						, a.call_content  	/* 요청내용 */
+						, a.work_time
+						, b.erp_code
+						, a.del_yn
+						, a.accept_dt
+						, a.inquiry_dt
+						, a.star_state_date
+						, a.proc_grade
+						, a.action_content 	/* 조치내용 */
+                         
+						, (SELECT z.dept2_nm FROM crm_emp_mgt z WHERE z.emp_no = a.assign_id) dept2_nm 	/* 처리부서명 */  /*추가*/                      
+						, (SELECT z.emp_nm FROM crm_emp_mgt z WHERE z.emp_no = a.assign_id) emp_nm 		/* 처리담당자 이름 */
+						, a.complete_dt		/* 처리완료일 */
+						, b.cust_gubun
+						, a.request_type
+						, a.proc_gubun
+						
+						, a.proc_build_info
+						, a.proc_file_info
+						, a.proc_db_info
+						, a.proc_test_info
+						
+						, a.proc_process_sp
+						, a.proc_function_sp
+						, a.proc_screen_sp
+						, a.proc_table_sp
+						, a.proc_interface_sp
+						, a.proc_erd_sp
+						
+						  
+                        /* 처리상태 해당시 배포승인여부 */
+                        /* (C005 처리완료, C012 배포승인, C013 배포반려) */                        
+                        , CASE WHEN a.proc_status IN ('C005','C012','C013') THEN a.appr_yn2                         
+                        /* 처리상태 해당시 팀장승인여부 */
+                        /* (C001 접수, C002 담당자배정중(변경), C003 배정완료, C004 처리중, C010 팀장승인, C011 팀장반려 외) */                         
+                          ELSE a.appr_yn1 END AS appr_yn  /* 승인여부 (조회화면에 표시) 2020.08.18. 추가 */
+                        
+                        , a.appr_yn1       /* 팀장승인여부 (Y:결재, N:미결, R:부결) */  		 /*추가된 필드*/ 
+                        , a.appr_emp1      /* 팀장승인 승인자 */                        	 /*추가된 필드*/ 
+                        , (select emp_nm from crm_emp_mgt where emp_no = a.appr_emp1 ) appr_emp1_nm 
+                        , a.appr_date1     /* 팀장승인 승인일자 */                       	 /*추가된 필드*/ 
+                        , a.appr_yn2       /* 배포승인여부 (Y:결재, N:미결, R:부결) */  		 /*추가된 필드*/ 
+                        , a.appr_emp2      /* 배포승인 승인자 */                           /*추가된 필드*/ 
+                        , (select emp_nm from crm_emp_mgt where emp_no = a.appr_emp2 ) appr_emp2_nm /*배포승인자 이름*/
+                        , a.appr_date2     /* 배포승인 승인일자 */                    /*추가된 필드*/ 
+                        , a.distr_filepath /* 배포경로 및 배포파일명 */                 /*추가된 필드*/ 
+                        , a.distr_svn_ver  /* SVN버전 */                        	/*추가된 필드*/ 
+                        , a.distr_dt        /* 배포일자 */                         /*추가된 필드*/ 
+                        , a.cmc_pic 				/*CMC담당자 (AS-CD10)*/
+						, a.program_satisfaction	/*프로그램 만족도 (AS-CD11)*/
+						, a.module_name 			/*모듈(AS-CD12)*/
+						, a.category_id				/*중분류ID*/
+						, a.program_id 				/*프로그램ID*/ 
+                        
+					FROM
+	                    crm_as_mgt a
+	                    INNER JOIN crm_cust_mgt b ON a.cust_code = b.erp_code
+	                    where b.cust_gubun = 'C001'
+	            ) in_tb
+	        WHERE 1=1
+	            AND in_tb.del_yn IS NULL
+	]]>
+		<include refid="AsListWhere2"/>		
+	
+	<![CDATA[
+		) OUT_TB
+	]]>
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+			WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+			ORDER BY RNUM DESC    
+	</if>	
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
+		ORDER BY RNUM DESC    
+	</if>		
+	</select>
+	
+	<!-- 시스템별 A/S현황  -->
+	<select id="getAsList4" parameterType="asStatsVo" resultType="asStatsVo">
+	<![CDATA[			
+		SELECT ROW_NUMBER() OVER(ORDER BY SYSTEM_TYPE) AS RNUM
+		     , SYSTEM_TYPE
+		     , (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'PROJECT'  AND   Z.P_CODE = 'PR02' AND   Z.CODE = SYSTEM_TYPE) AS SYSTEM_TYPE_NM 
+		     
+		     /*전년도*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE='C001'AND SUBSTR(AS_NO,1,4)=TO_CHAR(ADD_MONTHS(SYSDATE,-12),'YYYY')THEN 1 END),0) AS JCNT1 /*프로그램*/
+		     , NVL(SUM(CASE WHEN (REQUEST_TYPE='C002' OR  REQUEST_TYPE='C003') AND SUBSTR(AS_NO,1,4)=TO_CHAR(ADD_MONTHS(SYSDATE,-12),'YYYY') THEN 1 END),0) AS JCNT2 /*데이터*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE='C004' AND SUBSTR(AS_NO,1,4)=TO_CHAR(ADD_MONTHS(SYSDATE,-12),'YYYY') THEN 1 END),0) AS JCNT3 /*권한*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE NOT IN ('C001','C002','C003','C004') AND SUBSTR(AS_NO,1,4)=TO_CHAR(ADD_MONTHS(SYSDATE,-12),'YYYY') THEN 1 END),0) AS JCNT4 /*기타*/
+		     , NVL(SUM(CASE WHEN SUBSTR(AS_NO,1,4)=TO_CHAR(ADD_MONTHS(SYSDATE,-12),'YYYY')  THEN 1 END  ),0) AS JCNT_TOT /*합계*/
+		     
+		     /*조회기간*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE='C001'AND SUBSTR(AS_NO,1,8) BETWEEN REPLACE(#{search_start},'/','') AND REPLACE(#{search_end},'/','') THEN 1 END),0) AS CNT1  /*프로그램*/
+		     , NVL(SUM(CASE WHEN (REQUEST_TYPE='C002' OR  REQUEST_TYPE='C003') AND SUBSTR(AS_NO,1,8) BETWEEN REPLACE(#{search_start},'/','') AND REPLACE(#{search_end},'/','')THEN 1 END),0) AS CNT2 /*데이터*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE='C004' AND SUBSTR(AS_NO,1,8) BETWEEN REPLACE(#{search_start},'/','') AND REPLACE(#{search_end},'/','') THEN 1 END),0) AS CNT3 /*권한*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE NOT IN ('C001','C002','C003','C004') AND SUBSTR(AS_NO,1,8) BETWEEN REPLACE(#{search_start},'/','') AND REPLACE(#{search_end},'/','') THEN 1 END),0) AS CNT4 /*기타*/
+		     , NVL(SUM(CASE WHEN SUBSTR(AS_NO,1,8) BETWEEN REPLACE(#{search_start},'/','') AND REPLACE(#{search_end},'/','') THEN 1 END  ),0) AS CNT_TOT /*합계*/
+		     
+		     /*누적*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE='C001'AND SUBSTR(AS_NO,1,8) BETWEEN TO_CHAR(SYSDATE,'YYYY')||'0101' AND REPLACE(#{search_end},'/','') THEN 1 END),0) AS NCNT1 /*프로그램*/
+		     , NVL(SUM(CASE WHEN (REQUEST_TYPE='C002' OR  REQUEST_TYPE='C003') AND SUBSTR(AS_NO,1,8) BETWEEN TO_CHAR(SYSDATE,'YYYY')||'0101' AND REPLACE(#{search_end},'/','') THEN 1 END),0) AS NCNT2 /*데이터*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE='C004' AND SUBSTR(AS_NO,1,8) BETWEEN TO_CHAR(SYSDATE,'YYYY')||'0101' AND REPLACE(#{search_end},'/','') THEN 1 END),0) AS NCNT3 /*권한*/
+		     , NVL(SUM(CASE WHEN REQUEST_TYPE NOT IN ('C001','C002','C003','C004') AND SUBSTR(AS_NO,1,8) BETWEEN TO_CHAR(SYSDATE,'YYYY')||'0101' AND REPLACE(#{search_end},'/','') THEN 1 END),0) AS NCNT4 /*기타*/
+		     , NVL(SUM(CASE WHEN SUBSTR(AS_NO,1,8) BETWEEN TO_CHAR(SYSDATE,'YYYY')||'0101' AND REPLACE(#{search_end},'/','') THEN 1 END  ),0) AS NCNT_TOT /*합계*/
+		                  
+		FROM  CRM_AS_MGT
+		WHERE 1=1 
+			AND SYSTEM_TYPE NOT IN ('S012', 'S024', 'S028' ,'S029')
+			AND PROC_STATUS NOT IN ('C000','C006','C009','C011','C013')
+			AND DEL_YN IS NULL
+			AND SYSTEM_TYPE IS NOT NULL 
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type7) != ''">
+			AND SYSTEM_TYPE = #{search_type7}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type13) != ''">
+			AND (SELECT Z.CUST_GUBUN FROM CRM_CUST_MGT Z WHERE Z.SEQ = CUST_SEQ ) = #{search_type13}
+		</if>
+	<![CDATA[
+            GROUP BY ROLLUP(SYSTEM_TYPE)
+        	ORDER BY RNUM
+    ]]>		
+	</select>
+	
+	<!-- 2023.09.11. 하위작업생성 관련 수정(WORK_TIME 컬럼 부분 수정) -->
+	<select id="getAsInfo" parameterType="asVO" resultType="asVO">   
+	/* A/S관리 AS상세정보등록 조회시 */		
+	<![CDATA[
+        SELECT 
+             AS_NO   				,CN_AS_NO     			,ACCEPT_DT     	,ACCEPT_TIME    ,ACCEPT_ROUTE       	,CUST_CODE      
+            ,APPLY_NM				,APPLY_ID				,APPLY_TEL		,SYSTEM_TYPE    ,INQUIRY_DT 	      
+            ,INQUIRY_TYPE			,CALL_CONTENT			,FILE_SEQ		,PROC_DT		,PROC_TIME				,INPORTANCE	
+            ,CAUSE_TYPE        		,ACTION_TYPE			,ASSIGN_ID		,PROC_STATUS	,ACTION_CONTENT
+            ,PROC_GRADE				,PROC_GRADE				,PROC_BUILD_INFO                ,PROC_FILE_INFO			,PROC_DB_INFO
+            ,PROC_TEST_INFO			,MEMO
+            ,REG_DATE				,REG_ID		            ,UPT_DATE		,UPT_ID			,STAR_STATE				,STAR_CONTENT
+            ,REQUEST_CONTENT	,ATTACH_SEQ2
+            ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE ASSIGN_ID = EMP_NO ) ASSIGN_NM
+            ,CUST_SEQ
+            ,SEND_EMAIL
+            ,SEND_SMS
+            ,APPLY_EMAIL
+            ,APPLY_SMS_TEL
+            ,OPER_SEQ
+            ,APPROVAL_DT
+            ,APPROVAL_TIME
+            ,APPROVAL_ID
+            ,APPROVAL_NM
+            ,(SELECT CASE WHEN (SELECT COUNT(*) FROM CRM_AS_MGT WHERE CN_AS_NO = #{as_no, jdbcType=VARCHAR}) = 0 THEN 'N' ELSE CASE WHEN (SELECT COUNT(*) FROM CRM_AS_MGT WHERE CN_AS_NO = #{as_no, jdbcType=VARCHAR}) = (SELECT COUNT(*) FROM CRM_AS_MGT WHERE CN_AS_NO = #{as_no, jdbcType=VARCHAR} AND PROC_STATUS IN ('C009', 'C011', 'C013')) THEN 'N' ELSE 'Y' END END AS WORK_TIME_YN FROM DUAL) WORK_TIME_YN
+            ,(SELECT CASE WHEN (SELECT COUNT(*) FROM CRM_AS_MGT WHERE CN_AS_NO = #{as_no, jdbcType=VARCHAR}) = 0 THEN (SELECT WORK_TIME FROM CRM_AS_MGT WHERE AS_NO = #{as_no, jdbcType=VARCHAR}) ELSE CASE WHEN (SELECT COUNT(*) FROM CRM_AS_MGT WHERE CN_AS_NO = #{as_no, jdbcType=VARCHAR}) = (SELECT COUNT(*) FROM CRM_AS_MGT WHERE CN_AS_NO = #{as_no, jdbcType=VARCHAR} AND PROC_STATUS IN ('C009','C011','C013')) THEN (SELECT WORK_TIME FROM CRM_AS_MGT WHERE AS_NO = #{as_no, jdbcType=VARCHAR}) ELSE (SELECT SUM(WORK_TIME) FROM CRM_AS_MGT WHERE CN_AS_NO = #{as_no, jdbcType=VARCHAR} AND PROC_STATUS IN ('C005','C012')) END END AS WORK_TIME FROM DUAL) WORK_TIME            
+            ,(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD04' AND Z.CODE = INPORTANCE) INPORTANCE_NM
+            ,COMPLETE_DT
+            ,REQUEST_TYPE
+            ,SHARED_DOC_ID
+            ,SHARED_DOC_IDX
+            ,SHARED_ATTACH
+			,SHARED_FILENM
+			,SHARED_FILEPATH
+			,PROC_GUBUN	
+			,(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD08' AND Z.CODE = PROC_GUBUN) PROC_GUBUN_NM
+            ,PROC_PROCESS_SP 
+			,PROC_FUNCTION_SP 
+			,PROC_SCREEN_SP 
+			,PROC_TABLE_SP 
+			,PROC_INTERFACE_SP
+			,PROC_ERD_SP
+            ,(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD07' AND Z.CODE = PROC_GRADE) PROC_GRADE_NM
+            
+            /* 추가 2020.08.03. - 보완필요 */
+            ,(SELECT Z.CUST_GUBUN FROM CRM_CUST_MGT Z WHERE Z.ERP_CODE = CUST_CODE) CUST_GUBUN /*거래처구분(CUST-CD01) C001 JW그룹*/
+            ,(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = REQUEST_TYPE) REQUEST_TYPE_NM /*문의유형 명칭*/
+            ,(SELECT Z.VAL1 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = REQUEST_TYPE) GYUL_GB1 /*승인대상(팀장)*/
+			,(SELECT Z.VAL2 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = REQUEST_TYPE) GYUL_GB2 /*승인대상(배포)*/
+            ,(SELECT Z.VAL1 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD09' AND SUBSTR(Z.CODE_NAME,1,5) = 
+                                                                (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) GYUL_EMP1  /*승인자(팀장)*/
+            ,(SELECT Z.VAL2 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD09' AND SUBSTR(Z.CODE_NAME,1,5) = 
+                                                                (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) GYUL_EMP2  /*승인자(배포)*/                          
+            ,APPR_YN1 
+            ,APPR_EMP1 
+            ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = APPR_EMP1 ) APPR_EMP1_NM /*팀장승인자 이름*/ 
+            ,APPR_DATE1
+            ,(SELECT Z.VAL3
+               FROM CRM_CODE_DETAIL Z
+              WHERE Z.CODE_GROUP = 'AS'
+                AND Z.P_CODE = 'CD09'
+                AND SUBSTR(Z.CODE_NAME, 1, 5) = (SELECT z.dept2_cd
+                                               FROM CRM_EMP_MGT z
+                                               WHERE z.emp_no = ASSIGN_ID)) AS APPR_SUB_EMP1 /*팀장승인 대체자(2차 결재자)*/ 
+            ,(SELECT Z.VAL5
+               FROM CRM_CODE_DETAIL Z
+              WHERE Z.CODE_GROUP = 'AS'
+                AND Z.P_CODE = 'CD09'
+                AND SUBSTR(Z.CODE_NAME, 1, 5) = (SELECT z.dept2_cd
+                                               FROM CRM_EMP_MGT z
+                                               WHERE z.emp_no = ASSIGN_ID)) AS APPR_SSUB_EMP1 /*팀장승인 대체자(3차 결재자)*/ 
+            ,APPR_YN2 
+            ,APPR_EMP2 
+            ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = APPR_EMP2 ) APPR_EMP2_NM /*배포승인자 이름*/             
+            ,APPR_DATE2 
+            ,(SELECT Z.VAL4
+               FROM CRM_CODE_DETAIL Z
+              WHERE Z.CODE_GROUP = 'AS'
+               AND Z.P_CODE = 'CD09'
+               AND SUBSTR(Z.CODE_NAME, 1, 5) = (SELECT z.dept2_cd
+                                                  FROM CRM_EMP_MGT z
+                                                 WHERE z.emp_no = ASSIGN_ID)) AS APPR_SUB_EMP2 /*배포승인 대체자(2차 결재자)*/
+            ,(SELECT Z.VAL6
+               FROM CRM_CODE_DETAIL Z
+              WHERE Z.CODE_GROUP = 'AS'
+               AND Z.P_CODE = 'CD09'
+               AND SUBSTR(Z.CODE_NAME, 1, 5) = (SELECT z.dept2_cd
+                                                  FROM CRM_EMP_MGT z
+                                                 WHERE z.emp_no = ASSIGN_ID)) AS APPR_SSUB_EMP2 /*배포승인 대체자(3차 결재자)*/
+            ,DISTR_FILEPATH 
+            ,DISTR_SVN_VER 
+            ,DISTR_DT 
+            ,DISTR_DT
+            ,CMC_PIC 				/*CMC담당자 (AS-CD10)*/
+            ,PROGRAM_SATISFACTION	/*프로그램 만족도 (AS-CD11)*/
+            ,MODULE_NAME 			/*모듈(AS-SD12)*/
+            ,(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD13' AND Z.CODE = CATEGORY_ID) CATEGORY_NAME
+            ,CATEGORY_ID			/*중분류*/
+            ,PROGRAM_ID 			/*프로그램ID*/
+            ,(SELECT Z.PROGRAM_NM  FROM CRM_AS_PROGRAM_MGT Z WHERE Z.PROGRAM_CODE = PROGRAM_ID) AS PROGRAM_NAME /*프로그램*/
+			,PEER_REVIEW_NM 		/*동료검토자	추가 2021.07.05*/   
+			,USER_TEST_YN 			/*현업테스트여부	추가 2021.07.05*/   
+			,NORMAL_OPER_YN 		/*정상작동여부	추가 2021.07.05*/   
+			,TEST_NOTE 				/*테스트 비고	추가 2021.07.05*/  
+			,USER_TEST_DT			/*현업테스트일자 추가 2021.07.29*/ 
+			,USER_TEST_TIME			/*현업테스트시간 추가 2022.01.24*/ 
+			,SHARED_TAG				/*jw그룹웨어 승인자 접수의견 추가 2021.09.08*/
+			,USER_TEST_ID			/*현업테스트자ID 추가 2021.11.29*/ 
+			,(SELECT EMP_NAME FROM CRM_CUST_EMP WHERE EMP_ID = USER_TEST_ID) AS USER_TEST_NM			/*현업테스트자이름 추가 2021.11.29*/
+			,USER_TEST_IP			/*현업테스트자IP주소 추가 2021.11.29*/
+			,TARGET_PROJECT
+			,EXPECTED_WORK_TIME
+			,PROGRESS_RATE
+        FROM
+            CRM_AS_MGT  		
+		WHERE 
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>		        	
+	</select>
+	
+	
+	
+	<!-- 거래처구분 C001 JW그룹  2020.07.31. -->	
+	<select id="getAsCustGubun" parameterType="asVO" resultType="java.lang.String">
+	<![CDATA[
+		SELECT 
+			Z.CUST_GUBUN 
+		FROM CRM_CUST_MGT Z 
+		WHERE 1=1 
+			AND Z.ERP_CODE = #{cust_code}
+	]]>
+	</select>					
+		
+	<!-- 문의유형 기준으로 승인대상여부1(팀장) 2020.07.31. -->
+	<select id="getAsGyulGb1Yn" parameterType="asVO" resultType="java.lang.String">
+	<![CDATA[
+		SELECT 
+			Z.VAL1 AS GYUL_GB1
+		FROM CRM_CODE_DETAIL Z 
+		WHERE 1=1 
+			AND Z.CODE_GROUP = 'AS' 
+			AND Z.P_CODE = 'CD03' 
+		   	AND Z.CODE = #{request_type}
+	]]>
+	</select>	
+			
+	<!-- 조치유형 기준으로 승인대상여부2(배포) 2020.07.31.(배포조건:문의유형) 2023.08.21(배포조건:문의유형>>조치유형) -->
+	<select id="getAsGyulGb2Yn" parameterType="asVO" resultType="java.lang.String">
+	<![CDATA[
+		SELECT 
+			Z.VAL2 AS GYUL_GB2  
+		FROM CRM_CODE_DETAIL Z 
+		WHERE 1=1
+			AND Z.CODE_GROUP = 'AS' 
+			AND Z.P_CODE = 'CD06' 
+		   	AND Z.CODE = #{action_type}
+	]]>
+	</select>
+		
+	<!-- 승인자(팀장) 2020.07.31. --> 	
+	<select id="getAsGyulEmp1" parameterType="asVO" resultType="java.lang.String">
+	<![CDATA[ 
+		SELECT 
+			Z.VAL1 AS GYUL_EMP1 
+		FROM CRM_CODE_DETAIL Z 
+		WHERE 1=1 
+			AND Z.CODE_GROUP = 'AS' 
+			AND Z.P_CODE = 'CD09' 
+		   	AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT dept2_cd FROM crm_emp_mgt WHERE emp_no = #{assign_id})
+	]]>		  	
+	</select>
+			
+	<!-- 승인자(배포) 2020.07.31. -->
+	<select id="getAsGyulEmp2" parameterType="asVO" resultType="java.lang.String">
+	<![CDATA[ 
+		SELECT 
+			Z.VAL2 AS GYUL_EMP2
+		FROM CRM_CODE_DETAIL Z 
+		WHERE 1=1
+			AND Z.CODE_GROUP = 'AS' 
+			AND Z.P_CODE = 'CD09' 
+		   	AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT dept2_cd FROM crm_emp_mgt WHERE emp_no = #{assign_id})
+	]]>		  	
+	</select>	
+	
+	
+	<!--  (JW Shared service) JOB스케줄러에 의해 인터페이스 AS접수시 그룹웨어문서번호 중복체크 쿼리  2020.08.25.  -->      
+	<select id="getSharedDocIdCnt" parameterType="asVO" resultType="java.lang.Integer">
+		SELECT 
+			COUNT(*) 
+		FROM CRM_AS_MGT 
+		WHERE 1=1 
+			AND SHARED_DOC_IDX = #{shared_doc_idx}
+			AND DEL_YN IS NULL  			        
+	</select>	
+	
+	
+	<select id="getMaxSeq_old" resultType="java.lang.String">
+	<![CDATA[
+		SELECT GET_AS_MAX_SEQ() FROM DUAL  
+	]]>
+	</select>	
+	
+	<select id="getMaxSeq" parameterType="asVO" resultType="java.lang.String">
+	<![CDATA[
+		SELECT GET_AS_MAX_SEQ_NEW(
+			#{accept_dt}
+		) FROM DUAL  
+	]]>
+	</select>	
+	
+	<select id="getMaxSubSeq" resultType="java.lang.String">
+	<![CDATA[
+		SELECT GET_AS_SUB_MAX_SEQ('${cn_as_no}') FROM DUAL 
+	]]>
+	</select>	
+	
+	<!-- A/S관리 AS상세정보등록 저장시 INSERT -->
+	<insert id="insertAsInfo" parameterType="asVO">
+	<![CDATA[	
+		INSERT INTO CRM_AS_MGT (
+			AS_NO,						CN_AS_NO,			ACCEPT_DT,			ACCEPT_TIME,			ACCEPT_ROUTE,
+			CUST_CODE,					APPLY_NM,			APPLY_ID,			APPLY_TEL,				SYSTEM_TYPE,
+			INQUIRY_TYPE,				CALL_CONTENT,		FILE_SEQ,
+			PROC_DT,					PROC_TIME,			INPORTANCE,			CAUSE_TYPE,				ACTION_TYPE,
+			ASSIGN_ID,					PROC_STATUS,		ACTION_CONTENT,		REG_DATE,
+			REG_ID,						STAR_STATE,			STAR_CONTENT,		REQUEST_CONTENT,		ATTACH_SEQ2, 
+			PROC_GRADE,					PROC_BUILD_INFO,	PROC_FILE_INFO,		PROC_DB_INFO,			PROC_TEST_INFO, 
+			MEMO,						SEND_EMAIL,			SEND_SMS,			CUST_SEQ,				APPLY_EMAIL,
+			OPER_SEQ,					INQUIRY_DT,			WORK_TIME,			REQUEST_TYPE,			COMPLETE_DT,
+			APPLY_SMS_TEL,				SHARED_DOC_IDX, 	SHARED_DOC_ID,
+			APPROVAL_ID,				APPROVAL_DT,		APPROVAL_TIME,		APPROVAL_NM,
+			SHARED_ATTACH,				SHARED_FILENM,		SHARED_FILEPATH,	PROC_GUBUN,				PROC_PROCESS_SP,
+			PROC_FUNCTION_SP,			PROC_SCREEN_SP,		PROC_TABLE_SP,		PROC_INTERFACE_SP,		PROC_ERD_SP,
+			APPR_YN1,                   APPR_EMP1,          APPR_YN2,           APPR_EMP2, 
+			CMC_PIC,					PROGRAM_SATISFACTION, 	MODULE_NAME,	CATEGORY_ID,			PROGRAM_ID,
+			PEER_REVIEW_NM,				USER_TEST_YN, 		NORMAL_OPER_YN, 	TEST_NOTE,		 		USER_TEST_DT,
+			SHARED_TAG,					EXPECTED_WORK_TIME, TARGET_PROJECT,		PROGRESS_RATE					 
+			
+												
+		)VALUES(
+			#{as_no, jdbcType=VARCHAR},					#{cn_as_no, jdbcType=VARCHAR},			#{accept_dt, jdbcType=VARCHAR},			#{accept_time, jdbcType=VARCHAR},		#{accept_route, jdbcType=VARCHAR},
+			#{cust_code, jdbcType=VARCHAR},				#{apply_nm, jdbcType=VARCHAR},			#{apply_id, jdbcType=VARCHAR},			#{apply_tel, jdbcType=VARCHAR},			#{system_type, jdbcType=VARCHAR},
+			#{inquiry_type, jdbcType=VARCHAR},		    #{call_content, jdbcType=VARCHAR},		#{file_seq, jdbcType=INTEGER},
+			#{proc_dt, jdbcType=VARCHAR},				#{proc_time, jdbcType=VARCHAR},		    #{inportance, jdbcType=VARCHAR},		#{cause_type, jdbcType=VARCHAR},		#{action_type, jdbcType=VARCHAR},
+			#{assign_id, jdbcType=VARCHAR},				#{proc_status, jdbcType=VARCHAR},		#{action_content, jdbcType=VARCHAR},	SYSDATE,
+			#{reg_id, jdbcType=VARCHAR},				#{star_state, jdbcType=VARCHAR},		#{star_content, jdbcType=VARCHAR},		#{request_content, jdbcType=VARCHAR},	#{attach_seq2, jdbcType=INTEGER},
+			#{proc_grade, jdbcType=VARCHAR},			#{proc_build_info, jdbcType=VARCHAR},	#{proc_file_info, jdbcType=VARCHAR},	#{proc_db_info, jdbcType=VARCHAR},		#{proc_test_info, jdbcType=VARCHAR},
+			#{memo, jdbcType=VARCHAR},					#{send_email, jdbcType=VARCHAR}, 		#{send_sms, jdbcType=VARCHAR},			#{cust_seq, jdbcType=VARCHAR},			#{apply_email, jdbcType=VARCHAR}, 	
+			#{oper_seq, jdbcType=VARCHAR},				#{inquiry_dt, jdbcType=VARCHAR},		#{work_time, jdbcType=VARCHAR},			#{request_type, jdbcType=VARCHAR},		#{complete_dt, jdbcType=VARCHAR},
+			#{apply_sms_tel, jdbcType=VARCHAR},			#{shared_doc_idx, jdbcType=VARCHAR},	#{shared_doc_id, jdbcType=VARCHAR},
+			#{approval_id, jdbcType=VARCHAR},			#{approval_dt, jdbcType=VARCHAR},		#{approval_time, jdbcType=VARCHAR},		#{approval_nm, jdbcType=VARCHAR},
+			#{shared_attach, jdbcType=VARCHAR},			#{shared_filenm, jdbcType=VARCHAR},		#{shared_filepath, jdbcType=VARCHAR},	#{proc_gubun, jdbcType=VARCHAR},		#{proc_process_sp, jdbcType=VARCHAR},
+			#{proc_function_sp, jdbcType=VARCHAR},		#{proc_screen_sp, jdbcType=VARCHAR},	#{proc_table_sp, jdbcType=VARCHAR},		#{proc_interface_sp, jdbcType=VARCHAR},	#{proc_erd_sp, jdbcType=VARCHAR},
+			#{appr_yn1, jdbcType=VARCHAR},				#{appr_emp1, jdbcType=VARCHAR},			#{appr_yn2, jdbcType=VARCHAR},			#{appr_emp2, jdbcType=VARCHAR},
+			#{cmc_pic, jdbcType=VARCHAR},				#{program_satisfaction, jdbcType=VARCHAR},	#{module_name, jdbcType=VARCHAR},	#{category_id, jdbcType=VARCHAR},		#{program_id, jdbcType=VARCHAR},
+			#{peer_review_nm, jdbcType=VARCHAR},		#{user_test_yn, jdbcType=VARCHAR},		#{normal_oper_yn, jdbcType=VARCHAR},	#{test_note, jdbcType=VARCHAR},			#{user_test_dt, jdbcType=VARCHAR},
+			#{shared_tag, jdbcType=VARCHAR},			#{expected_work_time, jdbcType=VARCHAR},#{target_project, jdbcType=VARCHAR},	#{progress_rate, jdbcType=VARCHAR}
+			
+		)
+	]]>		    
+	</insert>
+	
+	<select id="getAsHistMaxSeq" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX_AS_HIST_NO.NEXTVAL FROM DUAL 
+	]]>
+	</select>	
+	
+	<select id="getAsHistMaxInfo" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+		SELECT
+			B.PROC_STATUS , B.MEMO
+		FROM
+			(SELECT AS_NO , MAX(SEQ) AS SEQ FROM CRM_AS_MGT_HIST GROUP BY AS_NO) A
+			INNER JOIN CRM_AS_MGT_HIST B ON A.AS_NO = B.AS_NO AND A.SEQ = B.SEQ
+		WHERE 
+			A.AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</select>	
+	
+	<insert id="insertAsInfoHist" parameterType="asVO">
+	/*[egov-as-query.xml] asDAO.insertAsInfoHist*/ 
+	<![CDATA[	
+		INSERT INTO CRM_AS_MGT_HIST 
+		(
+			SEQ,		AS_NO,			PROC_DT,		ACCEPTOR,		PROC_STATUS,
+			MEMO,		REG_DATE,	REG_ID
+		)
+		VALUES
+		(
+			#{seq, jdbcType=INTEGER},#{as_no, jdbcType=VARCHAR},#{proc_dt, jdbcType=VARCHAR},#{assign_id, jdbcType=VARCHAR},#{proc_status, jdbcType=VARCHAR},
+			#{memo, jdbcType=VARCHAR},SYSDATE,#{reg_id, jdbcType=VARCHAR}
+		)
+	]]>		    
+	</insert>
+	
+	<!-- A/S관리 AS상세정보등록 저장시 UPDATE -->	
+	<update id="updateAsInfo" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT 
+		SET
+			ACCEPT_ROUTE		= #{accept_route, jdbcType=VARCHAR},
+			CUST_CODE			= #{cust_code, jdbcType=VARCHAR},					
+			APPLY_NM			= #{apply_nm, jdbcType=VARCHAR},					
+			APPLY_ID			= #{apply_id, jdbcType=VARCHAR},					
+			APPLY_TEL			= #{apply_tel, jdbcType=VARCHAR},				
+			SYSTEM_TYPE			= #{system_type, jdbcType=VARCHAR},
+			INQUIRY_TYPE		= #{inquiry_type, jdbcType=VARCHAR},			
+			CALL_CONTENT		= #{call_content, jdbcType=VARCHAR},			
+			FILE_SEQ			= #{file_seq, jdbcType=INTEGER},
+			PROC_DT				= #{proc_dt, jdbcType=VARCHAR},						
+			PROC_TIME			= #{proc_time, jdbcType=VARCHAR},			
+			INPORTANCE			= #{inportance, jdbcType=VARCHAR},				
+			CAUSE_TYPE			= #{cause_type, jdbcType=VARCHAR},				
+			ACTION_TYPE		    = #{action_type, jdbcType=VARCHAR},
+			ASSIGN_ID			= #{assign_id, jdbcType=VARCHAR},					
+			PROC_STATUS		    = #{proc_status, jdbcType=VARCHAR},		
+			ACTION_CONTENT      = #{action_content, jdbcType=VARCHAR},	
+			UPT_DATE			= SYSDATE,
+			UPT_ID				= #{reg_id, jdbcType=VARCHAR},						
+			STAR_STATE			= #{star_state, jdbcType=VARCHAR},			
+			STAR_CONTENT		= #{star_content, jdbcType=VARCHAR},		
+			REQUEST_CONTENT     = #{request_content, jdbcType=VARCHAR},	
+			ATTACH_SEQ2		    = #{attach_seq2, jdbcType=INTEGER},
+			PROC_GRADE	        = #{proc_grade,jdbcType=VARCHAR},
+			PROC_BUILD_INFO     = #{proc_build_info,jdbcType=VARCHAR},
+			PROC_FILE_INFO      = #{proc_file_info,jdbcType=VARCHAR},
+			PROC_DB_INFO        = #{proc_db_info,jdbcType=VARCHAR},
+			PROC_TEST_INFO      = #{proc_test_info,jdbcType=VARCHAR},
+			MEMO                = #{memo,jdbcType=VARCHAR},
+			SEND_EMAIL          = #{send_email,jdbcType=VARCHAR},
+			SEND_SMS            = #{send_sms,jdbcType=VARCHAR},
+			CUST_SEQ            = #{cust_seq,jdbcType=VARCHAR},
+			APPLY_EMAIL         = #{apply_email,jdbcType=VARCHAR},
+			OPER_SEQ            = #{oper_seq, jdbcType=VARCHAR},
+			INQUIRY_DT          = #{inquiry_dt, jdbcType=VARCHAR},
+			EXPECTED_WORK_TIME  = #{expected_work_time, jdbcType=VARCHAR},
+			TARGET_PROJECT      = #{target_project, jdbcType=VARCHAR},
+			PROGRESS_RATE       = #{progress_rate, jdbcType=VARCHAR},
+			WORK_TIME           = #{work_time, jdbcType=VARCHAR},
+			REQUEST_TYPE        = #{request_type, jdbcType=VARCHAR},
+			COMPLETE_DT         = #{complete_dt, jdbcType=VARCHAR},
+			APPLY_SMS_TEL       = #{apply_sms_tel, jdbcType=VARCHAR},
+			PROC_GUBUN	        = #{proc_gubun, jdbcType=VARCHAR},
+			PROC_PROCESS_SP     = #{proc_process_sp, jdbcType=VARCHAR},
+			PROC_FUNCTION_SP    = #{proc_function_sp, jdbcType=VARCHAR},
+			PROC_SCREEN_SP      = #{proc_screen_sp, jdbcType=VARCHAR},
+			PROC_TABLE_SP       = #{proc_table_sp, jdbcType=VARCHAR},
+			PROC_INTERFACE_SP   = #{proc_interface_sp, jdbcType=VARCHAR},
+			PROC_ERD_SP         = #{proc_erd_sp, jdbcType=VARCHAR},
+			
+			APPR_YN1            = #{appr_yn1, jdbcType=VARCHAR},
+			APPR_EMP1           = #{appr_emp1, jdbcType=VARCHAR},
+			APPR_YN2            = #{appr_yn2, jdbcType=VARCHAR},
+			APPR_EMP2           = #{appr_emp2, jdbcType=VARCHAR},
+			DISTR_FILEPATH      = #{distr_filepath, jdbcType=VARCHAR},
+			DISTR_SVN_VER       = #{distr_svn_ver, jdbcType=VARCHAR},
+			DISTR_DT            = #{distr_dt, jdbcType=VARCHAR},
+			CMC_PIC       		= #{cmc_pic, jdbcType=VARCHAR},
+			PROGRAM_SATISFACTION = #{program_satisfaction, jdbcType=VARCHAR},
+			MODULE_NAME       	= #{module_name, jdbcType=VARCHAR},
+			CATEGORY_ID 		= #{category_id, jdbcType=VARCHAR},
+			PROGRAM_ID       	= #{program_id, jdbcType=VARCHAR},
+			PEER_REVIEW_NM 		= #{peer_review_nm, jdbcType=VARCHAR},
+			USER_TEST_YN 		= #{user_test_yn, jdbcType=VARCHAR},
+			NORMAL_OPER_YN 		= #{normal_oper_yn, jdbcType=VARCHAR},
+			TEST_NOTE 			= #{test_note, jdbcType=VARCHAR},
+			USER_TEST_DT 		= #{user_test_dt, jdbcType=VARCHAR}
+									
+		WHERE 
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>		  
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == "subUpdate"'>
+		AND CN_AS_NO 			= #{cn_as_no}
+	</if>	
+	</update>
+	
+	<select id="getAwsListCnt" parameterType="asVO" resultType="java.lang.Integer">	
+	<![CDATA[
+		SELECT COUNT(*) FROM CRM_AS_MGT_ANSWER WHERE AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>		  	
+	</select>
+	
+	<select id="getAwsList" parameterType="asVO" resultType="asVO">
+	<![CDATA[	
+		SELECT IN_TB.* FROM (
+		    SELECT 
+		        SEQ,		AS_NO,		W_ID,	W_CONTENT,	
+		        W_DATE,      W_GUBUN,		A_SEQ , 
+		        DECODE(W_GUBUN , 'A' , (SELECT EMP_NM FROM CRM_EMP_MGT Z WHERE Z.EMP_NO = A.W_ID) ,
+		        (SELECT EMP_NAME FROM CRM_CUST_EMP Z WHERE Z.EMP_ID = A.W_ID)) EMP_NM,
+		        ATTACH_SEQ
+		    FROM
+		        CRM_AS_MGT_ANSWER A
+		    WHERE 
+		        AS_NO = #{as_no, jdbcType=VARCHAR}
+		    ORDER BY W_DATE ASC   
+		) IN_TB    
+	]]>		  	
+	</select>	
+	
+	<select id="getAsEmpList" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+		SELECT
+		    EM.EMP_NO , EM.EMP_NM
+		FROM
+		    CRM_EMP_MGT EM, CRM_ROLE_USER RU
+		WHERE EM.EMP_NO = RU.EMP_NO
+		AND RU.ROLE_CODE = 'ROLE_AS_MANAGER'
+		ORDER BY EMP_NM ASC
+	]]>		  	
+	</select>	
+	
+	<!-- 유지보수담당자 이메일발송시 퇴사자여부 체크하여 퇴사자는 이메일발송 안되도록 추가 2020.07.08. --> 	
+	<select id="getAsEmpRetireYn" parameterType="asVO" resultType="asVO">
+	<![CDATA[ 
+		SELECT DECODE(NVL(EM.USE_YN,'Y'),'Y',DECODE(TRIM(X.RETIRE_DATE),NULL,'N','Y'),'Y') AS RETIRE_YN /* 유지보수담당자 퇴사자여부(Y) */
+		FROM   CRM_EMP_MGT EM, KYERP.TB_HR_EMPLOYEE@DL_ONTIC X 
+		WHERE  EM.EMP_NO = X.EMP_CD(+)
+        AND    EM.EMP_NO = #{assign_id} 
+	]]>		  	
+	</select>		
+	
+	<select id="getAsHistList" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+		SELECT 
+		    A.AS_NO , A.PROC_DT , A.ACCEPTOR , A.PROC_STATUS , A.MEMO , A.REG_DATE , A.REG_ID , A.SEQ ,
+		    (SELECT  B.EMP_NM from CRM_EMP_MGT B  where A.ACCEPTOR = B.EMP_NO) EMP_NM,
+		    (SELECT  C.EMP_NM from CRM_EMP_MGT C  where A.REG_ID = C.EMP_NO)REG_NM,
+		    (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD01' AND Z.CODE = A.PROC_STATUS) PROC_STATUS_NM
+		    
+		FROM 
+		    CRM_AS_MGT_HIST A
+		    
+		WHERE 
+		    AS_NO = #{as_no, jdbcType=VARCHAR}
+		 ORDER BY SEQ DESC
+	]]>		  	
+	</select>	
+		
+	<select id="getAwsMaxSeq" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX_AWS_SEQ.NEXTVAL FROM DUAL 
+	]]>
+	</select>	
+	
+	<insert id="insertAws" parameterType="asVO">
+	<![CDATA[
+		INSERT INTO CRM_AS_MGT_ANSWER(
+	        SEQ,		AS_NO,		W_ID,	W_CONTENT,	W_DATE,     W_GUBUN,		
+	        A_SEQ, ATTACH_SEQ
+		) VALUES (
+			#{seq, jdbcType=INTEGER}, #{as_no, jdbcType=VARCHAR}, #{reg_id, jdbcType=VARCHAR}, #{w_content, jdbcType=VARCHAR}, SYSDATE, #{w_gubun, jdbcType=VARCHAR}
+			, (SELECT NVL(MAX(SEQ) , 0) FROM CRM_AS_MGT_ANSWER WHERE AS_NO = #{as_no, jdbcType=VARCHAR} AND W_GUBUN = 'U')
+			, #{attach_seq}
+		)
+	]]>
+	</insert>
+		
+	<select id="getEmpTel" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+		SELECT 
+			TEL_NO 
+		FROM 
+			CRM_CUST_EMP Z 
+		WHERE Z.CUST_CODE = #{cust_code, jdbcType=VARCHAR} 
+		AND 		Z.EMP_GRADE = 'C001'
+	]]>
+	</select>	
+	
+	<sql id="frAsListWhere">
+		<![CDATA[	AND CUST_CODE = #{cust_code, jdbcType=VARCHAR}  ]]>
+	<!-- 신청자 본인 공란 건(CIT에서 직접등록건중 일부)으로 인한 조회누락발생!! 김종호 부장님 요청으로 주석처리 2021.01.11. -->
+	<!-- 고객사 신청자 본인 AS신청현황만 조회되도록 추가 cmg제약 인사담당자 서영웅주임 요청 2020.12.01.                   -->  		
+	<!--  	<![CDATA[	AND CUST_CODE = #{cust_code, jdbcType=VARCHAR}  AND APPLY_ID = #{apply_id, jdbcType=VARCHAR}  ]]>  -->
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) == "Y"'>
+			<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != ""'><![CDATA[	AND ACCEPT_DT >= #{search_start, jdbcType=VARCHAR}	 ]]></if>
+			<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_end) != ""'><![CDATA[		AND ACCEPT_DT <= #{search_end, jdbcType=VARCHAR}	 ]]></if>
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) == "Y"'><![CDATA[		AND STAR_STATE IS NOT NULL	 ]]></if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ""'><![CDATA[		AND PROC_STATUS = #{search_type3, jdbcType=VARCHAR}	 ]]></if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ""'><![CDATA[		AND SYSTEM_TYPE = #{search_type4, jdbcType=VARCHAR}	 ]]></if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type5) != ""'><![CDATA[		AND INQUIRY_TYPE = #{search_type5, jdbcType=VARCHAR}	 ]]></if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) != ""'><![CDATA[		AND APPLY_NM LIKE '%' || UPPER(#{search_type6}) || '%'	 ]]></if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ""'><![CDATA[		    AND CALL_CONTENT LIKE '%' || UPPER(#{search_text}) || '%']]></if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type7) != ''">
+			AND ( 
+				  UPPER(CN_AS_NO) LIKE '%'|| UPPER(#{search_type7}) ||'%' 	OR
+				  UPPER(AS_NO) LIKE '%'|| UPPER(#{search_type7}) ||'%' 
+				)
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(login_grade) == "C002"'><![CDATA[		AND APPLY_ID = #{login_id} 	 ]]></if>
+	</sql>
+	
+	<select id="getAsFrListCnt" parameterType="asVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(IN_TB.AS_NO) FROM (
+			SELECT 
+			    A.ACCEPT_DT , 
+			    A.AS_NO , 
+			    A.CN_AS_NO , 
+			    A.PROC_STATUS , 
+			    A.SYSTEM_TYPE , 
+			    A.INQUIRY_TYPE , 
+			    A.ASSIGN_ID , 
+			    A.STAR_STATE ,
+			    A.STAR_STATE_DATE ,
+			    A.STAR_STATE_ID,
+			    A.CUST_CODE,
+			    A.DEL_YN,
+			    A.APPLY_ID,
+			    A.APPLY_NM,
+			    A.CALL_CONTENT,
+			    (SELECT w_content FROM crm_as_mgt_answer WHERE (seq,as_no) in (select seq, max(as_no) as as_no from crm_as_mgt_answer where seq = 
+				    			(SELECT MAX(seq) FROM crm_as_mgt_answer WHERE as_no = A.as_no AND  w_gubun = 'A')group by seq)) AS last_coment
+			FROM 
+			    CRM_AS_MGT A
+		) IN_TB		
+		WHERE 
+				IN_TB.DEL_YN IS NULL
+	]]>
+		<include refid="frAsListWhere"/>		
+	</select>	
+		
+	<select id="getAsFrList" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+		SELECT OUT_TB.* ,  
+			(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='AS' AND P_CODE ='CD01' AND CODE = OUT_TB.PROC_STATUS) PROC_STATUS_NM ,  
+			(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='PROJECT' AND P_CODE ='PR02' AND CODE = OUT_TB.SYSTEM_TYPE) SYSTEM_TYPE_NM ,  
+			(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='OPERATE' AND P_CODE =OUT_TB.SYSTEM_TYPE AND CODE = OUT_TB.INQUIRY_TYPE) INQUIRY_TYPE_NM ,  
+			(SELECT EMP_NM FROM CRM_EMP_MGT Z WHERE Z.EMP_NO = OUT_TB.ASSIGN_ID) EMP_NM ,
+			(SELECT EMP_NAME FROM CRM_CUST_EMP Z WHERE Z.EMP_ID = OUT_TB.STAR_STATE_ID ) EMP_NAME , /*검수자ID*/
+			(SELECT COUNT(*) FROM CRM_AS_MGT Z WHERE Z.CN_AS_NO = OUT_TB.AS_NO  AND Z.PROC_STATUS IN ('C003' , 'C004' , 'C005') ) CN_COUNT
+		FROM (
+			SELECT IN_TB.* , ROW_NUMBER() OVER (ORDER BY IN_TB.AS_NO ) AS RNUM FROM (
+				SELECT 
+				    A.ACCEPT_DT , 
+				    A.AS_NO , 
+				    A.CN_AS_NO , 
+				    A.PROC_STATUS , 
+				    A.SYSTEM_TYPE , 
+				    A.INQUIRY_TYPE , 
+				    A.ASSIGN_ID , 
+				    A.STAR_STATE ,
+				    TO_CHAR(A.STAR_STATE_DATE , 'yyyy/MM/dd') STAR_STATE_DATE ,
+				    A.STAR_STATE_ID,
+				    A.CUST_CODE,
+				    A.DEL_YN,
+				    A.APPLY_ID,
+				    A.CALL_CONTENT,
+				    A.APPLY_NM,
+				    (SELECT w_content FROM crm_as_mgt_answer WHERE (seq,as_no) in (select seq, max(as_no) as as_no from crm_as_mgt_answer where seq = 
+				    			(SELECT MAX(seq) FROM crm_as_mgt_answer WHERE as_no = A.as_no AND  w_gubun = 'A')group by seq)) AS last_coment
+				FROM 
+				    CRM_AS_MGT A
+			) IN_TB 
+			WHERE 1=1
+				AND IN_TB.DEL_YN IS NULL
+	]]>
+	<include refid="frAsListWhere"/>		
+	
+	<![CDATA[
+		) OUT_TB
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY RNUM DESC
+	]]>
+	</select>	
+	
+	<update id="updateAws" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT_ANSWER SET 
+			  W_ID 				= #{reg_id, jdbcType=VARCHAR},	
+			  W_CONTENT 	= #{w_content, jdbcType=VARCHAR},
+			  W_DATE 			= SYSDATE
+		WHERE 
+			SEQ = #{seq, jdbcType=INTEGER} AND AS_NO = #{as_no, jdbcType=VARCHAR}		
+	]]>
+	</update>
+	
+	<delete id="deleteAws" parameterType="asVO">
+	<![CDATA[
+		DELETE FROM CRM_AS_MGT_ANSWER 
+		WHERE 	SEQ = #{seq, jdbcType=INTEGER} AND AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</delete>
+	
+	<select id="getCnAsCnt" parameterType="asVO" resultType="java.lang.Integer">
+		SELECT COUNT(*) FROM CRM_AS_MGT 
+		WHERE 1=1 
+		AND CN_AS_NO = #{as_no} 
+		AND (DEL_YN IS NULL OR DEL_YN = 'N')	
+	</select>
+	
+	<select id="getCnAsList" parameterType="asVO" resultType="asVO">
+		SELECT 
+			AS_NO, PROC_STATUS, CN_AS_NO 
+		FROM 
+			CRM_AS_MGT
+		WHERE 1=1
+			AND CN_AS_NO = #{as_no}
+			AND (DEL_YN IS NULL OR DEL_YN = 'N')	
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) == "selfExcept"'>
+			<![CDATA[	AND AS_NO NOT IN(#{cn_as_no, jdbcType=VARCHAR})	 ]]>
+		</if>	
+	</select>
+	
+	<update id="updateCnAsState" parameterType="asVO">
+		UPDATE CRM_AS_MGT SET 
+			PROC_STATUS = #{proc_status2, jdbcType=VARCHAR}
+		WHERE 
+			AS_NO = #{as_no2, jdbcType=VARCHAR}
+	</update>
+	
+	<update id="updateStatus" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			PROC_STATUS = 'C006' , 
+			UPT_DATE = SYSDATE , 
+			UPT_ID = #{reg_id, jdbcType=VARCHAR}
+		WHERE 
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+	
+	<update id="updateStar" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			STAR_STATE 		= #{starRate, jdbcType=VARCHAR} , 
+			STAR_CONTENT 	= #{star_content, jdbcType=VARCHAR} , 
+			STAR_STATE_ID 	= #{reg_id, jdbcType=VARCHAR} , 
+			STAR_STATE_DATE	= SYSDATE
+		WHERE 
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+	
+	<select id="getStarInfo" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+		SELECT STAR_STATE , STAR_CONTENT FROM CRM_AS_MGT
+		WHERE 
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</select>
+	
+	<update id="updateAsLayer" parameterType="asVO">
+	<![CDATA[
+	
+		UPDATE CRM_AS_MGT 
+		SET
+			SYSTEM_TYPE			= #{service_cate, jdbcType=VARCHAR},
+			VERSION_INFO			= #{version_info, jdbcType=VARCHAR},		
+			INQUIRY_TYPE			= #{inquiry_type, jdbcType=VARCHAR},			
+			CALL_CONTENT			= #{call_content, jdbcType=VARCHAR},			
+			FILE_SEQ					= #{file_seq, jdbcType=INTEGER},
+			UPT_DATE					= SYSDATE,
+			UPT_ID						= #{reg_id, jdbcType=VARCHAR}						
+		WHERE 
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>		  
+	</update>
+	
+	<insert id="insertAwsFront" parameterType="asVO">
+	<![CDATA[
+		INSERT INTO CRM_AS_MGT_ANSWER(
+	        SEQ,		AS_NO,		W_ID,	W_CONTENT,	W_DATE,    W_GUBUN, ATTACH_SEQ	
+		) VALUES (
+			#{seq, jdbcType=INTEGER}, 
+			#{as_no, jdbcType=VARCHAR}, 
+			#{reg_id, jdbcType=VARCHAR}, 
+			#{w_content, jdbcType=VARCHAR}, 
+			SYSDATE, 
+			#{w_gubun, jdbcType=VARCHAR},
+			#{attach_seq}
+			
+		)
+	]]>
+	</insert>
+	
+	<delete id="deleteAwsFront" parameterType="asVO">
+	<![CDATA[
+		DELETE FROM CRM_AS_MGT_ANSWER WHERE SEQ = #{seq, jdbcType=INTEGER} AND AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</delete>
+	
+	<update id="deleteAsProc" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT SET 
+			DEL_YN = 'Y' 
+		WHERE 
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+	
+	<select id="getAsMbList" parameterType="asVO" resultType="asVO">
+	<![CDATA[
+		SELECT OUT_TB.* ,  
+			(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='AS' AND P_CODE ='CD01' AND CODE = OUT_TB.PROC_STATUS) PROC_STATUS_NM , 
+			(SELECT COUNT(*) FROM CRM_AS_MGT Z WHERE Z.CN_AS_NO = OUT_TB.AS_NO  AND Z.PROC_STATUS IN ('C003' , 'C004' , 'C005') ) CN_COUNT  
+		FROM (
+			SELECT 
+				IN_TB.* 
+	]]>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) == ""'><![CDATA[	, ROW_NUMBER() OVER (ORDER BY IN_TB.AS_NO ) AS RNUM 	 ]]></if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) == "1"'><![CDATA[	, ROW_NUMBER() OVER (ORDER BY IN_TB.ACCEPT_DT ) AS RNUM 	 ]]></if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) == "2"'><![CDATA[	, ROW_NUMBER() OVER (ORDER BY IN_TB.ACCEPT_DT DESC ) AS RNUM 	 ]]></if>
+	<![CDATA[
+			FROM (
+				SELECT 
+				    A.ACCEPT_DT , 
+				    A.AS_NO , 
+				    A.CN_AS_NO , 
+				    A.PROC_STATUS ,
+				    A.CUST_CODE 
+				FROM 
+				    CRM_AS_MGT A
+				WHERE 
+					A.DEL_YN IS NULL
+		    	AND 
+		    		CUST_CODE = #{cust_code, jdbcType=VARCHAR}				
+	]]>
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ""'><![CDATA[	AND PROC_STATUS = #{search_type2, jdbcType=VARCHAR}	 ]]></if>		
+	<![CDATA[
+			) IN_TB 
+		) OUT_TB
+		ORDER BY RNUM DESC
+	]]>
+	</select>
+	
+	<select id="selectAsMgtCntByAssignId" parameterType="map" resultType="java.lang.Integer">
+	<![CDATA[
+		select count(assign_id) as cnt from crm_as_mgt
+		where (del_yn is null or del_yn = 'N')
+		and assign_id = #{id}
+	]]>
+	</select>
+	
+	<select id="getAsAssignMaster" parameterType="operateVO" resultType="operateVO">
+		<![CDATA[
+			SELECT WK_EMP_NO 
+			FROM CRM_OPERATE_WORKER
+			WHERE 1=1
+			AND OPER_SEQ = #{oper_seq}
+			AND TASK_CODE = #{task_code}
+			AND MASTER_YN='Y'
+			AND IS_USE='C001'
+		]]>
+	</select>
+	
+	<select id="getAsAssign" parameterType="map" resultType="map">
+		<![CDATA[
+			SELECT
+				EMP_NO,
+				(SELECT EMP_NM FROM CRM_EMP_MGT )EMP_NAME, 
+				IS_MASTER
+			FROM 
+				CRM_CUST_OPERATE_WORK
+			WHERE 1=1
+			AND TASK_CODE = #{task_code} /* 업무 코드 */
+			AND OPERATE_SEQ = #{operate_seq}/* 운영정보 (dtl_seq) */
+			AND SYSTEM_CODE  = #{system_code}/* 시스템 코드 */
+		
+		]]>
+	</select>
+	
+	<select id="updateAsApproval" parameterType="asVO" resultType="java.lang.Integer">
+		UPDATE CRM_AS_MGT 
+		SET
+		 PROC_STATUS =#{proc_status}
+		,APPROVAL_DT =#{approval_dt}
+		,APPROVAL_TIME =#{approval_time}
+		,APPROVAL_ID =#{approval_id}
+		WHERE 
+			AS_NO =#{as_no}
+	</select>
+	
+	<select id="dashboardAsStatus" parameterType="map" resultType="map">
+		<![CDATA[
+		SELECT 
+	    in_tb.*,
+	    (SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND z.p_code = 'CD01' AND z.code = in_tb.proc_status ) AS proc_status_nm, /* 처리상태 명칭 */ 
+	    ( SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND z.p_code = 'CD04' AND z.code = in_tb.inportance ) AS inportance_nm, /* 중요도 명칭 */
+	    ( SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'PROJECT' AND z.p_code = 'PR02' AND z.code = in_tb.system_type )  AS SYSTEM_TYPE_NM,
+	    ( SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'OPERATE' AND z.p_code = system_type AND z.code = in_tb.inquiry_type)  AS inquiry_TYPE_NM,
+	    TO_CHAR(TO_DATE(in_tb.accept_dt,'yyyyMMdd'),'yyyy-MM-dd') accept_dt,
+	    TO_CHAR(TO_DATE(in_tb.inquiry_dt,'yyyyMMdd'),'yyyy-MM-dd') inquiry_dt,
+	    1
+	FROM ( 
+	    SELECT 
+	        a.as_no, 
+	        a.cn_as_no, 
+	        a.apply_nm, 
+	        a.proc_status, /* 처리상태 C */ 
+	        a.cust_code, /* 거래처 코드 (cust_code) */ 
+	        b.cust_kor_name, /* 거래처명 */ 
+	        a.accept_route, /* 접수경로 C */ 
+	        a.inportance, /* 중요도 C */ 
+	        a.cause_type, /* 원인유형 C */ 
+	        a.action_type, /* 조치유형 C */ 
+	        a.assign_id, /* 처리담당자 아이디 */ 
+	        a.call_content, /* 요청내용 */
+	        a.OPER_SEQ, 
+	        b.erp_code, 
+	        nvl(( SELECT z.emp_nm FROM crm_emp_mgt z WHERE z.emp_no = a.assign_id ),'-') emp_nm, /* 처리담당자 이름 */ 
+	        A.system_type,
+	        A.inquiry_type,
+	        C.system_nm,
+	        A.accept_dt,
+	        A.inquiry_dt 
+	    FROM crm_as_mgt a , crm_cust_mgt b, crm_operate_mgt c  
+	    WHERE 1=1
+	    AND a.cust_code = b.erp_code
+	    AND A.OPER_SEQ = C.OPER_SEQ 
+	    AND (A.DEL_YN IS NULL OR A.DEL_YN = 'N')
+	    AND as_no in (${asno})
+	    ]]>
+	    
+	    <if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_gubun) != ""'>
+		AND B.CUST_GUBUN = #{cust_gubun}
+		</if>
+		
+	) in_tb 
+	WHERE 1=1
+	ORDER BY IN_TB.AS_NO DESC
+	
+	</select>
+	
+	<select id="getAsEmailInfo" parameterType="asVO" resultType="asVo">
+	/*[egov-as-query.xml] asDAO.getAsEmailInfo*/
+		SELECT
+			A.AS_NO,
+			( SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'PROJECT' AND Z.P_CODE = 'PR02' AND Z.CODE = A.SYSTEM_TYPE )  AS SYSTEM_TYPE_NM, /*시스템유형*/
+			( SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'OPERATE' AND Z.P_CODE = A.SYSTEM_TYPE AND Z.CODE = A.INQUIRY_TYPE)  AS INQUIRY_TYPE_NM, /*업무유형*/
+			TO_CHAR(TO_DATE(A.ACCEPT_DT,'YYYYMMDD'),'YYYY-MM-DD') ACCEPT_DT, /*접수시간*/ 
+			TO_CHAR(TO_DATE(A.ACCEPT_TIME,'HH24MISS'),'HH24:MI:SS') ACCEPT_TIME, /*접수시간*/
+			A.CALL_CONTENT,
+			(SELECT DISTINCT(CUST_KOR_NAME) FROM CRM_CUST_MGT M WHERE 1=1 AND A.CUST_CODE=M.ERP_CODE)CUST_KOR_NAME, /*거래처명*/
+			A.CUST_CODE,
+			(SELECT CUST_GUBUN FROM CRM_CUST_MGT WHERE ERP_CODE = A.CUST_CODE ) AS CUST_GUBUN,	/*2022.01.이설아 추가*/
+			A.APPLY_ID,
+			A.APPLY_NM,
+			A.APPLY_EMAIL,  /* 요청자 메일수신주소 */
+	        A.SEND_EMAIL,   /* 이메일 발송여부(Y/N) */ 
+			A.APPLY_TEL,
+			A.ASSIGN_ID,
+			E.EMP_NM,
+			E.DEPT1_NM,
+			E.DEPT2_NM,
+			E.DEPT_GRADE_NM,
+			E.E_MAIL AS SENDER_EMAIL,
+			E.COMPANY_NO,
+			A.ACTION_CONTENT,
+	        A.ATTACH_SEQ2,  /* 첨부파일 멀티파일SEQ(조치) */ 
+	        A.ACTION_TYPE, /*2023.11.06 조치유형관련*/
+			(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD05' AND Z.CODE = A.CAUSE_TYPE) CAUSE_TYPE_NM,    
+			(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD06' AND Z.CODE = A.ACTION_TYPE) ACTION_TYPE_NM,
+			(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = A.REQUEST_TYPE) REQUEST_TYPE_NM,
+			A.REQUEST_TYPE,
+			C.SYSTEM_NM,
+			A.PROC_STATUS,
+			(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD01' AND Z.CODE = A.PROC_STATUS) PROC_STATUS_NM, /*처리상태*/ 		
+			TO_CHAR(TO_DATE(A.INQUIRY_DT,'YYYYMMDD'),'YYYY-MM-DD') INQUIRY_DT, /*처리요청일자*/ 
+			TO_CHAR(TO_DATE(A.PROC_DT,'YYYYMMDD'),'YYYY-MM-DD') PROC_DT, /*처리예정일자*/ 
+			TO_CHAR(TO_DATE(A.COMPLETE_DT,'YYYYMMDD'),'YYYY-MM-DD') COMPLETE_DT, /*처리일자*/
+			 
+			CASE WHEN a.proc_status IN ('C005','C012','C013') THEN '2'                                                 
+	        ELSE '1' END AS APPR_GB, /*승인구분 1 접수(팀장), 2 배포*/
+	        A.APPR_EMP1,             /*팀장승인 승인자*/ 
+	        A.APPR_EMP2,	         /*배포승인 승인자*/
+	        A.SHARED_DOC_IDX 
+        
+		FROM CRM_AS_MGT A, CRM_EMP_MGT E, CRM_OPERATE_MGT C 
+		WHERE 1=1
+			AND AS_NO = #{as_no}
+			AND A.ASSIGN_ID = E.EMP_NO(+)
+			AND A.OPER_SEQ = C.OPER_SEQ 
+	</select>
+	
+	<select id="getAsChargerInfo" parameterType="custVO" resultType="custVO">
+		SELECT 
+			CHARGER_EMAIL,
+			CHARGER_TEL
+		FROM
+			CRM_CUST_MGT
+	</select>
+	
+	<!-- connect shared service -->
+	<select id="old_getEzSharedServiceSelect" parameterType="mssqlVO" resultType="mssqlVO">
+		SELECT 
+			IDX
+			,DOCID
+			,DOCTTL
+			,DOCTXT 
+			,DOCDATE 
+			,DOCRDATE
+			,LEVEL1 
+			,LEVEL2
+			,LEVEL3
+			,REGID 
+			,REGNM 
+			,REGCOMNM
+			,REGCOMID
+			,RCVID
+			,RCVNM
+			,RCVSDATE
+			,RCVRDATE
+			,RCVEDATE
+			,WORKTIME
+			,DOCATTACH
+			,RCVNM
+			,RCVSDATE
+			,MAIL
+		FROM TBL_DOCINFO LEFT OUTER JOIN  ezHrMaster.dbo.TBLUserMaster
+    	ON TBL_DOCINFO.REGID = ezHrMaster.dbo.TBLUserMaster.CN
+		WHERE LEVEL1 ='{ce0ee1ad-d2f2-45a4-a739-b12bf7f36fa9}' 
+		AND DOCFLAG ='2' 
+		AND LU_FLAG IS NULL  
+	</select>
+	
+	<select id="getEzSharedServiceSelect" parameterType="mssqlVO" resultType="mssqlVO">
+		SELECT 
+				IDX
+				,A.DOCID
+				,DOCTTL
+				,DOCTXT 
+				,DOCDATE 
+				,DOCRDATE
+				,LEVEL1 
+				,LEVEL2
+				,LEVEL3
+				,REGID 
+				,REGNM 
+				,REGCOMNM
+				,REGCOMID
+				,RCVID
+				,RCVNM
+				,RCVSDATE
+				,RCVRDATE
+				,RCVEDATE
+				,WORKTIME
+				,DOCATTACH
+				,RCVNM
+				,RCVSDATE
+				,MAIL
+				,C.TAG
+			FROM TBL_DOCINFO A
+			LEFT OUTER JOIN ezHrMaster.dbo.TBLUserMaster B ON A.REGID = B.CN
+			LEFT OUTER JOIN TBL_DOCLINE C ON A.DOCID = C.DOCID
+			WHERE 1=1
+			AND LEVEL1 ='{ce0ee1ad-d2f2-45a4-a739-b12bf7f36fa9}' 
+			AND LEVEL2 NOT IN ('{2c819414-f182-4579-a992-1edb60ba34f2}','{5857c88e-4e28-4721-afd2-f617b09f2c81}','{dc509613-f7e0-40fe-92e3-c1bed3182c6b}')
+			AND A.DOCFLAG ='2' 
+			AND A.LU_FLAG IS NULL
+			AND C.TYPE = '2'
+	</select>
+	
+	<select id="selectInterfaceCode" parameterType="interfaceVO" resultType="interfaceVO">
+		SELECT * FROM INTERFACE_CODE_MGT WHERE 1=1 AND CODE_GUBUN = #{code_gubun} AND ASIS_CODE1 = #{asis_code1}
+	</select>
+	
+	<select id="selectOperateSeq" parameterType="operateVO" resultType="operateVO" >
+	/*중외정보기술 거래처코드, 시스템유형 인터페이스 매핑오류 발견으로 MAX 추가 2020.07.07.*/
+		SELECT MAX(OPER_SEQ) AS OPER_SEQ  FROM CRM_OPERATE_MGT WHERE 1=1 AND ERP_CODE =#{erp_code} AND SYSTEM_CODE =#{system_code}
+	</select>
+
+	<select id="selectCustSeq" parameterType="operateVO" resultType="operateVO" >
+		SELECT SEQ FROM CRM_CUST_MGT WHERE 1=1 AND ERP_CODE =#{erp_code} 
+	</select>
+	
+
+	<!-- connect shared service -->
+	<update id="updateEzSharedServiceFlag" parameterType="mssqlVO">
+		UPDATE TBL_DOCINFO 
+		   SET LU_FLAG = 'Y'
+		 WHERE IDX = #{idx}	
+	</update>
+
+	<select id="getDocattach" parameterType="mssqlVO" resultType="mssqlVO">
+		SELECT 
+			*
+		FROM TBL_DOCATTACH
+		WHERE 
+			DOCID= #{docid}	
+	</select>
+	
+	<select id="getDocattachCnt" parameterType="mssqlVO" resultType="java.lang.Integer">
+		SELECT 
+			COUNT(*)
+		FROM TBL_DOCATTACH
+		WHERE 
+			DOCID= #{docid}	
+	</select>
+	
+	<update id="updateCompleteSsDoc" parameterType="asVO">
+		UPDATE TBL_DOCINFO
+		   SET DOCFLAG	 = '3' 
+		     , RCVEDATE = GETDATE() 
+		WHERE IDX = #{shared_doc_idx}
+	</update>
+	
+	
+	<update id="updateRejectSsDoc" parameterType="asVO">
+		UPDATE TBL_DOCINFO
+		   SET DOCFLAG  = '4' 
+		  	 , RCVEDATE = GETDATE() 
+		WHERE IDX = #{shared_doc_idx}
+	</update>
+	
+	<update id="updateWorkerSs" parameterType="asVO">
+		UPDATE TBL_WORKER_INFO
+		   SET WORK_NM 	= #{emp_nm}
+			 , WORK_TEL = #{company_no}
+	    	 , WORK_MAIL= #{sender_email}
+	     WHERE IDX =	#{shared_doc_idx}
+	</update>
+	
+	<select id="getDocIdxInfo" parameterType="asVO" resultType="java.lang.Integer">
+		SELECT NVL(SHARED_DOC_IDX,0) 
+		FROM CRM_AS_MGT
+		WHERE AS_NO = #{as_no}
+	</select>
+	
+	<select id="getWorkerSsCnt" parameterType="asVO" resultType="java.lang.Integer">
+		SELECT 
+			COUNT(*)
+		FROM TBL_WORKER_INFO
+		WHERE IDX= #{shared_doc_idx}	
+	</select>
+
+	<select id="getAsApprList" parameterType="asVO" resultType="asVO">  
+	/* A/S관리 AS승인 조회화면 쿼리 2020.08.19.  여러 명이 승인 가능하도록 추가 수정 2024.04.15*/ 
+	SELECT
+	    out_tb.*,
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD01' AND   z.code = out_tb.proc_status) AS proc_status_nm, 								<!-- 처리상태 명칭  -->
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD02' AND   z.code = out_tb.accept_route) AS accept_route_nm, 							<!-- 접수경로 명칭  -->
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'PROJECT'  AND   z.p_code = 'PR02' AND   z.code = out_tb.system_type) AS system_type_nm, 						<!-- 시스템카테고리 명칭  -->
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'OPERATE'  AND   z.p_code = out_tb.system_type AND   z.code = out_tb.inquiry_type) AS inquiry_type_nm,			<!-- 업무유형 명칭  -->
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD04' AND   z.code = out_tb.inportance) AS inportance_nm, 								<!-- 중요도 명칭  -->
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD03' AND   z.code = out_tb.request_type) AS request_type_nm, 							<!-- 문의유형 명칭  -->
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD05' AND   z.code = out_tb.cause_type) AS cause_type_nm, 								<!-- 원인유형 명칭 --> 
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD06' AND   z.code = out_tb.action_type) AS action_type_nm, 								<!-- 조치유형 명칭 --> 
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD07' AND   z.code = out_tb.proc_grade) AS proc_grade_nm, 								<!-- 처리등급 명칭  -->
+		(SELECT w_content FROM crm_as_mgt_answer WHERE (seq,as_no) in (select seq, max(as_no) as as_no from crm_as_mgt_answer where seq = 
+																	   (SELECT MAX(seq) FROM crm_as_mgt_answer WHERE as_no = out_tb.as_no AND   w_gubun = 'U')group by seq)) AS last_coment, <!-- 고객 최종 코멘트 -->
+		TO_CHAR(TO_DATE(out_tb.complete_dt,'yyyyMMdd'),'yyyy-MM-dd') complete_dt, <!-- 처리완료일   -->
+		TO_CHAR(TO_DATE(out_tb.accept_dt,'yyyyMMdd'),'yyyy-MM-dd') accept_dt,
+		TO_CHAR(out_tb.star_state_date,'yyyy-MM-dd') star_state_date, <!-- DECODE(d.w_gubun,'U',1,0) aws_cnt -->
+		(SELECT count(crm_as_mgt_answer.seq)FROM crm_as_mgt_answer WHERE as_no = out_tb.as_no) AS total_aws_cnt, <!-- 고객 답변수  -->
+		(SELECT decode(w_gubun,'U',1,0) FROM crm_as_mgt_answer WHERE SEQ = (select MAX(SEQ) from crm_as_mgt_answer where AS_NO=out_tb.as_no)AND AS_NO = out_tb.as_no) AS aws_cnt,
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'AS' AND   z.p_code = 'CD08' AND   z.code = out_tb.proc_gubun) AS proc_gubun_nm <!-- 처리구분 -->
+		
+	FROM
+	    (
+	        SELECT
+	            in_tb.*,
+	            ROW_NUMBER() OVER(ORDER BY in_tb.as_no) AS rnum
+	        FROM
+	            (
+	                SELECT
+						a.as_no,
+						a.cn_as_no,
+						a.apply_nm,
+						a.proc_status, 		<!-- 처리상태 C -->
+						a.proc_dt,			<!-- 처리완료예정일 C --> 
+						a.cust_code, 		<!-- 거래처 코드 (cust_code) -->
+						b.cust_kor_name,    <!-- 거래처명  -->
+						a.accept_route,  	<!-- 접수경로 C  -->
+						a.system_type,  	<!-- 시스템카테고리 C  -->
+						a.inquiry_type,  	<!-- 업무유형 C -->
+						a.inportance,  		<!-- 중요도 C  -->
+						a.cause_type,  		<!-- 원인유형 C -->
+						a.action_type,  	<!-- 조치유형 C -->
+						a.assign_id,  		<!-- 처리담당자 아이디 -->
+						a.star_state,  		<!-- 고객평가  -->
+						a.call_content,  	<!-- 요청내용 -->
+						a.work_time,
+						b.erp_code,
+						a.del_yn,
+						a.accept_dt,
+						a.inquiry_dt,
+						a.star_state_date,
+						a.proc_grade,
+						a.action_content,	/* 조치내용 */ 
+						(SELECT z.emp_nm FROM crm_emp_mgt z WHERE z.emp_no = a.assign_id) emp_nm,  /* 처리담당자 이름 */
+						a.complete_dt,		/* 처리완료일 */
+						b.cust_gubun,
+						a.request_type,
+						a.proc_gubun,
+						
+						a.proc_build_info,
+						a.proc_file_info,
+						a.proc_db_info,
+						a.proc_test_info,
+						
+						a.proc_process_sp,
+						a.proc_function_sp,
+						a.proc_screen_sp,
+						a.proc_table_sp,
+						a.proc_interface_sp,
+						a.proc_erd_sp,
+                        
+                        <!-- 처리상태 해당시 배포승인여부  --> 
+                        <!-- (C005 처리완료, C012 배포승인, C013 배포반려) -->                   
+                        CASE WHEN a.proc_status IN ('C005','C012','C013') THEN a.appr_yn2                         
+                        <!-- 처리상태 해당시 팀장승인여부 -->
+                        <!--(C000 대기, C010 팀장승인, C011 팀장반려)-->                         
+                        ELSE a.appr_yn1 END AS APPR_YN, <!-- 승인여부 (조회화면에 표시) 2020.08.18. 추가 -->
+						
+                        CASE WHEN a.proc_status IN ('C005','C012','C013') THEN '2'                                                 
+                        ELSE '1' END AS APPR_GB,  		<!-- 1 팀장, 2 배포 (조회화면에 승인구분으로 표시 1 접수, 2 배포 2020.09.08.)  2020.08.19. 추가 -->
+                        
+                        (SELECT Z.VAL1 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = a.REQUEST_TYPE) GYUL_GB1, 		<!-- 승인대상(팀장)-->
+                        (SELECT Z.VAL2 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD06' AND Z.CODE = a.ACTION_TYPE) GYUL_GB2, 		<!-- 승인대상(배포) -->
+                        (SELECT Z.VAL1 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD09' AND SUBSTR(Z.CODE_NAME,1,5) = 
+                                                                            (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = a.ASSIGN_ID)) GYUL_EMP1,  <!-- 승인자(팀장)-->
+                        (SELECT Z.VAL2 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD09' AND SUBSTR(Z.CODE_NAME,1,5) = 
+                                                                            (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = a.ASSIGN_ID)) GYUL_EMP2,  <!-- 승인자(배포)  -->                         
+                        
+                        a.appr_yn1,       <!-- 팀장승인여부 (Y:결재, N:미결, R:부결)    -->
+                        a.appr_emp1,      <!-- 팀장승인 승인자 						-->
+                       (SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = a.APPR_EMP1 ) APPR_EMP1_NM,  <!-- 팀장승인자 이름  -->
+                        a.appr_date1,     <!-- 팀장승인 승인일자                       			-->
+                        a.appr_yn2,       <!-- 배포승인여부 (Y:결재, N:미결, R:부결) 	-->
+                        a.appr_emp2,      <!--  배포승인 승인자                        			-->
+                        (SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = a.APPR_EMP2 ) APPR_EMP2_NM, <!-- 배포승인자 이름   -->
+                        a.appr_date2,     <!--  배포승인 승인일자                        			--> 
+                        a.distr_filepath, <!--  배포경로 및 배포파일명                 			-->
+                        a.distr_svn_ver,  <!--  SVN버전                                  			--> 
+                        a.distr_dt,       <!--  배포일자                                  			-->
+						a.shared_doc_idx,
+						a.user_test_yn	  <!--  현업테스트 완료 여부					-->	
+					FROM
+	                    crm_as_mgt a
+	                    INNER JOIN crm_cust_mgt b ON a.cust_code = b.erp_code 
+	            ) in_tb
+	        WHERE 1=1  
+	            AND in_tb.del_yn IS NULL 
+               <!-- AND (in_tb.CUST_GUBUN = 'C001' OR in_tb.CUST_CODE = '00000') -->  <!-- 거래처구분이 JW그룹 인 경우에만 AS승인 프로세스  -->
+                AND in_tb.accept_dt >= '20200901'  <!-- 2020.09.01. 추가 --> 
+               <!--  처리상태 : C000 대기, C001 접수, C010 팀장승인, C011 팀장반려, C005 처리완료, C012 배포승인, C013 배포반려  -->
+                AND in_tb.proc_status IN ('C000','C010','C011','C005','C012','C013')
+                     
+	           <!-- 승인자(팀장,배포) = 로그인사용자 인 경우에만 조회                문의유형 기준으로 승인대상 Y인 건만 조회    -->  
+	            AND ((in_tb.APPR_GB = '1' AND in_tb.GYUL_GB1 = 'Y' <!-- 승인대상1 --> AND (in_tb.APPR_EMP1 = #{reg_id} or ((SELECT Z.VAL3 <!-- 팀장승인 대체자 --> 
+																		                 											    FROM CRM_CODE_DETAIL Z 
+																		                 											   WHERE Z.CODE_GROUP = 'AS'
+																																	     AND Z.P_CODE = 'CD09' 
+																																	     AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = in_tb.ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')    
+	                                              																	or in_tb.assign_id is null) )   <!-- 배정담당자 공란 건 조회되도록 2020.11.17. 김재용부장님 요청  -->
+	             OR  (in_tb.APPR_GB = '2' AND in_tb.GYUL_GB2 = 'Y' <!-- 승인대상2 --> AND in_tb.USER_TEST_YN = 'Y' 
+	              																    AND (in_tb.APPR_EMP2 = #{reg_id} or (SELECT Z.VAL4 <!-- 배포승인 대체자 --> 
+	              																    											        FROM CRM_CODE_DETAIL Z 
+	              																    											       WHERE Z.CODE_GROUP = 'AS' 
+	              																    											         AND Z.P_CODE = 'CD09' 
+	              																    											         AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = in_tb.ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%'			         
+	              																    											         ))) 
+	              																    											         
+                                                                    
+               <!--  조회조건 라디오버튼 미결, 결재, 전체     -->
+                AND ((DECODE(in_tb.APPR_GB,'1',in_tb.APPR_YN1,in_tb.APPR_YN2) = 'N'   and #{state_chk} = 'A')  		  <!-- 미결  -->
+                 OR (DECODE(in_tb.APPR_GB,'1',in_tb.APPR_YN1,in_tb.APPR_YN2) IN ('Y','R')    and #{state_chk} = 'B')  <!-- 결재  -->
+                 OR (DECODE(in_tb.APPR_GB,'1',in_tb.APPR_YN1,in_tb.APPR_YN2) like '%' and #{state_chk} = 'C')) 	 	  <!-- 전체  -->              
+                 
+       	<!--  조회조건 접수일자 기간-->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != '' ">
+				AND IN_TB.ACCEPT_DT BETWEEN #{search_start} AND #{search_end}
+			</if>
+		</if>	
+        <!-- 조회조건 처리상태 -->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.proc_status = #{search_type1}
+		</if>
+        	
+	
+		) OUT_TB
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+			WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+			ORDER BY RNUM DESC    
+	</if>	
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
+		ORDER BY RNUM DESC    
+	</if>		
+	</select>
+        
+	<select id="getAsApprListCnt" parameterType="asVO" resultType="java.lang.Integer">
+	<!-- A/S관리 AS승인 조회화면 건수 쿼리 2020.08.19. // 여러 명이 승인 가능하도록 추가 수정 2024.04.15 -->   
+	    SELECT 
+	        COUNT(IN_TB.AS_NO) 
+	    FROM (
+	        SELECT
+	            A.AS_NO          ,A.CN_AS_NO         ,A.APPLY_NM     
+	            ,A.PROC_STATUS   ,A.CUST_CODE        ,A.SYSTEM_TYPE     
+	            ,A.INQUIRY_TYPE  ,A.INPORTANCE       ,A.CAUSE_TYPE       
+	            ,A.ACTION_TYPE   ,A.ASSIGN_ID        ,A.STAR_STATE       
+	            ,B.ERP_CODE      ,B.CUST_KOR_NAME 	 ,A.DEL_YN
+	            ,A.PROC_GRADE		      
+	            ,(SELECT Z.EMP_NM FROM CRM_EMP_MGT Z WHERE Z.EMP_NO = A.ASSIGN_ID) emp_nm  
+	            ,A.ACCEPT_DT
+	            ,A.INQUIRY_DT
+	            ,A.CALL_CONTENT
+	            ,A.ACTION_CONTENT
+	            ,A.COMPLETE_DT
+	            ,B.CUST_GUBUN
+	            ,A.ACCEPT_ROUTE
+                ,CASE WHEN a.proc_status IN ('C005','C012','C013') THEN '2'                                                
+                 ELSE '1' END AS APPR_GB  <!-- 1 팀장, 2 배포  -->
+                 
+                ,(SELECT Z.VAL1 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = a.REQUEST_TYPE) GYUL_GB1 		<!-- 승인대상(팀장) -->
+                ,(SELECT Z.VAL2 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD06' AND Z.CODE = a.ACTION_TYPE) GYUL_GB2 		<!-- 승인대상(배포) -->
+                ,(SELECT Z.VAL1 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD09' AND SUBSTR(Z.CODE_NAME,1,5) = 
+                                                                    (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = a.ASSIGN_ID)) GYUL_EMP1  <!-- 승인자(팀장) -->
+                ,(SELECT Z.VAL2 FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD09' AND SUBSTR(Z.CODE_NAME,1,5) = 
+                                                                    (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = a.ASSIGN_ID)) GYUL_EMP2  <!-- 승인자(배포) -->            
+                 
+                ,a.appr_yn1       <!-- 팀장승인여부 (Y:결재, N:미결, R:부결) -->
+                ,a.appr_emp1      <!-- 팀장승인 승인자    -->
+                ,a.appr_date1     <!-- 팀장승인 승인일자  -->                 
+                ,a.appr_yn2       <!-- 배포승인여부 (Y:결재, N:미결, R:부결) -->
+                ,a.appr_emp2      <!-- 배포승인 승인자    --> 
+                ,a.appr_date2     <!-- 배포승인 승인일자 -->                                    
+                ,a.user_test_yn   <!-- 현업테스트 완료 여부 -->                                    	
+	        FROM         
+	            CRM_AS_MGT A 
+	            INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.ERP_CODE
+	    ) IN_TB
+	    WHERE 1=1 
+	      AND in_tb.del_yn IS NULL 
+          AND in_tb.accept_dt >= '20200901'  <!-- 2020.09.01. 추가 -->           
+          AND in_tb.proc_status IN ('C000','C010','C011','C005','C012','C013') 
+                       
+
+         <!-- 승인자(팀장,배포) = 로그인사용자 인 경우에만 조회                조치유형(문의유형에서 변경) 기준으로 승인대상 Y인 건만 조회    -->  
+            AND ((in_tb.APPR_GB = '1' AND in_tb.GYUL_GB1 = 'Y' <!-- 승인대상1 --> AND (in_tb.APPR_EMP1 = #{reg_id} or ((SELECT Z.VAL3 <!-- 팀장승인 대체자 --> 
+																	                 											    FROM CRM_CODE_DETAIL Z 
+																	                 											   WHERE Z.CODE_GROUP = 'AS'
+																																     AND Z.P_CODE = 'CD09' 
+																																     AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = in_tb.ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')     
+                                              																	or in_tb.assign_id is null) )   <!-- 배정담당자 공란 건 조회되도록 2020.11.17. 김재용부장님 요청  -->
+             OR  (in_tb.APPR_GB = '2' AND in_tb.GYUL_GB2 = 'Y' <!-- 승인대상2 --> AND in_tb.USER_TEST_YN = 'Y' 
+              																    AND (in_tb.APPR_EMP2 = #{reg_id} or (SELECT Z.VAL4 <!-- 배포승인 대체자 --> 
+              																    											        FROM CRM_CODE_DETAIL Z 
+              																    											       WHERE Z.CODE_GROUP = 'AS' 
+              																    											         AND Z.P_CODE = 'CD09' 
+              																    											         AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = in_tb.ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%' 			         
+              																    											         )))   
+
+          <!-- 조회조건 라디오버튼 미결, 결재, 전체 --> 
+          AND ((DECODE(in_tb.APPR_GB,'1',in_tb.APPR_YN1,in_tb.APPR_YN2) = 'N'   and #{state_chk} = 'A')   		 <!-- 미결 -->
+           OR (DECODE(in_tb.APPR_GB,'1',in_tb.APPR_YN1,in_tb.APPR_YN2) IN ('Y','R')    and #{state_chk} = 'B')   <!-- 결재 -->
+           OR (DECODE(in_tb.APPR_GB,'1',in_tb.APPR_YN1,in_tb.APPR_YN2) like '%' and #{state_chk} = 'C'))  		 <!-- 전체 -->
+	
+       <!--  조회조건 접수일자 기간 -->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) == 'Y'.toString() ">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != '' ">
+				AND IN_TB.ACCEPT_DT BETWEEN #{search_start} AND #{search_end}
+			</if>
+		</if>	 
+        <!-- 조회조건 처리상태 -->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.proc_status = #{search_type1}
+		</if>	    	
+	</select>  
+ 
+	<!-- A/S관리 AS승인 팀장승인 결재 및 부결 시 UPDATE 하기전 해당AS번호 중복체크 쿼리 (APPR_GB = '1'인경우) 2020.08.19.  // 여러 명이 승인 가능하도록 추가 수정 2024.04.15 -->      
+	<select id="getAsApprCnt1" parameterType="asVO" resultType="java.lang.Integer">
+	/*[egov-as-query.xml] asDAO.getAsApprCnt1*/
+		SELECT COUNT(*) 
+			FROM CRM_AS_MGT 
+		WHERE 1=1 
+			AND AS_NO = #{as_no, jdbcType=VARCHAR}
+        	AND (APPR_EMP1 = #{reg_id}  or ((SELECT Z.VAL3 <!-- 팀장승인 대체자 --> 
+        												   FROM CRM_CODE_DETAIL Z 
+        												  WHERE Z.CODE_GROUP = 'AS' 
+        												    AND Z.P_CODE = 'CD09' 
+        												    AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')				    
+            	                        or ASSIGN_ID is null)    <!-- 배정담당자 공란 건  2020.11.18. 김재용부장님 요청  --> 
+        	AND PROC_STATUS IN ('C000') 
+	</select>
+
+	<!-- A/S관리 AS승인 팀장승인 결재 시 UPDATE 쿼리 2020.08.19.  // 여러 명이 승인 가능하도록 추가 수정 2024.04.15 -->       
+	<update id="updateAsApprYn1_Y" parameterType="asVO">
+	/*[egov-as-query.xml] asDAO.updateAsApprYn1_Y*/
+		UPDATE CRM_AS_MGT
+		SET
+            APPR_YN1 = 'Y',                           <!-- 팀장승인여부 (Y:결재, N:미결, R:부결) -->
+            APPR_DATE1 = TO_CHAR(SYSDATE,'YYYYMMDD'), <!-- 팀장승인 승인일자 -->
+			PROC_STATUS = 'C010',                     <!-- C000 대기, C001 접수, C010 팀장승인, C011 팀장반려 --> 
+			UPT_DATE = SYSDATE, 
+			UPT_ID = #{reg_id, jdbcType=VARCHAR}
+		WHERE 1=1
+			AND AS_NO = #{as_no, jdbcType=VARCHAR}
+        	AND (APPR_EMP1 = #{reg_id}  or ((SELECT Z.VAL3 <!-- 팀장승인 대체자 --> 
+        												   FROM CRM_CODE_DETAIL Z 
+        												  WHERE Z.CODE_GROUP = 'AS' 
+        												    AND Z.P_CODE = 'CD09' 
+        												    AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')				    
+                                    	or ASSIGN_ID is null)    <!-- 배정담당자 공란 건  2020.11.18. 김재용부장님 요청  --> 
+          	AND PROC_STATUS IN ('C000')
+	
+	</update> 	
+
+   
+	<!-- A/S관리 AS승인 팀장승인 부결 시 UPDATE 쿼리 2020.08.19.   // 여러 명이 승인 가능하도록 추가 수정 2024.04.15 -->    
+	<update id="updateAsApprYn1_N" parameterType="asVO">
+	/*[egov-as-query.xml] asDAO.updateAsApprYn1_N*/
+		UPDATE CRM_AS_MGT 
+		   SET APPR_YN1 = 'R'         <!-- 팀장승인여부 (Y:결재, N:미결, R:부결)  -->
+             , APPR_DATE1 = NULL     <!-- 팀장승인 승인일자 초기화 -->
+			 , PROC_STATUS = 'C011'  <!-- C000 대기, C001 접수, C010 팀장승인, C011 팀장반려   -->
+			 , UPT_DATE = SYSDATE   
+			 , UPT_ID = #{reg_id, jdbcType=VARCHAR}
+			 , ACTION_CONTENT = #{action_content, jdbcType=VARCHAR} <!-- 조치처리의견에 반려사유 -->
+		 WHERE 1=1 
+		   AND AS_NO = #{as_no, jdbcType=VARCHAR}
+       	   AND (APPR_EMP1 = #{reg_id}  or ((SELECT Z.VAL3 <!-- 팀장승인 대체자 --> 
+       	   												  FROM CRM_CODE_DETAIL Z 
+       	   												 WHERE Z.CODE_GROUP = 'AS' 
+       	   												   AND Z.P_CODE = 'CD09' 
+       	   												   AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')				   
+                                   		or ASSIGN_ID is null)    <!-- 배정담당자 공란 건  2020.11.18. 김재용부장님 요청  --> 
+           AND PROC_STATUS IN ('C000')
+	
+	</update> 
+
+
+	<select id="getAsApprCnt1_C" parameterType="asVO" resultType="java.lang.Integer">
+	/* select id="getAsApprCnt1_C" parameterType="asVO" resultType="java.lang.Integer" */
+	<!-- A/S관리 AS승인 팀장승인 취소 시 UPDATE 하기전 해당AS번호 중복체크 쿼리 (APPR_GB = '1'인경우) 2020.09.04.  // 여러 명이 승인 가능하도록 추가 수정 2024.04.15  -->      
+		SELECT COUNT(*) FROM CRM_AS_MGT 
+		WHERE 1=1 
+		AND AS_NO = #{as_no, jdbcType=VARCHAR}
+        AND (APPR_EMP1 = #{reg_id}  or ((SELECT Z.VAL3 <!-- 팀장승인 대체자 --> 
+        											   FROM CRM_CODE_DETAIL Z 
+        											  WHERE Z.CODE_GROUP = 'AS' 
+        											    AND Z.P_CODE = 'CD09' 
+        											    AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')				    
+                                    or ASSIGN_ID is null)    <!-- 배정담당자 공란 건  2020.11.18. 김재용부장님 요청  --> 
+        AND PROC_STATUS IN ('C010','C011')
+		        
+	</select>	
+	
+
+	<update id="updateAsApprYn1_C" parameterType="asVO">
+	/* update id="updateAsApprYn1_C" parameterType="asVO" */
+	<!-- A/S관리 AS승인 팀장승인 취소 시 UPDATE 쿼리 2020.08.19.  // 여러 명이 승인 가능하도록 추가 수정 2024.04.15 -->   
+		UPDATE CRM_AS_MGT
+		SET
+            APPR_YN1 = 'N',       <!-- 팀장승인여부 (Y:결재, N:미결, R:부결)-->
+            APPR_DATE1 = NULL,    <!-- 팀장승인 승인일자 초기화 -->
+			PROC_STATUS = 'C000', <!-- C000 대기, C001 접수, C010 팀장승인, C011 팀장반려-->
+			UPT_DATE = SYSDATE,   
+			UPT_ID = #{reg_id, jdbcType=VARCHAR}
+		WHERE AS_NO = #{as_no, jdbcType=VARCHAR}
+        AND (APPR_EMP1 = #{reg_id}  or ((SELECT Z.VAL3 <!-- 팀장승인 대체자 --> 
+        											   FROM CRM_CODE_DETAIL Z 
+        											  WHERE Z.CODE_GROUP = 'AS' 
+        											    AND Z.P_CODE = 'CD09' 
+        											    AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')			    
+                                    or ASSIGN_ID is null)    <!-- 배정담당자 공란 건  2020.11.18. 김재용부장님 요청  --> 
+          AND PROC_STATUS IN ('C010','C011')  
+	
+	</update> 
+
+
+
+	<select id="getAsApprCnt2" parameterType="asVO" resultType="java.lang.Integer">
+	<!--A/S관리 AS승인 배포승인 결재 또는 부결시 UPDATE 하기전 해당AS번호 중복체크 쿼리 (APPR_GB = '2'인경우) 2020.08.19. // 여러 명이 승인 가능하도록 추가 수정 2024.04.15-->     
+		SELECT COUNT(*) FROM CRM_AS_MGT 
+		WHERE 1=1 
+		AND AS_NO = #{as_no, jdbcType=VARCHAR}
+        AND (APPR_EMP2 = #{reg_id}  or  (SELECT Z.VAL4 <!-- 배포승인 대체자 --> 
+        												FROM CRM_CODE_DETAIL Z 
+        											   WHERE Z.CODE_GROUP = 'AS' 
+        											     AND Z.P_CODE = 'CD09' 
+        											     AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')				     
+        											     
+        AND PROC_STATUS = 'C005'
+	      
+	</select>
+
+
+	<update id="updateAsApprYn2_Y" parameterType="asVO">
+	<!-- A/S관리 AS승인 배포승인 결재 시 UPDATE 쿼리 2020.08.19. // 여러 명이 승인 가능하도록 추가 수정 2024.04.15-->     
+		UPDATE CRM_AS_MGT
+		SET
+            APPR_YN2 = 'Y',                           <!-- 배포승인여부 (Y:결재, N:미결, R:부결)-->
+            APPR_DATE2 = TO_CHAR(SYSDATE,'YYYYMMDD'), <!-- 배포승인 승인일자 -->
+            APPR_TIME2 = TO_CHAR(SYSDATE, 'HH24:MI:SS'), <!-- 배포승인 승인시간--> 
+			PROC_STATUS = 'C012',                     <!-- C005 처리완료, C012 배포승인, C013 배포반려  -->
+			UPT_DATE = SYSDATE, 
+			UPT_ID = #{reg_id, jdbcType=VARCHAR}
+		WHERE AS_NO = #{as_no, jdbcType=VARCHAR}
+        AND (APPR_EMP2 = #{reg_id}  or (SELECT Z.VAL4 <!-- 배포승인 대체자 --> 
+        												FROM CRM_CODE_DETAIL Z 
+        											   WHERE Z.CODE_GROUP = 'AS' 
+        											     AND Z.P_CODE = 'CD09' 
+        											     AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%')				     
+        											     
+          AND PROC_STATUS = 'C005'
+	
+	</update> 
+
+   
+	<update id="updateAsApprYn2_N" parameterType="asVO">
+	<!-- A/S관리 AS승인 배포승인 부결 시 UPDATE 쿼리 2020.08.19. // 여러 명이 승인 가능하도록 추가 수정 2024.04.15-->      
+		UPDATE CRM_AS_MGT
+		SET
+            APPR_YN2 = 'R'        <!-- 배포승인여부 (Y:결재, N:미결, R:부결) -->
+            ,APPR_DATE2 = NULL     <!--  배포승인 승인일자 초기화 -->
+            ,APPR_TIME2 = NULL     <!--  배포승인 승인시간 초기화 -->
+			,PROC_STATUS = 'C013'  <!-- C005 처리완료, C012 배포승인, C013 배포반려  -->
+			,UPT_DATE = SYSDATE   
+			,UPT_ID = #{reg_id, jdbcType=VARCHAR}
+			,ACTION_CONTENT = #{action_content, jdbcType=VARCHAR} <!-- 조치처리의견에 반려사유 -->
+		WHERE AS_NO = #{as_no, jdbcType=VARCHAR}
+        AND (APPR_EMP2 = #{reg_id}  or  (SELECT Z.VAL4 <!-- 배포승인 대체자 --> 
+        												FROM CRM_CODE_DETAIL Z 
+        											   WHERE Z.CODE_GROUP = 'AS' 
+        											     AND Z.P_CODE = 'CD09' 
+        											     AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%' )
+          AND PROC_STATUS = 'C005'
+	
+	</update> 
+
+
+	<select id="getAsApprCnt2_C" parameterType="asVO" resultType="java.lang.Integer">
+	<!--A/S관리 AS승인 배포승인 취소시 UPDATE 하기전 해당AS번호 중복체크 쿼리 (APPR_GB = '2'인경우) 2020.09.04. // 여러 명이 승인 가능하도록 추가 수정 2024.04.15-->     
+		SELECT COUNT(*) FROM CRM_AS_MGT 
+		WHERE 1=1 
+		AND AS_NO = #{as_no, jdbcType=VARCHAR}
+        AND (APPR_EMP2 = #{reg_id}  or (SELECT Z.VAL4 <!-- 배포승인 대체자 --> 
+        											    FROM CRM_CODE_DETAIL Z 
+        											   WHERE Z.CODE_GROUP = 'AS' 
+        											     AND Z.P_CODE = 'CD09' 
+        											     AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%'|| #{reg_id} ||'%' )				     
+        AND PROC_STATUS IN ('C012','C013') 
+	      
+	</select>
+	
+
+	<!-- A/S관리 AS승인 배포승인 취소 시 UPDATE 쿼리 2020.08.19. // 여러 명이 승인 가능하도록 추가 수정 2024.04.15-->  
+	<update id="updateAsApprYn2_C" parameterType="asVO">
+		UPDATE CRM_AS_MGT
+		SET
+            APPR_YN2 = 'N',        <!-- 배포승인여부 (Y:결재, N:미결, R:부결)-->
+            APPR_DATE2 = NULL,     <!-- 배포승인 승인일자 초기화 -->
+            APPR_TIME2 = NULL,     <!-- 배포승인 승인일자 초기화 -->
+			PROC_STATUS = 'C005',  <!-- C005 처리완료, C012 배포승인, C013 배포반려 -->
+			UPT_DATE = SYSDATE,   
+			UPT_ID = #{reg_id, jdbcType=VARCHAR}
+		WHERE 1=1
+			AND AS_NO = #{as_no, jdbcType=VARCHAR}
+        	AND (APPR_EMP2 = #{reg_id}  or  (SELECT Z.VAL4 <!-- 배포승인 대체자 --> 
+        													FROM CRM_CODE_DETAIL Z 
+        												   WHERE Z.CODE_GROUP = 'AS' 
+        												     AND Z.P_CODE = 'CD09' 
+        												     AND SUBSTR(Z.CODE_NAME,1,5) = (SELECT z.dept2_cd FROM crm_emp_mgt z WHERE z.emp_no = ASSIGN_ID)) LIKE '%' || #{reg_id} || '%')				     
+          	AND PROC_STATUS IN ('C012','C013') 
+	
+	</update> 	
+	
+	<!-- CMC query paging 중분류 popup  2020.01.12.--> 
+	<select id="getCategoryListCnt" parameterType="asVO" resultType="java.lang.Integer">
+	    SELECT COUNT(*)
+	    FROM (
+	    	SELECT A.CODE
+            FROM CRM_CODE_DETAIL A 
+           	WHERE
+            	A.CODE_GROUP     = 'AS' 
+            	AND	A.P_CODE     = 'CD13'
+            	AND USE_YN = 'Y'
+           	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text2) != ''">
+				AND A.VAL1       = #{search_text2}
+			</if>
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+				AND (UPPER(A.CODE_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%'  OR A.CODE LIKE '%' || #{search_text}||'%')
+			</if>
+	    )
+	</select>  
+	
+	<select id="getCategoryList" parameterType="asVO" resultType="asVO">    
+	   SELECT IN_TB.*  FROM(
+	    	SELECT A.CODE_NAME AS CATEGORY_NAME
+	    	, A.CODE AS CATEGORY_ID
+            ,ROW_NUMBER() OVER (ORDER BY A.P_CODE ) AS RNUM 
+            FROM CRM_CODE_DETAIL A 
+            WHERE
+            	A.CODE_GROUP = 'AS' 
+            AND	A.P_CODE     = 'CD13'
+            AND USE_YN = 'Y'
+            <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text2) != ''">
+				AND A.VAL1       = #{search_text2}
+			</if>
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+				AND (UPPER(A.CODE_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%'  OR A.CODE LIKE '%' || #{search_text}||'%')
+			</if>
+		) IN_TB
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY RNUM DESC
+	</select>  
+	
+	<!-- CMC query paging 프로그램명 popup  2020.01.12.--> 
+	<select id="getProgramListCnt" parameterType="asVO" resultType="java.lang.Integer">
+	    SELECT COUNT(*)
+	    FROM (
+	    	SELECT A.PROGRAM_NM
+            FROM CRM_AS_PROGRAM_MGT A 
+            WHERE 1 = 1
+            <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text3) != ''">
+				AND A.CATEGORIES = #{search_text3}
+			</if>
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text4) != ''">
+				AND A.SYSTEM = #{search_text4}
+			</if>
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+				AND (UPPER(A.PROGRAM_NM) LIKE '%'|| UPPER(#{search_text}) ||'%'  OR A.PROGRAM_CODE LIKE '%' || #{search_text}||'%')
+			</if>
+	    )
+	</select>  
+	
+	<select id="getProgramList" parameterType="asVO" resultType="asVO">    
+	   SELECT IN_TB.*  FROM(
+	    	SELECT A.PROGRAM_NM AS PROGRAM_NAME
+	    	, A.PROGRAM_CODE AS PROGRAM_ID
+	    	, A.CATEGORIES AS CATEGORY_ID
+	    	,(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD13' AND Z.CODE = A.CATEGORIES) CATEGORY_NAME
+            ,ROW_NUMBER() OVER (ORDER BY A.PROGRAM_CODE ) AS RNUM 
+            FROM CRM_AS_PROGRAM_MGT A 
+            WHERE 1 = 1
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text3) != ''">
+				AND A.CATEGORIES = #{search_text3}
+			</if>
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text4) != ''">
+				AND A.SYSTEM = #{search_text4}
+			</if>
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+				AND (UPPER(A.PROGRAM_NM) LIKE '%'|| UPPER(#{search_text}) ||'%'  OR A.PROGRAM_CODE LIKE '%' || #{search_text}||'%')
+			</if>
+		) IN_TB
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+	</select>  
+	
+	
+	<!-- 사용자테스트 유무 확인 -->
+	<select id="checkUserTestYn" parameterType="asVO" resultType="java.lang.Integer">
+	/*[egov-as-query.xml] asDAO.checkUserTestYn*/
+		SELECT 
+			COUNT(*) 
+		FROM CRM_AS_MGT
+		WHERE 1=1
+			AND AS_NO = #{as_no, jdbcType=VARCHAR}
+			AND USER_TEST_IP IS NULL	
+	</select>
+
+	<!-- 사용자테스트 상세 정보 update -->
+	<update id="updateUserTest" parameterType="asVO">
+	/*[egov-as-query.xml] asDAO.updateUserTest*/
+		UPDATE CRM_AS_MGT 
+		   SET USER_TEST_YN		= #{user_test_yn, jdbcType=VARCHAR}
+			 , USER_TEST_DT 	= TO_CHAR(SYSDATE,'YYYYMMDD')
+			 , USER_TEST_TIME 	= TO_CHAR(SYSDATE,'HH24:MI:SS')
+			 , USER_TEST_IP 	= #{user_test_ip, jdbcType=VARCHAR}
+			 , USER_TEST_ID 	= #{user_test_id, jdbcType=VARCHAR}
+			 , NORMAL_OPER_YN 	= #{normal_oper_yn, jdbcType=VARCHAR}
+			 , TEST_NOTE 		= #{test_note, jdbcType=VARCHAR}
+		WHERE AS_NO 			= #{as_no, jdbcType=VARCHAR}
+	</update>
+
+		<!-- 하위작업 개수 측정(해당 AS번호에 대해 하위작업 존재 유무 확인) -->  <!-- 2023.07.11. 하위작업생성 관련 추가(A) --> 
+	<select id="checkCnAsYn" parameterType="asVO" resultType="java.lang.Integer">
+	<![CDATA[ 
+		SELECT 
+			COUNT(*) 
+		FROM CRM_AS_MGT
+		WHERE 1=1
+			AND CN_AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>	
+	</select>
+	
+		<!-- 배포가 필요한 하위작업 개수 파악(C001:프로그램 신규 개발, C017:프로그램 개선) -->  <!-- 2023.08.01. 하위작업생성 관련 추가(B) --> 
+	<select id="checkCnAsDepYn" parameterType="asVO" resultType="java.lang.Integer">
+	<![CDATA[ 
+		SELECT COUNT(*)
+		FROM CRM_AS_MGT 
+		WHERE 1=1
+		AND CN_AS_NO = #{as_no,jdbcType=VARCHAR}
+		AND ACTION_TYPE IN ('C001','C002')
+	]]>	
+	</select>
+
+		<!-- 해당 AS건이 처리완료 상태로 변경되기 위한 하위작업들의 처리상태 확인(해당 AS번호에 대해 하위작업 처리상태 확인/하위작업 최종상태가 배포승인이 없을 때) -->  <!-- 2023.07.11. 하위작업생성 관련 추가(C) --> 
+	<select id="checkCnAsStatus" parameterType="asVO" resultType="java.lang.Integer">
+	<![CDATA[ 
+		SELECT 
+			COUNT(*) 
+		FROM CRM_AS_MGT
+		WHERE 1=1
+			AND CN_AS_NO = #{as_no,jdbcType=VARCHAR}
+			AND (ACTION_TYPE NOT IN ('C001','C002') OR ACTION_TYPE IS NULL)
+           AND PROC_STATUS IN ('C000','C004','C010')
+           ]]>	
+	</select>
+	
+	    <!-- 배포가 필요한 하위작업이 있을 경우 처리가 종료된 하위작업 개수 파악('배포가 필요하면서 작업이 종료된 하위작업 개수' + '배포가 필요없으면서 작업이 종료된 하위작업 개수') -->  <!-- 2023.08.01. 하위작업생성 관련 추가(D) --> 
+	<select id="checkCnAsDepStatus" parameterType="asVO" resultType="java.lang.Integer">
+	<![CDATA[ 
+		SELECT COUNT(*)
+		FROM CRM_AS_MGT
+		WHERE 1=1
+		AND CN_AS_NO = #{as_no,jdbcType=VARCHAR}
+		AND ((PROC_STATUS IN('C006','C009','C011')) OR
+        (PROC_STATUS IN('C005') AND ACTION_TYPE IN ('C003','C004','C005','C006','C007','C999')) OR
+        (PROC_STATUS IN('C012','C013') AND ACTION_TYPE IN ('C001','C002')))
+	]]>	
+	</select>
+	
+	<!-- 처리담당자에 대한 승인자(배포)의 이메일 -->  <!-- 2023.08.16. 하위작업생성 관련 추가(배포 관련 이메일 발송) -->
+	<select id="getApprEmail" parameterType="asVO" resultType="java.lang.String">
+	<![CDATA[ 
+		SELECT E_MAIL
+		FROM CRM_EMP_MGT
+		WHERE EMP_NO=(SELECT Z.VAL2 AS GYUL_EMP2
+		              FROM CRM_CODE_DETAIL Z
+		              WHERE 1=1
+		              AND Z.CODE_GROUP = 'AS'
+		              AND Z.P_CODE = 'CD09'
+		              AND SUBSTR(Z.CODE_NAME, 1, 5) = (SELECT dept2_cd
+		                                               FROM crm_emp_mgt
+		                                               WHERE emp_no = #{assign_id}))
+	]]>		  	
+	</select>
+	
+	<!-- 하위작업 작업시간 업데이트 할 경우 메인 작업의 작업시간 또한 자동적으로 업데이트 --> <!-- 2023.11.06  하위작업생성 관련 추가(하위작업 작업시간에 따라 메인작업 작업시간 자동 업데이트) -->
+	<update id="updateMainAsWorkTime" parameterType="asVO">
+		UPDATE CRM_AS_MGT SET 
+			WORK_TIME = (SELECT SUM(WORK_TIME) FROM CRM_AS_MGT WHERE CN_AS_NO = #{cn_as_no, jdbcType=VARCHAR} AND PROC_STATUS IN ('C005','C012'))
+		WHERE
+			AS_NO = #{cn_as_no, jdbcType=VARCHAR}
+	</update>
+
+</mapper>

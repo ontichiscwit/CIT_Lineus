@@ -1,0 +1,1033 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="statDAO">
+		
+	<select id="getList01List" parameterType="statVO" resultType="statVO">
+	<![CDATA[
+		SELECT IN_TB.* FROM (
+			SELECT DISTINCT 
+				A.CRM_CODE,		/*CRM코드*/
+				A.CUST_CODE,    /*거래처코드(ERP)*/
+				A.CUST_NM,		/*거래처마스터 사업자등록명*/		
+				A.CUST_GUBUN,        					
+				A.FOUNDATION_DT,           
+				A.CONTRACT_DT,		
+				D.ACTION_RESULT_CODE,    
+				         
+				B.OPEN_DT,           	
+				B.TERM_PERSON_COUNT, 			
+				B.PM,
+				B.TEST_DT,           		
+				B.VERSION,           						
+				B.FORMATION_CODE,          
+				B.OS,                			
+				B.MTAC_CONTRACT_DT,  				
+				NVL(B.CUST_KOR_NAME,A.CUST_NM) AS CUST_KOR_NAME,	/*프로젝트정보 거래처명*/      
+				B.BASIC_ETC,        	
+				B.BED_COUNT,  
+				         
+				C.DEAL_CODE,         	
+				C.HIS_BASIC_CODE,        				
+				C.HIS_TREAT_CODE,    
+				C.HIS_WORK_CODE,	
+				C.HIS_CLAIM_CODE,        				               
+				C.CARE_GRADE,                   
+				C.OS AS C_OS,			
+				G.GUBUN,                 					
+				G.CONTENTS,               
+				G.ETC,
+				         
+				B.CUST_GUBUN AS B_CUST_GUBUN,                      
+				B.OLD_COMPANY_NM,    
+				B.OUTSIDE_CUST_CODE,     
+				F.CHARGE_CODE,       
+				F.CHARGE_NM,     
+				         
+				B.VETERANS_YN,                 
+				B.MILITARY_YN,   
+				C.VETERANS_YN AS C_VETERANS_YN,                 
+				C.MILITARY_YN AS C_MILITARY_YN,
+				C.CHOICE_YN,
+				C.DENTIST_YN,			
+				C.MENTAL_YN,             					
+				C.ORIENTAL_YN,       
+				C.HEMODIALYSIS_YN,	
+				C.CARE_YN,          
+				
+				C.EMERGENCYOP_YN, /* 응급실운영 여부 */
+				C.NEDIS_YN,       /* NEDIS사용 여부 */
+				C.NARCOTICS_YN,   /* 마약류연계 여부 */
+				C.ONTICSENSE_YN,  /* Ontic Sense 여부 */
+				C.VAN_YN,         /* van인터페이스 여부 */
+				
+				C.OLD_COMPANY_NM AS C_OLD_COMPANY_NM,    
+				C.OUTSIDE_CUST_CODE AS C_OUTSIDE_CUST_CODE,     
+				E.CHARGE_CODE AS E_CHARGE_CODE,  
+				E.CHARGE_NM AS E_CHARGE_NM,
+               
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD01' AND Z.CODE = A.CUST_GUBUN) CUST_GUBUN_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD14' AND Z.CODE = B.VERSION) VERSION_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD15' AND Z.CODE = B.FORMATION_CODE) FORMATION_CODE_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD18' AND Z.CODE = B.OS) OS_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD26' AND Z.CODE = B.OUTSIDE_CUST_CODE) OUTSIDE_CUST_CODE_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD27' AND Z.CODE = F.CHARGE_CODE) CHARGE_CODE_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD03' AND Z.CODE = C.DEAL_CODE) DEAL_CODE_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD04' AND Z.CODE = C.HIS_BASIC_CODE) HIS_BASIC_CODE_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD05' AND Z.CODE = C.HIS_TREAT_CODE) HIS_TREAT_CODE_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD06' AND Z.CODE = C.HIS_WORK_CODE) HIS_WORK_CODE_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD07' AND Z.CODE = C.HIS_CLAIM_CODE) HIS_CLAIM_CODE_NM,
+				(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD11' AND Z.CODE = D.ACTION_RESULT_CODE) ACTION_RESULT_CODE_NM
+			FROM CRM_CUST_MGT A 
+			INNER JOIN CRM_CUST_PROJECT_MGT B ON A.SEQ = B.SEQ
+			INNER JOIN CRM_CUST_OPERATE_INFO C ON B.SEQ = C.SEQ
+			LEFT OUTER JOIN CRM_CUST_MGT_ISSUE D ON A.SEQ = D.SEQ
+            LEFT OUTER JOIN CRM_CUST_OPERATE_CHARGE E ON C.SEQ = E.SEQ
+            LEFT OUTER JOIN CRM_CUST_PROJECT_CHARGE F ON B.SEQ = F.SEQ
+            LEFT OUTER JOIN CRM_CUST_OPERATE_NOTE G ON C.SEQ = G.SEQ
+		) IN_TB
+		WHERE 
+            1=1
+	]]>
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(queryWhere) != ""'>
+		${queryWhere}
+	</if>	
+		ORDER BY IN_TB.CUST_NM ASC
+	</select>
+	
+	<select id="getMtacList" parameterType="statVO" resultType="statVO">
+	<![CDATA[
+		SELECT 
+			IN_TB.* 
+		FROM (
+		SELECT
+		    A.CUST_KOR_NAME ,		C.AUTO_RENEW_YN ,		C.CONTRACT_SEQ ,		C.CONTRACT_NM ,
+		    C.CONTRACT_DT ,			C.MTAC_START_DT,
+		    C.MTAC_END_DT,			(TO_NUMBER(TO_DATE(C.MTAC_END_DT, 'YYYYMMDD') - TO_DATE(TO_CHAR(SYSDATE , 'YYYYMMDD'), 'YYYYMMDD'))) MTAC_CALC ,
+		    C.MON_OFF_AMT ,
+		    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='CUST' AND P_CODE ='CD28' AND CODE = C.BILL_CODE) BILL_CODE ,
+		    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='CUST' AND P_CODE ='CD29' AND CODE = C.MTAC_CODE) MTAC_CODE ,
+		    (
+		      SELECT 
+		        SUM(UBO_AMT) - SUM(SU_AMT) 
+		       FROM (
+		       SELECT 
+					X.ERP_CODE,
+					SUBSTR(SALE_DT,1,6) SALE_YM, 
+				    SUM(NVL(UBO_AMT,0)) UBO_AMT, 
+				    SUM(NVL(SU_AMT,0)) SU_AMT    
+				FROM ( 
+				        SELECT DISTINCT ERP_CODE FROM CRM_CUST_MGT_HIST
+				        WHERE CRM_CODE = 'HOS204'
+				     ) X,
+				     (SELECT CUST_CD,SALE_DT,WON_AMT + VAT_AMT UBO_AMT ,COLL_WON_AMT SU_AMT
+				      FROM   KYERP.TB_SD_RECEIVABLE_DTL
+				      WHERE  ITEM_CD     IN('C300000001','H000000110')
+				     ) Y
+				WHERE X.ERP_CODE = Y.CUST_CD(+)  
+		        AND Y.SALE_DT <= TO_CHAR(LAST_DAY( ADD_MONTHS(SYSDATE , -1)), 'YYYYMMDD')
+		        GROUP BY X.ERP_CODE,SUBSTR(SALE_DT,1,6)
+				ORDER BY 1,2 ASC
+		        )
+		        WHERE  ERP_CODE = A.ERP_CODE
+		       ) RECEIVE_AMT ,
+		       
+		       (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='CUST' AND P_CODE ='CD36' AND CODE = C.BUY_BUSI_NAME) BUY_BUSI_NAME ,
+		       (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='CUST' AND P_CODE ='CD37' AND CODE = C.SERVICE_PERIOD) SERVICE_PERIOD ,
+		       (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='CUST' AND P_CODE ='CD38' AND CODE = C.SERVICE_METHOD) SERVICE_METHOD ,
+		       
+		       C.BUY_COST ,		A.SEQ , 							A.CRM_CODE
+		    
+		FROM
+		    CRM_CUST_MGT A
+	]]>
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) != "Y"'>
+	<![CDATA[ 	INNER JOIN CRM_CUST_MAINTENANCE_HIST C ON A.SEQ = C.SEQ ]]>
+	</if>
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) == "Y"'>
+	<![CDATA[ 	
+		INNER JOIN (SELECT SEQ , MAX(DTL_SEQ) DTL_SEQ FROM CRM_CUST_MAINTENANCE_HIST GROUP BY SEQ) B ON A.SEQ = B.SEQ
+		INNER JOIN CRM_CUST_MAINTENANCE_HIST C ON A.SEQ = C.SEQ AND B.DTL_SEQ = C.DTL_SEQ
+	]]>
+	</if>
+	
+	<![CDATA[ 	
+		INNER JOIN CRM_CUST_OPERATE_INFO D ON A.SEQ = D.SEQ
+		WHERE 1 = 1 
+	]]>
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ""'>
+	<![CDATA[ 	AND C.BILL_CODE = #{search_type1, jdbcType=VARCHAR} ]]>
+	</if>
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ""'>
+	<![CDATA[ 	AND D.DEAL_CODE = #{search_type2, jdbcType=VARCHAR} ]]>
+	</if>
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == "B"'>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) == "1"'>
+			<![CDATA[ 	AND C.MTAC_END_DT >= TO_CHAR(ADD_MONTHS(SYSDATE , -1), 'YYYYMMDD')  ]]>	
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) == "2"'>
+			<![CDATA[ 	AND C.MTAC_END_DT >= TO_CHAR(ADD_MONTHS(SYSDATE , -2), 'YYYYMMDD')  ]]>	
+		</if>
+		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) == "3"'>
+			<![CDATA[ 	AND C.MTAC_END_DT >= TO_CHAR(ADD_MONTHS(SYSDATE , -3), 'YYYYMMDD')  ]]>	
+		</if>
+	</if>
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(start_date) != ""'>
+	<![CDATA[ 	AND C.CONTRACT_DT >= #{start_date, jdbcType=VARCHAR} ]]>
+	</if>
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(end_date) != ""'>
+	<![CDATA[ 	AND C.CONTRACT_DT <= #{end_date, jdbcType=VARCHAR} ]]>
+	</if>
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ""'>
+	<![CDATA[ 	AND REGEXP_REPLACE(C.MON_OFF_AMT, ',', '') >= #{search_text, jdbcType=VARCHAR} ]]>
+	</if>
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text2) != ""'>
+	<![CDATA[ 	AND REGEXP_REPLACE(C.MON_OFF_AMT, ',', '') <= #{search_text2, jdbcType=VARCHAR} ]]>
+	</if>
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text3) != ""'>
+	<![CDATA[ 	AND UPPER(A.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_type3, jdbcType=VARCHAR}) ||'%' ]]>
+	</if>
+	) IN_TB
+	
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type5) == "B"'>
+	<![CDATA[ 	WHERE  RECEIVE_AMT > 0 ]]>
+	</if>
+			
+	</select>
+	
+	<select id="getNewStatList" parameterType="map" resultType="custVO">
+	<![CDATA[
+	SELECT IN_TB.*, ROW_NUMBER() OVER(
+	                ORDER BY
+	                    IN_TB.CUST_KOR_NAME DESC
+	            ) AS RNUM
+	FROM (
+	    SELECT  
+	        -- 관리정보
+	        A.SEQ ,   -- 번호
+	        A.CUST_ADDRESS ,   -- 사업자소재지
+	        A.CUST_KOR_NAME ,   -- 거래처명
+	        A.CRM_CODE ,   -- crm코드
+	        A.CUST_GUBUN ,   -- 거래처 구분 코드
+	        DECODE(A.CUST_GUBUN , null , '' , (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD01' AND  Z.CODE = A.CUST_GUBUN)) AS CUST_GUBUN_NM ,  -- 거래처구분 명
+	        A.FOUNDATION_CODE ,   -- 재단구분코드
+	        DECODE(A.FOUNDATION_CODE , null , '' , (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD08' AND  Z.CODE = A.FOUNDATION_CODE)) AS FOUNDATION_CODE_NM ,  -- 재단구분명
+	        A.FOUNDATION_DT ,   -- 병원 설립일
+	        A.CONTRACT_DT ,   -- 계약일자
+	        A.BED_COUNT ,   -- 병상BED
+	        -- 운영정보
+	        B.DEAL_CODE ,   -- 거래상태 코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD03' AND  Z.CODE = B.DEAL_CODE) AS DEAL_CODE_NM ,  -- 거래상태코드명
+	        B.HIS_BASIC_CODE ,   -- HIS 기초버전 코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD04' AND  Z.CODE = B.HIS_BASIC_CODE) AS HIS_BASIC_CODE_NM ,   -- HIS기초버전 명
+	        B.HIS_TREAT_CODE ,   -- HIS 진료버전 코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD05' AND  Z.CODE = B.HIS_TREAT_CODE) AS HIS_TREAT_CODE_NM ,   -- HIS진료버전 명
+	        B.HIS_WORK_CODE ,   -- HIS 원무버전 코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD06' AND  Z.CODE = B.HIS_WORK_CODE) AS HIS_WORK_CODE_NM ,   -- HIS원무버전 명
+	        B.HIS_CLAIM_CODE ,   -- HIS 청구버전 코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD07' AND  Z.CODE = B.HIS_CLAIM_CODE) AS HIS_CLAIM_CODE_NM ,   -- HIS청구버전 명
+	        B.SPECIALLY_CODE,   -- 전무병원 여부
+	        B.BED_COUNT as O_BED_COUNT,   -- 병상 BED
+	        B.VETERANS_YN,   -- 보훈여부
+	        B.MILITARY_YN,   -- 군지역소재
+	        B.CHOICE_YN,   -- 선택진료
+	        B.DENTIST_YN,   -- 치과유무
+	        B.MENTAL_YN,   -- 정신과
+	        B.ORIENTAL_YN,   -- 한방
+	        B.HEMODIALYSIS_YN,   -- 혈액투석
+	        B.CARE_YN,   -- 포괄간호
+	        B.DOCTOR_COUNT,   -- 의사수
+	        B.NURSE_COUNT,   -- 간호사수
+	        B.CARE_GRADE,   -- 간호등급
+	        B.NEW_CODE,   -- 신규/기존코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD25' AND  Z.CODE = B.NEW_CODE) AS NEW_CODE_NM ,   -- 신규/기존코드 명
+	        B.OLD_COMPANY_NM,   -- 기존전산업체 명
+	        B.COME_COUNT,   -- 일평균 내원자수
+	        B.OUTSIDE_CUST_CODE,   -- 외부 수탁 업체코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD26' AND  Z.CODE = B.OUTSIDE_CUST_CODE) AS OUTSIDE_CUST_CODE_NM ,   -- 외부 수탁업체명
+	        B.CHARGE_YN,   -- 청구여부
+	        B.DETAIL_ETC,   -- 특이사항
+	        -- 프로젝트 정보
+	        C.CUST_KOR_NAME AS P_CUST_KOR_NAME,   -- 거래처명
+	        C.CRM_CODE AS P_CRM_CODE,   -- CRM코드
+	        C.CUST_GUBUN AS P_CUST_GUBUN ,   -- 거래처 구분 코드
+	        DECODE(A.CUST_GUBUN , null , '' , (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD01' AND  Z.CODE = C.CUST_GUBUN)) AS P_CUST_GUBUN_NM ,  -- 거래처구분 명
+	        C.NEW_CODE AS P_NEW_CODE , -- 신규/기존코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD25' AND  Z.CODE = C.NEW_CODE) AS P_NEW_CODE_NM ,   -- 신규/기존코드 명
+	        C.OLD_COMPANY_NM AS P_OLD_COMPANY_NM ,   -- 기존전산업체 명
+	        C.SPECIALLY_CODE AS P_SPECIALLY_CODE ,   -- 전무병원 여부
+	        C.VERSION ,   -- PJT OCS/EMR ver
+	        C.PM ,   -- PM
+	        C.ADDR ,   -- 주소
+	        C.TREAT_NO ,   -- 요양기관기호
+	        C.CUST_NO ,   -- 사업자번호
+	        C.DOCTOR_COUNT AS P_DOCTOR_COUNT,   -- 의사수
+	        C.BED_COUNT AS P_BED_COUNT,   -- 병상 BED
+	        C.TERM_START_DT,   -- 투입기간1
+	        C.TERM_END_DT,   -- 투입기간2
+	        C.OPEN_DT,   -- 전산오픈일
+	        C.TEST_DT,   -- 최종검수일
+	        C.FORMATION_CODE ,   -- 구성
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD15' AND  Z.CODE = C.FORMATION_CODE) AS FORMATION_CODE_NM ,   -- 구성 명
+	        C.SERVER_CODE ,   -- 서버 제조사/모델 코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD16' AND  Z.CODE = C.SERVER_CODE) AS SERVER_CODE_NM ,   -- 서버 제조사/모델 코드
+	        C.OS ,   -- OS 코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD18' AND  Z.CODE = C.OS) AS OS_NM ,   -- OS 명
+	        C.RAM ,   -- 서버RAM 코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD19' AND  Z.CODE = C.RAM) AS RAM_NM ,   -- RAM 명
+	        C.PC ,   -- PC 
+	        C.ORACLE_VERSION ,   -- 오라클 버전
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD21' AND  Z.CODE = C.ORACLE_VERSION) AS ORACLE_VERSION_NM ,   -- 오라클 버전 명
+	        C.OUTSIDE_CUST_CODE AS P_OUTSIDE_CUST_CODE,   -- 외부 수탁 업체코드
+	        (SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z WHERE Z.CODE_GROUP = 'CUST' AND Z.P_CODE = 'CD26' AND  Z.CODE = C.OUTSIDE_CUST_CODE) AS P_OUTSIDE_CUST_CODE_NM ,   -- 외부 수탁업체명
+	        C.BASIC_ETC AS P_BASIC_ETC, -- 기타설명
+	        C.DETAIL_ETC AS P_DETAIL_ETC -- 특이사항
+	    FROM 
+	        CRM_CUST_MGT A 
+	        LEFT OUTER JOIN CRM_CUST_OPERATE_INFO B ON A.SEQ = B.SEQ 
+	        LEFT OUTER JOIN CRM_CUST_PROJECT_MGT C ON A.SEQ = C.SEQ
+	    where 
+	        A.CRM_CODE IN (${crmList})
+	) IN_TB
+	ORDER BY RNUM DESC
+	]]>
+	</select>
+	
+	<select id="AssignProcStatus_old" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,NVL(TB2.ANSWER_CNT,0) AS ANSWER_CNT
+	    ,ROUND(C005 / TB1.TOT * 100,2) AS AS_RATE
+	    ,ROUND(NVL(TB2.ANSWER_CNT,0) / TB1.TOT * 100,2) AS ANSWER_RATE
+	    ,NVL(TB3.REG_CNT,0) AS REG_CNT
+	FROM (
+	    SELECT ASSIGN_ID
+	        ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = ASSIGN_ID) AS ASSIGN_NM
+	        ,COUNT(PROC_STATUS) AS TOT
+	        ,SUM(CASE PROC_STATUS WHEN 'C002' THEN 1 ELSE 0 END) AS C002
+	        ,SUM(CASE PROC_STATUS WHEN 'C003' THEN 1 ELSE 0 END) AS C003
+	        ,SUM(CASE PROC_STATUS WHEN 'C004' THEN 1 ELSE 0 END) AS C004
+	        ,SUM(CASE PROC_STATUS WHEN 'C005' THEN 1 ELSE 0 END) AS C005
+	    FROM CRM_AS_MGT
+	    WHERE PROC_STATUS IN ('C002','C003','C004','C005')
+	    AND DEL_YN IS NULL
+	    AND ASSIGN_ID IN (SELECT EMP_NO FROM CRM_EMP_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY ASSIGN_ID
+	    ) TB1
+	    ,
+	    (
+	    SELECT ASSIGN_ID, SUM(DECODE(CNT,0,0,1)) AS ANSWER_CNT
+	    FROM (
+	        SELECT A.ASSIGN_ID, COUNT(A.AS_NO) AS CNT FROM CRM_AS_MGT A, CRM_AS_MGT_ANSWER B
+	        WHERE A.PROC_STATUS IN ('C002','C003','C004','C005')
+	        AND A.DEL_YN IS NULL
+	        AND ACCEPT_DT IS NOT NULL
+	        AND LENGTH(ACCEPT_DT) = 8
+	        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        AND A.AS_NO = B.AS_NO
+	        AND A.ASSIGN_ID = B.W_ID
+	        GROUP BY ASSIGN_ID, A.AS_NO
+	        )
+	    GROUP BY ASSIGN_ID
+	    ) TB2
+	    ,
+	    (
+		SELECT A.REG_ID,
+		    COUNT(NVL(A.REG_ID, 0)) AS REG_CNT 
+	    FROM CRM_AS_MGT A, CRM_EMP_MGT B
+	    	WHERE 1=1
+	      AND A.DEL_YN IS NULL
+	      AND A.REG_ID = B.EMP_NO
+	      AND ACCEPT_DT IS NOT NULL
+	      AND LENGTH(ACCEPT_DT) = 8
+	      AND (TO_DATE(ACCEPT_DT, 'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000', 'YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959', 'YYYYMMDDHH24MISS'))
+	      GROUP BY A.REG_ID
+  		 )TB3
+	WHERE 1=1
+	AND TB1.ASSIGN_ID = TB2.ASSIGN_ID(+)
+	AND TB1.ASSIGN_ID = TB3.REG_ID(+) 
+	ORDER BY TB1.ASSIGN_NM
+	]]>
+	</select>
+	
+	
+	<select id="AssignProcStatus" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	
+		SELECT 
+		    NVL(IN_TB.TOT,0) TOT
+		    ,NVL(IN_TB.C004,0) C004
+		    ,NVL(IN_TB.C005,0) C005
+		    ,NVL(IN_TB.ANSWER_CNT,0) ANSWER_CNT
+		    ,NVL(IN_TB.AS_RATE,0) AS_RATE
+		    ,NVL(IN_TB.ANSWER_RATE,0) ANSWER_RATE
+		    ,NVL(IN_TB.ASSIGN_ID,TB3.REG_ID)ASSIGN_ID
+		    ,NVL(IN_TB.ASSIGN_NM1,TB3.REG_NM)ASSIGN_NM
+		    ,NVL(TB3.REG_CNT,0) AS REG_CNT
+		FROM(SELECT  TB1.*
+			    ,NVL(TB2.ANSWER_CNT,0) AS ANSWER_CNT
+			    ,ROUND(C005 / TB1.TOT * 100,2) AS AS_RATE
+			    ,ROUND(NVL(TB2.ANSWER_CNT,0) / TB1.TOT * 100,2) AS ANSWER_RATE
+			    
+			FROM (
+			    SELECT ASSIGN_ID
+			        ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = ASSIGN_ID) AS ASSIGN_NM1
+			        ,COUNT(PROC_STATUS) AS TOT
+			        ,SUM(CASE PROC_STATUS WHEN 'C004' THEN 1 ELSE 0 END) AS C004
+			        ,SUM(CASE PROC_STATUS WHEN 'C005' THEN 1 ELSE 0 END) AS C005
+			    FROM CRM_AS_MGT
+			    WHERE PROC_STATUS IN ('C004','C005')
+			    AND DEL_YN IS NULL
+			    AND ASSIGN_ID IN (SELECT EMP_NO FROM CRM_EMP_MGT)
+			    AND ACCEPT_DT IS NOT NULL
+		        AND LENGTH(ACCEPT_DT) = 8
+		        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+			    GROUP BY ASSIGN_ID
+			    ) TB1
+			    ,
+			    (
+			    SELECT ASSIGN_ID, SUM(DECODE(CNT,0,0,1)) AS ANSWER_CNT
+			    FROM (
+			        SELECT A.ASSIGN_ID, COUNT(A.AS_NO) AS CNT FROM CRM_AS_MGT A, CRM_AS_MGT_ANSWER B
+			        WHERE A.PROC_STATUS IN ('C004','C005')
+			        AND A.DEL_YN IS NULL
+			        AND ACCEPT_DT IS NOT NULL
+			        AND LENGTH(ACCEPT_DT) = 8
+			        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+			        AND A.AS_NO = B.AS_NO
+			        AND A.ASSIGN_ID = B.W_ID
+			        GROUP BY ASSIGN_ID, A.AS_NO
+			        )
+			    GROUP BY ASSIGN_ID
+			    ) TB2
+			WHERE 1=1
+			AND TB1.ASSIGN_ID = TB2.ASSIGN_ID(+)
+			ORDER BY TB1.ASSIGN_NM1
+			)IN_TB FULL OUTER JOIN  
+			(
+			SELECT 
+			     A.REG_ID
+			    ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = A.REG_ID) AS REG_NM
+			    ,COUNT(NVL(A.REG_ID, 0)) AS REG_CNT 
+		    FROM CRM_AS_MGT A, CRM_EMP_MGT B
+		    	WHERE 1=1
+		      AND A.DEL_YN IS NULL
+		      AND A.REG_ID = B.EMP_NO
+		      AND ACCEPT_DT IS NOT NULL
+		      AND LENGTH(ACCEPT_DT) = 8
+		      AND (TO_DATE(ACCEPT_DT, 'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000', 'YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959', 'YYYYMMDDHH24MISS'))
+		      GROUP BY A.REG_ID
+			)TB3
+		ON IN_TB.ASSIGN_ID = TB3.REG_ID
+	]]>
+	</select>
+	
+	
+	<select id="AssignAcceptRoute" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,NVL(TB2.ANSWER_CNT,0) AS ANSWER_CNT
+	    ,ROUND(NVL(TB2.ANSWER_CNT,0) / TB1.TOT * 100,2) AS ANSWER_RATE
+	FROM (
+	    SELECT ASSIGN_ID
+	        ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = ASSIGN_ID) AS ASSIGN_NM
+	        ,COUNT(ACCEPT_ROUTE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE ACCEPT_ROUTE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD02')
+	    AND DEL_YN IS NULL
+	    AND ASSIGN_ID IN (SELECT EMP_NO FROM CRM_EMP_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY ASSIGN_ID
+	    ) TB1
+	    ,
+	    (
+	    SELECT ASSIGN_ID, SUM(DECODE(CNT,0,0,1)) AS ANSWER_CNT
+	    FROM (
+	        SELECT A.ASSIGN_ID, COUNT(A.AS_NO) AS CNT FROM CRM_AS_MGT A, CRM_AS_MGT_ANSWER B
+	        WHERE ACCEPT_ROUTE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD02')
+	        AND A.DEL_YN IS NULL
+	        AND ACCEPT_DT IS NOT NULL
+	        AND LENGTH(ACCEPT_DT) = 8
+	        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        AND A.AS_NO = B.AS_NO
+	        AND A.ASSIGN_ID = B.W_ID
+	        GROUP BY ASSIGN_ID, A.AS_NO
+	        )
+	    GROUP BY ASSIGN_ID
+	    ) TB2
+	    
+	WHERE 1=1 
+	AND TB1.ASSIGN_ID = TB2.ASSIGN_ID(+)
+	ORDER BY TB1.ASSIGN_NM
+	]]>
+	</select>
+	
+	<select id="AssignServiceCate" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,NVL(TB2.ANSWER_CNT,0) AS ANSWER_CNT
+	    ,ROUND(NVL(TB2.ANSWER_CNT,0) / TB1.TOT * 100,2) AS ANSWER_RATE
+	FROM (
+	    SELECT ASSIGN_ID
+	        ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = ASSIGN_ID) AS ASSIGN_NM
+	        ,COUNT(SERVICE_CATE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE SERVICE_CATE in (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD03')
+	    AND DEL_YN IS NULL
+	    AND ASSIGN_ID IN (SELECT EMP_NO FROM CRM_EMP_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY ASSIGN_ID
+	    ) TB1
+	    ,
+	    (
+	    SELECT ASSIGN_ID, SUM(DECODE(CNT,0,0,1)) AS ANSWER_CNT
+	    FROM (
+	        SELECT A.ASSIGN_ID, COUNT(A.AS_NO) AS CNT FROM CRM_AS_MGT A, CRM_AS_MGT_ANSWER B
+	        WHERE SERVICE_CATE in (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD03')
+	        AND A.DEL_YN IS NULL
+	        AND ACCEPT_DT IS NOT NULL
+	        AND LENGTH(ACCEPT_DT) = 8
+	        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        AND A.AS_NO = B.AS_NO
+	        AND A.ASSIGN_ID = B.W_ID
+	        GROUP BY ASSIGN_ID, A.AS_NO
+	        )
+	    GROUP BY ASSIGN_ID
+	    ) TB2
+	    
+	WHERE 1=1 
+	AND TB1.ASSIGN_ID = TB2.ASSIGN_ID(+)
+	ORDER BY TB1.ASSIGN_NM
+	]]>
+	</select>
+	
+	<select id="AssignCauseType" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,NVL(TB2.ANSWER_CNT,0) AS ANSWER_CNT
+	    ,ROUND(NVL(TB2.ANSWER_CNT,0) / TB1.TOT * 100,2) AS ANSWER_RATE
+	  
+	FROM (
+	    SELECT ASSIGN_ID
+	        ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = ASSIGN_ID) AS ASSIGN_NM
+	        ,COUNT(CAUSE_TYPE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE CAUSE_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD05')
+	    AND DEL_YN IS NULL
+	    AND ASSIGN_ID IN (SELECT EMP_NO FROM CRM_EMP_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY ASSIGN_ID
+	    ) TB1
+	    ,
+	    (
+	    SELECT ASSIGN_ID, SUM(DECODE(CNT,0,0,1)) AS ANSWER_CNT
+	    FROM (
+	        SELECT A.ASSIGN_ID, COUNT(A.AS_NO) AS CNT FROM CRM_AS_MGT A, CRM_AS_MGT_ANSWER B
+	        WHERE CAUSE_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD05')
+	        AND A.DEL_YN IS NULL
+	        AND ACCEPT_DT IS NOT NULL
+	        AND LENGTH(ACCEPT_DT) = 8
+	        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        AND A.AS_NO = B.AS_NO
+	        AND A.ASSIGN_ID = B.W_ID
+	        GROUP BY ASSIGN_ID, A.AS_NO
+	        )
+	    GROUP BY ASSIGN_ID
+	    ) TB2
+	    
+	WHERE 1=1
+	AND TB1.ASSIGN_ID = TB2.ASSIGN_ID(+)
+	ORDER BY TB1.ASSIGN_NM
+	]]>
+	</select>
+	
+	<select id="AssignActionType" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,NVL(TB2.ANSWER_CNT,0) AS ANSWER_CNT
+	    ,ROUND(NVL(TB2.ANSWER_CNT,0) / TB1.TOT * 100,2) AS ANSWER_RATE
+	FROM (
+	    SELECT ASSIGN_ID
+	        ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = ASSIGN_ID) AS ASSIGN_NM
+	        ,COUNT(ACTION_TYPE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE ACTION_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD06')
+	    AND DEL_YN IS NULL
+	    AND ASSIGN_ID IN (SELECT EMP_NO FROM CRM_EMP_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY ASSIGN_ID
+	    ) TB1
+	    ,
+	    (
+	    SELECT ASSIGN_ID, SUM(DECODE(CNT,0,0,1)) AS ANSWER_CNT
+	    FROM (
+	        SELECT A.ASSIGN_ID, COUNT(A.AS_NO) AS CNT FROM CRM_AS_MGT A, CRM_AS_MGT_ANSWER B
+	        WHERE ACTION_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD06')
+	        AND A.DEL_YN IS NULL
+	        AND A.ACCEPT_DT IS NOT NULL
+            AND LENGTH(A.ACCEPT_DT) = 8
+            AND (TO_DATE(A.ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        AND A.AS_NO = B.AS_NO
+	        AND A.ASSIGN_ID = B.W_ID
+	        GROUP BY ASSIGN_ID, A.AS_NO
+	        )
+	    GROUP BY ASSIGN_ID
+	    ) TB2
+	    
+	WHERE 1=1
+	AND TB1.ASSIGN_ID = TB2.ASSIGN_ID(+)
+	ORDER BY TB1.ASSIGN_NM
+	]]>
+	</select>
+	
+	<select id="AssignRequestType" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,NVL(TB2.ANSWER_CNT,0) AS ANSWER_CNT
+	    ,ROUND(NVL(TB2.ANSWER_CNT,0) / TB1.TOT * 100,2) AS ANSWER_RATE
+	FROM (
+	    SELECT ASSIGN_ID
+	        ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = ASSIGN_ID) AS ASSIGN_NM
+	        ,COUNT(REQUEST_TYPE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE REQUEST_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD07')
+	    AND DEL_YN IS NULL
+	    AND ASSIGN_ID IN (SELECT EMP_NO FROM CRM_EMP_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY ASSIGN_ID
+	    ) TB1
+	    ,
+	    (
+	    SELECT ASSIGN_ID, SUM(DECODE(CNT,0,0,1)) AS ANSWER_CNT
+	    FROM (
+	        SELECT A.ASSIGN_ID, COUNT(A.AS_NO) AS CNT FROM CRM_AS_MGT A, CRM_AS_MGT_ANSWER B
+	        WHERE REQUEST_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD07')
+	        AND A.DEL_YN IS NULL
+	        AND A.ACCEPT_DT IS NOT NULL
+            AND LENGTH(A.ACCEPT_DT) = 8
+            AND (TO_DATE(A.ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        AND A.AS_NO = B.AS_NO
+	        AND A.ASSIGN_ID = B.W_ID
+	        GROUP BY ASSIGN_ID, A.AS_NO
+	        )
+	    GROUP BY ASSIGN_ID
+	    ) TB2
+	    
+	WHERE 1=1
+	AND TB1.ASSIGN_ID = TB2.ASSIGN_ID(+)
+	ORDER BY TB1.ASSIGN_NM
+	]]>
+	</select>
+	
+	<select id="CustProcStatus" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,(SELECT MAX(Z.CUST_KOR_NAME) FROM CRM_CUST_MGT Z WHERE Z.CRM_CODE = TB1.CUST_CODE) AS CUST_NM
+	FROM (
+	    SELECT CUST_CODE
+	        ,COUNT(ACCEPT_ROUTE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE ACCEPT_ROUTE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD01')
+	    AND DEL_YN IS NULL
+	    AND CUST_CODE IN (SELECT CRM_CODE FROM CRM_CUST_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY CUST_CODE
+	    ) TB1
+	ORDER BY CUST_NM
+	]]>
+	</select>
+	
+	<select id="CustAcceptRoute" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,(SELECT MAX(Z.CUST_KOR_NAME) FROM CRM_CUST_MGT Z WHERE Z.CRM_CODE = TB1.CUST_CODE) AS CUST_NM
+	FROM (
+	    SELECT CUST_CODE
+	        ,COUNT(ACCEPT_ROUTE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE ACCEPT_ROUTE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD02')
+	    AND DEL_YN IS NULL
+	    AND CUST_CODE IN (SELECT CRM_CODE FROM CRM_CUST_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY CUST_CODE
+	    ) TB1
+	ORDER BY CUST_NM
+	]]>
+	</select>
+	
+	<select id="CustRequestType" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,(SELECT MAX(Z.CUST_KOR_NAME) FROM CRM_CUST_MGT Z WHERE Z.CRM_CODE = TB1.CUST_CODE) AS CUST_NM
+	FROM (
+	    SELECT CUST_CODE
+	        ,COUNT(REQUEST_TYPE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE REQUEST_TYPE in (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD07')
+	    AND DEL_YN IS NULL
+	    AND CUST_CODE IN (SELECT CRM_CODE FROM CRM_CUST_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY CUST_CODE
+	    ) TB1
+	ORDER BY CUST_NM
+	]]>
+	</select>
+	
+	<select id="CustServiceCate" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,(SELECT MAX(Z.CUST_KOR_NAME) FROM CRM_CUST_MGT Z WHERE Z.CRM_CODE = TB1.CUST_CODE) AS CUST_NM
+	FROM (
+	    SELECT CUST_CODE
+	        ,COUNT(SERVICE_CATE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE SERVICE_CATE in (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD03')
+	    AND DEL_YN IS NULL
+	    AND CUST_CODE IN (SELECT CRM_CODE FROM CRM_CUST_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY CUST_CODE
+	    ) TB1
+	ORDER BY CUST_NM
+	]]>
+	</select>
+	
+	<select id="CustCauseType" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,(SELECT MAX(Z.CUST_KOR_NAME) FROM CRM_CUST_MGT Z WHERE Z.CRM_CODE = TB1.CUST_CODE) AS CUST_NM
+	FROM (
+	    SELECT CUST_CODE
+	        ,COUNT(CAUSE_TYPE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE CAUSE_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD05')
+	    AND DEL_YN IS NULL
+	    AND CUST_CODE IN (SELECT CRM_CODE FROM CRM_CUST_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY CUST_CODE
+	    ) TB1
+	ORDER BY CUST_NM
+	]]>
+	</select>
+	
+	<select id="CustActionType" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	    ,(SELECT MAX(Z.CUST_KOR_NAME) FROM CRM_CUST_MGT Z WHERE Z.CRM_CODE = TB1.CUST_CODE) AS CUST_NM
+	FROM (
+	    SELECT CUST_CODE
+	        ,COUNT(ACTION_TYPE) AS TOT
+	        ${col_str}
+	    FROM CRM_AS_MGT
+	    WHERE ACTION_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD06')
+	    AND DEL_YN IS NULL
+	    AND CUST_CODE IN (SELECT CRM_CODE FROM CRM_CUST_MGT)
+	    AND ACCEPT_DT IS NOT NULL
+        AND LENGTH(ACCEPT_DT) = 8
+        AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	    GROUP BY CUST_CODE
+	    ) TB1
+	ORDER BY CUST_NM
+	]]>
+	</select>
+	
+	<select id="getRangeColMonths" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT 
+	    'SUM(DECODE(ACCEPT_DT,'''|| YYYYMM ||''',1,0)) AS M' || YYYYMM || '' AS COLS
+	    , 'M'||YYYYMM||'' AS FIELDNAME
+    	, TO_CHAR(TO_DATE(YYYYMM,'YYYYMM'),'YYYY/MM') AS LABEL
+	FROM (
+	    SELECT TO_CHAR(ADD_MONTHS(TO_DATE(#{search_start},'YYYYMM'),LEVEL-1),'YYYYMM') AS YYYYMM 
+	    FROM DUAL 
+	    CONNECT BY LEVEL <= (SELECT MONTHS_BETWEEN(TO_DATE(#{search_end},'YYYYMM'), TO_DATE(#{search_start},'YYYYMM')) + 1 
+	                        FROM DUAL)
+	    )
+	]]>
+	</select>
+	
+	<select id="getRangeColDays" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT 
+	    'SUM(DECODE(ACCEPT_DT,'''|| YYYYMMDD ||''',1,0)) AS M'||YYYYMMDD||'' AS COLS
+	    , 'M'||YYYYMMDD||'' AS FIELDNAME
+    	, TO_CHAR(TO_DATE(YYYYMMDD,'YYYYMMDD'),'YYYY/MM/DD') AS LABEL
+	FROM (
+	    SELECT TO_CHAR((TO_DATE(#{search_start},'YYYYMMDD') + LEVEL-1),'YYYYMMDD') AS YYYYMMDD
+	    FROM DUAL 
+	    CONNECT BY LEVEL <= (SELECT (TO_DATE(#{search_end},'YYYYMMDD') - TO_DATE(#{search_start},'YYYYMMDD')) + 1 
+	                        FROM DUAL)
+	    )
+	]]>
+	</select>
+	
+	<select id="RangAcceptRouteMonths" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT ACCEPT_ROUTE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD02' AND CODE = ACCEPT_ROUTE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT SUBSTR(ACCEPT_DT,0,6) AS ACCEPT_DT, ACCEPT_ROUTE FROM CRM_AS_MGT
+	            WHERE ACCEPT_ROUTE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD02')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '01000000','YYYYMMDDHH24MISS') AND LAST_DAY(TO_DATE(#{search_end} || '012359','YYYYMMDDHH24MISS')))
+	        )
+	    GROUP BY ACCEPT_ROUTE
+	    ) TB1
+	ORDER BY ACCEPT_ROUTE
+	]]>
+	</select>
+	
+	<select id="RangAcceptRouteDays" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT ACCEPT_ROUTE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD02' AND CODE = ACCEPT_ROUTE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT ACCEPT_DT, ACCEPT_ROUTE FROM CRM_AS_MGT
+	            WHERE ACCEPT_ROUTE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD02')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        )
+	    GROUP BY ACCEPT_ROUTE
+	    ) TB1
+	ORDER BY ACCEPT_ROUTE
+	]]>
+	</select>
+	
+	<select id="RangRequestTypeMonths" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT REQUEST_TYPE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD07' AND CODE = REQUEST_TYPE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT SUBSTR(ACCEPT_DT,0,6) AS ACCEPT_DT, REQUEST_TYPE FROM CRM_AS_MGT
+	            WHERE REQUEST_TYPE in (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD07')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '01000000','YYYYMMDDHH24MISS') AND LAST_DAY(TO_DATE(#{search_end} || '012359','YYYYMMDDHH24MISS')))
+	        )
+	    GROUP BY REQUEST_TYPE
+	    ) TB1
+	ORDER BY REQUEST_TYPE
+	]]>
+	</select>
+	
+	<select id="RangRequestTypeDays" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT REQUEST_TYPE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD07' AND CODE = REQUEST_TYPE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT ACCEPT_DT, REQUEST_TYPE FROM CRM_AS_MGT
+	            WHERE REQUEST_TYPE in (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD07')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        )
+	    GROUP BY REQUEST_TYPE
+	    ) TB1
+	ORDER BY REQUEST_TYPE
+	]]>
+	</select>
+	
+	<select id="RangServiceCateMonths" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT SERVICE_CATE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD03' AND CODE = SERVICE_CATE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT SUBSTR(ACCEPT_DT,0,6) AS ACCEPT_DT, SERVICE_CATE FROM CRM_AS_MGT
+	            WHERE SERVICE_CATE in (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD03')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '01000000','YYYYMMDDHH24MISS') AND LAST_DAY(TO_DATE(#{search_end} || '012359','YYYYMMDDHH24MISS')))
+	        )
+	    GROUP BY SERVICE_CATE
+	    ) TB1
+	ORDER BY SERVICE_CATE
+	]]>
+	</select>
+	
+	<select id="RangServiceCateDays" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT SERVICE_CATE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD03' AND CODE = SERVICE_CATE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT ACCEPT_DT, SERVICE_CATE FROM CRM_AS_MGT
+	            WHERE SERVICE_CATE in (SELECT CODE FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD03')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        )
+	    GROUP BY SERVICE_CATE
+	    ) TB1
+	ORDER BY SERVICE_CATE
+	]]>
+	</select>
+	
+	<select id="RangCauseTypeMonths" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT CAUSE_TYPE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD05' AND CODE = CAUSE_TYPE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT SUBSTR(ACCEPT_DT,0,6) AS ACCEPT_DT, CAUSE_TYPE FROM CRM_AS_MGT
+	            WHERE CAUSE_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD05')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '01000000','YYYYMMDDHH24MISS') AND LAST_DAY(TO_DATE(#{search_end} || '012359','YYYYMMDDHH24MISS')))
+	        )
+	    GROUP BY CAUSE_TYPE
+	    ) TB1
+	ORDER BY CAUSE_TYPE
+	]]>
+	</select>
+	
+	<select id="RangCauseTypeDays" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT CAUSE_TYPE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD05' AND CODE = CAUSE_TYPE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT ACCEPT_DT, CAUSE_TYPE FROM CRM_AS_MGT
+	            WHERE CAUSE_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD05')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        )
+	    GROUP BY CAUSE_TYPE
+	    ) TB1
+	ORDER BY CAUSE_TYPE
+	]]>
+	</select>
+	
+	<select id="RangActionTypeMonths" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT ACTION_TYPE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD06' AND CODE = ACTION_TYPE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT SUBSTR(ACCEPT_DT,0,6) AS ACCEPT_DT, ACTION_TYPE FROM CRM_AS_MGT
+	            WHERE ACTION_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD06')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '01000000','YYYYMMDDHH24MISS') AND LAST_DAY(TO_DATE(#{search_end} || '01235959','YYYYMMDDHH24MISS')))
+	        )
+	    GROUP BY ACTION_TYPE
+	    ) TB1
+	ORDER BY ACTION_TYPE
+	]]>
+	</select>
+	
+	<select id="RangActionTypeDays" parameterType="stat2VO" resultType="map">
+	<![CDATA[
+	SELECT  TB1.*
+	FROM (
+	    SELECT ACTION_TYPE
+	    	,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE CODE_GROUP='AS' AND P_CODE='CD06' AND CODE = ACTION_TYPE) AS NAME
+	    	,COUNT(ACCEPT_DT) AS TOT
+	        ${col_str}
+	        
+	    FROM (SELECT ACCEPT_DT, ACTION_TYPE FROM CRM_AS_MGT
+	            WHERE ACTION_TYPE IN (SELECT CODE FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE='CD06')
+	            AND DEL_YN IS NULL
+	            AND ACCEPT_DT IS NOT NULL
+	            AND LENGTH(ACCEPT_DT) = 8
+	            AND (TO_DATE(ACCEPT_DT,'YYYYMMDD') BETWEEN TO_DATE(#{search_start} || '000000','YYYYMMDDHH24MISS') AND TO_DATE(#{search_end} || '235959','YYYYMMDDHH24MISS'))
+	        )
+	    GROUP BY ACTION_TYPE
+	    ) TB1
+	ORDER BY ACTION_TYPE
+	]]>
+	</select>
+	
+	<select id="getColByType" parameterType="map" resultType="map">
+	SELECT CODE
+	,'SUM(CASE ' || #{type} || ' WHEN ''' || CODE || ''' THEN 1 ELSE 0 END) AS ' || CODE AS COLS
+	,CODE_NAME AS LABEL
+	,CODE AS FIELDNAME
+	FROM CRM_CODE_DETAIL WHERE USE_YN='Y' AND CODE_GROUP = 'AS' AND P_CODE = #{pCode}
+	ORDER BY CODE
+	</select>
+	
+</mapper>

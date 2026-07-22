@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="apiAsDAO">
+	
+	
+	<select id="selectUserInfo" parameterType="userVO" resultType="userVO">
+		SELECT 
+			EMP_NO,     EMP_NM,     DEPT_CD,        DEPT_DUTY,
+        	E_MAIL,     MOBILE_NO,  RETIRE_DATE,    PASS,
+       		(SELECT DEPT_NM FROM  KYERP.TB_HR_DEPARTMENT AA WHERE AA.DEPT_CD = Y.DEPT_CD AND  END_YMD = '99991231' ) DEPT_NM , 
+       		(SELECT BASE_CD_NM FROM KYERP.TB_CM_CODE_DTL WHERE BASE_CD_GRP = 'HR0003'  AND  BASE_CD = Y.DEPT_DUTY) AS DEPT_DUTY_NM,
+       		DECODE(RETIRE_DATE,NULL,'Y','N') USE_YN, EMP_GRADE
+		FROM
+			CRM_EMP_MGT Y 
+		WHERE 1=1  
+		AND EMP_NO = #{emp_no} 
+    AND
+        PASS = #{pass}  
+	</select>
+	
+	
+	
+	<select id="getListProcessInfo" parameterType="asVO" resultType="asVO">
+        SELECT 
+            A.AS_NO
+          , A.ACCEPT_DT
+          , A.ACCEPT_TIME
+          , A.ACCEPT_ROUTE
+          , B.CUST_KOR_NAME
+          , A.CUST_CODE
+          , B.CUST_ADDRESS
+          , A.APPLY_NM
+          , A.APPLY_ID
+          , A.APPLY_TEL
+          , A.ASSIGN_ID
+          , A.SERVICE_CATE
+          , C.CODE_NAME AS SERVICE_CATE_NM
+          , A.INQUIRY_TYPE
+          , D.CODE_NAME AS INQUIRY_TYPE_NM
+          , A.CALL_CONTENT
+          , A.PROC_STATUS
+          , E.CODE_NAME AS PROC_STATUS_NM
+          , A.INPORTANCE
+          , F.CODE_NAME AS INPORTANCE_NM
+          , A.PROC_DT
+          , A.FILE_SEQ
+          , A.ATTACH_SEQ2
+          ,	A.ACTION_TYPE
+          ,	G.CODE_NAME AS ACTION_TYPE_NM
+        FROM 
+             CRM_AS_MGT A
+           , CRM_CUST_MGT B 
+           , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD03') C
+           , (SELECT CODE, CODE_NAME, P_CODE FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' ) D
+           , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD01') E
+           , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD04') F
+           , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD06') G
+        WHERE 
+        	1 = 1
+        	AND A.DEL_YN IS NULL  		
+            AND A.CUST_CODE = B.CRM_CODE (+)
+            AND A.SERVICE_CATE = C.CODE (+)
+            AND A.SERVICE_CATE = D.P_CODE (+)
+            AND A.INQUIRY_TYPE = D.CODE (+)
+            AND A.PROC_STATUS = E.CODE (+)
+            AND A.INPORTANCE = F.CODE (+)
+            AND A.ACTION_TYPE = G.CODE (+)
+            <if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ""'>
+	  			AND A.ASSIGN_ID LIKE NVL(#{search_type1}, '') || '%'
+	  		</if>
+	  		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ""'>
+	  			AND A.PROC_DT BETWEEN NVL(#{search_type2},'') AND NVL(#{search_type3},'')
+	 		</if>
+	  		<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ""'>
+	  			AND A.AS_NO LIKE NVL(#{search_type4}, '') || '%'
+	  		</if>
+	  		ORDER BY A.AS_NO 
+	</select> 
+	
+	<select id="getListProcessHistInfo" parameterType="asVO" resultType="asVO">
+         SELECT  
+              A.AS_NO
+            , DECODE (NVL(A.PROC_DT, ''), '', '', DECODE(NVL(A.PROC_TIME, '0000'), '', '' ,
+                        TO_CHAR(TO_DATE(A.PROC_DT || '  ' || DECODE(A.PROC_TIME, 'nullnull', '0000'), 'YYYYMMDD HH24MISS') , 'YYYY-MM-DD HH24:MI:SS'))) AS PROC_TIME
+            , A.SERVICE_CATE
+            , B.CODE_NAME AS SERVICE_CATE_NM
+            , A.INQUIRY_TYPE
+            , C.CODE_NAME AS INQUIRY_TYPE_NM
+            , A.PROC_STATUS
+            , D.CODE_NAME AS PROC_STATUS_NM
+            , A.ACTION_CONTENT
+            , A.CAUSE_TYPE
+            , E.CODE_NAME AS CAUSE_TYPE_NM
+            , A.ACTION_TYPE
+            , F.CODE_NAME AS  ACTION_TYPE_NM
+            , A.CALL_CONTENT
+            , A.ASSIGN_ID
+            , A.INPORTANCE
+            , I.CODE_NAME AS INPORTANCE_NM
+          
+    	FROM 
+              CRM_AS_MGT A
+            , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD03') B
+            , (SELECT CODE, CODE_NAME, P_CODE FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' ) C
+            , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD01') D
+            , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD05') E
+            , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD06') F
+            , (SELECT CODE, CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD04') I
+            
+         WHERE 
+                 1 = 1
+             AND A.DEL_YN IS NULL 
+             AND A.SERVICE_CATE = B.CODE (+)
+             AND A.SERVICE_CATE = C.P_CODE (+)
+             AND A.INQUIRY_TYPE = C.CODE (+)
+             AND A.PROC_STATUS = D.CODE (+)
+             AND A.CAUSE_TYPE = E.CODE (+)
+             AND A.ACTION_TYPE = F.CODE (+)
+             AND A.INPORTANCE = I.CODE (+)  
+             AND A.ASSIGN_ID = NVL(#{search_type1}, '') 
+			 AND A.CUST_CODE = NVL(#{search_type2}, '') 
+			 ORDER BY A.AS_NO 
+	</select>
+	
+	<select id="getActionHistInfo" parameterType="asVO" resultType="asVO">
+		SELECT		
+			SEQ
+			,AS_NO
+			,PROC_DT
+			,ACCEPTOR
+			,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE 1=1 AND EMP_NO =  ACCEPTOR) ACCEPTOR_NM
+			,PROC_STATUS
+			,(SELECT CODE_NAME FROM CRM_CODE_DETAIL WHERE 1 = 1 AND CODE_GROUP ='AS' AND P_CODE='CD01' AND CODE=PROC_STATUS) PROC_STATUS_NM 
+			,ACTION_CONTENT
+			,FILE_SEQ
+			,REG_DATE
+			,REG_ID
+			,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE 1=1 AND EMP_NO = REG_ID) REG_NM
+		FROM CRM_AS_MGT_HIST
+		WHERE 1=1 
+		AND AS_NO = #{as_no, jdbcType=VARCHAR}
+		ORDER BY REG_DATE DESC
+	</select>
+	
+	
+	
+	<select id="getListProcessStatus" parameterType="code2VO" resultType="code2VO">
+		SELECT 
+              CODE
+            , CODE_NAME AS CODE_NM
+		FROM 
+			CRM_CODE_DETAIL 
+		WHERE       
+		        1 = 1 
+		    AND CODE_GROUP = 'AS'
+		    AND P_CODE = 'CD01'
+	</select>	
+
+	<select id="getListCauseType" parameterType="code2VO" resultType="code2VO">
+		SELECT 
+              CODE
+            , CODE_NAME AS CODE_NM
+		FROM 
+			CRM_CODE_DETAIL 
+		WHERE       
+    	        1 = 1 
+		    AND CODE_GROUP = 'AS'
+		    AND P_CODE = 'CD05'
+	</select>	
+	
+	<select id="getListActionType" parameterType="code2VO" resultType="code2VO">
+		SELECT 
+              CODE
+            , CODE_NAME AS CODE_NM
+		FROM 
+			CRM_CODE_DETAIL 
+		WHERE       
+    	        1 = 1 
+		    AND CODE_GROUP = 'AS'
+		    AND P_CODE = 'CD06'
+	</select>	
+
+	<select id="getListPriorityProcessStatus" parameterType="code2VO" resultType="code2VO">
+		SELECT 
+              CODE
+            , CODE_NAME AS CODE_NM
+		FROM 
+			CRM_CODE_DETAIL 
+		WHERE       
+    	        1 = 1 
+		    AND CODE_GROUP = 'AS'
+		    AND P_CODE = 'CD04'
+	</select>	
+	
+	
+	<update id="updateAsInfo" parameterType="asVO">
+		UPDATE CRM_AS_MGT
+		SET 
+              PROC_STATUS 		= #{proc_status, jdbcType=VARCHAR}
+            , PROC_DT 			= #{proc_dt, jdbcType=VARCHAR}
+            , ACTION_TYPE 		= #{action_type, jdbcType=VARCHAR}
+            , ACTION_CONTENT 	= #{action_content, jdbcType=VARCHAR}
+            , ASSIGN_ID			= #{assign_id, jdbcType=VARCHAR}
+            , ATTACH_SEQ2 		= #{attach_seq2,  jdbcType=INTEGER}
+            , CALL_CONTENT		= #{call_content, jdbcType=VARCHAR}	
+		WHERE 1 = 1
+		    AND AS_NO  = #{as_no}
+	</update>
+	
+	<select id="getAttach2" parameterType="asVO" resultType="java.lang.Integer">
+		SELECT COUNT(*) FROM CRM_AS_MGT_HIST 
+			WHERE 1=1
+		AND (FILE_SEQ IS NOT NULL AND FILE_SEQ !='0')
+		AND  AS_NO = #{as_no}
+	</select>
+	
+	<select id="getAnswerList" parameterType="asVO" resultType="asVO">
+		SELECT 
+    		* 
+		FROM CRM_AS_MGT_ANSWER 
+		    WHERE 1=1 
+		AND AS_NO = #{as_no}
+	</select>
+	
+	
+	
+</mapper>

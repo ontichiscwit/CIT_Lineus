@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Script-Type" content="text/javascript" />
+	<meta http-equiv="Content-Style-Type" content="text/css" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=1000" />
+	<meta name="apple-mobile-web-app-title" content="jw Connected Care System" />
+	<title>jw Connected Care System</title>
+	<link rel="stylesheet" type="text/css" href="../../css/jw.css" />
+	<script type="text/javascript" src="/"></script>
+</head>
+<body>
+	<!-- header -->
+	<div id="jw_header">
+		<div class="innerWrap">
+			<h1><a href="/">jw Connected Care System</a></h1>
+			<div class="nav_util">
+				<div class="txt_welcome">
+					<!-- <span class="flag_eng">엔지니어</span> --><span class="flag_admin">관리자</span>관리자1님 환영합니다.
+				</div>
+				<ul>
+					<li><a href="#">개인정보수정</a></li>
+					<li><a href="#">로그아웃</a></li>
+				</ul>
+			</div>
+		</div>
+	</div>
+	<!--// header -->
+
+	<!-- gnb -->
+	<div id="jw_gnb">
+		<div class="innerWrap">
+			<ul class="list5">
+				<li><a href="#">A/S 관리</a></li>
+				<li><a href="#" class="active">거래처 관리</a></li><!-- 활성시 active -->
+				<li><a href="#">계정관리</a></li>
+				<li>
+					<a href="#">게시판관리</a>
+					<ul>
+						<li><a href="#">공지사항 관리</a></li><!-- 활성시 active -->
+						<li><a href="#">FAQ 관리</a></li>
+						<li><a href="#">다운로드 관리</a></li>
+						<li><a href="#">사내 다운로드 관리</a></li>
+						<li><a href="#">기획전 관리</a></li>
+					</ul>	
+				</li>
+				<li><a href="#">통계분석</a></li>
+			</ul>
+		</div>
+	</div>
+	<!--// gnb -->
+
+	<!-- contents -->
+	<div id="jw_contents">
+		<div class="tit_wrap">
+			<h2 class="tit_ico_as">A/S 관리<span class="tit_depth mgl20 mgt8">상세처리내역 조회</span></h2>
+			<div class="location">
+				<a href="#" class="home">Home</a>
+				<a href="#" class="depth"><span class="here">A/S관리</span></a>
+			</div>
+		</div>
+		<!-- process -->
+		<ul class="pro_arrow mgb15">
+			<li>접수</li><!-- 활성시 current -->
+			<li>담당자 배정</li>
+			<li>접수완료(방문예정)</li>
+			<li class="current">처리완료 </li>
+		</ul>
+		<!--// process -->
+		<div class="tit_sWrap">
+			<h3 class="tit_dot_gray">A/S 접수 상세 정보</h3>
+		</div>
+		<!-- tab -->
+		<ul class="tab_line list2 mgb20">
+			<li><a href="#">A/S 접수·처리 정보</a></li>
+			<li class="active"><a href="#">답변내역</a></li><!-- 활성시 active -->
+		</ul>
+		<!--// tab -->
+		<div class="tit_bWrap mgb10">
+			<h4>고객평가</h4>
+		</div>
+		<table class="vType_line mgb20">
+			<caption>고객평가 내용</caption>
+			<colgroup>
+				<col style="width:124px;">
+				<col style="width:auto;">
+			</colgroup>
+			<thead>
+				<tr>
+					<th class="textC">고객평가</th>
+					<th class="textC">건의사항</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>
+						<input type="radio" id="star1" name="starRate">
+						<input type="radio" id="star2" name="starRate">
+						<input type="radio" id="star3" name="starRate">
+						<input type="radio" id="star4" name="starRate">
+						<input type="radio" id="star5" name="starRate">
+						<span class="wrapStar">
+							<label for="star1"></label>
+							<label for="star2"></label>
+							<label for="star3"></label>
+							<label for="star4"></label>
+							<label for="star5"></label>
+						</span>
+					</td>
+					<td><textarea class="lineH13 pd5" style="height:50px;"></textarea></td>
+				</tr>
+			</tbody>
+		</table>
+		<div class="tit_bWrap mgb10">
+			<h4>요청내용</h4>
+		</div>
+		<!-- write -->
+		<table class="sType mgb20">
+			<caption>접수 정보 입력</caption>
+			<colgroup>
+			</colgroup>
+			<tr>
+				<td>
+					[기초코드] <br>
+					청구화면에서 우리 병원에 없는 진료과목록이 나오지 않도록 조치 부탁드립니다. 박정숙 주임.
+				</td>
+			</tr>
+		</table>
+		<!--// write -->
+		<!-- list -->
+		<div class="tit_bWrap mgt20 mgb10">
+			<h4>답변내용</h4>
+		</div>
+		<div style="max-height:300px;overflow-y:auto;margin-bottom:20px;">
+			<table class="hType">
+				<caption>답변내용 목록</caption>
+				<colgroup>
+					<col style="width:130px" />
+					<col style="width:200px" />
+					<col style="width:auto" />
+					<col style="width:140px" />
+				</colgroup>
+				<thead>
+					<tr>
+						<th scope="col">작성자</th>
+						<th scope="col">답변일시</th>
+						<th scope="col">답변내용</th>
+						<th scope="col"></th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td>관리자명</td>
+						<td>2017-04-28 15:23:32</td>
+						<td class="textL">처방입력 전에 원무담당자가 Slip을 입력하고, 5월초에 중간납생성하면서 처방으로 Slip생성하면서 2회 발생된 경우였습니다. 박정숙주임께 안내드렸습니다.</td>
+						<td><button class="btn_pencil_blue mgr5"><span>수정</span></button><button class="btn_delete_blue"><span>삭제</span></button></td>
+					</tr>
+					<tr>
+						<td>관리자명</td>
+						<td>2017-04-28 15:23:32</td>
+						<td class="textL">최종작업 완료되어 처리완료 하였습니다.</td>
+						<td><button class="btn_pencil_blue mgr5"><span>수정</span></button><button class="btn_delete_blue"><span>삭제</span></button></td>
+					</tr>
+					<tr>
+						<td>관리자명</td>
+						<td>2017-04-28 15:23:32</td>
+						<td class="textL">처방입력 전에 원무담당자가 Slip을 입력하고, 5월초에 중간납생성하면서 처방으로 Slip생성하면서 2회 발생된 경우였습니다. 박정숙주임께 안내드렸습니다.</td>
+						<td><button class="btn_pencil_blue mgr5"><span>수정</span></button><button class="btn_delete_blue"><span>삭제</span></button></td>
+					</tr>
+					<tr>
+						<td>관리자명</td>
+						<td>2017-04-28 15:23:32</td>
+						<td class="textL">최종작업 완료되어 처리완료 하였습니다.</td>
+						<td><button class="btn_pencil_blue mgr5"><span>수정</span></button><button class="btn_delete_blue"><span>삭제</span></button></td>
+					</tr>
+					<tr>
+						<td>관리자명</td>
+						<td>2017-04-28 15:23:32</td>
+						<td class="textL">처방입력 전에 원무담당자가 Slip을 입력하고, 5월초에 중간납생성하면서 처방으로 Slip생성하면서 2회 발생된 경우였습니다. 박정숙주임께 안내드렸습니다.</td>
+						<td><button class="btn_pencil_blue mgr5"><span>수정</span></button><button class="btn_delete_blue"><span>삭제</span></button></td>
+					</tr>
+					<tr>
+						<td>관리자명</td>
+						<td>2017-04-28 15:23:32</td>
+						<td class="textL">최종작업 완료되어 처리완료 하였습니다.</td>
+						<td><button class="btn_pencil_blue mgr5"><span>수정</span></button><button class="btn_delete_blue"><span>삭제</span></button></td>
+					</tr>
+					<tr class="gray">
+						<td>사용자명</td>
+						<td>2017-04-28 15:23:32</td>
+						<td class="textL">확인하였습니다. 감사합니다.</td>
+						<td></td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		
+		<!--// list -->
+		<div class="btn_wrap">
+			<div class="floatL">
+				<button type="button" class="btn_ico_list"><span>목록</span></button><button type="button" class="btn_ico_confirm gray"><span>확인</span></button><button type="button" class="btn_ico_delete"><span>삭제</span></button>
+			</div>
+			<div class="floatR">
+				<button type="button" class="btn_ico_write dgray"><span>답변 작성</span></button>
+			</div>
+		</div>
+	</div>
+	<!--// contents -->
+
+
+	<!-- footer -->
+	<div id="jw_footer">
+		<!-- fnb -->
+		<div id="jw_fnb">
+			<div class="innerWrap">
+				<ul>
+					<li><a href="#">서비스 이용약관</a></li>
+					<li><a href="#">개인정보처리방침</a></li>
+					<li><a href="#">고객센터</a></li>
+					<li><a href="#">매뉴얼다운로드</a></li>
+				</ul>
+			</div>
+		</div>
+		<!--// fnb -->
+		<div class="innerWrap">
+			<address>
+				주소. 서울시 서초구 남부순환로 2477 (우)06725 JWTOWER      대표번호. 02-840-6777
+				<div class="copy">COPYRIGHT© JW홀딩스 All Rights Reserved.</div>
+			</address>
+		</div>
+	</div>
+	<!--// footer -->
+</body>
+</html>

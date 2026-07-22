@@ -1,0 +1,866 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="noticeDAO">
+	
+	<sql id="boardListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(board_gbn) != ''">
+			AND A.BOARD_GBN = #{board_gbn}
+		</if>	
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_start) != ''">
+			AND ((A.IMP_YN = 'N' AND TO_CHAR(A.REG_DATE , 'yyyyMMdd') BETWEEN #{search_start} AND #{search_end})
+			OR (A.IMP_YN = 'Y'))
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND OPEN_TYPE = #{search_type1}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND WORK_TYPE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND WORK_TYPE2 = #{search_type3}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type4) != ''">
+			AND EMP_NM LIKE '%' || #{search_type4} || '%'
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type5) != ''">
+			 AND A.SEQ IN (SELECT DISTINCT NOTICE_SEQ FROM CRM_NOTICE_ACCESS WHERE CRM_CODE IN 
+                                (SELECT DISTINCT CRM_CODE FROM CRM_CUST_MGT WHERE CRM_CODE = UPPER(#{search_type5}) OR CUST_KOR_NAME LIKE '%' || #{search_type5} || '%')
+                        )
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type6) != ''">
+			AND (
+		          (#{search_type6} = 'C001' AND A.IMP_YN = 'Y') OR
+		          (#{search_type6} = 'C002' AND A.IMP_YN = 'N')
+		      )
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND
+			<!-- foreach collection="search_text_arr" item="item" index="index" open="(" close=")" separator="OR"  >
+				UPPER(A.TITLE) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(A.REG_ID) LIKE '%'|| UPPER(#{item}) ||'%' OR
+				TO_CHAR(A.NOTICE_NUM) = #{item}
+			</foreach-->
+			(
+     			(UPPER(REPLACE(A.TITLE, ' ', '')) LIKE '%' || UPPER(REPLACE(#{search_text}, ' ', '')) || '%') OR
+    			(UPPER(REPLACE(A.CONTENT, ' ', '')) LIKE '%' || UPPER(REPLACE(#{search_text}, ' ', '')) || '%') OR
+				(UPPER(A.REG_ID) LIKE '%'|| UPPER(#{search_text}) ||'%') OR
+				(TO_CHAR(A.NOTICE_NUM) = #{search_text})
+			)
+		</if>
+	</sql>
+	
+	
+	<sql id="custSearchWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type10) == '001'">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type9) != ''">
+				AND A.CUST_GUBUN = #{search_type9}
+			</if>
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type10) == '002'">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type9) == 'CD04'">
+				<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type8) != ''">
+					AND b.his_basic_code = #{search_type8}
+				</if>
+			</if>
+			
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type9) == 'CD05'">
+				<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type8) != ''">
+					AND b.his_treat_code = #{search_type8}
+				</if>
+			</if>
+			
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type9) == 'CD06'">
+				<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type8) != ''">
+					AND b.his_work_code = #{search_type8}
+				</if>
+			</if>
+			
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type9) == 'CD07'">
+				<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type8) != ''">
+					AND b.his_claim_code = #{search_type8}
+				</if>
+			</if>
+			
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type10) == '003'">
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type7) != ''">
+				AND A.CUST_KOR_NAME LIKE '%' || #{search_type7} || '%'
+			</if>
+		</if>
+	</sql>
+	<select id="custSearch" parameterType="boardVO" resultType="noticeCustSearchVO">
+	<![CDATA[
+	SELECT
+	    a.crm_code,
+	    a.cust_kor_name,
+	    b.his_basic_code,
+	    b.his_treat_code,
+	    b.his_work_code,
+	    b.his_claim_code
+	FROM
+	    crm_cust_mgt a
+	    LEFT JOIN crm_cust_operate_info b ON a.seq = b.seq
+	WHERE 1=1
+	AND b.deal_code NOT IN ('C003','C004')
+	]]>
+	<include refid="custSearchWhere"/>
+	</select>
+	
+	<select id="listCustCrm" parameterType="boardVO" resultType="noticeCustSearchVO">
+	<![CDATA[
+	select b.crm_code, max(b.cust_kor_name) as cust_kor_name 
+	from crm_notice_access a, crm_cust_mgt b
+	where a.notice_seq=#{seq}
+		and a.crm_code = b.crm_code
+	group by b.crm_code
+	]]>
+	</select>
+	
+	<select id="getBoardListCnt" parameterType="boardVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(IN_TB.SEQ) FROM (
+		    SELECT 
+		        A.SEQ, A.TITLE, A.CONTENT, A.CNT, NVL(A.ATTACH_SEQ,0) ATTACH_SEQ, 
+		        A.REG_DATE, A.REG_ID, A.BOARD_GBN, ROW_NUMBER() OVER (ORDER BY A.SEQ) AS RNUM,
+		        B.EMP_NM,
+		        C.OPEN_TYPE,
+		        A.WORK_TYPE,
+		        A.WORK_TYPE2
+		    FROM 
+		        CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B ON A.REG_ID = B.EMP_NO
+		        LEFT OUTER JOIN (SELECT NOTICE_SEQ, DECODE(ALL_OPEN_YN,'Y','C001', DECODE(UPPER(MAX(CRM_CODE)),'HOS00','C002','C003')) AS OPEN_TYPE FROM CRM_NOTICE_ACCESS GROUP BY NOTICE_SEQ, ALL_OPEN_YN) C ON A.SEQ = C.NOTICE_SEQ
+		    WHERE 1=1
+	]]>
+		<include refid="boardListWhere"/>
+	<![CDATA[				        
+		) IN_TB 
+	]]>
+	</select>
+	
+	<select id="getBoardList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT IN_TB.* FROM (
+		    SELECT 
+		        A.SEQ,  A.TITLE,       A.CONTENT,       A.CNT,       NVL(A.ATTACH_SEQ,0) ATTACH_SEQ, 
+		        TO_CHAR(A.REG_DATE,'yyyy-MM-dd') REG_DATE,
+                A.REG_ID,     A.BOARD_GBN,       ROW_NUMBER() OVER (ORDER BY A.IMP_YN, A.SEQ) AS RNUM,
+                B.EMP_NM,
+                (SELECT COUNT(SEQ) FROM CRM_NOTICE_ANSWER S WHERE S.NOTICE_SEQ = A.SEQ ) NOTICE_CNT,
+                A.WORK_TYPE, A.IMP_YN, A.HIGHLIGHT_WORDS,
+                (
+	                SELECT
+	                    z.code_name
+	                FROM
+	                    crm_code_detail z
+	                WHERE
+	                    z.code_group = 'AS'
+	                    AND   z.p_code = 'CD03'
+	                    AND   z.code = nvl(a.work_type,'P008')
+	            ) AS work_type_nm, /* 시스템(대)유형 */
+	            A.WORK_TYPE2,
+                (
+	                SELECT
+	                    z.code_name
+	                FROM
+	                    crm_code_detail z
+	                WHERE
+	                    z.code_group = 'AS'
+	                    AND   z.p_code = A.WORK_TYPE
+	                    AND   z.code = nvl(a.work_type2,'P008')
+	            ) AS work_type2_nm, /* 시스템(대)유형 */
+	            NVL(C.OPEN_TYPE,'C001') as OPEN_TYPE,
+	            (
+	                SELECT
+	                    z.code_name
+	                FROM
+	                    crm_code_detail z
+	                WHERE
+	                    z.code_group = 'COMMON'
+	                    AND   z.p_code = 'CD08'
+	                    AND   z.code = NVL(C.OPEN_TYPE,'C001')
+	            ) AS OPEN_TYPE_NM
+	            , A.NOTICE_NUM
+                
+		    FROM 
+		        CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B ON A.REG_ID = B.EMP_NO
+		        LEFT OUTER JOIN (SELECT NOTICE_SEQ, DECODE(ALL_OPEN_YN,'Y','C001', DECODE(UPPER(MAX(CRM_CODE)),'HOS00','C002','C003')) AS OPEN_TYPE FROM CRM_NOTICE_ACCESS GROUP BY NOTICE_SEQ, ALL_OPEN_YN) C ON A.SEQ = C.NOTICE_SEQ
+		    WHERE 1=1
+	]]>
+		<include refid="boardListWhere"/>
+	<![CDATA[			        
+		) IN_TB 
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY IN_TB.RNUM DESC
+	]]>
+	</select>
+	
+	<select id="getFrBoardListCnt" parameterType="boardVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(IN_TB.SEQ) FROM (
+		    SELECT 
+		        A.SEQ, A.TITLE, A.CONTENT, A.CNT, NVL(A.ATTACH_SEQ,0) ATTACH_SEQ, 
+		        A.REG_DATE, A.REG_ID, A.BOARD_GBN, ROW_NUMBER() OVER (ORDER BY A.SEQ) AS RNUM
+		        
+		    FROM 
+		        CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT C
+                ON A.REG_ID = C.EMP_NO,
+		        CRM_NOTICE_ACCESS B
+		        
+		    WHERE 1=1
+		    AND (B.ALL_OPEN_YN = 'Y' OR (B.CRM_CODE = #{crmCode} AND B.ALL_OPEN_YN = 'N'))
+		    AND A.SEQ = B.NOTICE_SEQ
+	]]>
+		<include refid="boardListWhere"/>
+	<![CDATA[				        
+		) IN_TB 
+	]]>
+	</select>
+	
+	<select id="getFrBoardList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT IN_TB.* FROM (
+		    SELECT 
+		        A.SEQ,  A.TITLE,       A.CONTENT,       A.CNT,       NVL(A.ATTACH_SEQ,0) ATTACH_SEQ, 
+		        TO_CHAR(A.REG_DATE,'yyyy-MM-dd') REG_DATE,
+		        CASE WHEN TRUNC(SYSDATE - A.REG_DATE,0) <= 5 THEN 'Y' ELSE 'N' END AS latest_post,
+                A.REG_ID,     A.BOARD_GBN,       ROW_NUMBER() OVER (ORDER BY A.IMP_YN, A.SEQ) AS RNUM,     B.EMP_NM,
+                (SELECT COUNT(SEQ) FROM CRM_NOTICE_ANSWER S WHERE S.NOTICE_SEQ = A.SEQ ) NOTICE_CNT,
+                A.WORK_TYPE, A.IMP_YN, C.NOTICE_SEQ, A.HIGHLIGHT_WORDS,
+                (
+	                SELECT
+	                    z.code_name
+	                FROM
+	                    crm_code_detail z
+	                WHERE
+	                    z.code_group = 'AS'
+	                    AND   z.p_code = 'CD03'
+	                    AND   z.code = nvl(a.work_type,'P008')
+	            ) AS work_type_nm, /* 시스템(대)유형 */
+	            A.WORK_TYPE2,
+                (
+	                SELECT
+	                    z.code_name
+	                FROM
+	                    crm_code_detail z
+	                WHERE
+	                    z.code_group = 'AS'
+	                    AND   z.p_code = A.WORK_TYPE
+	                    AND   z.code = nvl(a.work_type2,'P008')
+	            ) AS work_type2_nm, /* 시스템(대)유형 */
+	            A.NOTICE_NUM
+		    FROM 
+		        CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B
+                ON A.REG_ID = B.EMP_NO,
+                CRM_NOTICE_ACCESS C
+		    WHERE 1=1
+		    AND (C.ALL_OPEN_YN = 'Y' OR C.CRM_CODE = #{crmCode})
+		    AND A.SEQ = C.NOTICE_SEQ
+	]]>
+		<include refid="boardListWhere"/>
+	<![CDATA[			        
+		) IN_TB 
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY IN_TB.RNUM DESC    
+	]]>
+	</select>
+		
+	<select id="getBoardInfo" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+	SELECT * FROM (
+		SELECT 
+			A.SEQ, A.TITLE, A.CONTENT, A.CNT, NVL(A.ATTACH_SEQ,0) ATTACH_SEQ,
+			A.REG_DATE, A.REG_ID, A.BOARD_GBN
+			,NVL(LEAD(A.SEQ,1) OVER (ORDER BY A.SEQ),0) NEXT_SEQ
+		    ,NVL(LAG(A.SEQ,1) OVER (ORDER BY A.SEQ),0) PREV_SEQ
+		    ,A.WORK_TYPE
+            ,(
+                SELECT
+                    z.code_name
+                FROM
+                    crm_code_detail z
+                WHERE
+                    z.code_group = 'AS'
+                    AND   z.p_code = 'CD03'
+                    AND   z.code = nvl(a.work_type,'P008')
+            ) AS work_type_nm /* 시스템(대)유형 */
+            ,A.WORK_TYPE2,
+               (
+                SELECT
+                    z.code_name
+                FROM
+                    crm_code_detail z
+                WHERE
+                    z.code_group = 'AS'
+                    AND   z.p_code = A.WORK_TYPE
+                    AND   z.code = nvl(a.work_type2,'P008')
+            ) AS work_type2_nm /* 시스템(대)유형 */
+            ,NVL(C.OPEN_TYPE,'C001') as OPEN_TYPE
+            ,(
+                SELECT
+                    z.code_name
+                FROM
+                    crm_code_detail z
+                WHERE
+                    z.code_group = 'COMMON'
+                    AND   z.p_code = 'CD08'
+                    AND   z.code = NVL(C.OPEN_TYPE,'C001')
+            ) AS OPEN_TYPE_NM
+            ,A.NOTICE_NUM
+            ,CASE WHEN A.IMP_YN = 'Y' THEN 'C001' ELSE 'C002' END AS IMP_TYPE
+            ,B.EMP_NM
+            ,A.DEADLINE
+            ,A.HIGHLIGHT_WORDS
+		FROM 
+			CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B ON A.REG_ID = B.EMP_NO
+		    LEFT OUTER JOIN (SELECT NOTICE_SEQ, DECODE(ALL_OPEN_YN,'Y','C001', DECODE(UPPER(MAX(CRM_CODE)),'HOS00','C002','C003')) AS OPEN_TYPE FROM CRM_NOTICE_ACCESS GROUP BY NOTICE_SEQ, ALL_OPEN_YN) C ON A.SEQ = C.NOTICE_SEQ
+		WHERE 
+			BOARD_GBN = #{board_gbn}
+	) IN_TB
+	WHERE 	IN_TB.SEQ = #{seq}
+	]]>
+	</select>
+	
+	<select id="getFrBoardInfo" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+	SELECT * FROM (
+		SELECT 
+			A.SEQ, A.TITLE, A.CONTENT, A.CNT, NVL(A.ATTACH_SEQ,0) ATTACH_SEQ,
+			A.REG_DATE, A.REG_ID, A.BOARD_GBN
+			,NVL(LEAD(A.SEQ,1) OVER (ORDER BY A.SEQ),0) NEXT_SEQ
+		    ,NVL(LAG(A.SEQ,1) OVER (ORDER BY A.SEQ),0) PREV_SEQ
+		    ,A.WORK_TYPE
+            ,(
+                SELECT
+                    z.code_name
+                FROM
+                    crm_code_detail z
+                WHERE
+                    z.code_group = 'AS'
+                    AND   z.p_code = 'CD03'
+                    AND   z.code = nvl(a.work_type,'P008')
+            ) AS work_type_nm /* 시스템(대)유형 */
+            ,A.WORK_TYPE2,
+               (
+                SELECT
+                    z.code_name
+                FROM
+                    crm_code_detail z
+                WHERE
+                    z.code_group = 'AS'
+                    AND   z.p_code = A.WORK_TYPE
+                    AND   z.code = nvl(a.work_type2,'P008')
+            ) AS work_type2_nm /* 시스템(대)유형 */
+            ,NVL(C.OPEN_TYPE,'C001') as OPEN_TYPE
+            ,(
+                SELECT
+                    z.code_name
+                FROM
+                    crm_code_detail z
+                WHERE
+                    z.code_group = 'COMMON'
+                    AND   z.p_code = 'CD08'
+                    AND   z.code = NVL(C.OPEN_TYPE,'C001')
+            ) AS OPEN_TYPE_NM
+            ,A.NOTICE_NUM
+            ,CASE WHEN A.IMP_YN = 'Y' THEN 'C001' ELSE 'C002' END AS IMP_TYPE
+            ,B.EMP_NM
+            ,A.DEADLINE
+            ,A.HIGHLIGHT_WORDS
+		FROM 
+			CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B ON A.REG_ID = B.EMP_NO
+		    LEFT OUTER JOIN (SELECT NOTICE_SEQ, DECODE(ALL_OPEN_YN,'Y','C001', DECODE(UPPER(MAX(CRM_CODE)),'HOS00','C002','C003')) AS OPEN_TYPE FROM CRM_NOTICE_ACCESS GROUP BY NOTICE_SEQ, ALL_OPEN_YN) C ON A.SEQ = C.NOTICE_SEQ
+		    LEFT OUTER JOIN CRM_NOTICE_ACCESS D
+            ON A.SEQ = D.NOTICE_SEQ
+		WHERE 
+			BOARD_GBN = #{board_gbn}
+			AND (D.ALL_OPEN_YN = 'Y' OR (D.ALL_OPEN_YN = 'N' AND D.CRM_CODE = #{crmCode}))
+	) IN_TB
+	WHERE 	IN_TB.SEQ = #{seq}
+	]]>
+	</select>
+		
+		
+	<insert id="insertBoard" parameterType="boardVO">
+	<![CDATA[
+		INSERT INTO CRM_BOARD_MGT 
+		(
+			SEQ, TITLE, CONTENT, CNT, ATTACH_SEQ, REG_DATE, REG_ID, BOARD_GBN, WORK_TYPE, WORK_TYPE2, NOTICE_NUM, IMP_YN, DEADLINE, HIGHLIGHT_WORDS
+		) 
+		VALUES 
+		(
+			#{seq}, #{title}, #{content}, '0', #{attach_seq}, SYSDATE, #{reg_id}, #{board_gbn}, #{work_type}, #{work_type2}, #{notice_num}, #{imp_yn}, #{deadline}, #{highlight_words}
+		)
+	]]>		        	
+	</insert>
+	
+	<insert id="insertAccess" parameterType="noticeAuthVO">
+	<![CDATA[
+		INSERT INTO CRM_NOTICE_ACCESS
+		(
+			SEQ, NOTICE_SEQ, CRM_CODE, ALL_OPEN_YN
+		) 
+		VALUES 
+		(
+			MAX_NOTICE_ACCESS_NO.NEXTVAL, #{notice_seq}, #{crm_code}, #{all_open_yn}
+		)
+	]]>		        	
+	</insert>
+	
+	<update id="updateBoard" parameterType="boardVO">
+	<![CDATA[
+		UPDATE CRM_BOARD_MGT SET 
+			TITLE = #{title}
+			,CONTENT = #{content}
+			,ATTACH_SEQ = #{attach_seq}
+			,UPD_DATE = SYSDATE
+			,UPD_ID = #{reg_id}
+			,WORK_TYPE = #{work_type}
+			,WORK_TYPE2 = #{work_type2}
+			,IMP_YN = #{imp_yn}
+			,DEADLINE = #{deadline}
+			,HIGHLIGHT_WORDS = #{highlight_words}
+		WHERE
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}
+	]]>
+	</update>
+	
+	<update id="setUpCount" parameterType="boardVO">
+	<![CDATA[
+		UPDATE CRM_BOARD_MGT SET
+			CNT = CNT+1
+		WHERE 
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}			
+	]]>
+	</update>		
+	
+	<select id="getMaxSeq" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX_BOARD_NO.NEXTVAL FROM DUAL
+	]]>
+	</select>
+	
+	<select id="getNoticeNextNum" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX(NVL(NOTICE_NUM,0)) + 1 FROM CRM_BOARD_MGT WHERE BOARD_GBN='0000'
+	]]>
+	</select>
+	
+	<select id="getNoticeNum" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT * FROM CRM_BOARD_MGT WHERE SEQ = #{seq}
+	]]>
+	</select>
+		
+	
+	<delete id="deleteBoard">
+	<![CDATA[
+		DELETE CRM_BOARD_MGT
+		WHERE 
+			SEQ = #{seq}
+		AND
+			BOARD_GBN = #{board_gbn}		 
+	]]>
+	</delete>
+	
+	<delete id="deleteAccess">
+	<![CDATA[
+		DELETE CRM_NOTICE_ACCESS
+		WHERE 
+			NOTICE_SEQ = #{notice_seq}	 
+	]]>
+	</delete>
+	
+	<insert id="insertDwnHist" parameterType="downHistVO">
+	<![CDATA[
+		INSERT INTO CRM_ATTACH_DWN_HIST 
+		(
+			SEQ, ATTACH_SEQ, ATTACH_ORD, CRM_CODE, REG_ID, REG_DATE, ATTACH_NM
+		) 
+		VALUES 
+		(
+			ATTACH_DWN_HIST_SEQ.NEXTVAL, #{attach_seq}, #{attach_ord}, #{crm_code}, #{reg_id}, SYSDATE, #{attach_ori_nm}
+		)
+	]]>		        	
+	</insert>
+	
+	<select id="listDownHist" parameterType="downHistVO" resultType="downHistVO">
+	<![CDATA[
+	select
+		a.seq
+		,a.attach_seq
+		,a.attach_ord
+		,a.attach_nm as attach_ori_nm
+		,a.crm_code
+		,b.cust_kor_name
+		,a.reg_id
+		,nvl((SELECT z.emp_name FROM crm_cust_erp z WHERE z.emp_id = a.reg_id),(SELECT z.emp_nm FROM crm_emp_mgt z WHERE z.emp_no = a.reg_id)) emp_nm
+		,to_char(a.reg_date,'yyyy-mm-dd HH24:mi:ss') as reg_dt
+	from CRM_ATTACH_DWN_HIST a
+		left join (select crm_code, max(cust_kor_name) as cust_kor_name from crm_cust_mgt group by crm_code) b on b.crm_code = a.crm_code
+		left join CRM_ATTACH_MGT c on c.attach_seq = a.attach_seq and c.attach_ord = a.attach_ord
+	where a.attach_seq = #{attach_seq}
+	order by a.reg_date desc
+	]]>
+	</select>
+	
+	<select id="listDownHistByCrmCode" parameterType="downHistVO" resultType="downHistVO">
+	<![CDATA[
+	select
+		a.seq
+		,a.attach_seq
+		,a.attach_ord
+		,a.attach_nm as attach_ori_nm
+		,a.crm_code
+		,b.cust_kor_name
+		,a.reg_id
+		,nvl((SELECT z.emp_name FROM crm_cust_erp z WHERE z.emp_id = a.reg_id),(SELECT z.emp_nm FROM crm_emp_mgt z WHERE z.emp_no = a.reg_id)) emp_nm
+		,to_char(a.reg_date,'yyyy-mm-dd HH24:mi:ss') as reg_dt
+	from CRM_ATTACH_DWN_HIST a
+		left join (select crm_code, max(cust_kor_name) as cust_kor_name from crm_cust_mgt group by crm_code) b on b.crm_code = a.crm_code
+		left join CRM_ATTACH_MGT c on c.attach_seq = a.attach_seq and c.attach_ord = a.attach_ord
+	where a.attach_seq = #{attach_seq}
+	and a.crm_code = #{crm_code}
+	order by a.reg_date desc
+	]]>
+	</select>
+	
+	<select id="hisNoticeList" parameterType="boardVO" resultType="boardVO">
+	
+	SELECT 
+	    A.SEQ,  A.TITLE,       A.CONTENT,       A.CNT,       NVL(A.ATTACH_SEQ,0) ATTACH_SEQ, 
+	    TO_CHAR(A.REG_DATE,'yyyy-MM-dd') REG_DATE,
+	    A.REG_ID,     A.BOARD_GBN,       ROW_NUMBER() OVER (ORDER BY A.SEQ) AS RNUM,     B.EMP_NM,
+	    A.WORK_TYPE,
+	    (
+	        SELECT
+	            z.code_name
+	        FROM
+	            crm_code_detail z
+	        WHERE
+	            z.code_group = 'AS'
+	            AND   z.p_code = 'CD03'
+	            AND   z.code = nvl(a.work_type,'P008')
+	    ) AS work_type_nm, /* 시스템(대)유형 */
+	    A.WORK_TYPE2,
+	    (
+	        SELECT
+	            z.code_name
+	        FROM
+	            crm_code_detail z
+	        WHERE
+	            z.code_group = 'AS'
+	            AND   z.p_code = A.WORK_TYPE
+	            AND   z.code = nvl(a.work_type2,'P008')
+	    ) AS work_type2_nm, /* 시스템(대)유형 */
+	    A.NOTICE_NUM,
+	    DECODE(C.ALL_OPEN_YN,'Y','전채공지','거래처공지') AS OPEN_TYPE_NM
+	FROM 
+	    CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B
+	    ON A.REG_ID = B.EMP_NO,
+	    CRM_NOTICE_ACCESS C
+	WHERE 1=1
+	AND A.SEQ = C.NOTICE_SEQ
+	AND A.BOARD_GBN = #{board_gbn}
+	AND A.REG_DATE BETWEEN ADD_MONTHS(SYSDATE, -1) AND SYSDATE
+	AND (C.ALL_OPEN_YN = 'Y' OR C.CRM_CODE = #{crmCode})
+	ORDER BY A.REG_DATE DESC
+	</select>
+	
+	<update id="upinNoticeRead" parameterType="noticeReadVO">
+	MERGE INTO 
+	    CRM_NOTICE_READ
+	USING DUAL 
+	    ON (NOTICE_SEQ = #{notice_seq}  AND USER_ID = #{user_id})
+	    WHEN MATCHED THEN     
+	        UPDATE SET     
+	                LAST_DT = SYSDATE
+	    WHEN NOT MATCHED THEN
+	        INSERT (NOTICE_SEQ,USER_ID,LAST_DT)
+	        VALUES(#{notice_seq}, #{user_id}, sysdate)
+	</update>
+	
+	<select id="getFrNotReadBoardList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+	SELECT IN_TB.* 
+	FROM (
+		    SELECT 
+		        A.SEQ,  A.TITLE,       A.CONTENT,       A.CNT,       NVL(A.ATTACH_SEQ,0) ATTACH_SEQ, 
+		        TO_CHAR(A.REG_DATE,'yyyy-MM-dd') REG_DATE,
+		        CASE WHEN TRUNC(SYSDATE - A.REG_DATE,0) <= 5 THEN 'Y' ELSE 'N' END AS latest_post,
+                A.REG_ID,     A.BOARD_GBN,       ROW_NUMBER() OVER (ORDER BY A.IMP_YN, A.SEQ) AS RNUM,     B.EMP_NM,
+                A.WORK_TYPE,	A.IMP_YN,	A.HIGHLIGHT_WORDS,
+                (
+	                SELECT
+	                    z.code_name
+	                FROM
+	                    crm_code_detail z
+	                WHERE
+	                    z.code_group = 'AS'
+	                    AND   z.p_code = 'CD03'
+	                    AND   z.code = nvl(a.work_type,'P008')
+	            ) AS work_type_nm, /* 시스템(대)유형 */
+	            A.WORK_TYPE2,
+                (
+	                SELECT
+	                    z.code_name
+	                FROM
+	                    crm_code_detail z
+	                WHERE
+	                    z.code_group = 'AS'
+	                    AND   z.p_code = A.WORK_TYPE
+	                    AND   z.code = nvl(a.work_type2,'P008')
+	            ) AS work_type2_nm, /* 시스템(대)유형 */
+	            A.NOTICE_NUM
+		    FROM 
+		        CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B
+                ON A.REG_ID = B.EMP_NO,
+                CRM_NOTICE_ACCESS C
+		    WHERE 1=1
+		    AND (C.ALL_OPEN_YN = 'Y' OR C.CRM_CODE = #{crmCode})
+		    AND A.SEQ = C.NOTICE_SEQ
+		    AND A.BOARD_GBN = #{board_gbn}
+		    AND ((A.IMP_YN = 'N' AND A.REG_DATE BETWEEN ADD_MONTHS(SYSDATE, -1) AND SYSDATE)
+    		OR (A.IMP_YN = 'Y')) /* 최근한달 */
+		) IN_TB
+	WHERE 1=1
+	AND IN_TB.SEQ NOT IN (SELECT NOTICE_SEQ FROM CRM_NOTICE_READ WHERE USER_ID = #{readUserId})
+	ORDER BY IN_TB.RNUM DESC
+	]]>
+	</select>
+	
+	<select id="getFrManyReadFaqList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT 
+			SEQ
+			,ATTACH_SEQ
+			,TITLE
+			,TO_CHAR(REG_DATE,'yyyy-MM-dd') REG_DATE
+			,CASE WHEN TRUNC(SYSDATE - REG_DATE,0) <= 5 THEN 'Y' ELSE 'N' END AS latest_post
+			,BEST_FAQ
+		FROM CRM_BOARD_MGT
+		WHERE BOARD_GBN = #{board_gbn}
+		AND SEQ > 120
+		AND SEQ NOT IN ('122')
+		AND (ONLYME_OPEN_YN = 'N' OR (ONLYME_OPEN_YN ='Y' AND REG_ID = #{reg_id}))
+		ORDER BY BEST_FAQ DESC, CNT DESC
+	]]>
+	</select>
+	
+	<select id="getRecentBoardList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+	SELECT 
+	    A.SEQ,  A.TITLE,       A.CONTENT,       A.CNT,       NVL(A.ATTACH_SEQ,0) ATTACH_SEQ,
+	    CASE WHEN TRUNC(SYSDATE - A.REG_DATE,0) <= 5 THEN 'Y' ELSE 'N' END AS latest_post,
+	    TO_CHAR(A.REG_DATE,'yyyy-MM-dd') REG_DATE,
+	    A.REG_ID,     A.BOARD_GBN,       ROW_NUMBER() OVER (ORDER BY A.IMP_YN, A.SEQ) AS RNUM,     B.EMP_NM,
+	    A.WORK_TYPE, A.IMP_YN, A.HIGHLIGHT_WORDS,
+	    (
+	        SELECT
+	            z.code_name
+	        FROM
+	            crm_code_detail z
+	        WHERE
+	            z.code_group = 'AS'
+	            AND   z.p_code = 'CD03'
+	            AND   z.code = nvl(a.work_type,'P008')
+	    ) AS work_type_nm, /* 시스템(대)유형 */
+	    A.WORK_TYPE2,
+	    (
+	        SELECT
+	            z.code_name
+	        FROM
+	            crm_code_detail z
+	        WHERE
+	            z.code_group = 'AS'
+	            AND   z.p_code = A.WORK_TYPE
+	            AND   z.code = nvl(a.work_type2,'P008')
+	    ) AS work_type2_nm, /* 시스템(대)유형 */
+	    A.NOTICE_NUM
+	FROM 
+	    CRM_BOARD_MGT A INNER JOIN CRM_EMP_MGT B
+	    ON A.REG_ID = B.EMP_NO,
+	    CRM_NOTICE_ACCESS C
+	WHERE 1=1
+	AND A.SEQ = C.NOTICE_SEQ
+	AND A.BOARD_GBN = #{board_gbn}
+	AND ((A.IMP_YN = 'N' AND A.REG_DATE BETWEEN ADD_MONTHS(SYSDATE, -1) AND SYSDATE)
+    OR (A.IMP_YN = 'Y'))
+	AND (C.ALL_OPEN_YN = 'Y' OR C.CRM_CODE = #{crmCode})
+	ORDER BY RNUM DESC
+	]]>
+	</select>
+	
+	<select id="getRecentFaqList" parameterType="boardVO" resultType="boardVO">
+	<![CDATA[
+		SELECT 
+			A.SEQ
+			, A.ATTACH_SEQ
+			, A.TITLE
+			, TO_CHAR(A.REG_DATE,'yyyy-MM-dd') REG_DATE
+			, CASE WHEN TRUNC(SYSDATE - A.REG_DATE,0) <= 5 THEN 'Y' ELSE 'N' END AS latest_post
+			, A.BEST_FAQ
+		FROM CRM_BOARD_MGT A
+		INNER JOIN CRM_EMP_MGT B
+		ON A.REG_ID = B.EMP_NO
+		WHERE 1=1
+		AND A.BOARD_GBN = #{board_gbn}
+		AND A.REG_DATE BETWEEN ADD_MONTHS(SYSDATE, -1) AND SYSDATE
+		AND (A.ONLYME_OPEN_YN = 'N' OR (A.ONLYME_OPEN_YN ='Y' AND A.REG_ID = #{reg_id}))
+		ORDER BY A.BEST_FAQ DESC, A.REG_DATE DESC
+		]]>
+	</select>
+	
+	<select id="getCrmCodeListBy" parameterType="boardVO" resultType="noticeAuthVO">
+	<![CDATA[
+	select 
+		SEQ
+		,NOTICE_SEQ
+		,CRM_CODE
+		,ALL_OPEN_YN
+	from CRM_NOTICE_ACCESS
+	where notice_seq = #{seq}
+	]]>
+	</select>
+		
+	<!-- for ms-sql -->
+	<select id="getCiCrmNoticeNextNum" resultType="java.lang.Integer">
+	<![CDATA[
+		select max(notice_id) + 1 from dbo.notice_info
+	]]>
+	</select>
+	
+	<insert id="insertCiCrmNoticeAccess" parameterType="noticeAuthVO">
+	<![CDATA[
+		INSERT INTO NOTICE_ACCESS 
+		(
+		    NOTICE_ID
+		    ,ALL_OPEN_YN
+		    ,CUSTOMER_CODE
+		    ,CIT_EMP_YN
+		    ,NOTICE_FIX
+		)
+		VALUES
+		(
+		    #{notice_seq}
+		    ,#{all_open_yn}
+		    ,#{crm_code}
+		    ,#{cit_emp_yn}
+		    ,'N'
+		)
+	]]>
+	</insert>
+	
+	<delete id="deleteCiCrmNoticeAccess" parameterType="boardVO">
+		delete from NOTICE_ACCESS where NOTICE_ID = #{notice_num}
+	</delete>
+	
+	<insert id="insertCiCrmNoticeInfo" parameterType="boardVO">
+	<![CDATA[
+		INSERT INTO NOTICE_INFO
+		(
+		    NOTICE_ID
+		    ,TITLE
+		    ,DETAIL
+		    ,REG_DATE
+		    ,REG_ID
+		    ,TASK_FLAG
+		)
+		VALUES
+		(
+		    #{notice_num} -- 신규 NOTICE_ID
+		    ,#{title} -- 제목
+		    ,#{content} -- 내용
+		    ,GETDATE() -- 등록일
+		    ,#{reg_id} -- 등록자 아이디
+		    ,'006' -- 업무유형 기타
+		)
+	]]>
+	</insert>
+	
+	<update id="updateCiCrmNoticeInfo" parameterType="boardVO">
+	<![CDATA[
+		update NOTICE_INFO
+		set
+		    TITLE = #{title}
+		    ,DETAIL = #{content}
+		where NOTICE_ID = #{notice_num}
+	]]>
+	</update>
+	
+	<delete id="deleteCiCrmNotice" parameterType="boardVO">
+		delete from NOTICE_INFO where NOTICE_ID = #{notice_num}
+	</delete>
+	
+	
+ 	<!-- 댓글  -->
+ 	<select id="getAwsListCnt" parameterType="boardAswVO" resultType="java.lang.Integer">
+		select COUNT(SEQ)
+			from CRM_NOTICE_ANSWER
+			where NOTICE_SEQ = #{notice_seq} 
+		
+	</select>
+ 	
+ 	<select id="listAsw" parameterType="boardAswVO" resultType="boardAswVO">
+		SELECT 
+			NVL((SELECT Z.CUST_KOR_NAME FROM CRM_CUST_MGT Z WHERE A.CRM_CODE = Z.CRM_CODE), '') AS W_CUST_NM,
+		 	A.SEQ,
+		    A.NOTICE_SEQ,
+		    A.W_ID,
+		    A.W_CONTENT,
+		    to_char(A.W_DATE,'yyyy-mm-dd HH24:mi:ss') W_DATE,
+		    A.W_GUBUN,
+		    A.CRM_CODE,
+		    DECODE (
+		      A.W_GUBUN 
+		      ,'U' 
+		      ,NVL((
+		            SELECT X.EMP_NAME
+		            FROM CRM_CUST_ERP X
+		            WHERE A.W_ID = X.EMP_ID), '')
+		      ,'A'
+		      ,NVL((
+		            SELECT E.EMP_NM
+		            FROM CRM_EMP_MGT E
+		            WHERE A.W_ID = E.EMP_NO), '')       
+		      
+		  ) AS W_NM
+		FROM CRM_NOTICE_ANSWER A
+		WHERE A.NOTICE_SEQ = #{notice_seq} 
+		ORDER BY A.W_DATE DESC
+	</select>
+ 	
+ 	<insert id="insertAsw" parameterType="boardAswVO">
+		INSERT INTO CRM_NOTICE_ANSWER
+		(
+		    SEQ
+		    ,NOTICE_SEQ
+		    ,W_ID
+		    ,W_CONTENT
+		    ,W_DATE
+		    ,W_GUBUN
+		    ,CRM_CODE
+		)
+		VALUES
+		(
+		    MAX_NOTICE_ANSWER_NO.NEXTVAL 
+		    ,#{notice_seq} 
+		    ,#{w_id} 
+		    ,#{w_content}
+		    ,SYSDATE -- 등록일
+		    ,#{w_gubun}
+		    ,#{crm_code}
+		)
+	</insert>
+	
+	<delete id="deleteAsw" parameterType="boardAswVO">
+		delete from CRM_NOTICE_ANSWER where SEQ = #{seq}
+	</delete>
+	
+</mapper>

@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Script-Type" content="text/javascript" />
+	<meta http-equiv="Content-Style-Type" content="text/css" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=1000" />
+	<meta name="apple-mobile-web-app-title" content="jw Connected Care System" />
+	<title>jw Connected Care System</title>
+	<link rel="stylesheet" type="text/css" href="../../css/jw.css" />
+	<script type="text/javascript" src="/"></script>
+</head>
+<body>
+	<!-- header -->
+	<div id="jw_header">
+		<div class="innerWrap">
+			<h1><a href="/">jw Connected Care System</a></h1>
+			<div class="nav_util">
+				<div class="txt_welcome">
+					<!-- <span class="flag_eng">엔지니어</span> --><span class="flag_admin">관리자</span>관리자1님 환영합니다.
+				</div>
+				<ul>
+					<li><a href="#">개인정보수정</a></li>
+					<li><a href="#">로그아웃</a></li>
+				</ul>
+			</div>
+		</div>
+	</div>
+	<!--// header -->
+
+	<!-- gnb -->
+	<div id="jw_gnb">
+		<div class="innerWrap">
+			<ul class="list5">
+				<li><a href="#">A/S 관리</a></li>
+				<li><a href="#" class="active">거래처 관리</a></li><!-- 활성시 active -->
+				<li><a href="#">계정관리</a></li>
+				<li><a href="#">게시판관리</a></li>
+				<li><a href="#">통계분석</a></li>
+			</ul>
+		</div>
+	</div>
+	<!--// gnb -->
+
+	<!-- contents -->
+	<div id="jw_contents">
+		<div class="tit_wrap">
+			<h2 class="tit_ico_customer">거래처 관리</h2>
+			<div class="location">
+				<a href="#" class="home">Home</a>
+				<a href="#" class="depth"><span class="here">거래처 관리</span></a>
+			</div>
+		</div>
+		<div class="tit_sWrap">
+			<h3 class="tit_dot_gray">거래처 상세 정보</h3>
+		</div>
+		<!-- tab -->
+		<ul class="tab_line list5 mgb20">
+			<li><a href="#">관리 정보</a></li><!-- 활성시 current -->
+			<li><a href="#">프로젝트 정보</a></li>
+			<li class="active"><a href="#">운영 정보</a></li>
+			<li><a href="#">설치 이력</a></li>
+			<li><a href="#">유지보수 이력</a></li>
+		</ul>
+		<!--// tab -->
+		<!-- write -->
+		<div class="tit_bWrap mgb10">
+			<h4>기본 정보</h4>
+		</div>
+		<table class="sType mgb20">
+			<caption>기본 정보 입력</caption>
+			<colgroup>
+				<col style="width:125px;" />
+				<col style="width:209px;" />
+				<col style="width:125px;" />
+				<col style="width:208px;" />
+				<col style="width:125px;" />
+				<col style="width:208px;" />
+			</colgroup>
+			<tr>
+				<th scope="row">거래상태</th>
+				<td colspan="5">
+					<select title="거래상태 선택" class="w168">
+						<option>정상</option>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">HIS</th>
+				<td colspan="5">
+					<span class="fontW_b mgr5">기초</span>
+					<select title="HIS 기초 선택" class="w140 mgr20">
+						<option>버전선택</option>
+					</select>
+					<span class="fontW_b mgr5">진료</span>
+					<select title="HIS 진료 선택" class="w140 mgr20">
+						<option>버전선택</option>
+					</select>
+					<span class="fontW_b mgr5">업무</span>
+					<select title="HIS 업무 선택" class="w140 mgr20">
+						<option>버전선택</option>
+					</select>
+					<span class="fontW_b mgr5">청구</span>
+					<select title="HIS 청구 선택" class="w140 mgr20">
+						<option>버전선택</option>
+					</select>
+				</td>
+			</tr>
+		</table>
+		<!--// write -->
+		<!-- write -->
+		<div class="tit_bWrap mgb10">
+			<h4>운영 정보</h4>
+		</div>
+		<table class="sType mgb20">
+			<caption>운영 정보 입력</caption>
+			<colgroup>
+				<col style="width:125px;" />
+				<col style="width:209px;" />
+				<col style="width:125px;" />
+				<col style="width:208px;" />
+				<col style="width:125px;" />
+				<col style="width:208px;" />
+			</colgroup>
+			<tr>
+				<th scope="row">전문병원 여부</th>
+				<td>
+					<select title="전문병원 여부 선택">
+						<option>선택해주세요</option>
+					</select>
+				</td>
+				<th scope="row">병상수</th>
+				<td colspan="3">
+					<input type="text" title="병상수 입력" value="80" class="w168"  />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">선택</th>
+				<td colspan="5">
+					<label class="mgr20"><span class="fontW_b mgr5">보훈여부</span><input type="checkbox"></label>
+					<label class="mgr20"><span class="fontW_b mgr5">군지역소재</span><input type="checkbox"></label>
+					<label class="mgr20"><span class="fontW_b mgr5">선택진료</span><input type="checkbox"></label>
+					<label class="mgr20"><span class="fontW_b mgr5">치과유무</span><input type="checkbox"></label>
+					<label class="mgr20"><span class="fontW_b mgr5">정신과</span><input type="checkbox"></label>
+					<label class="mgr20"><span class="fontW_b mgr5">한방</span><input type="checkbox"></label>
+					<label class="mgr20"><span class="fontW_b mgr5">혈액투석</span><input type="checkbox"></label>
+					<label class="mgr20"><span class="fontW_b mgr5">포괄간호</span><input type="checkbox"></label>
+				</td>
+			</tr>
+		</table>
+		<!--// write -->
+		<!-- write -->
+		<div class="tit_bWrap mgb10">
+			<h4>상세 정보</h4>
+		</div>
+		<table class="sType mgb20">
+			<caption>상세 정보 입력</caption>
+			<colgroup>
+				<col style="width:125px;" />
+				<col style="width:209px;" />
+				<col style="width:125px;" />
+				<col style="width:208px;" />
+				<col style="width:125px;" />
+				<col style="width:208px;" />
+			</colgroup>
+			<tr>
+				<th scope="row">의사수</th>
+				<td>
+					<input type="text" title="의사수 입력" value="6" />
+				</td>
+				<th scope="row">간호사수</th>
+				<td>
+					<input type="text" title="간호사수 입력" value="56" />
+				</td>
+				<th scope="row">간호등급</th>
+				<td>
+					<input type="text" title="간호등급 입력" value="7" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">신규&#47;기존</th>
+				<td>
+					<select title="신규/기존 선택">
+						<option>신규</option>
+					</select>
+				</td>
+				<th scope="row">기존전산업체</th>
+				<td colspan="3">
+					<input type="text" title="기존전산업체 입력" class="w168" value="가나다업체" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">일 평균 내원자 수</th>
+				<td>
+					<input type="text" title="일 평균 내원자 수 입력" value="75" />
+				</td>
+				<th scope="row">평균재원자 수</th>
+				<td colspan="3">
+					<input type="text" title="평균재원자 수 입력" class="w168" value="75" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">외부수탁업체</th>
+				<td>
+					<select title="외부수탁업체 선택">
+						<option>씨젠의료재단</option>
+					</select>
+				</td>
+				<th scope="row">청구여부</th>
+				<td colspan="3">
+					<input type="checkbox" title="청구여부" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">특이사항</th>
+				<td colspan="5">
+					<input type="text" title="특이사항 입력" value="" />
+				</td>
+			</tr>
+		</table>
+		<!--// write -->
+		<!-- list -->
+		<div class="tit_bWrap mgb10">
+			<h4 class="floatL mgt8">담당자 정보</h4>
+			<span class="floatR">
+				<button class="btn_ico_circle_plus_g mgr5"><span>행추가</span></button><button class="btn_ico_stop_g"><span>행삭제</span></button>
+			</span>
+		</div>
+		<table class="hType mgb20">
+			<caption>담당자 정보 목록</caption>
+			<colgroup>
+				<col span="5" style="width:auto" />
+			</colgroup>
+			<thead>
+				<tr>
+					<th scope="col">담당 구분</th>
+					<th scope="col">담당자명</th>
+					<th scope="col">연락처1(회사)</th>
+					<th scope="col">연락처2(핸드폰)</th>
+					<th scope="col">이메일</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>
+						<select title="담당 구분 선택">
+							<option>결제관련 결정</option>
+						</select>
+					</td>
+					<td><input type="text" title="담당자명 입력" value="성광경"></td>
+					<td><input type="text" title="연락처1 입력" value="053-526-2341"></td>
+					<td><input type="text" title="연락처2 입력" value="010-2423-2341"></td>
+					<td><input type="text" title="이메일 입력" value="asdasd@naver.com"></td>
+				</tr>
+				<tr>
+					<td>
+						<select title="담당 구분 선택">
+							<option>결제관련 결정</option>
+						</select>
+					</td>
+					<td><input type="text" title="담당자명 입력" value="성광경"></td>
+					<td><input type="text" title="연락처1 입력" value="053-526-2341"></td>
+					<td><input type="text" title="연락처2 입력" value="010-2423-2341"></td>
+					<td><input type="text" title="이메일 입력" value="asdasd@naver.com"></td>
+				</tr>
+			</tbody>
+		</table>
+		<!--// list -->
+		<!-- list -->
+		<div class="tit_bWrap mgb10">
+			<h4 class="floatL mgt8">관리비고 내역</h4>
+			<span class="floatR">
+				<button class="btn_ico_circle_plus_g mgr5"><span>행추가</span></button><button class="btn_ico_stop_g"><span>행삭제</span></button>
+			</span>
+		</div>
+		<table class="hType mgb20">
+			<caption>관리비고 목록</caption>
+			<colgroup>
+				<col style="width: 35px" />
+				<col style="width: 120px" />
+				<col style="width:auto" />
+				<col style="width: 80px" />
+				<col style="width: 80px" />
+				<col style="width:auto" />
+				
+			</colgroup>
+			<thead>
+				<tr>
+					<th scope="col">선택</th>
+					<th scope="col">구분</th>
+					<th scope="col">내용</th>
+					<th scope="col">등록일시</th>
+					<th scope="col">등록자</th>
+					<th scope="col">비고</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td><input type="checkbox"></td>
+					<td><input type="text" title="구분 입력" value="정보 수정"></td>
+					<td><input type="text" title="내용 입력" value="A/B/C항목 정보 일부 수정하였습니다"></td>
+					<td><span class="mgr5">2017-01-01</span><span>00:00:00</span></td>
+					<td>홍길동</td>
+					<td>-</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox"></td>
+					<td><input type="text" title="구분 입력" value="정보 수정"></td>
+					<td><input type="text" title="내용 입력" value="A/B/C항목 정보 일부 수정하였습니다"></td>
+					<td><span class="mgr5">2017-01-01</span><span>00:00:00</span></td>
+					<td>홍길동</td>
+					<td>-</td>
+				</tr>
+			</tbody>
+		</table>
+		<!--// list -->
+		<div class="btn_wrap">
+			<div class="floatL">
+				<button type="button" class="btn_ico_list"><span>목록</span></button><button type="button" class="btn_ico_delete"><span>삭제</span></button>
+			</div>
+			<div class="floatR">
+				<button type="button" class="btn_ico_confirm"><span>저장</span></button><button type="button" class="btn_ico_cancel"><span>취소</span></button>
+			</div>
+		</div>
+	</div>
+	<!--// contents -->
+
+
+	<!-- footer -->
+	<div id="jw_footer">
+		<!-- fnb -->
+		<div id="jw_fnb">
+			<div class="innerWrap">
+				<ul>
+					<li><a href="#">서비스 이용약관</a></li>
+					<li><a href="#">개인정보처리방침</a></li>
+					<li><a href="#">고객센터</a></li>
+					<li><a href="#">매뉴얼다운로드</a></li>
+				</ul>
+			</div>
+		</div>
+		<!--// fnb -->
+		<div class="innerWrap">
+			<address>
+				주소. 서울시 서초구 남부순환로 2477 (우)06725 JWTOWER      대표번호. 02-840-6777
+				<div class="copy">COPYRIGHT© JW홀딩스 All Rights Reserved.</div>
+			</address>
+		</div>
+	</div>
+	<!--// footer -->
+</body>
+</html>

@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="loginDAO">
+
+	<resultMap type="userVO" id="loginResultMap"></resultMap>
+ 
+    <select id="selectUserInfo" parameterType="userVO" statementType="CALLABLE">
+	{CALL PROC_EMP_LOGIN_INFO(#{emp_no} , #{pass}, #{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=loginResultMap})}
+	</select>
+	
+	
+	<select id="selectUserInfoById" parameterType="userVO" statementType="CALLABLE">
+    {CALL PROC_EMP_SSO_LOGIN_INFO(#{emp_no}, #{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=loginResultMap})}
+	</select>
+    
+	
+    <select id="selectSearchInfo" parameterType="userVO" statementType="CALLABLE">
+	{CALL PROC_EMP_SEARCH_INFO(#{emp_no} , #{emp_nm}, #{e_mail}, #{OUTCURSOR, mode=OUT, jdbcType=CURSOR, javaType=java.sql.ResultSet, resultMap=loginResultMap})}
+	</select>
+	
+    <update id="updatePass" parameterType="userVO">
+	<![CDATA[
+		UPDATE CRM_EMP_MGT
+		SET
+		     PASS = #{pass, jdbcType=VARCHAR}
+		 WHERE 
+		     EMP_NO = #{emp_no, jdbcType=VARCHAR} 
+		 AND
+		     EMP_NM = #{emp_nm, jdbcType=VARCHAR}
+		 AND 
+		     E_MAIL = #{e_mail, jdbcType=VARCHAR}
+	]]>
+	</update>
+	
+	<update id="updateAgreement" parameterType="userVO">
+	<![CDATA[
+		UPDATE CRM_CUST_ERP
+		SET
+		     USE_TYPE = #{use_type}
+		 WHERE 
+		     EMP_ID = #{emp_id, jdbcType=VARCHAR}
+	]]>
+	</update>
+ 
+    <select id="selectFrUserInfo" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    A.SEQ , 
+		    A.EMP_ID , 
+		    A.PASS ,
+		    A.CUST_CODE , 
+		    A.EMP_GRADE , 
+		    A.USE_TYPE , 
+		    A.JOIN_DATE , 
+		    A.EMP_NAME , 
+		    A.DEPT_GRADE , 
+		    A.DEPT_NAME , 
+		    A.EMAIL , 
+		    A.TEL_NO ,
+		    B.CUST_KOR_NAME
+		FROM CRM_CUST_ERP A
+		INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.CRM_CODE
+		WHERE 
+			A.EMP_ID = #{emp_id, jdbcType=VARCHAR}
+	]]>	
+	</select>
+ 
+    <select id="getFindId" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    A.SEQ , 
+		    A.EMP_ID , 
+		    A.CUST_CODE , 
+		    A.EMP_GRADE , 
+		    A.USE_TYPE , 
+		    A.JOIN_DATE , 
+		    A.EMP_NAME , 
+		    A.DEPT_GRADE , 
+		    A.DEPT_NAME , 
+		    A.EMAIL , 
+		    A.TEL_NO ,
+		    B.CUST_KOR_NAME
+		FROM CRM_CUST_ERP A
+		INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.CRM_CODE
+		WHERE 
+			A.EMP_NAME = #{emp_name, jdbcType=VARCHAR}
+		AND
+			A.EMAIL = #{email, jdbcType=VARCHAR}
+	]]>	
+	</select>
+	
+    <select id="getFindPw" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    A.SEQ , 
+		    A.EMP_ID , 
+		    A.CUST_CODE , 
+		    A.EMP_GRADE , 
+		    A.USE_TYPE , 
+		    A.JOIN_DATE , 
+		    A.EMP_NAME , 
+		    A.DEPT_GRADE , 
+		    A.DEPT_NAME , 
+		    A.EMAIL , 
+		    A.TEL_NO ,
+		    B.CUST_KOR_NAME
+		FROM CRM_CUST_ERP A
+		INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.CRM_CODE
+		WHERE 
+			A.EMP_ID = #{emp_id, jdbcType=VARCHAR}
+		AND
+			A.EMP_NAME = #{emp_name, jdbcType=VARCHAR}
+		AND
+			A.EMAIL = #{email, jdbcType=VARCHAR}
+	]]>	
+	</select>
+	
+	<select id="getAdUserMenuList" parameterType="userVO" resultType = "menuVO">
+	SELECT IN_TB.* FROM (
+        SELECT A.* , ROWNUM RNUM
+        FROM (select * from crm_menu_mgt 
+                where menu_code in 
+                    (
+                        select menu_code from crm_role_menu rm, crm_role_user ru
+                        where ru.ROLE_CODE = rm.ROLE_CODE
+                        and ru.EMP_NO = #{emp_no}
+                    )
+        ) A
+        START WITH MENU_CODE = '0000'
+        CONNECT BY PRIOR MENU_CODE = P_MENU_CODE
+    ) IN_TB
+    WHERE
+        IN_TB.MENU_CODE != '0000'
+    ORDER BY IN_TB.RNUM
+	</select>
+	
+	<select id="getAdAcceptUrl" parameterType="userVO" resultType = "java.lang.String">
+	SELECT DISTINCT TB.* FROM (
+	    SELECT PROG_CODE FROM CRM_ROLE_PROG
+	    WHERE ROLE_CODE IN (SELECT ROLE_CODE FROM CRM_ROLE_USER WHERE EMP_NO = #{emp_no})
+	    
+	    UNION ALL
+	    
+	    SELECT MENU_URL AS PROG_CODE FROM CRM_MENU_MGT
+	    WHERE MENU_CODE IN 
+	        (
+	            SELECT MENU_CODE FROM CRM_ROLE_MENU RM, CRM_ROLE_USER RU
+	            WHERE RU.ROLE_CODE = RM.ROLE_CODE
+	            AND RU.EMP_NO = #{emp_no}
+	        )
+	    AND MENU_URL IS NOT NULL
+	) TB
+	</select>
+	
+	<select id="getRoleUserByEmpNo" parameterType="userVO" resultType = "roleVO">
+		SELECT
+		    EMP_NO,
+		    ROLE_CODE,
+		    REG_ID,
+		    REG_DATE,
+		    UPD_ID,
+		    UPD_DATE
+		FROM
+		    CRM_ROLE_USER
+		WHERE
+		    EMP_NO = #{emp_no} 
+	</select>
+	
+	<insert id="insertComeUser" parameterType="userVO" >
+		INSERT
+			INTO COME_ON_USER (C_DATE, C_ID, C_CUST, C_TYPE)
+		VALUES(SYSDATE,#{emp_id},#{cust_code},#{weight})
+	</insert>
+</mapper>

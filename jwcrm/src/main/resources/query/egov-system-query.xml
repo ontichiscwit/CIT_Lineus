@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="systemDAO">
+	<select id="getProgListAll" resultType="progVO">
+	<![CDATA[
+		SELECT
+			PROG_CODE
+			,PROG_NAME
+			,REG_ID
+			,TO_CHAR(REG_DATE,'YYYY/MM/DD HH24:MI:SS') AS REG_DATE
+		FROM CRM_PROGRAM_MGT
+		ORDER BY PROG_NAME
+	]]>
+	</select>
+	
+	<update id="updateProgMgtByPk" parameterType="progVO">
+	
+		UPDATE CRM_PROGRAM_MGT SET
+			PROG_NAME = #{prog_name}
+			,UPD_ID = #{upd_id}
+			,UPD_DATE = SYSDATE
+		WHERE PROG_CODE = #{prog_code}
+	</update>
+	
+	<insert id="insertProgMgt" parameterType="progVO">
+		INSERT INTO CRM_PROGRAM_MGT (PROG_CODE, PROG_NAME, REG_ID, REG_DATE)
+		VALUES(
+			#{prog_code}
+			,#{prog_name}
+			,#{reg_id}
+			,sysdate
+		)
+	</insert>
+	
+	<insert id="deleteProgMgtByPk" parameterType="progVO">
+		DELETE FROM CRM_PROGRAM_MGT
+		WHERE PROG_CODE = #{prog_code}
+	</insert>
+	
+	<select id="getMenuListAll" resultType="menuVO">
+		SELECT IN_TB.* FROM (
+		    SELECT A.* , ROWNUM RNUM
+		    FROM CRM_MENU_MGT A
+		    START WITH MENU_CODE = '0000'
+		    CONNECT BY PRIOR MENU_CODE = P_MENU_CODE
+		) IN_TB
+		WHERE
+		    IN_TB.MENU_CODE != '0000'
+		ORDER BY MENU_DEPTH, P_MENU_CODE, ORD_NUM
+	</select>
+	
+	<select id="getRoleListAll" resultType="roleVO">
+		SELECT ROLE_CODE, ROLE_NAME FROM CRM_ROLE_MGT
+	</select>
+	
+	<update id="updateRoleMgtByPk" parameterType="roleVO">
+		UPDATE CRM_ROLE_MGT SET
+			ROLE_NAME = #{role_name}
+		WHERE ROLE_CODE = #{role_code}
+	</update>
+	
+	<insert id="insertRoleMgt" parameterType="roleVO">
+		INSERT INTO CRM_ROLE_MGT (ROLE_CODE,ROLE_NAME)
+		VALUES(
+			#{role_code}
+			,#{role_name}
+		)
+	</insert>
+	
+	<delete id="deleteRoleMgtByPk" parameterType="roleVO">
+		DELETE FROM CRM_ROLE_MGT WHERE ROLE_CODE = #{role_code}
+	</delete>
+	
+	<select id="getMenuListByRoleCode" parameterType="roleVO" resultType="menuVO">
+		SELECT 
+			IN_TB.MENU_CODE
+    		,IN_TB.MENU_NM || ' (' || MENU_DEPTH || 'depth)' AS MENU_NM
+		FROM (
+		    SELECT A.* , ROWNUM RNUM
+		    FROM CRM_MENU_MGT A
+		    START WITH MENU_CODE = '0000'
+		    CONNECT BY PRIOR MENU_CODE = P_MENU_CODE
+		) IN_TB, CRM_ROLE_MENU RM
+		WHERE
+		    IN_TB.MENU_CODE != '0000'
+		    AND RM.ROLE_CODE=#{role_code}
+		    AND RM.MENU_CODE = IN_TB.MENU_CODE
+		ORDER BY MENU_DEPTH, P_MENU_CODE, ORD_NUM
+	</select>
+	
+	<select id="getMenuListAll2" resultType="menuVO">
+		SELECT IN_TB.MENU_CODE
+    		,IN_TB.MENU_NM || ' (' || MENU_DEPTH || 'depth)' AS MENU_NM
+    	FROM (
+		    SELECT A.* , ROWNUM RNUM
+		    FROM CRM_MENU_MGT A
+		    START WITH MENU_CODE = '0000'
+		    CONNECT BY PRIOR MENU_CODE = P_MENU_CODE
+		) IN_TB
+		WHERE
+		    IN_TB.MENU_CODE != '0000'
+		ORDER BY MENU_DEPTH, P_MENU_CODE, ORD_NUM
+	</select>
+	
+	<select id="getDeleteMenuList" parameterType="map" resultType="menuVO">
+		SELECT 
+		    IN_TB.*
+		FROM (
+		    SELECT A.* , ROWNUM RNUM
+		    FROM CRM_MENU_MGT A
+		    START WITH MENU_CODE = '0000'
+		    CONNECT BY PRIOR MENU_CODE = P_MENU_CODE
+		) IN_TB, CRM_ROLE_MENU RM
+		WHERE 1=1
+		    AND RM.ROLE_CODE= #{roleCode}
+		    AND RM.MENU_CODE = IN_TB.MENU_CODE
+		    AND IN_TB.MENU_CODE NOT IN (${inQueryStr})
+		ORDER BY MENU_DEPTH, P_MENU_CODE, ORD_NUM
+	</select>
+	
+	<delete id="deleteRoleProgByPk" parameterType="roleProgVO">
+		DELETE FROM CRM_ROLE_PROG
+		WHERE 1=1
+			AND ROLE_CODE = #{role_code}
+			AND PROG_CODE = #{prog_code}
+	</delete>
+	
+	<insert id="insertRoleMenuBySelect" parameterType="map">
+		INSERT INTO CRM_ROLE_MENU (ROLE_CODE,MENU_CODE,REG_ID)
+		SELECT #{roleCode} AS ROLE_CODE
+		    ,IN_TB.MENU_CODE AS MENU_CODE
+		    ,#{regId}
+		FROM (
+		        SELECT MENU_CODE FROM CRM_MENU_MGT
+		        WHERE MENU_CODE IN (${inQueryStr},'0000')
+		        MINUS
+		        SELECT MENU_CODE FROM CRM_ROLE_MENU
+		        WHERE ROLE_CODE = #{roleCode}
+		    ) IN_TB
+	</insert>
+	
+	<delete id="deleteRoleMenuByPk" parameterType="roleMenuVO">
+		DELETE FROM CRM_ROLE_MENU
+		WHERE 1=1
+			AND ROLE_CODE = #{role_code}
+			AND MENU_CODE = #{menu_code}
+	</delete>
+	
+	<!-- 등록된 프로그램 리스트 -->
+	<select id="getProgListByRoleCode" parameterType="roleVO" resultType="ProgVO">
+		SELECT 
+		    PM.PROG_CODE
+		    ,PM.PROG_NAME
+		    ,PM.REG_DATE
+		    ,PM.REG_ID
+		    ,PM.UPD_DATE
+		    ,PM.UPD_ID
+		FROM CRM_ROLE_PROG RP, CRM_PROGRAM_MGT PM
+		WHERE 1=1
+		    AND RP.PROG_CODE = PM.PROG_CODE
+		    AND RP.ROLE_CODE = #{role_code}
+		ORDER BY PM.PROG_NAME
+	</select>
+	
+	<select id="getProgListByNotInRoleCode" parameterType="roleVO" resultType="progVO">
+	SELECT 
+	    PM.PROG_CODE
+	    ,PM.PROG_NAME
+	    ,PM.REG_DATE
+	    ,PM.REG_ID
+	    ,PM.UPD_DATE
+	    ,PM.UPD_ID
+	FROM CRM_PROGRAM_MGT PM
+	WHERE 1=1
+	    AND PM.PROG_CODE NOT IN (SELECT PROG_CODE FROM CRM_ROLE_PROG WHERE ROLE_CODE = #{role_code})
+	ORDER BY PM.PROG_NAME
+	</select>
+	
+	<delete id="deleteRoleProgByRoleCode" parameterType="map">
+	DELETE FROM CRM_ROLE_PROG
+	WHERE 1=1
+	    AND ROLE_CODE = #{roleCode}
+	    AND PROG_CODE IN (
+	        SELECT PROG_CODE FROM CRM_PROGRAM_MGT
+	        WHERE PROG_CODE NOT IN (${inQueryStr})
+	    )
+	</delete>
+	
+	<insert id="insertRoleProgBySelect" parameterType="map">
+	INSERT INTO CRM_ROLE_PROG (ROLE_CODE, PROG_CODE)
+	SELECT #{roleCode} AS ROLE_CODE, PROG_CODE FROM CRM_PROGRAM_MGT
+	WHERE PROG_CODE IN (${inQueryStr})
+	AND PROG_CODE NOT IN (SELECT PROG_CODE FROM CRM_ROLE_PROG WHERE ROLE_CODE = #{roleCode})
+	</insert>
+	
+	<select id="getUserListByRoleCode" parameterType="roleVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    EMP_NO
+		    ,'[' || EMP_GRADE_NAME || '][' || DEPT_NM || ']' || EMP_NM AS EMP_NM
+		FROM (
+		    SELECT
+		        EM.EMP_NO
+		        ,EM.EMP_GRADE
+		        ,EM.EMP_NM
+		        ,EM.DEPT_CD
+		        ,EM.MOBILE_NO
+		        ,EM.E_MAIL
+		        ,EM.RETIRE_DATE
+		        ,EM.REG_DATE
+		        ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD04' AND CODE = EM.EMP_GRADE) EMP_GRADE_NAME
+		        ,NVL((SELECT DEPT_NM FROM KYERP.TB_HR_DEPARTMENT AA WHERE AA.DEPT_CD = EM.DEPT_CD AND  END_YMD = '99991231'),'무소속') DEPT_NM
+		    FROM 
+		        CRM_EMP_MGT EM
+		        ,CRM_ROLE_USER RU
+		    WHERE EM.EMP_NO = RU.EMP_NO
+		        AND EM.EMP_NO <> 'ERP'
+		        AND RU.ROLE_CODE = #{role_code}
+		)
+		ORDER BY EMP_NM	
+	]]>
+	</select>
+	
+	<select id="getUserListByNotInRoleCode" parameterType="roleVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    EMP_NO
+		    ,'[' || EMP_GRADE_NAME || '][' || DEPT_NM || ']' || EMP_NM AS EMP_NM
+		FROM (
+		    SELECT 
+		        EM.EMP_NO
+		        ,EM.EMP_GRADE
+		        ,EM.EMP_NM
+		        ,EM.DEPT_CD
+		        ,EM.MOBILE_NO
+		        ,EM.E_MAIL
+		        ,EM.RETIRE_DATE
+		        ,EM.REG_DATE
+		        ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD04' AND CODE = EM.EMP_GRADE) EMP_GRADE_NAME
+		        ,NVL((SELECT DEPT_NM FROM KYERP.TB_HR_DEPARTMENT AA WHERE AA.DEPT_CD = EM.DEPT_CD AND  END_YMD = '99991231'),'무소속') DEPT_NM
+		    FROM 
+		        CRM_EMP_MGT EM
+		    WHERE EM.EMP_NO NOT IN (SELECT EMP_NO FROM CRM_ROLE_USER WHERE ROLE_CODE = #{role_code})
+		        AND EM.EMP_NO <> 'ERP'
+		)
+		ORDER BY EMP_NM
+	]]>
+	</select>
+	
+	<delete id="deleteRoleUserByRoleCode" parameterType="map">
+	DELETE FROM CRM_ROLE_USER
+	WHERE 1=1
+	    AND ROLE_CODE= #{roleCode}
+	    AND EMP_NO IN (
+	        SELECT EMP_NO FROM CRM_EMP_MGT
+	        WHERE EMP_NO NOT IN (${inQueryStr})
+	    )
+	</delete>
+	
+	<insert id="insertRoleUserBySelect" parameterType="map">
+	INSERT INTO CRM_ROLE_USER(ROLE_CODE,EMP_NO,REG_ID)
+	SELECT #{roleCode} AS ROLE_CODE, EMP_NO, #{regId} AS REG_ID  FROM CRM_EMP_MGT
+	WHERE EMP_NO in (${inQueryStr})
+	    AND EMP_NO NOT IN (SELECT EMP_NO FROM CRM_ROLE_USER WHERE ROLE_CODE = #{roleCode})
+	</insert>
+	
+	<delete id="deleteRoleMenuByNONRole">
+	DELETE FROM CRM_ROLE_MENU
+	WHERE ROLE_CODE NOT IN (SELECT ROLE_CODE FROM CRM_ROLE_MGT)
+	</delete>
+	
+	<delete id="deleteRoleProgByNONRole">
+	DELETE FROM CRM_ROLE_PROG
+	WHERE ROLE_CODE NOT IN (SELECT ROLE_CODE FROM CRM_ROLE_MGT)
+	</delete>
+	
+	<delete id="deleteRoleUserByNONRole">
+	DELETE FROM CRM_ROLE_USER
+	WHERE ROLE_CODE NOT IN (SELECT ROLE_CODE FROM CRM_ROLE_MGT)
+	</delete>
+</mapper>

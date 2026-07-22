@@ -1,0 +1,1330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+ 
+<mapper namespace="memberDAO">
+	
+	<sql id="memberListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND IN_TB.EMP_GRADE = #{search_type1}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND IN_TB.USE_TYPE = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == 'SEARCH'">
+			AND TO_CHAR(IN_TB.JOIN_DATE , 'yyyyMMdd') BETWEEN #{search_start} AND #{search_end}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND
+			<foreach collection="search_text_arr" item="item" index="index" open="(" close=")" separator="OR"  >
+				UPPER(IN_TB.EMP_ID) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.EMP_NAME) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.DEPT1_NM) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.DEPT2_NM) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.DEPT_GRADE_NM) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.TEL_NO) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.EMAIL) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.USE_TYPE_NAME) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.JOIN_DATE) LIKE '%'|| UPPER(#{item}) ||'%' 
+			</foreach>
+		</if>
+	</sql>
+	
+    <select id="getMemberListCnt" parameterType="userVO" resultType="java.lang.Integer">
+    <![CDATA[
+		SELECT COUNT(IN_TB.EMP_ID) FROM (
+			SELECT 
+				A.EMP_ID         
+				,A.CUST_CODE      
+				,A.EMP_GRADE      
+				,A.USE_TYPE       
+				,A.JOIN_DATE      
+				,A.EMP_NAME       
+				,A.DEPT1_NM       
+				,A.DEPT2_NM       
+				,A.DEPT_GRADE_NM  
+				,A.EMAIL          
+				,A.TEL_NO         
+				,A.REG_ID         
+				,A.REG_DATE       
+				,A.UPD_ID         
+				,A.UPD_DATE       
+				,A.INOUT_GUBUN    
+				,A.EACH_EMP_ID    
+				,A.GROUP_EMP_ID   
+				,A.APPROVAL_AUTH  
+				,B.CUST_KOR_NAME  
+				,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='COMMON' AND P_CODE ='CD01' AND CODE = A.EMP_GRADE) EMP_GRADE_NAME  /*회원등급 마스터 OR 일반*/
+				,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='COMMON' AND P_CODE ='CD02' AND CODE = A.USE_TYPE) USE_TYPE_NAME  /*회원계정상태*/
+			FROM
+			    CRM_CUST_EMP A
+			    INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.ERP_CODE
+		) IN_TB
+		WHERE 1=1
+		]]>
+		<include refid="memberListWhere"/>		
+	</select>
+
+    <select id="getMemberList" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT OUT_TB.* FROM (
+			SELECT IN_TB.* , ROW_NUMBER() OVER (ORDER BY IN_TB.EMP_ID ) AS RNUM FROM (
+				SELECT 
+				    A.EMP_ID         
+					,A.CUST_CODE      
+					,A.EMP_GRADE      
+					,A.USE_TYPE       
+					,A.JOIN_DATE      
+					,A.EMP_NAME       
+					,A.DEPT1_NM       
+					,A.DEPT2_NM       
+					,A.DEPT_GRADE_NM  
+					,A.EMAIL          
+					,A.TEL_NO         
+					,A.REG_ID         
+					,A.REG_DATE       
+					,A.UPD_ID         
+					,A.UPD_DATE       
+					,A.INOUT_GUBUN    
+					,A.EACH_EMP_ID    
+					,A.GROUP_EMP_ID   
+					,A.APPROVAL_AUTH  
+					,B.CUST_KOR_NAME  
+				    ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='COMMON' AND P_CODE ='CD01' AND CODE = A.EMP_GRADE) EMP_GRADE_NAME 
+				    ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='COMMON' AND P_CODE ='CD02' AND CODE = A.USE_TYPE) USE_TYPE_NAME  
+				FROM
+				    CRM_CUST_EMP A
+				    INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.ERP_CODE
+			) IN_TB
+			WHERE 1=1
+	]]>
+	<include refid="memberListWhere"/>		
+	
+	<![CDATA[
+		) OUT_TB
+	]]>
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+			WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</if>	
+	<![CDATA[
+		ORDER BY RNUM DESC
+	]]>
+	</select>
+
+    <update id="updatePassChange" parameterType="userVO">
+	<![CDATA[
+		UPDATE CRM_CUST_EMP
+		SET
+			PASS = #{pass, jdbcType=VARCHAR}
+		   ,PASS_CHG_DATE = SYSDATE  
+		WHERE 
+			EMP_ID = #{emp_id, jdbcType=VARCHAR}
+	]]>
+	</update>
+
+    <insert id="insertCustEmp" parameterType="userVO">
+	<![CDATA[
+		INSERT INTO CRM_CUST_EMP(  
+			EMP_ID,			PASS,			PASS_CHG_DATE,	CUST_CODE,	EMP_GRADE,
+			USE_TYPE,		JOIN_DATE,		EMP_NAME,	DEPT1_NM,    DEPT2_NM,		
+			EMAIL, 			DEPT_GRADE_NM, 	TEL_NO, 	INOUT_GUBUN, EACH_EMP_ID, 
+			GROUP_EMP_ID,   APPROVAL_AUTH,	REG_ID,		REG_DATE,    COMPANY_NO
+		)VALUES(
+			#{emp_id, jdbcType=VARCHAR},#{pass, jdbcType=VARCHAR},SYSDATE,#{erp_code, jdbcType=VARCHAR},#{emp_grade, jdbcType=VARCHAR},
+			#{use_type, jdbcType=VARCHAR},SYSDATE,#{emp_name, jdbcType=VARCHAR},#{dept1_nm, jdbcType=VARCHAR},#{dept2_nm, jdbcType=VARCHAR},	
+			#{email, jdbcType=VARCHAR},#{dept_grade_nm, jdbcType=VARCHAR},#{tel_no, jdbcType=VARCHAR},#{inout_gubun, jdbcType=VARCHAR},#{each_emp_id, jdbcType=VARCHAR},
+			#{group_emp_id, jdbcType=VARCHAR},#{approval_auth, jdbcType=VARCHAR},#{reg_id, jdbcType=VARCHAR},SYSDATE,#{company_no, jdbcType=VARCHAR}
+		)
+	]]>
+	</insert>
+	
+	<select id="getMemberMaxSeq" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT MAX_MEMBER_CUST.NEXTVAL FROM DUAL
+	]]>
+	</select>
+
+    <update id="updateCustEmp" parameterType="userVO">
+	<![CDATA[
+		UPDATE CRM_CUST_EMP
+		SET
+			 EMP_GRADE = #{emp_grade, jdbcType=VARCHAR}
+			,USE_TYPE = #{use_type, jdbcType=VARCHAR}		
+			,EMP_NAME = #{emp_name, jdbcType=VARCHAR}
+			,DEPT1_NM = #{dept1_nm, jdbcType=VARCHAR}
+			,DEPT2_NM = #{dept2_nm, jdbcType=VARCHAR}
+			,DEPT_GRADE_NM = #{dept_grade_nm, jdbcType=VARCHAR}			
+			,EMAIL = #{email, jdbcType=VARCHAR}
+			,TEL_NO = #{tel_no, jdbcType=VARCHAR}		
+			,UPD_ID = #{reg_id, jdbcType=VARCHAR}		
+			,UPD_DATE = SYSDATE
+			,APPROVAL_AUTH =  #{approval_auth, jdbcType=VARCHAR}
+			,COMPANY_NO = #{company_no, jdbcType=VARCHAR}	
+			,LOCK_YN = #{lock_yn, jdbcType=VARCHAR} /* 로그인 LOCK 여부 */
+			,LOGIN_F_CNT = DECODE( #{lock_yn}, 'N', 0, LOGIN_F_CNT )  /* 로그인 LOCK해제시 실패로그인횟수 초기화 */   
+	]]>
+			<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(pass) != ""'>
+			, PASS = #{pass, jdbcType=VARCHAR}	
+			, PASS_CHG_DATE = SYSDATE	
+			</if>	
+	<![CDATA[
+		WHERE 
+			EMP_ID = #{emp_id, jdbcType=VARCHAR}					
+	]]>
+	</update>
+	
+	<select id="getMemberCheck1" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+			COUNT(*)
+		FROM
+			CRM_CUST_EMP
+		WHERE 
+			CUST_CODE = #{erp_code, jdbcType=VARCHAR}
+		AND
+			EMP_GRADE != 'C002'
+	]]>
+	</select>
+	
+	<select id="getMemberCheck2" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+			COUNT(*)
+		FROM
+			CRM_CUST_EMP
+		WHERE 
+			EMP_ID = #{emp_id, jdbcType=VARCHAR}
+	]]>
+	</select>
+	
+	<select id="getMemberCheck4" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+			COUNT(*)
+		FROM
+			CRM_CUST_EMP
+		WHERE 
+			CUST_CODE = #{erp_code, jdbcType=VARCHAR}
+		AND
+			EMP_GRADE != 'C002'
+		AND
+			EMP_ID != #{emp_id, jdbcType=VARCHAR}
+	]]>
+	</select>
+	
+	<select id="getMemberCheck3" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+			COUNT(*)
+		FROM
+			CRM_CUST_EMP
+		WHERE 
+			EMP_ID = #{emp_id, jdbcType=VARCHAR}
+		AND
+			PASS = #{pass, jdbcType=VARCHAR}
+	]]>
+	</select>
+	
+	<select id="getErpCheck3" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+			COUNT(*)
+		FROM
+			CRM_EMP_MGT
+		WHERE 
+			EMP_NO = #{emp_no, jdbcType=VARCHAR}
+		AND
+			PASS = #{pass, jdbcType=VARCHAR}
+	]]>
+	</select>
+	
+	<select id="getCustListCnt" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+		    COUNT(A.SEQ)
+		FROM 
+		    CRM_CUST_MGT A
+		    WHERE 1=1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND  UPPER(A.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%'  
+		</if>
+		
+	</select>
+	
+	<select id="getCustList" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT IN_TB.*  FROM(
+		SELECT 
+		    SEQ , 
+		    CUST_KOR_NAME , 
+		    CUST_ADDRESS , 
+		    CUST_NO , 
+		    ERP_CODE,
+		    CEO ,
+		    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='CUST' AND P_CODE ='CD01' AND CODE = CUST_GUBUN) AS CUST_GUBUN_NM, 
+		    ROW_NUMBER() OVER (ORDER BY A.SEQ ) AS RNUM
+		FROM 
+		    CRM_CUST_MGT A
+		    WHERE 1=1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND  UPPER(A.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%'  
+		</if>
+	<![CDATA[
+		) IN_TB
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY RNUM DESC
+	]]>
+	</select>
+	
+	<select id="getCustInfo" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		
+		SELECT 
+		    A.SEQ , 
+		    A.CUST_KOR_NAME , 
+		    A.ERP_CODE , 
+		    A.CUST_ADDRESS , 
+		    A.TEL_NO,
+		    A.CUST_GUBUN
+		FROM 
+		    CRM_CUST_MGT A
+		WHERE 1=1 
+			AND A.SEQ = #{seq, jdbcType=INTEGER}
+	]]>
+		
+	</select>
+		
+	
+	
+	<sql id="erpListWhere">
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(emp_nm) != ''">
+			AND UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{emp_nm}) ||'%' 
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND IN_TB.USE_YN = #{search_type2}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) == 'SEARCH'">
+			AND TO_CHAR(IN_TB.REG_DATE , 'yyyyMMdd') BETWEEN #{search_start} AND #{search_end}
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND
+			<foreach collection="search_text_arr" item="item" index="index" open="(" close=")" separator="OR"  >
+				UPPER(IN_TB.EMP_NO) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.DEPT1_NM) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.DEPT2_NM) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.DEPT_GRADE_NM) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.MOBILE_NO) LIKE '%'|| UPPER(#{item}) ||'%' 	OR
+				UPPER(IN_TB.E_MAIL) LIKE '%'|| UPPER(#{item}) ||'%' 	
+				
+			</foreach>
+		</if>
+	</sql>
+	
+	<select id="getEmpListCnt" parameterType="userVO" resultType="java.lang.Integer">
+    <![CDATA[
+		SELECT COUNT(IN_TB.EMP_NO) FROM (
+			SELECT 
+			      A.EMP_NO         
+				 ,A.EMP_NM         
+				 ,A.DEPT1_CD       
+				 ,A.DEPT2_CD       
+				 ,A.DEPT_GRADE_CD  
+				 ,A.E_MAIL         
+				 ,A.MOBILE_NO      
+				 ,A.RETIRE_DATE    
+				 ,A.REG_DATE       
+				 ,A.REG_ID         
+				 ,A.UPD_DATE       
+				 ,A.UPD_ID         
+				 ,A.DEPT1_NM       
+				 ,A.DEPT2_NM       
+				 ,A.DEPT_GRADE_NM 
+			     ,A.USE_YN
+			     ,A.COMPANY_NO
+			FROM
+			    CRM_EMP_MGT A
+		) IN_TB
+		WHERE 1=1
+		]]>
+		<include refid="erpListWhere"/>		
+	</select>
+	
+	<select id="getEmpList" parameterType="userVO" resultType="userVO">
+    <![CDATA[
+		SELECT OUT_TB.* FROM (
+			SELECT IN_TB.* , 
+			ROW_NUMBER() OVER (ORDER BY IN_TB.EMP_NO ) AS RNUM FROM (
+				SELECT 
+					 A.EMP_NO        
+					,A.EMP_NM        
+					,A.DEPT1_CD      
+					,A.DEPT2_CD      
+					,A.DEPT_GRADE_CD 
+					,A.E_MAIL        
+					,A.MOBILE_NO     
+					,A.RETIRE_DATE   
+					,A.REG_DATE      
+					,A.REG_ID        
+					,A.UPD_DATE      
+					,A.UPD_ID        
+					,A.DEPT1_NM      
+					,A.DEPT2_NM      
+					,A.DEPT_GRADE_NM
+				    ,A.USE_YN
+				    ,A.COMPANY_NO
+				FROM
+				    CRM_EMP_MGT A
+			) IN_TB
+			WHERE 1=1
+		]]>
+			<include refid="erpListWhere"/>		
+		<![CDATA[
+		) OUT_TB
+	]]>
+	<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
+			WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+	</if>	
+	<![CDATA[
+		ORDER BY RNUM DESC
+	]]>
+	</select>
+	
+	
+	<update id="updateEmpChange" parameterType="userVO">
+	<![CDATA[
+		UPDATE CRM_EMP_MGT
+		SET
+			RETIRE_DATE = TO_CHAR(SYSDATE , 'yyyyMMdd') 
+		WHERE 
+			EMP_NO = #{emp_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+	
+	<update id="updateErpPassChange" parameterType="userVO">
+	<![CDATA[
+		UPDATE CRM_EMP_MGT
+		SET
+			PASS = #{pass, jdbcType=VARCHAR}
+		   ,PASS_CHG_DATE = SYSDATE  
+		WHERE 
+			EMP_NO = #{emp_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+	
+	
+	<select id="getPostListCnt" parameterType="userVO" resultType="java.lang.Integer">
+		SELECT COUNT(IN_TB.EMP_NO) 
+		  FROM (
+			    WITH DEP_TB AS(
+						        SELECT  UP.DEPT_CD AS DEPT1_CD
+							    		,UP.DEPT_NM AS DEPT1_NM
+							    		,IN_TB.DEPT_CD AS DEPT2_CD
+							    		,IN_TB.DEPT_NM AS DEPT2_NM
+							    		,IN_TB.END_YMD
+			    	 			  FROM (
+			    	 			  			SELECT DEPT_CD
+			    		          				   ,DEPT_NM
+			    		          				   ,UP_DEPT_CD
+			    		          				   ,END_YMD 
+			    		     				  FROM KYERP.TB_HR_DEPARTMENT@DL_ONTIC
+			    		   					 WHERE END_YMD ='99991231'
+			    		  				)IN_TB
+			    		  				,KYERP.TB_HR_DEPARTMENT@DL_ONTIC UP 
+			    				WHERE UP.DEPT_CD = IN_TB.UP_DEPT_CD
+			    	  			  AND UP.END_YMD ='99991231'
+			    			 ),     
+			     INFO_TB AS(
+					        SELECT X.EMP_CD AS EMP_NO
+							       ,X.EMP_NM 	/*이름*/
+							       ,DEPT_CD 	/*팀코드*/
+							       ,MOBILE_NO 	/*핸드폰*/
+							       ,DEPT_DUTY AS DEPT_GRADE_CD
+							       ,KYERP.FN_GET_CM_CODE_NM@DL_ONTIC('HR0003', DEPT_DUTY, 'KO') AS DEPT_GRADE_NM
+							       ,E_MAIL
+					         FROM KYERP.TB_HR_EMPLOYEE@DL_ONTIC X
+							      ,(SELECT A.EMP_CD
+							          	   ,DEPT_CD
+							          	   ,DEPT_DUTY
+							        FROM KYERP.TB_HR_PERS_APPOINTMENTS@DL_ONTIC A
+							            ,(SELECT DISTINCT EMP_CD, MAX (DOCUMENT_NO) AS DOCUMENT_NO 
+							               FROM  KYERP.TB_HR_PERS_APPOINTMENTS@DL_ONTIC 
+							               GROUP BY EMP_CD ) B
+							        WHERE A.EMP_CD = B.EMP_CD
+							          AND A.DOCUMENT_NO = B.DOCUMENT_NO 
+							       ) Y
+					        WHERE X.EMP_CD = Y.EMP_CD
+			    			)
+			    SELECT DEP_TB.* 
+				      ,INFO_TB.*
+				      ,ROW_NUMBER() OVER (ORDER BY INFO_TB.EMP_NO ) AS RNUM 
+			     FROM DEP_TB, INFO_TB
+			    WHERE 1=1
+			      AND DEP_TB.DEPT2_CD = INFO_TB.DEPT_CD
+			    <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			      AND UPPER(INFO_TB.EMP_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' 
+			    </if>
+		ORDER BY 1
+			 )IN_TB
+	</select>
+	
+	<select id="getPostList" parameterType="userVO" resultType="userVO">
+		SELECT IN_TB.*  FROM(
+		    WITH DEP_TB AS(
+					        SELECT UP.DEPT_CD AS DEPT1_CD
+					    		   ,UP.DEPT_NM AS DEPT1_NM
+					    		   ,IN_TB.DEPT_CD AS DEPT2_CD
+					    		   ,IN_TB.DEPT_NM AS DEPT2_NM
+					    		   ,IN_TB.END_YMD
+					    	  FROM (SELECT DEPT_CD
+						    			    ,DEPT_NM
+						    			    ,UP_DEPT_CD
+						    			    ,END_YMD 
+					    		      FROM KYERP.TB_HR_DEPARTMENT@DL_ONTIC
+					    	         WHERE END_YMD ='99991231'
+					    	        )IN_TB
+					    			, KYERP.TB_HR_DEPARTMENT@DL_ONTIC UP 
+					    	  WHERE UP.DEPT_CD = IN_TB.UP_DEPT_CD
+					    		AND UP.END_YMD ='99991231'
+		    ),     
+		    	INFO_TB AS(
+					        SELECT X.EMP_CD AS EMP_NO
+							      ,X.EMP_NM /*이름*/
+							      ,DEPT_CD /*팀코드*/
+							      ,MOBILE_NO  /*핸드폰*/
+							      ,DEPT_DUTY AS DEPT_GRADE_CD
+							      ,KYERP.FN_GET_CM_CODE_NM@DL_ONTIC('HR0003', DEPT_DUTY, 'KO') AS DEPT_GRADE_NM
+							      ,E_MAIL
+						    FROM KYERP.TB_HR_EMPLOYEE@DL_ONTIC X
+							     ,(SELECT A.EMP_CD
+							          	  ,DEPT_CD
+							          	  ,DEPT_DUTY
+							         FROM KYERP.TB_HR_PERS_APPOINTMENTS@DL_ONTIC A
+							              ,(SELECT DISTINCT EMP_CD
+							              				   ,MAX (DOCUMENT_NO) AS DOCUMENT_NO 
+							           		  FROM KYERP.TB_HR_PERS_APPOINTMENTS@DL_ONTIC GROUP BY EMP_CD ) B
+							        WHERE A.EMP_CD = B.EMP_CD
+							          AND A.DOCUMENT_NO = B.DOCUMENT_NO ) Y
+						    WHERE X.EMP_CD = Y.EMP_CD
+		    )
+		    SELECT DEP_TB.* 
+				   ,INFO_TB.*
+				   ,ROW_NUMBER() OVER (ORDER BY INFO_TB.EMP_NO ) AS RNUM 
+		      FROM  DEP_TB
+		      	    ,INFO_TB
+		     WHERE 1=1
+		       AND DEP_TB.DEPT2_CD = INFO_TB.DEPT_CD
+		    <if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+		       AND UPPER(INFO_TB.EMP_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' 
+		    </if>
+			ORDER BY 1
+		 )IN_TB
+		WHERE RNUM BETWEEN #{startRow} AND #{endRow}
+		ORDER BY RNUM DESC
+	</select>
+	
+	
+	<select id="getPostInfo" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		WITH DEP_TB AS(
+				        SELECT UP.DEPT_CD AS DEPT1_CD
+				    		   ,UP.DEPT_NM AS DEPT1_NM
+				    		   ,IN_TB.DEPT_CD AS DEPT2_CD
+				    		   ,IN_TB.DEPT_NM AS DEPT2_NM
+				    		   ,IN_TB.END_YMD
+				    	 FROM (SELECT DEPT_CD
+					    			    ,DEPT_NM
+					    			    ,UP_DEPT_CD
+					    			    ,END_YMD 
+				    			 FROM KYERP.TB_HR_DEPARTMENT@DL_ONTIC
+				    		    WHERE END_YMD ='99991231'
+				    		    )IN_TB
+				    		    ,KYERP.TB_HR_DEPARTMENT@DL_ONTIC UP 
+			    		WHERE UP.DEPT_CD = IN_TB.UP_DEPT_CD
+			    		  AND UP.END_YMD ='99991231'
+	    ),     
+		    INFO_TB AS(
+				        SELECT X.EMP_CD AS EMP_NO
+						       ,X.EMP_NM /*이름*/
+						       ,DEPT_CD /*팀코드*/
+						       ,MOBILE_NO /*핸드폰*/
+						       ,DEPT_DUTY as DEPT_GRADE_CD
+						       ,KYERP.FN_GET_CM_CODE_NM@DL_ONTIC('HR0003', DEPT_DUTY, 'KO') AS DEPT_GRADE_NM
+						       ,E_MAIL
+						       ,COMPANY_NO
+					     FROM KYERP.TB_HR_EMPLOYEE@DL_ONTIC X
+						      ,(SELECT A.EMP_CD
+							           ,DEPT_CD
+							           ,DEPT_DUTY
+						          FROM KYERP.TB_HR_PERS_APPOINTMENTS@DL_ONTIC A 
+						              ,(SELECT DISTINCT EMP_CD,MAX (DOCUMENT_NO) AS DOCUMENT_NO FROM KYERP.TB_HR_PERS_APPOINTMENTS@DL_ONTIC GROUP BY EMP_CD ) B
+						        WHERE A.EMP_CD = B.EMP_CD
+						          AND A.DOCUMENT_NO = B.DOCUMENT_NO ) Y
+					    WHERE X.EMP_CD = Y.EMP_CD
+					    
+			)
+	    SELECT DEP_TB.* 
+	    	   ,INFO_TB.*
+	    	   ,ROW_NUMBER() OVER (ORDER BY INFO_TB.EMP_NO ) AS RNUM 
+	    FROM  DEP_TB, INFO_TB
+	    WHERE 1=1
+	      AND DEP_TB.DEPT2_CD = INFO_TB.DEPT_CD
+	      AND INFO_TB.EMP_NO = #{emp_no}
+	    ORDER BY 1
+	]]>
+	</select>
+	
+	<select id="getPostSelect" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT DEPT_CD ,DEPT_NM FROM KYERP.TB_HR_DEPARTMENT@DL_ONTIC WHERE END_YMD = '99991231' 
+	]]>
+	</select>
+	
+	<insert id="registErpInsert" parameterType="userVO" >
+	<![CDATA[
+		INSERT INTO CRM_EMP_MGT(
+		   EMP_NO        
+		  ,EMP_NM        
+		  ,DEPT1_CD      
+		  ,DEPT2_CD      
+		  ,DEPT_GRADE_CD 
+		  ,E_MAIL        
+		  ,MOBILE_NO     
+		  ,PASS      
+		  ,PASS_CHG_DATE    
+		  ,REG_DATE      
+		  ,REG_ID        
+		  ,USE_YN        
+		  ,DEPT1_NM      
+		  ,DEPT2_NM      
+		  ,DEPT_GRADE_NM
+		  ,COMPANY_NO
+		)VALUES(
+		   #{emp_no}
+		  ,#{emp_nm}
+		  ,#{dept1_cd}
+		  ,#{dept2_cd}
+		  ,#{dept_grade_cd}
+		  ,#{e_mail}
+		  ,#{mobile_no}
+		  ,#{pass}
+		  ,sysdate
+		  ,sysdate
+		  ,#{reg_id}
+		  ,#{use_yn}
+		  ,#{dept1_nm}
+		  ,#{dept2_nm}
+		  ,#{dept_grade_nm}
+		  ,#{company_no}
+		)
+	]]>
+	</insert>
+	
+	<update id="registErpUpdate" parameterType="userVO" >
+	<![CDATA[
+		UPDATE CRM_EMP_MGT
+		SET
+			EMP_NM = #{emp_nm, jdbcType=VARCHAR}			
+			,DEPT1_CD = #{dept1_cd, jdbcType=VARCHAR}		
+			,DEPT1_NM = #{dept1_nm, jdbcType=VARCHAR}		
+			,DEPT2_CD = #{dept2_cd, jdbcType=VARCHAR}		
+			,DEPT2_NM = #{dept2_nm, jdbcType=VARCHAR}		
+			,DEPT_GRADE_CD = #{dept_grade_cd, jdbcType=VARCHAR}		
+			,DEPT_GRADE_NM = #{dept_grade_nm, jdbcType=VARCHAR}		
+			,E_MAIL = #{e_mail, jdbcType=VARCHAR}
+			,MOBILE_NO = #{mobile_no, jdbcType=VARCHAR}
+			,USE_YN = #{use_yn, jdbcType=VARCHAR}
+			,COMPANY_NO = #{company_no, jdbcType=VARCHAR}  
+			,LOCK_YN = #{lock_yn, jdbcType=VARCHAR}  /* 로그인 LOCK 여부 */ 
+			,LOGIN_F_CNT = DECODE( #{lock_yn}, 'N', 0, LOGIN_F_CNT )  /* 로그인 LOCK해제시 실패로그인횟수 초기화 */  
+	]]>
+			<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pass) != '' ">
+			, PASS = #{pass, jdbcType=VARCHAR}
+			, PASS_CHG_DATE = SYSDATE
+			</if>
+					
+	<![CDATA[	
+			,UPD_DATE = SYSDATE  
+			,UPD_ID = #{reg_id, jdbcType=VARCHAR}
+		WHERE 
+			EMP_NO = #{emp_no, jdbcType=VARCHAR} 		
+	]]>
+	</update>
+	
+	<select id="getErpCheck" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		 SELECT COUNT(*) FROM CRM_EMP_MGT WHERE EMP_NO = #{emp_no, jdbcType=VARCHAR}
+	]]>
+	</select>
+
+	<select id="getCustEmpCnt" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT 
+		    COUNT(A.EMP_ID)
+		FROM 
+		    CRM_CUST_EMP A
+		WHERE 1 =1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_code) != ''">
+			AND  CUST_CODE IN (#{cust_code}, '00000')
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND  UPPER(A.EMP_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%'  
+		</if>
+	</select>
+	
+    <select id="getCustEmpList" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT OUT_TB.* FROM (
+			SELECT IN_TB.* , ROW_NUMBER() OVER (ORDER BY IN_TB.EMP_ID ) AS RNUM FROM (
+				SELECT 
+				    CUST_CODE ,
+				    EMP_ID , 
+				    EMP_NAME ,  
+				    TEL_NO ,
+				    DEPT1_NM,
+				    DEPT2_NM,
+				    DEPT_GRADE_NM,
+				    COMPANY_NO
+				FROM
+				    CRM_CUST_EMP
+			) IN_TB
+			WHERE 1 =1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(cust_code) != ''">
+			AND  CUST_CODE IN (#{cust_code}, '00000')
+		</if>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND  UPPER(EMP_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%'  
+		</if>
+	<![CDATA[
+		) OUT_TB
+			WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY RNUM DESC
+	]]>
+	</select>	
+	
+	<select id="getEmpInfo" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		
+		SELECT 
+		    CUST_CODE ,		    EMP_ID ,		    EMP_NAME ,		    TEL_NO , COMPANY_NO, EMAIL
+		FROM 
+		    CRM_CUST_EMP A
+		WHERE 1=1
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(emp_id) != ''"><![CDATA[AND EMP_ID = #{emp_id, jdbcType=VARCHAR}]]></if>
+		
+	</select>	
+	
+	<select id="getMemberInfo" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		     A.EMP_ID             
+			,A.CUST_CODE          
+			,A.EMP_GRADE          
+			,A.USE_TYPE           
+			,A.JOIN_DATE          
+			,A.EMP_NAME           
+			,A.DEPT1_NM           
+			,A.DEPT2_NM           
+			,A.DEPT_GRADE_NM      
+			,A.EMAIL              
+			,A.TEL_NO             
+			,A.COMPANY_NO             
+			
+			,A.REG_ID 
+			            
+			,A.REG_DATE           
+			,A.UPD_ID             
+			,A.UPD_DATE           
+			,A.INOUT_GUBUN        
+			,A.EACH_EMP_ID        
+			,A.GROUP_EMP_ID    
+			,A.LOCK_YN       /* 로그인 LOCK 여부 */   
+			,A.APPROVAL_AUTH  			   
+			,B.AS_APPROVAL_YN  			
+		    ,B.CUST_KOR_NAME  
+		    ,B.CUST_ADDRESS  
+		    ,B.ZIP_CODE  
+		    ,(SELECT EMP_NAME FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = B.ERP_CODE AND Z.EMP_GRADE = 'C001' ) DAM_EMP_NAME  
+		    ,(SELECT TEL_NO FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = B.ERP_CODE AND Z.EMP_GRADE = 'C001' ) DAM_TEL_NO		    
+		FROM CRM_CUST_EMP A
+		INNER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.ERP_CODE
+		WHERE 1 = 1 
+	]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(emp_id) != ''"><![CDATA[AND A.EMP_ID = #{emp_id, jdbcType=VARCHAR}]]></if>
+		
+	</select>
+	
+	<select id="getMemberSubList" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    TO_CHAR(A.JOIN_DATE , 'yyyy/MM/dd') JOIN_DATE , 
+		    A.EMP_ID , 
+		    A.SEQ , 
+		    A.EMP_NAME , 
+		    A.DEPT_NAME , 
+		    A.DEPT_GRADE , 
+		    A.EMAIL , 
+		    A.TEL_NO , 
+		    A.USE_TYPE , 
+		    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='COMMON' AND P_CODE ='CD02' AND CODE = A.USE_TYPE) USE_TYPE_NAME
+		FROM CRM_CUST_ERP A
+		WHERE 
+		    A.CUST_CODE = (SELECT CUST_CODE FROM CRM_CUST_ERP WHERE SEQ = #{seq, jdbcType=INTEGER})
+		AND
+		    A.EMP_GRADE != 'C001'
+	]]>
+	</select>
+	
+	<select id="getMemberAsList" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    B.AS_NO , 
+		    B.ACCEPT_DT , 
+		    B.PROC_STATUS , 
+		    B.PROC_DT , 
+		    B.INQUIRY_TYPE , 
+		    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='AS' AND P_CODE ='CD01' AND CODE = B.PROC_STATUS) USE_TYPE_NAME
+		FROM CRM_CUST_ERP A
+		INNER JOIN CRM_AS_MGT B ON A.EMP_ID = B.APPLY_ID
+		WHERE 
+		    A.SEQ = #{seq, jdbcType=INTEGER}
+		ORDER BY B.AS_NO DESC
+	]]>
+	</select>
+	
+	
+	<select id="getErpInfo" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		  A.EMP_NO                                 
+		 ,A.EMP_NM                                
+		 ,A.DEPT1_CD                              
+		 ,A.DEPT2_CD                              
+		 ,A.DEPT_GRADE_CD                         
+		 ,A.E_MAIL                                
+		 ,A.MOBILE_NO                             
+		 ,A.RETIRE_DATE                           
+		 ,A.REG_DATE                              
+		 ,A.REG_ID                                
+		 ,A.UPD_DATE                              
+		 ,A.UPD_ID                                
+		 ,A.DEPT1_NM                              
+		 ,A.DEPT2_NM                              
+		 ,A.DEPT_GRADE_NM                         
+		 ,A.USE_YN
+		 ,A.COMPANY_NO 
+		 ,A.LOCK_YN    /* 로그인 LOCK 여부 */
+		 ,A.PASS_CHG_DATE  /* 비밀번호 최근 변경일 값 추가 (2024.03.13. 비밀번호 변경 관련 수정)*/    
+		FROM
+		    CRM_EMP_MGT A
+		WHERE 
+			A.EMP_NO = #{emp_no, jdbcType=VARCHAR}
+	]]>
+	</select>
+	
+	<select id="getErpAsList" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    B.AS_NO , 
+		    B.ACCEPT_DT , 
+		    B.PROC_STATUS , 
+		    B.PROC_DT , 
+		    B.INQUIRY_TYPE , 
+		    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='AS' AND P_CODE ='CD01' AND CODE = B.PROC_STATUS) USE_TYPE_NAME
+		FROM CRM_EMP_MGT A
+		INNER JOIN CRM_AS_MGT B ON A.EMP_NO = B.ASSIGN_ID
+		WHERE 
+		    A.EMP_NO = #{emp_no, jdbcType=VARCHAR}
+		ORDER BY B.AS_NO DESC
+	]]>
+	</select>
+	
+	<select id="getJoinCustInfo" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT  CEO , CUST_KOR_NAME , CUST_ADDRESS, ERP_CODE,CUST_GUBUN  FROM CRM_CUST_MGT WHERE 1=1 
+	]]>
+	<if test='@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) == "1"'>
+		AND UPPER(CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%'
+	</if>
+	</select>
+	
+	<select id="getFrMemberListCnt" parameterType="userVO" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(IN_TB.EMP_ID) FROM (
+			SELECT 
+			    A.EMP_ID , 
+			    A.EMP_GRADE , 
+			    A.EMP_NAME ,  
+			    A.DEPT2_NM , 
+			    A.DEPT_GRADE_NM , 
+			    A.TEL_NO , 
+			    A.EMAIL , 
+			    A.USE_TYPE , 
+			    A.JOIN_DATE , 
+			    A.CUST_CODE,
+			    A.APPROVAL_AUTH  
+			FROM
+			    CRM_CUST_EMP A
+			WHERE 
+				A.CUST_CODE = #{erp_code, jdbcType=VARCHAR}
+		]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND A.USE_TYPE = #{search_type1}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND A.EMP_GRADE = #{search_type2}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND A.APPROVAL_AUTH = #{search_type3}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND
+			(
+				UPPER(A.EMP_ID) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(A.EMP_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(A.DEPT2_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' 
+			)
+		</if>
+		
+	<![CDATA[
+		) IN_TB
+		]]>
+			
+	</select>
+	
+	<select id="getFrMemberList" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT IN_TB.* FROM (
+			SELECT 
+			    A.EMP_ID , 
+			    A.EMP_GRADE , 
+			    A.EMP_NAME ,  
+			    A.DEPT2_NM , 
+			    A.DEPT_GRADE_NM , 
+			    A.TEL_NO , 
+			    A.EMAIL , 
+			    A.USE_TYPE , 
+			    A.JOIN_DATE , 
+			    A.CUST_CODE , 
+			    A.APPROVAL_AUTH,
+			    (SELECT CODE_NAME FROM CRM_CODE_DETAIL Z WHERE CODE_GROUP='COMMON' AND P_CODE ='CD02' AND CODE = A.USE_TYPE) USE_TYPE_NAME , 
+			    ROW_NUMBER() OVER (ORDER BY A.EMP_ID ) AS RNUM  
+			FROM
+			    CRM_CUST_EMP A
+			WHERE 
+				A.CUST_CODE = #{erp_code, jdbcType=VARCHAR}    
+			
+		]]>
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type1) != ''">
+			AND A.USE_TYPE = #{search_type1}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
+			AND A.EMP_GRADE = #{search_type2}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type3) != ''">
+			AND A.APPROVAL_AUTH = #{search_type3}
+		</if>
+		
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_text) != ''">
+			AND
+			(
+				UPPER(A.EMP_ID) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(A.EMP_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%' 	OR
+				UPPER(A.DEPT2_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' 
+			)
+		</if>
+	<![CDATA[
+		) IN_TB
+		WHERE RNUM BETWEEN #{startRow, jdbcType=INTEGER} AND #{endRow, jdbcType=INTEGER}
+		ORDER BY RNUM DESC
+		]]>
+	</select>
+	
+	<select id="getRatingList" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		SELECT 
+		    GROUP_CODE ,  WEIGHT,				 SEQ ,           	POINT_5 ,   			POINT_4_UP ,    POINT_4_DOWN ,
+		    POINT_3_UP ,    POINT_3_DOWN ,  POINT_2_UP ,	POINT_2_DOWN ,  POINT_1
+		FROM CRM_MEMBER_GRADE
+		WHERE 
+		    GROUP_CODE = #{group_code, jdbcType=VARCHAR}
+		ORDER BY SEQ
+	]]>
+	</select>
+	
+	<update id="registRatingInfo" parameterType="userVO" >
+	<![CDATA[
+		MERGE INTO CRM_MEMBER_GRADE A
+            USING DUAL
+            ON (
+                A.GROUP_CODE = #{group_code, jdbcType=VARCHAR}
+            )
+            WHEN MATCHED THEN
+              UPDATE SET
+              	A.POINT_5 				= #{point_5, jdbcType=VARCHAR},
+				A.POINT_4_UP			= #{point_4_up, jdbcType=VARCHAR},
+				A.POINT_4_DOWN		= #{point_4_down, jdbcType=VARCHAR},
+				A.POINT_3_UP			= #{point_3_up, jdbcType=VARCHAR},
+				A.POINT_3_DOWN		= #{point_3_down, jdbcType=VARCHAR},
+				A.POINT_2_UP			= #{point_2_up, jdbcType=VARCHAR},
+				A.POINT_2_DOWN		= #{point_2_down, jdbcType=VARCHAR},
+				A.POINT_1					= #{point_1, jdbcType=VARCHAR},
+				A.UPD_ID					= #{reg_id, jdbcType=VARCHAR},
+				A.UPD_DATE				= SYSDATE,
+				A.WEIGHT					= #{weight, jdbcType=VARCHAR}
+            WHEN NOT MATCHED THEN
+                INSERT(
+                    A.GROUP_CODE,		A.SEQ,						A.POINT_5,		A.POINT_4_UP,			A.POINT_4_DOWN,
+					A.POINT_3_UP,			A.POINT_3_DOWN,	A.POINT_2_UP,	A.POINT_2_DOWN,	A.POINT_1,
+					A.REG_ID,					A.REG_DATE,				A.WEIGHT
+                )VALUES(
+                   	#{group_code, jdbcType=VARCHAR},		1,															#{point_5, jdbcType=VARCHAR},			#{point_4_up, jdbcType=VARCHAR},			#{point_4_down, jdbcType=VARCHAR},
+					#{point_3_up, jdbcType=VARCHAR},		#{point_3_down, jdbcType=VARCHAR},	#{point_2_up, jdbcType=VARCHAR},		#{point_2_down, jdbcType=VARCHAR},		#{point_1, jdbcType=VARCHAR},
+					#{reg_id, jdbcType=VARCHAR},				SYSDATE,												#{weight, jdbcType=VARCHAR}
+                )
+	]]>
+	</update>
+	
+	<select id="checkOPDealCode" parameterType="map" resultType="java.lang.Integer">
+		select 
+			decode(deal_code,'C004',1,'C005',1,0) as isok
+		from crm_cust_mgt
+		where seq = (select max(seq) from crm_cust_mgt where erp_code=#{erp_code})
+	</select>
+	
+	<select id="custErpEmpId" parameterType="userVO" resultType="java.lang.Integer">
+		select count(emp_id) as cnt from crm_cust_emp
+		where emp_id=#{emp_id}
+	</select>
+	
+	<select id="getCustInfo2" parameterType="userVO" resultType="userVO">
+	<![CDATA[
+		
+		SELECT 
+		    A.SEQ , 
+		    A.CUST_KOR_NAME , 
+		    A.ERP_CODE , 
+		    A.CUST_ADDRESS , 
+		    A.ZIP_CODE , 
+		    (SELECT EMP_NAME FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = A.ERP_CODE AND Z.EMP_GRADE = 'C001' ) EMP_NAME , 
+    		(SELECT TEL_NO FROM CRM_CUST_EMP Z WHERE Z.CUST_CODE = A.ERP_CODE AND Z.EMP_GRADE = 'C001' ) TEL_NO ,
+    		A.ERP_CODE,
+    		A.AS_APPROVAL_YN  
+		FROM 
+		    CRM_CUST_MGT A
+		WHERE 
+			ERP_CODE = #{erp_code, jdbcType=VARCHAR}
+			
+	]]>
+		
+	</select>
+	
+	
+		
+	<insert id="insertErpPassHist" parameterType="userVO">
+    /* 어드민(직원) 비밀번호 정책 패스워드변경 히스토리  2020.09.15. */	
+	<![CDATA[		
+		INSERT INTO CRM_EMP_MGT_PASS_HIS (
+            PASS_CHG_DATE,  EMP_NO,    PASS
+        ) VALUES (
+            SYSDATE,    #{emp_no, jdbcType=VARCHAR},    #{pass, jdbcType=VARCHAR} 
+        )	
+	]]>		    
+	</insert>
+    
+	<insert id="insertPassHist" parameterType="userVO">
+    /* 고객사 회원정보 비밀번호 정책 패스워드변경 히스토리  2020.09.15. */	
+	<![CDATA[		
+		INSERT INTO CRM_CUST_EMP_PASS_HIS (
+            PASS_CHG_DATE,  EMP_ID,    PASS
+        ) VALUES (
+            SYSDATE,    #{emp_id, jdbcType=VARCHAR},    #{pass, jdbcType=VARCHAR} 
+        )	
+    ]]>		    
+	</insert> 
+		
+		
+    <update id="updateErpPassLoginfCnt" parameterType="userVO">
+    /* 어드민(직원) 비밀번호 정책  로그인시 비밀번호 오류횟수 UPDATE  2020.09.15. */
+	<![CDATA[
+		UPDATE CRM_EMP_MGT
+		SET    LOGIN_F_CNT = nvl(LOGIN_F_CNT,0) + 1
+		      ,LOCK_YN = CASE WHEN (nvl(LOGIN_F_CNT,0) + 1) >= (SELECT TO_NUMBER(VAL1) FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C002') THEN 'Y' ELSE NVL(LOCK_YN,'N') END /* 로그인LOCK여부 Y처리 */ 
+		WHERE  EMP_NO = #{emp_no, jdbcType=VARCHAR} 
+	]]>
+	</update>
+		
+    <update id="updatePassLoginfCnt" parameterType="userVO">
+    /* 고객사 회원정보 비밀번호 정책  로그인시 비밀번호 오류횟수 UPDATE  2020.09.15. */ 
+	<![CDATA[
+		UPDATE CRM_CUST_EMP 
+		SET    LOGIN_F_CNT = nvl(LOGIN_F_CNT,0) + 1  
+		      ,LOCK_YN = CASE WHEN (nvl(LOGIN_F_CNT,0) + 1) >= (SELECT TO_NUMBER(VAL1) FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C002') THEN 'Y' ELSE NVL(LOCK_YN,'N') END /* 로그인LOCK여부 Y처리 */ 
+		WHERE  EMP_ID = #{emp_id, jdbcType=VARCHAR}   
+	]]>
+	</update>	
+	
+	
+    <update id="updateErpPassLoginfCnt_Reset" parameterType="userVO">
+    /* 어드민(직원) 비밀번호 정책  로그인 성공시 비밀번호 오류횟수 초기화 UPDATE  2020.09.22. */
+	<![CDATA[
+		UPDATE CRM_EMP_MGT
+		SET    LOGIN_F_CNT = 0  /* 비밀번호 오류횟수 초기화 */
+		      ,LOCK_YN = 'N'    /* 로그인LOCK여부 N 해제 */ 
+		WHERE  EMP_NO = #{emp_no, jdbcType=VARCHAR} 
+	]]>
+	</update>
+		
+    <update id="updatePassLoginfCnt_Reset" parameterType="userVO">
+    /* 고객사 회원정보 비밀번호 정책  로그인 성공시 비밀번호 오류횟수 초기화 UPDATE  2020.09.22. */ 
+	<![CDATA[
+		UPDATE CRM_CUST_EMP 
+		SET    LOGIN_F_CNT = 0  /* 비밀번호 오류횟수 초기화 */
+		      ,LOCK_YN = 'N'    /* 로그인LOCK여부 N 해제 */ 
+		WHERE  EMP_ID = #{emp_id, jdbcType=VARCHAR}   
+	]]>
+	</update>		
+	
+	
+	<select id="getErpPassPolicy_LoginfCnt" parameterType="userVO" resultType="userVO">
+    /* 어드민(직원) 비밀번호 정책 로그인시 비밀번호 오류횟수 SELECT  2020.09.18. */	
+	<![CDATA[
+		SELECT nvl(LOGIN_F_CNT,0) AS LOGIN_F_CNT 	
+          FROM CRM_EMP_MGT  
+         WHERE EMP_NO = #{emp_no, jdbcType=VARCHAR}		  
+	]]>  
+	</select>		
+
+	<select id="getPassPolicy_LoginfCnt" parameterType="userVO" resultType="userVO">
+    /* 고객사 비밀번호 정책 로그인시 비밀번호 오류횟수 SELECT  2020.09.18. */	
+	<![CDATA[
+		SELECT nvl(LOGIN_F_CNT,0) AS LOGIN_F_CNT 	
+          FROM CRM_CUST_EMP 
+         WHERE EMP_ID = #{emp_id, jdbcType=VARCHAR} 		  
+	]]>  
+	</select>
+	
+	<select id="getPassPolicy_PassDday" parameterType="userVO" resultType="userVO">
+    /* 비밀번호 변경일까지 남은 일수 및 알림차 표시 유무 SELECT  2024.03.28. */	
+	<![CDATA[
+		SELECT 
+       		TO_CHAR(Z.VAL1 - TRUNC(SYSDATE - (Y.PASS_CHG_DATE + 1),0) )AS pass_d_day,
+       		CASE WHEN Z.VAL1 - TRUNC(SYSDATE - (Y.PASS_CHG_DATE + 1),0) <= Z.VAL2 THEN 'Y' ELSE 'N' END AS chg_day_yn
+  		FROM CRM_EMP_MGT Y , CRM_CODE_DETAIL Z
+	 WHERE Y.EMP_NO = #{emp_no, jdbcType=VARCHAR}
+   		AND Z.CODE_GROUP = 'COMMON'
+   		AND Z.P_CODE = 'CD10'
+   		AND Z.CODE = 'C001'		  
+	]]>  
+	</select>
+			
+			
+	<select id="getErpPassPolicy_LockYn" parameterType="userVO" resultType="userVO">
+    /* 어드민(직원) 비밀번호 정책 로그인LOCK처리(Y) 로그인제한 체크  2020.09.16. */	
+	<![CDATA[
+		SELECT NVL(A.LOCK_YN,'N') AS lock_yn 	
+          FROM CRM_EMP_MGT A 
+         WHERE A.EMP_NO = #{emp_no, jdbcType=VARCHAR}		  
+	]]>  
+	</select>	 			
+		
+	<select id="getErpPassPolicy1" parameterType="userVO" resultType="userVO">
+    /* 어드민(직원) 비밀번호 정책 (C001 정책일수) 초과(Y) 체크  2020.09.15. */	
+	<![CDATA[
+		SELECT CASE WHEN TRUNC(SYSDATE - (A.PASS_CHG_DATE + 1),0) > TO_NUMBER(Z.VAL1) THEN 'Y' ELSE 'N' END AS pass_policy1
+		      ,Z.VAL1 AS policy1_val 
+          FROM CRM_EMP_MGT A,    
+               (SELECT VAL1 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C001') Z      
+         WHERE A.EMP_NO = #{emp_no, jdbcType=VARCHAR}		 
+	]]> 
+	</select>	 
+
+	<select id="getErpPassPolicy2" parameterType="userVO" resultType="userVO">
+    /* 어드민(직원) 비밀번호 정책 (C002 오류횟수제한) 로그인시 비밀번호 오류횟수제한(Y) 체크  2020.09.15. */	
+	<![CDATA[
+		SELECT CASE WHEN A.LOGIN_F_CNT >= TO_NUMBER(Z.VAL1) THEN 'Y' ELSE 'N' END AS pass_policy2 
+		      ,Z.VAL1 AS policy2_val 		
+          FROM CRM_EMP_MGT A,     
+               (SELECT VAL1 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C002') Z      
+         WHERE A.EMP_NO = #{emp_no, jdbcType=VARCHAR}		  
+	]]>  
+	</select>	 
+
+	<select id="getErpPassPolicy3" parameterType="userVO" resultType="userVO">
+    /* 어드민(직원) 비밀번호 정책 (C003 동일비번체크제한) 동일 비밀번호 체크제한(Y) 체크  변경 2024.03.19. */	
+	<![CDATA[
+			SELECT CASE WHEN COUNT(*) > 0 THEN 'Y' ELSE 'N' END AS pass_policy3, MAX((SELECT VAL1 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C003')) AS policy3_val
+			FROM (
+    			SELECT PASS
+    			FROM CRM_EMP_MGT_PASS_HIS
+    			WHERE EMP_NO = #{emp_no, jdbcType=VARCHAR}
+      			AND ROWNUM <= (SELECT VAL1 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C003')
+    			ORDER BY PASS_CHG_DATE DESC
+			)
+			WHERE PASS = #{pass, jdbcType=VARCHAR}
+	]]>  
+	</select>
+	
+	<select id="getErpPassPolicy3Cnt" parameterType="userVO" resultType="java.lang.Integer">
+    /* 어드민(직원) 비밀번호 정책 (C003 동일비번체크제한) 동일 비밀번호 체크제한(Y) 체크건수  2020.09.15. */	
+	<![CDATA[
+		SELECT COUNT(*)
+          FROM CRM_EMP_MGT_PASS_HIS  
+         WHERE EMP_NO = #{emp_no, jdbcType=VARCHAR}
+           AND PASS = #{pass, jdbcType=VARCHAR}		  
+	]]>  
+	</select>
+	
+	<select id="getErpPassPolicy4Cnt" parameterType="userVO" resultType="java.lang.Integer">
+ 	/* 어드민(직원) 비밀번호 정책 (C003 동일비번체크제한) 동일 비밀번호 체크건수 (수정)  2021.05.10. */
+	<![CDATA[
+		SELECT 
+			COUNT(*)
+        FROM    
+        	(SELECT PASS_CHG_DATE, PASS, ROW_NUMBER() OVER(PARTITION BY EMP_NO ORDER BY PASS_CHG_DATE DESC) RN
+               FROM CRM_EMP_MGT_PASS_HIS
+              WHERE EMP_NO = #{emp_no, jdbcType=VARCHAR})
+        WHERE 
+        	RN <= (SELECT VAL1 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C003')
+		AND 
+			PASS = #{changePass, jdbcType=VARCHAR}
+
+	]]>
+	</select>	 
+
+	<select id="getErpPassPolicy1Cnt" parameterType="userVO" resultType="java.lang.Integer">
+    /* 어드민(직원) 비밀번호 정책 아이디 존재유무 체크건수  2020.09.15. */	
+	<![CDATA[
+		SELECT COUNT(*) 
+          FROM CRM_EMP_MGT
+         WHERE EMP_NO = #{emp_no, jdbcType=VARCHAR}  
+	]]>  
+	</select>	 
+                                         		
+	<select id="getErpPassPolicy2Cnt" parameterType="userVO" resultType="java.lang.Integer">
+    /* 어드민(직원) 비밀번호 정책 아이디/비번 체크건수  2020.09.15. */	
+	<![CDATA[
+		SELECT COUNT(*) 
+          FROM CRM_EMP_MGT
+         WHERE EMP_NO = #{emp_no, jdbcType=VARCHAR}  
+           AND PASS = #{pass, jdbcType=VARCHAR}		         
+	]]>  
+	</select>
+	 		
+	 		
+	 		
+	<select id="getPassPolicy_LockYn" parameterType="userVO" resultType="userVO">
+    /* 고객사  비밀번호 정책 로그인LOCK처리(Y) 로그인제한 체크  2020.09.16. */	
+	<![CDATA[
+		SELECT NVL(A.LOCK_YN,'N') AS lock_yn 
+          FROM CRM_CUST_EMP A 
+         WHERE A.EMP_ID = #{emp_id, jdbcType=VARCHAR}		  
+	]]>  
+	</select>	 		
+ 	 	
+	<select id="getPassPolicy1" parameterType="userVO" resultType="userVO">
+    /* 고객사 회원정보 비밀번호 정책 (C001 정책일수) 초과(Y) 체크  2020.09.15. */	
+	<![CDATA[
+		SELECT CASE WHEN TRUNC(SYSDATE - (A.PASS_CHG_DATE + 1),0) > TO_NUMBER(Z.VAL1) THEN 'Y' ELSE 'N' END AS pass_policy1 
+		      ,Z.VAL1 AS policy1_val 		
+          FROM CRM_CUST_EMP A,    
+               (SELECT VAL1 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C001') Z      
+         WHERE A.EMP_ID = #{emp_id, jdbcType=VARCHAR}		 
+	]]> 
+	</select>	 
+
+	<select id="getPassPolicy2" parameterType="userVO" resultType="userVO">
+    /* 고객사 회원정보 비밀번호 정책 (C002 오류횟수제한) 로그인시 비밀번호 오류횟수제한(Y) 체크  2020.09.15. */	
+	<![CDATA[
+		SELECT CASE WHEN A.LOGIN_F_CNT >= TO_NUMBER(Z.VAL1) THEN 'Y' ELSE 'N' END AS pass_policy2
+		 	  ,Z.VAL1 AS policy2_val 
+          FROM CRM_CUST_EMP A,     
+               (SELECT VAL1 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C002') Z      
+         WHERE A.EMP_ID = #{emp_id, jdbcType=VARCHAR}		  
+	]]>  
+	</select>	 
+
+	<select id="getPassPolicy3" parameterType="userVO" resultType="userVO">
+    /* 고객사 회원정보 비밀번호 정책 (C003 동일비번체크제한) 동일 비밀번호 체크제한(Y) 체크  2020.09.15. */	
+	<![CDATA[
+		SELECT CASE WHEN COUNT(*) >= TO_NUMBER(Z.VAL1) THEN 'Y' ELSE 'N' END AS pass_policy3
+		  	  ,Z.VAL1 AS policy3_val 
+          FROM CRM_CUST_EMP_PASS_HIS A,    
+               (SELECT VAL1 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'COMMON' AND P_CODE = 'CD10' AND CODE = 'C003') Z      
+         WHERE A.EMP_ID = #{emp_id, jdbcType=VARCHAR}
+           AND A.PASS = #{pass, jdbcType=VARCHAR}	
+        GROUP BY Z.VAL1 
+	]]>  
+	</select>	 
+	
+
+	<select id="getPassPolicy3Cnt" parameterType="userVO" resultType="java.lang.Integer">
+    /* 고객사 회원정보 비밀번호 정책 (C003 동일비번체크제한) 동일 비밀번호 체크제한(Y) 체크건수  2020.09.15. */	
+	<![CDATA[
+		SELECT COUNT(*)
+          FROM CRM_CUST_EMP_PASS_HIS  
+         WHERE EMP_ID = #{emp_id, jdbcType=VARCHAR}
+           AND PASS = #{pass, jdbcType=VARCHAR}		  
+	]]>  
+	</select>	 
+
+	<select id="getPassPolicy1Cnt" parameterType="userVO" resultType="java.lang.Integer">
+    /* 고객사 회원정보 비밀번호 정책 아이디 존재유무 체크건수  2020.09.15. */	
+	<![CDATA[
+		SELECT COUNT(*) 
+          FROM CRM_CUST_EMP  
+         WHERE EMP_ID = #{emp_id, jdbcType=VARCHAR}   
+	]]>  
+	</select>
+	
+	<select id="getPassPolicy2Cnt" parameterType="userVO" resultType="java.lang.Integer">
+    /* 고객사 회원정보 비밀번호 정책 아이디/비번 체크건수  2020.09.15. */	
+	<![CDATA[
+		SELECT COUNT(*) 
+          FROM CRM_CUST_EMP
+         WHERE EMP_ID = #{emp_id, jdbcType=VARCHAR}  
+           AND PASS = #{pass, jdbcType=VARCHAR}		         
+	]]>  
+	</select>
+	  		
+	
+</mapper>
+
+
+
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+
+		

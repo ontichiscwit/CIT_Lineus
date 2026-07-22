@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Script-Type" content="text/javascript" />
+	<meta http-equiv="Content-Style-Type" content="text/css" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=1000" />
+	<meta name="apple-mobile-web-app-title" content="jw Connected Care System" />
+	<title>jw Connected Care System</title>
+	<link rel="stylesheet" type="text/css" href="../../css/jw.css" />
+	<script type="text/javascript" src="/"></script>
+</head>
+<body>
+	<!-- header -->
+	<div id="jw_header">
+		<div class="innerWrap">
+			<h1><a href="/">ontic crm</a></h1>
+			<div class="nav_util">
+				<div class="txt_welcome">
+					<!-- <span class="flag_eng">엔지니어</span> --><span class="flag_admin">관리자</span>관리자1님 환영합니다.
+				</div>
+				<ul>
+					<li><a href="#">개인정보수정</a></li>
+					<li><a href="#">로그아웃</a></li>
+				</ul>
+			</div>
+		</div>
+	</div>
+	<!--// header -->
+
+	<!-- gnb -->
+	<div id="jw_gnb">
+		<div class="innerWrap">
+			<ul class="list5">
+				<li><a href="#">A/S 관리</a></li>
+				<li><a href="#" class="active">거래처 관리</a></li><!-- 활성시 active -->
+				<li><a href="#">계정관리</a></li>
+				<li>
+					<a href="#">게시판관리</a>
+					<ul>
+						<li><a href="#">공지사항 관리</a></li><!-- 활성시 active -->
+						<li><a href="#">FAQ 관리</a></li>
+						<li><a href="#">다운로드 관리</a></li>
+						<li><a href="#">사내 다운로드 관리</a></li>
+						<li><a href="#">기획전 관리</a></li>
+					</ul>	
+				</li>
+				<li><a href="#">통계분석</a></li>
+			</ul>
+		</div>
+	</div>
+	<!--// gnb -->
+
+	<!-- contents -->
+	<div id="jw_contents">
+		<div class="tit_wrap">
+			<h2 class="tit_ico_as">A/S 관리</h2>
+			<div class="location">
+				<a href="#" class="home">Home</a>
+				<a href="#" class="depth"><span class="here">A/S관리</span></a>
+			</div>
+		</div>
+		<div class="tit_sWrap">
+			<h3 class="tit_dot_gray">A/S 접수 조회 리스트</h3>
+			<div class="search_condition">
+				검색 조건을 선택해 주세요.<select id="searh_as" title="검색조건 선택">
+					<option>기본 검색</option>
+				</select>
+			</div>
+		</div>
+		<!-- search -->
+		<table class="sType mgb10">
+			<caption>A/S 접수 리스트 검색</caption>
+			<colgroup>
+				<col style="width:140px;" />
+				<col style="width:275px;" />
+				<col style="width:120px;" />
+				<col style="width:175px;" />
+				<col style="width:120px;" />
+				<col style="width:170px;" />
+			</colgroup>
+			<tr>
+				<th scope="row">처리상태</th>
+				<td>
+					<select title="처리상태 선택">
+						<option>전체선택</option>
+					</select>
+				</td>
+				<th scope="row">접수번호</th>
+				<td>
+					<input type="text" title="접수번호 입력">
+				</td>
+				<th scope="row">거래처명</th>
+				<td>
+					<input type="text" title="거래처명 입력">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">거래처코드</th>
+				<td colspan="5">
+					<input type="text" title="거래처코드 입력" class="w235">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">문의서비스</th>
+				<td>
+					<select title="문의서비스1 선택" class="w115 mgr2">
+						<option>전체선택</option>
+					</select>
+					<select title="문의서비스2 선택" class="w115">
+						<option>전체선택</option>
+					</select>
+				</td>
+				<th scope="row">중요도</th>
+				<td colspan="3">
+					<select title="중요도 선택" class="w135">
+						<option>전체선택</option>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">원인유형</th>
+				<td>
+					<select title="문의서비스1 선택"  class="w115 mgr2">
+						<option>전체선택</option>
+					</select>
+					<select title="문의서비스2 선택"  class="w115">
+						<option>전체선택</option>
+					</select>
+				</td>
+				<th scope="row">조치유형</th>
+				<td colspan="3">
+					<select title="조치유형 선택" class="w135">
+						<option>전체선택</option>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">처리담당자명</th>
+				<td>
+					<select title="처리담당자 선택" class="w115 mgr2">
+						<option>전체선택</option>
+					</select>
+					<input type="text" title="처리담당자 입력" class="w115">
+				</td>
+				<th scope="row">접수일자</th>
+				<td colspan="3">
+					<input type="text" title="투입기간 시작일 입력" class="w135 mgr2" value="2017-01-01" />
+					<button type="button" class="btn_calendar mgr10">날짜선택</button>~
+					<input type="text" title="투입기간 종료일 입력" class="w135 mgl10 mgr2" value="2017-01-01" />
+					<button type="button" class="btn_calendar">날짜선택</button>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">통합 검색 키워드</th>
+				<td colspan="5">
+					<input type="text" class="w640 mgr10" id="search_keyword" title="통합 검색 키워드 입력" /><button type="button" class="btn_ico_reset mgr5"><span>초기화</span></button><button type="button" class="btn_ico_search mgr5"><span>검색</span></button>
+				</td>
+			</tr>
+		</table>
+		<!--// search -->
+		<div class="info_upper mgb5">
+			<div class="sorting">
+				조회건수 : <strong><span class="count">45</span> 건</strong>
+			</div>
+			<div class="floatR">
+				<button type="button" class="btn_ico_excel"><span>엑셀다운로드</span></button>
+				<select id="list_count" title="리스트 행 선택" class="w140">
+					<option>50개씩 노출</option>
+				</select>
+			</div>
+		</div>
+		<!-- list -->
+		<table class="hType mgb10">
+			<caption>A/S 접수 목록</caption>
+			<colgroup>
+				<col style="width:30px" />
+				<col style="width:30px" />
+				<col style="width:80px" />
+				<col style="width:100px" />
+				<col style="width:60px" />
+				<col style="width:65px" />
+				<col style="width:auto" />
+				<col style="width:90px" />
+				<col style="width:50px" />
+				<col style="width:50px" />
+				<col style="width:50px" />
+				<col style="width:70px" />
+				<col style="width:50px" />
+				<col style="width:70px" />
+				<col style="width:60px" />
+			</colgroup>
+			<thead>
+				<tr>
+					<th scope="col">선택</th>
+					<th scope="col">No</th>
+					<th scope="col">접수번호</th>
+					<th scope="col">하위작업</th>
+					<th scope="col">처리상태</th>
+					<th scope="col">접수일</th>
+					<th scope="col">거래처명</th>
+					<th scope="col">문의서비스</th>
+					<th scope="col">중요도</th>
+					<th scope="col">원인유형</th>
+					<th scope="col">조치유형</th>
+					<th scope="col">처리담당자</th>
+					<th scope="col">신규댓글</th>
+					<th scope="col">검수일</th>
+					<th scope="col">고객평가</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>1</td>
+					<td>20161214065</td>
+					<td>-</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td>-</td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★★</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>2</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>3</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>4</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>5</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>6</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>7</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>8</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>9</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+				<tr>
+					<td><input type="checkbox" title="거래선택" /></td>
+					<td>10</td>
+					<td><span class="arrow_down"></span></td>
+					<td>20141214062-01</td>
+					<td>업무배정중</td>
+					<td>2016-12-24</td>
+					<td>[HOS243]연세건우병원</td>
+					<td>장비인터페이스/바코드</td>
+					<td>긴급</td>
+					<td>A-1</td>
+					<td>전화교육</td>
+					<td>홍길동</td>
+					<td><button type="button" class="btn_line_gray small w37">확인</button></td>
+					<td>2017-09-01</td>
+					<td class="colorRed">★★★★☆</td>
+				</tr>
+			</tbody>
+		</table>
+		<!--// list -->
+		<!-- page -->
+		<div class="page">
+			<div class="btn_left">
+				<button type="button" class="btn_ico_confirm w115"><span>신규작업 등록</span></button><button type="button" class="btn_ico_confirm w115"><span>하위작업 등록</span></button>
+			</div>
+			<button type="button" class="btn_first">첫번째 목록으로</button><button type="button" class="btn_before">이전 목록으로</button><a href="#" class="active">1</a><!-- 활성시 active --><a href="#">2</a><a href="#">3</a><a href="#">4</a><a href="#">5</a><button type="button" class="btn_next">다음 목록으로</button><button type="button" class="btn_last">마지막 목록으로</button>
+			<div class="btn_right">
+				<button type="button" class="btn_ico_delete"><span>삭제</span></button>
+			</div>
+		</div>
+		<!--// page -->
+	</div>
+	<!--// contents -->
+
+
+	<!-- footer -->
+	<div id="jw_footer">
+		<!-- fnb -->
+		<div id="jw_fnb">
+			<div class="innerWrap">
+				<ul>
+					<li><a href="#">서비스 이용약관</a></li>
+					<li><a href="#">개인정보처리방침</a></li>
+					<li><a href="#">고객센터</a></li>
+					<li><a href="#">매뉴얼다운로드</a></li>
+				</ul>
+			</div>
+		</div>
+		<!--// fnb -->
+		<div class="innerWrap">
+			<address>
+				주소. 서울시 서초구 남부순환로 2477 (우)06725 JWTOWER      대표번호. 02-840-6777
+				<div class="copy">COPYRIGHT© JW홀딩스 All Rights Reserved.</div>
+			</address>
+		</div>
+	</div>
+	<!--// footer -->
+</body>
+</html>
