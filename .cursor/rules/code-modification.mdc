@@ -1,22 +1,77 @@
 ---
-description: 운영 코드에 새 화면을 추가할 때의 코드 수정 지침
+description: 운영 코드에 기능을 추가/수정할 때의 코드 관리 지침 (인수인계 대비)
 alwaysApply: true
 ---
 
 # 코드 수정 지침 (운영 중인 코드)
 
-현업에서 이미 사용 중인 코드에 새 화면을 추가하는 상황이다. 기존 기능에 영향을 주지 않도록 매우 조심스럽게 작업할 것.
+현업에서 이미 사용 중인 코드에 기능을 추가/수정하는 상황이다.
+**현업은 git을 사용하지 않으므로**, 원본과 수정본의 구분·변경 이력 추적은 전적으로
+"파일 네이밍 규칙"과 "주석 마커"에 의존한다. 인수인계 받는 사람이 원본과 수정본을
+한눈에 구분할 수 있도록 아래 규칙을 반드시 지킬 것.
+
+## 개발 유형 구분
+개발은 항상 아래 두 유형 중 하나로 분류해서 진행한다.
+1. 없는 기능 추가 → 새 파일로 격리 (1번 규칙)
+2. 이미 있는 기능 수정/삭제 → 원본 백업 후 원본 직접 수정 (2번 규칙)
+
+## 1. 없는 기능 추가 (새 파일 격리)
+- 새 파일을 만들어 기존 화면에 영향이 없도록 격리한다.
+- 네이밍 규칙: `combine-고유기능명.확장자`
+  - 예) `combine-as.css`, `combine-as.js`, `combine-as-list.jsp`
+- ⚠️ 단, 하이픈(-)을 쓸 수 없는/스캔 패턴이 있는 유형은 아래를 따른다.
+  - Java 클래스: 하이픈 불가 → CamelCase 사용. 예) `CombineAsController.java` (클래스명 `CombineAsController`)
+  - Mapper XML: `classpath:query/egov-*.xml` 만 로딩되므로 `egov-` 접두사 유지.
+    예) `egov-combine-as-query.xml`
+- 새 메서드·새 쿼리 ID로 추가하여 기존 로직을 재사용하다가 깨지는 일이 없도록 한다.
+
+## 2. 이미 있는 기능 수정 / 삭제 (원본 백업 후 직접 수정)
+- 절차: ① 원본을 `원본파일명_origin` 으로 1회 복사 → ② 원본 파일명 그대로 직접 수정.
+  - 예) `list.jsp` → `list_origin.jsp` 백업 후 `list.jsp` 수정.
+- 실행(운영)되는 파일은 항상 기존 파일명을 유지한다. `_origin`은 순수 백업용이며
+  수정·실행 대상에서 제외한다.
+- `_origin` 백업은 최초 1회만 생성. 이미 존재하면 절대 덮어쓰지 말 것
+  (진짜 원본을 수정본으로 덮어써 원복 불가가 되는 사고 방지).
+- 원복 방법: `list_origin.jsp` 내용으로 `list.jsp`를 덮어쓰면 즉시 원복.
+
+### ⚠️ Java / Mapper XML 백업은 `_origin_backup/` 폴더로 분리 (구동 충돌 방지)
+- JSP/CSS/JS의 `_origin`은 같은 폴더에 둬도 안전하다.
+- 하지만 Java `_origin` 백업을 같은 패키지(`egovframework.com`)에 두면 클래스/빈/@RequestMapping
+  중복으로 컴파일·기동이 깨지고, Mapper `_origin` 백업을 `query/` 폴더에 두면
+  `egov-*.xml` 패턴에 걸려 네임스페이스·statement id 중복으로 기동이 깨진다.
+- 따라서 Java·Mapper의 `_origin` 백업은 **컴파일/스캔 경로 밖**인
+  프로젝트 루트의 `_origin_backup/` 폴더에 보관한다.
+  - 백업 시 **원본과 동일한 폴더 구조로 미러링**하여 어디서 온 파일인지 경로로 알 수 있게 한다.
+    - 예) 원본 `jwcrm/src/main/java/egovframework/com/controller/AdAsController.java`
+      → 백업 `_origin_backup/jwcrm/src/main/java/egovframework/com/controller/AdAsController_origin.java`
+    - 예) 원본 `jwcrm/src/main/resources/query/egov-as-query.xml`
+      → 백업 `_origin_backup/jwcrm/src/main/resources/query/egov-as-query_origin.xml`
+  - 추가로 **백업 파일 최상단에 원본 전체 경로를 주석으로 기록**한다.
+    - 예) `// [AX Lab] 원본 경로: jwcrm/src/main/java/egovframework/com/controller/AdAsController.java (백업 2026-07-23)`
+
+### 변경 위치 주석 마커 (필수)
+- 원본을 수정할 때는 수정 구간을 아래 형식의 주석으로 감싸 인수인계자가 grep으로 찾게 한다.
+- 마커 키워드는 항상 `[AX Lab]` 로 통일한다. (검색 키: `[AX Lab]`)
+- 형식(언어별 주석 문법에 맞춰 사용):
+  - 추가/수정:
+    - 시작: `[AX Lab] 수정 시작 (YYYY-MM-DD 작성자): 사유`
+    - 끝:   `[AX Lab] 수정 끝`
+  - 삭제(기능 제거): 코드를 지우지 말고 주석 처리하고 사유를 남긴다.
+    - `[AX Lab] 삭제 (YYYY-MM-DD 작성자): 사유` 로 표시.
+  - 예)
+    - Java:  `// [AX Lab] 수정 시작 (2026-07-23 홍길동): AS 통합화면 연동` ... `// [AX Lab] 수정 끝`
+    - JSP:   `<%-- [AX Lab] 수정 시작 (2026-07-23 홍길동): ... --%>`
+    - CSS:   `/* [AX Lab] 수정 시작 (2026-07-23 홍길동): ... */`
 
 ## 기존 코드 보호
 - 기존 코드는 최소한으로 수정하고, 새 기능은 새 코드로 추가할 것.
-- 기존 파일/메서드/쿼리는 함부로 수정·삭제하지 말 것. 기존 로직 변경이 꼭 필요하면 먼저 이유를 설명하고 확인받을 것.
-- 공통 파일(공통 JSP, 공통 유틸, 공통 쿼리 등)은 다른 화면에 영향을 줄 수 있으니, 수정 전 반드시 영향 범위를 먼저 확인할 것.
-
-## 새 화면은 격리해서 추가
-- 새 기능은 기존 것을 무리하게 재사용하기보다, 새 파일/새 메서드/새 쿼리 ID로 추가해 기존 화면에 영향이 없도록 할 것.
+- 기존 파일/메서드/쿼리는 함부로 수정·삭제하지 말 것. 기존 로직 변경이 꼭 필요하면
+  먼저 이유를 설명하고 확인받을 것.
+- 공통 파일(공통 JSP, 공통 유틸, 공통 쿼리 등)은 다른 화면에 영향을 줄 수 있으니,
+  수정 전 반드시 영향 범위를 먼저 확인할 것.
 
 ## 프로젝트 컨벤션 준수
-- 새 코드는 기존 코드의 네이밍/구조/패턴(Controller → ServiceImpl → Mapper XML)을 그대로 따를 것.
+- 새 코드는 기존 코드의 네이밍/구조/패턴(Controller → ServiceImpl → Mapper XML)을 따를 것.
 - MyBatis 쿼리는 기존 쿼리 XML과 동일한 형식으로 작성할 것.
 
 ## DB / 쿼리 안전
@@ -24,4 +79,4 @@ alwaysApply: true
 - DDL(테이블 변경 등)은 임의로 실행하지 말 것.
 
 ## 작업 요약
-- 작업 후 어떤 파일을 왜 바꿨는지 요약해서 알려줄 것.
+- 작업 후 어떤 파일을 왜 바꿨는지(추가/수정/삭제 유형 포함) 요약해서 알려줄 것.
