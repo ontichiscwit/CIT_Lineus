@@ -34,7 +34,6 @@
 		
 		initForm();
 		makeListData();
-		asws_loadKpi();		/* [AX Lab] 상단 KPI (getMainInfo.do) */
 		$("#search_text").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
 		$("#emp_nm").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
 		$("#search_type4").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
@@ -342,81 +341,158 @@
 		common.ajaxCall($('form[name=listFrm]').serialize(), '/ad/as/getAsList.do', 'setAsList') ;
 	}
 		
-	/* [AX Lab] 수정 시작 (2026-07-23 AX Lab): 20컬럼 -> 4컬럼 축약 + 행클릭 상세연동(asws_openDetail).
-	   나머지 축약된 컬럼값은 rowMap 에 저장해 오른쪽 상세 패널(COL3)에서 사용한다. */
 	function setAsList(data) {
 		$('#asList').empty();
-		asws.rowMap = {};
-
+		
 		var resultList = typeof data.resultList != 'undefined' ? data.resultList : null;
 		var vo = typeof data.vo != 'undefined' ? data.vo : null;
-
+		
 		if (resultList != null && resultList.length > 0) {
-
-			var str = '' ;
+			
+			
+			var toggle = true;
+			var prevAsNo = "0";
+			
+			var str = '' ; 
 			for(var i = 0 ; i < resultList.length ; i++){
-				var datas = resultList[i] ;
-				var asNo = common.nvl(datas.as_no, '');
-				var cnAsNo = common.nvl(datas.cn_as_no, '');
+				var datas = resultList[i] ; 
+				
+				
+				
+				var chkAsNo = common.nvl(datas.cn_as_no, '') != '' ? datas.cn_as_no: datas.as_no; /* 체크박스 */ 
+				if (prevAsNo != chkAsNo){
+					prevAsNo = chkAsNo;
+					toggle = toggle ? false : true;
+				}
+				
+				// 접수일 날짜를 형식에 맞게 셋팅
+				var vAcceptDt = "-";   
+				if (common.nvl(datas.accept_dt, '').length == 8){
+					vAcceptDt = makeDate(datas.accept_dt,"-");
+		 		}
+				
+				//완료일 날짜를 형식에 맞게 셋팅
+				var vCompleteDt = "-";
+				vCompleteDt = datas.as_complete_dt;
+					
+				//처리예정일 날짜를 형식에 맞게 셋팅
+				var vProcDt = "-";   
+				if (common.nvl(datas.proc_dt, '').length == 8){
+					vProcDt = makeDate(datas.proc_dt,"-");
+		 		}
+				
+				// 검수일 날짜를 조정
+				var vStateDate = common.nvl(datas.star_state_date, '-');  
+				if (vStateDate.length > 10) vStateDate = vStateDate.substr(0,10);
+				
+				/* 접수번호 */
+				if(common.nvl(datas.cn_as_no, '') == "" ) str += '<tr onclick="goView(\'update\' , \''+common.nvl(datas.as_no , '')+'\', \''+common.nvl(datas.cn_as_no , '')+'\');" style="cursor:pointer;background-color:'+(toggle ? "#f8fafb" : "#ffffff")+'"> ' ;
+				else str += '<tr onclick="goView(\'subUpdate\' , \''+common.nvl(datas.as_no , '')+'\', \''+common.nvl(datas.cn_as_no , '')+'\');" style="cursor:pointer;background-color:'+(toggle ? "#f8fafb" : "#ffffff")+'"> ' ;
+				
 				var asNoLink = common.nvl(datas.as_no_link, '');
 
-				/* 축약 컬럼값 보관 (상세 패널에서 사용) */
-				asws.rowMap[asNo] = datas;
-
-				// 접수일
-				var vAcceptDt = "-";
-				if (common.nvl(datas.accept_dt, '').length == 8) vAcceptDt = makeDate(datas.accept_dt,"-");
-
-				// 상태 뱃지 클래스
-				var stCode = common.nvl(datas.proc_status, '');
-				var stCls = asws_stClass(stCode);
-
-				// 우선처 / 중요도 뱃지
-				var prioIco = (common.nvl(datas.priority, '') == 'Y') ? '<span style="color:var(--red);font-weight:700;">★</span> ' : '';
-				var gradeNm = common.nvl(datas.inportance_nm, '');
-				var gradeCls = (common.nvl(datas.inportance, '') == 'C001') ? 'grade emc' : 'grade';
-				var gradeTag = gradeNm ? ' <span class="'+gradeCls+'">'+gradeNm+'</span>' : '';
-
-				// 문의/조치 내용 요약
-				var callC = common.nvl(datas.call_content, '');
-				var actC  = common.nvl(datas.action_content, '');
-				var callHead = callC ? callC.substr(0, 46) : '(내용 없음)';
-				var actInfo = actC ? ('조치: ' + actC.substr(0, 40)) : '';
-
-				str += '<tr data-asno="'+asNo+'" onclick="asws_openDetail(\''+asNo+'\',\''+cnAsNo+'\');">';
-				str += '  <td class="col-chk" onclick="event.cancelBubble=true;">' +
-				       '<input type="checkbox" title="거래선택" name="chk" ' +
-				       'value="'+asNo+'@'+cnAsNo+'" ' +
-				       'data-as-no-link="'+asNoLink+'" ' +
-				       'data-proc-status="'+stCode+'"/></td>';
-				str += '  <td class="col-date">'+vAcceptDt+'</td>';
-				str += '  <td class="col-client">['+common.nvl(datas.cust_code, '')+']'+common.nvl(datas.cust_kor_name,'')+'</td>';
-				str += '  <td>';
-				str += '    <div class="q-title">'+prioIco+asws_esc(callHead)+gradeTag+'</div>';
-				str += '    <div class="q-body">'+asws_esc(callC)+'</div>';
-				str += '    <div class="q-act">담당 '+common.nvl(datas.emp_nm,'-')+' · 답변 '+common.nvl(datas.total_aws_cnt,'0')+'건'+(actInfo? ' · '+asws_esc(actInfo):'')+'</div>';
-				str += '  </td>';
-				str += '  <td class="col-status"><span class="st '+stCls+'">'+common.nvl(datas.proc_status_nm, '')+'</span></td>';
-				str += '</tr>';
+				str += '		<td onclick=\'event.cancelBubble=true;\'>' +
+						       '<input type="checkbox" title="거래선택" name="chk" ' +
+						       'value="'+common.nvl(datas.as_no, '')+'@'+common.nvl(datas.cn_as_no, '')+'" ' +
+						       'data-as-no-link="'+asNoLink+'" ' +
+						       'data-proc-status="'+common.nvl(datas.proc_status, '')+'"/>' +
+						       '</td> ';
+				
+				str += '		<td>'+common.nvl(datas.as_no, '')+'</td> ' ;	
+				
+				/* 우선처 */
+				var priority = common.nvl(datas.priority, '');
+				var starText = '';
+				if (priority == 'Y') starText = '★';
+				else starText = '-';
+				if(starText != "-") str += '		<td class="colorRed" style="font-size:18px;">'+starText+'</td> ' ;
+				else str += '<td>'+starText+'</td> ' ;
+				
+				/* 연결된 AS 개수 */
+				str += '		<td>'+common.nvl(datas.as_no_link_count, '')+'</td> ' ;
+				
+				str += '		<td>'+vProcDt+'</td> ' ;
+				
+				/* 상태 */
+				if( common.nvl(datas.proc_status, '') == "C001" ){
+					str += '		<td class="status_bold">'+common.nvl(datas.proc_status_nm, '')+'</td> ' ;
+				}else{
+					str += '		<td>'+common.nvl(datas.proc_status_nm, '')+'</td> ' ;
+				}
+				
+				
+				/* 거래처 코드_거래처명 */
+				str += '		<td class="textL">['+common.nvl(datas.cust_code, '')+']'+common.nvl(datas.cust_kor_name,'')+'</td> ' ;
+				/* 문의유형 */
+				str += '		<td >'+common.nvl(datas.request_type_nm, '')+'</td> ' ;
+				/* 시스템유형 */
+				str += '		<td >'+common.nvl(datas.service_cate_nm, '')+'/'+common.nvl(datas.inquiry_type_nm, '')+'</td> ' ;
+				/* 중요도 */
+				if (common.nvl(datas.inportance_nm, '') != '') {
+					if (common.nvl(datas.inportance, '') == 'C001') str += '		<td><span class="emergency"></span>'+common.nvl(datas.inportance_nm, '')+'</td> ' ;
+					else str += '		<td><span class="emergency-non"></span>'+common.nvl(datas.inportance_nm, '')+'</td> ' ;					
+				} else {
+					str += '		<td>-</td> ' ;
+				}
+				
+				/* 처리담당자 */
+				str += '		<td>'+common.nvl(datas.emp_nm, '')+'</td> ' ;
+				
+				/*답변 */
+				if (common.nvl(datas.aws_cnt, '0') == '0') {
+					str += '		<td>' +common.nvl(datas.total_aws_cnt, '')+ '</td>';
+				} else {
+					str += '		<td onclick=\'event.cancelBubble=true;\'><button type="button" class="btn_line_gray small w37" onclick="btnAws(\''+common.nvl(datas.as_no , '')+'\');">확인</button></td> ' ;	
+				}
+				/* 문의내용 */
+				str += '<td title="'+common.nvl(datas.call_content, '')+'" class="textL">' + datas.call_content.substr(0 , 33) +'</td> ' ;
+				/* 조치내용 */
+				str += '<td  title="'+common.nvl(datas.action_content, '')+'" class="textL">' + datas.action_content.substr(0 , 33) +'</td> ' ;
+				
+				/* 접수일 */
+				str += '		<td>'+vAcceptDt+'</td> ' ;
+				
+				/* 처리완료일 */
+				if( common.nvl(datas.proc_status, '') == "C005" ){
+					str += '		<td>'+vCompleteDt+'</td> ' ;
+				}else{
+					str += '		<td>-</td> ' ;
+				}
+				
+				/* 원인유형 */
+				if(common.nvl(datas.cause_type_nm, '') != '') str += '		<td title="'+datas.cause_type_nm+'">'+datas.cause_type_nm.substr(0 , 3)+'</td> ' ;
+				else  str += '		<td>-</td> ' ;
+				/* 조치유형 */
+				str += '		<td>'+common.nvl(datas.action_type_nm, '')+'</td> ' ;
+				/*검수일 */
+				str += '		<td>'+vStateDate+'</td> ' ;
+				
+				/* 고객평가★ */
+				var starCnt = common.nvl(datas.star_state, '');
+				var starText = '';
+				if (starCnt == 1) starText = '★☆☆☆☆';
+				else if (starCnt == 2) starText = '★★☆☆☆';
+				else if (starCnt == 3) starText = '★★★☆☆';
+				else if (starCnt == 4) starText = '★★★★☆';
+				else if (starCnt == 5) starText = '★★★★★';
+				else starText = '-';
+				if(starText != "-") str += '		<td class="colorRed">'+starText+'</td> ' ;
+				else str += '<td>'+starText+'</td> ' ;
+				
+				/* 끝tr */
+				str += '</tr> ' ;
 			}
-
-			$('#asList').append(str);
-			$('#count').html(numberWithCommas(vo.rowCnt));
+			
+			$('#asList').append(str);	
+			$('#count').html(numberWithCommas(vo.rowCnt)); 
 			$("#pagination").html(vo.json_paging);
-
-			/* 첫 행 자동 선택(상세 열기) */
-			var first = resultList[0];
-			asws_openDetail(common.nvl(first.as_no,''), common.nvl(first.cn_as_no,''));
-
+			
 		} else {
-			$('#asList').html('<tr><td colspan="5" style="text-align:center;padding:30px;color:#8A979E;">조회된 데이터가 없습니다.</td></tr>');
+			commonTable.notData(16,"조회된 데이터가 없습니다.","asList");
 			$('#count').html('0');
 			$("#pagination").html('');
-			$('#asDetail').html('<div class="empty">조회된 접수건이 없습니다.</div>');
-			$('#asRecord').html('<div class="none" style="padding:14px">조회된 접수건이 없습니다.</div>');
 		}
 	}
-	/* [AX Lab] 수정 끝 */
 	
 	function btnAnswer(){
 		$('#answer_layer').show();
@@ -506,28 +582,14 @@
 		f.submit();
 	}
 	
-	/* [AX Lab] 수정 시작 (2026-07-23 AX Lab): 답변 등록 콜백을 팝업(#awsInfoList)과 인라인 상세(#asThread) 양쪽에서 공유 */
 	function awsProcReturn(resultCode){
+		
 		if(resultCode == "000"){
-			alert('정상처리 되었습니다.') ;
-			$('#w_content').val('') ;
-			$('#asReplyText').val('') ;
-			/* 기존 신규답변 팝업이 열려있으면 팝업 목록 갱신 */
-			if(typeof v_as_no != 'undefined' && v_as_no) awsList(1 , v_as_no) ;
-			/* 인라인 상세가 열려있으면 스레드 갱신 */
-			if(typeof asws != 'undefined' && asws.asNo){
-				common.ajaxCall({ as_no:asws.asNo, page:'1' }, '/ad/as/getAwsList.do', 'asws_renderThread') ;
-			}
+			alert('정상처리 되었습니다.') ; $('#w_content').val('');  awsList(1 , v_as_no) ; 
 		}else{
-			alert('처리도중 오류가 발생했습니다.') ; return ;
+			alert('처리도중 오류가 발생했습니다.') ; return ; 
 		}
 	}
-
-	/* [AX Lab] 목록 전체선택 체크박스 */
-	function asws_toggleAll(el){
-		$('#asList input[name=chk]').prop('checked', el.checked);
-	}
-	/* [AX Lab] 수정 끝 */
 	
 	function procReturn(data){
 		// makeAwsList
@@ -1226,23 +1288,6 @@
 <input type="hidden" name="proc_function_sp" id="proc_function_sp"/>
 <input type="hidden" name="proc_interface_sp" id="proc_interface_sp"/>
 <input type="hidden" name="w_content" id="w_content"/>
-
-<%-- [AX Lab] 수정 시작 (2026-07-23 AX Lab): AS 통합 워크스페이스(3분할) 화면 리뉴얼 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as.css" />
-<script type="text/javascript" src="/js/combine-as.js"></script>
-
-<div id="asWorkspace">
-
-  <!-- 상단 KPI (getMainInfo.do 나의/팀 당월 현황) -->
-  <div class="kpi" id="asKpi">
-    <div class="card"><div class="ctop"><div class="ico i-mine">■</div><span class="clabel">나의 A/S (당월)</span></div><div class="cnum" id="kpi-mine">0</div><div class="csub">이번 달 나의 접수 건</div></div>
-    <div class="card"><div class="ctop"><div class="ico i-recv">■</div><span class="clabel">접수</span></div><div class="cnum" id="kpi-recv">0</div><div class="csub">나의 접수 상태</div></div>
-    <div class="card"><div class="ctop"><div class="ico i-prog">■</div><span class="clabel">처리중</span></div><div class="cnum" id="kpi-prog">0</div><div class="csub">나의 처리중</div></div>
-    <div class="card"><div class="ctop"><div class="ico i-wait">■</div><span class="clabel">미처리</span></div><div class="cnum" id="kpi-wait">0</div><div class="csub">완료/철회 외</div></div>
-    <div class="card"><div class="ctop"><div class="ico i-done">■</div><span class="clabel">처리완료</span></div><div class="cnum" id="kpi-done">0</div><div class="csub">당월 완료</div></div>
-    <div class="card"><div class="ctop"><div class="ico i-team">■</div><span class="clabel">팀 미처리</span></div><div class="cnum" id="kpi-team">0</div><div class="csub">부서 전체</div></div>
-  </div>
-
 <div class="tit_sWrap">
 
 <div class="ico_s_modify">
@@ -1378,91 +1423,88 @@
 	</tbody>
 	
 </table>
-  <!-- 3분할 그리드 -->
-  <div class="grid" id="asGrid">
-
-    <!-- COL1 : 목록 -->
-    <section class="col" id="col-c1">
-      <div class="rail">
-        <button type="button" onclick="asws_toggleCol('c1')" title="목록 펼치기">&#9656;</button>
-        <div class="vtext">AS 목록</div>
-      </div>
-      <div class="chd">
-        <h2>AS 목록</h2>
-        <span class="cnt">조회 <b id="count">0</b>건</span>
-        <div class="spacer"></div>
-        <button type="button" class="collapse-btn" onclick="asws_toggleCol('c1')" title="목록 접기">&#9666;</button>
-      </div>
-      <div class="col-content">
-        <div class="toolbar">
-          <button type="button" class="btn-s primary" onclick="javascript:openProcLayer();">일괄처리</button>
-          <button type="button" class="btn-s" onclick="javascript:goInsertCopy();">복사</button>
-          <button type="button" class="btn-s" onclick="javascript:goForm('insert','');">신규작업</button>
-          <button type="button" class="btn-s" onclick="javascript:goForm('subInsert','');">하위작업</button>
-          <button type="button" class="btn-s" onclick="javascript:goExl();">엑셀</button>
-          <div class="spacer"></div>
-          <select id="pageSize" name="pageSize" onchange="getAsList(1);" title="리스트 행 선택">
-            <option value="10">10개씩</option>
-            <option value="30">30개씩</option>
-            <option value="50">50개씩</option>
-          </select>
-        </div>
-        <div class="tscroll">
-          <table class="aslist">
-            <colgroup>
-              <col style="width:26px" /><col style="width:56px" /><col style="width:96px" /><col style="width:auto" /><col style="width:64px" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th class="col-chk"><input type="checkbox" id="chkall" onclick="asws_toggleAll(this);" title="전체선택" /></th>
-                <th>접수일</th>
-                <th>거래처</th>
-                <th>문의 내용 · 조치</th>
-                <th>상태</th>
-              </tr>
-            </thead>
-            <tbody id="asList"></tbody>
-          </table>
-        </div>
-        <div class="list-page"><div id="pagination"></div></div>
-      </div>
-    </section>
-
-    <!-- COL2 : 문의 상세 + 답변 -->
-    <section class="col" id="col-c2">
-      <div class="chd">
-        <h2>문의 상세</h2>
-        <div class="spacer"></div>
-        <span class="cnt" id="pinlabel"></span>
-      </div>
-      <div class="col-content">
-        <div class="detail-scroll" id="asDetail">
-          <div class="empty">왼쪽 목록에서 접수건을 선택하세요.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- COL3 : 접수 · 처리 정보 -->
-    <section class="col" id="col-c3">
-      <div class="rail">
-        <button type="button" onclick="asws_toggleCol('c3')" title="정보 펼치기">&#9666;</button>
-        <div class="vtext">접수 · 처리 정보</div>
-      </div>
-      <div class="chd">
-        <h2>접수 · 처리 정보</h2>
-        <div class="spacer"></div>
-        <button type="button" class="collapse-btn" onclick="asws_toggleCol('c3')" title="정보 접기">&#9656;</button>
-      </div>
-      <div class="col-content">
-        <div class="rec-scroll" id="asRecord">
-          <div class="none" style="padding:14px">왼쪽 목록에서 접수건을 선택하세요.</div>
-        </div>
-      </div>
-    </section>
-
-  </div>
+<div class="info_upper mgb5">
+	<div class="sorting">
+		조회건수 : <strong><span class="count" id="count">0</span> 건</strong>
+	</div>
+	<div class="floatR">
+		<button type="button" class="btn_ico_confirm w115" onclick="javascript:openProcLayer()"><span>일괄처리</span></button>
+		<button type="button" class="btn_ico_confirm w115" onclick="javascript:goInsertCopy();"><span>복사</span></button>
+		<button type="button" class="btn_ico_confirm w115" onclick="javascript:goForm('insert', '');"><span>신규작업 등록</span></button>
+		<button type="button" class="btn_ico_excel" onclick="goExl();"><span>엑셀다운로드</span></button>
+		<select id="pageSize" name="pageSize" onchange="getAsList(1);" title="리스트 행 선택" class="w140">
+			<option value="10">10개씩 노출</option>
+			<option value="30">30개씩 노출</option>
+			<option value="50">50개씩 노출</option>
+		</select>
+	</div>
 </div>
-<%-- [AX Lab] 수정 끝 : #asWorkspace --%>
+
+<div style="overflow-x:auto;">
+<table class="hType mgb10 scroll-table" >
+	<caption>A/S 접수 목록</caption>
+	<colgroup>
+		<col style="width:30px" /><!-- 선택 -->
+		<col style="width:80px" /><!-- 접수번호 -->
+		<col style="width:40px" /><!-- 우선처 -->
+		<col style="width:90px" /><!-- 연결AS개수 -->
+		<col style="width:80px" /><!-- 처리예정일 -->
+		<col style="width:70px" /><!-- 처리상태 -->
+		<col style="width:auto" /><!-- 거래처명 -->
+		<col style="width:90px" /><!-- 문의유형 -->
+		<col style="width:90px" /><!-- 시스템유형 -->
+		<col style="width:60px" /><!-- 중요도 -->
+		<col style="width:70px" /><!-- 처리담당자 -->
+		<col style="width:50px" /><!-- 신규답변 -->
+		<col style="width:260px" /><!-- 문의내용 -->
+		<col style="width:260px" /><!-- 조치내용 -->
+		<col style="width:70px" /><!-- 접수일 -->
+		<col style="width:70px" /><!-- 처리완료일 -->
+		<col style="width:50px" /><!-- 원인유형 -->
+		<col style="width:50px" /><!-- 조치유형 -->
+		<col style="width:70px" /><!-- 검수일 -->
+		<col style="width:60px" /><!-- 고객평가 -->
+		
+	</colgroup>
+	<thead>
+		<tr>
+			<th scope="col">선택</th>
+			<th scope="col">접수번호</th>
+			<th scope="col">우선처</th>
+			<th scope="col">연결된AS개수</th>
+			<th scope="col">처리예정일</th>
+			<th scope="col">처리상태</th>
+			<th scope="col">거래처명</th>
+			<th scope="col">문의유형</th>
+			<th scope="col">시스템유형</th>
+			<th scope="col">중요도</th>
+			<th scope="col">처리담당자</th>
+			<th scope="col">신규답변</th>
+			<th scope="col">문의내용</th>
+			<th scope="col">조치내용</th>
+			<th scope="col">접수일</th>
+			<th scope="col">처리완료일자</th>
+			<th scope="col">원인유형</th>
+			<th scope="col">조치유형</th>
+			<th scope="col">검수일</th>
+			<th scope="col">고객평가</th>
+		</tr>
+	</thead>
+	<tbody id="asList"></tbody>
+</table>
+
+</div>
+<div class="page">
+	<div class="btn_left">
+		<button type="button" class="btn_ico_confirm w115" onclick="javascript:goForm('insert', '');"><span>신규작업 등록</span></button>
+		<button type="button" class="btn_ico_confirm w115" onclick="javascript:goForm('subInsert', '');"><span>하위작업 등록</span></button>
+	</div>
+	<div id="pagination"></div>
+	<!--<div class="btn_right">
+		<button type="button" class="btn_ico_delete" onclick="delAsProcAll();"><span>일괄삭제</span></button>
+		<button type="button" class="btn_ico_delete" onclick="delAsProc();"><span>단일삭제</span></button>
+	</div>-->
+</div>
 
 <div class="box_layer layer_sms" id="wrap_aws" style="display:none;">
 	<h1>신규답변</h1>
