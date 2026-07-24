@@ -4,6 +4,7 @@
 #   1) JDK 8 확인 (없거나 손상 시 portable Temurin 8 자동 다운로드)
 #   2) Maven 확인 (없으면 portable Maven 3.8.8 자동 다운로드)
 #   2-1) Oracle JDBC 드라이버 확인 (WEB-INF/lib 의 ojdbc8.jar 또는 ojdbc7.jar 자동 감지)
+#        + orai18n.jar(확장 문자집합 KO16MSWIN949 지원) 확인/자동 다운로드
 #   3) settings-local.xml 생성 (http->https 미러, git 에 안 올라가는 파일)
 #   4) jwcrm/local-run/tomcat-context.xml 생성 (DB 접속정보, git 에 안 올라가는 파일)
 #   5) (옵션) mvn tomcat7:run 실행
@@ -175,6 +176,59 @@ if ($OjdbcJar) {
 }
 
 # ---------------------------------------------------------------------
+# [AX Lab] 수정 시작 (2026-07-24): orai18n.jar(Oracle NLS 확장 문자집합) 확인/자동 배치.
+#   ojdbc 만으로는 KO16MSWIN949 등 확장 charset 변환 클래스가 없어, 로그인 프로시저
+#   PROC_EMP_LOGIN_INFO 가 한글 결과를 반환할 때 아래 SQLException 이 발생한다:
+#     "지원되지 않는 문자 집합(클래스 경로에 orai18n.jar 추가): KO16MSWIN949"
+#   따라서 ojdbc 와 동일 릴리스의 orai18n.jar 을 WEB-INF/lib 에 둔다. 없으면 ojdbc 매니페스트
+#   버전을 읽어 Maven Central 에서 같은 버전을 자동 다운로드한다(오프라인/미존재 시 수동 안내).
+# ---------------------------------------------------------------------
+function Get-JarImplVersion($jarPath) {
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        $zf = [System.IO.Compression.ZipFile]::OpenRead($jarPath)
+        $mf = $zf.Entries | Where-Object { $_.FullName -eq 'META-INF/MANIFEST.MF' } | Select-Object -First 1
+        if (-not $mf) { $zf.Dispose(); return $null }
+        $sr = New-Object System.IO.StreamReader($mf.Open())
+        $txt = $sr.ReadToEnd(); $sr.Close(); $zf.Dispose()
+        $m = [regex]::Match($txt, 'Implementation-Version:\s*([0-9][0-9.]+)')
+        if ($m.Success) { return $m.Groups[1].Value.Trim() }
+        return $null
+    } catch { return $null }
+}
+
+$Orai18nPath = Join-Path $LibDir "orai18n.jar"
+if (Test-Path $Orai18nPath) {
+    Write-Ok "orai18n.jar 존재: $Orai18nPath"
+} else {
+    Write-Warn2 "orai18n.jar 이 없습니다. ojdbc 버전에 맞춰 Maven Central 에서 자동 다운로드를 시도합니다..."
+    # ojdbc 매니페스트에서 정확한 버전(예:19.23.0.0.0)을 읽어 orai18n 좌표 버전(예:19.23.0.0)으로 변환
+    $ojdbcVer   = Get-JarImplVersion (Join-Path $LibDir $OjdbcJar)
+    $orai18nVer = "19.23.0.0"   # 기본값(현재 표준 ojdbc8 = 19.23.0.0.0)
+    if ($ojdbcVer) {
+        $segs = $ojdbcVer.Split('.')
+        if ($segs.Count -ge 4) { $orai18nVer = ($segs[0..3] -join '.') }
+        Write-Ok "감지된 ojdbc 버전: $ojdbcVer  -> orai18n $orai18nVer 다운로드 시도"
+    } else {
+        Write-Warn2 "ojdbc 버전 자동감지 실패 -> 기본 orai18n $orai18nVer 로 시도"
+    }
+    $orai18nUrl = "https://repo1.maven.org/maven2/com/oracle/database/nls/orai18n/$orai18nVer/orai18n-$orai18nVer.jar"
+    try {
+        $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri $orai18nUrl -OutFile $Orai18nPath -UseBasicParsing
+        $ProgressPreference = $old
+        Write-Ok "orai18n.jar 다운로드 완료: $Orai18nPath ($orai18nVer)"
+    } catch {
+        Write-Warn2 "orai18n.jar 자동 다운로드 실패: $($_.Exception.Message)"
+        Write-Warn2 "  아래 위치에 orai18n.jar(ojdbc 와 동일 버전)을 수동으로 넣어주세요:"
+        Write-Warn2 "  $Orai18nPath"
+        Write-Warn2 "  다운로드 예시 URL: $orai18nUrl"
+        throw "orai18n.jar 미존재 및 자동 다운로드 실패로 중단"
+    }
+}
+# [AX Lab] 수정 끝
+
+# ---------------------------------------------------------------------
 # 3) settings-local.xml 생성 (http -> https 미러)
 # ---------------------------------------------------------------------
 Write-Step "3. settings-local.xml 생성"
@@ -267,6 +321,7 @@ Write-Host "  JAVA_HOME  = $Java8Home"
 Write-Host "  settings   = $settingsPath"
 Write-Host "  context    = $contextPath"
 Write-Host "  ojdbc      = $OjdbcJar"
+Write-Host "  orai18n    = orai18n.jar (KO16MSWIN949 지원)"
 Write-Host "  Tomcat 포트 = (pom.xml 의 tomcat7-plugin 설정 사용)"
 Write-Host ""
 Write-Host "  [수동 실행 명령]" -ForegroundColor Cyan

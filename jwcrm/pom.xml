@@ -423,6 +423,23 @@
             <systemPath>${ext.lib.path}/${ojdbc.jar}</systemPath>
         </dependency>
 	<!-- [AX Lab] 수정 끝 -->
+
+	<!-- [AX Lab] 수정 시작 (2026-07-24): Oracle NLS 확장 문자집합 지원 jar(orai18n) 추가.
+	     ojdbc 단독으로는 KO16MSWIN949 등 확장 charset 변환 클래스가 없어, 로그인 프로시저
+	     PROC_EMP_LOGIN_INFO 가 한글 결과를 반환할 때 SQLException
+	     "지원되지 않는 문자 집합(클래스 경로에 orai18n.jar 추가): KO16MSWIN949" 가 발생함.
+	     ojdbc8.jar(19.23.0.0.0)과 동일 릴리스의 orai18n.jar 을 WEB-INF/lib 에 배치해 클래스패스에 포함시킨다.
+	     - orai18n.jar 도 *.jar 이므로 .gitignore 대상 → git 전파 안 됨. 각 PC 에 수동 배치하거나
+	       setup-local.ps1 이 ojdbc 버전에 맞춰 Maven Central 에서 자동 다운로드한다.
+	     - systemPath 는 ojdbc 와 동일하게 WEB-INF/lib 를 가리키며, 파일명은 orai18n.jar 로 고정. -->
+	<dependency>
+            <groupId>com.oracle.database.nls</groupId>
+            <artifactId>orai18n</artifactId>
+            <version>19.23.0.0</version>
+            <scope>system</scope>
+            <systemPath>${ext.lib.path}/orai18n.jar</systemPath>
+        </dependency>
+	<!-- [AX Lab] 수정 끝 -->
 	
 	
 	<dependency>
