@@ -1,0 +1,282 @@
+/* [AX Lab] 신규 파일 (2026-07-23): AS 통합 워크스페이스 로직
+   - list.jsp 3분할(목록/상세/처리정보) 화면 전용.
+   - 기존 엔드포인트 재사용: getMainInfo.do(KPI), getAsInfo.do(상세), getAwsList.do(답변),
+     awsProc.do(답변등록), form.do(전체편집).
+   - 모든 콜백은 common.ajaxCall(datas,url,'콜백명') 규칙상 전역 함수여야 한다. */
+
+var asws = { asNo:'', cnAsNo:'', rowMap:{}, curRow:null };
+
+/* ===== 컬럼 접기/펼치기 ===== */
+function asws_toggleCol(w){
+	var g = document.getElementById('asGrid');
+	var c = document.getElementById('col-'+w);
+	if(!g || !c) return;
+	var collapsed = c.classList.toggle('is-collapsed');
+	g.classList.toggle(w+'-collapsed', collapsed);
+}
+
+/* ===== 상태코드 -> 뱃지 클래스 ===== */
+function asws_stClass(code){
+	code = asws_nvl(code,'');
+	if(code=='C001') return 'recv';
+	if(code=='C005') return 'done';
+	if(code=='C006') return 'cancel';
+	if(code=='C003') return 'hold';
+	return 'prog';
+}
+function asws_nvl(v, d){ return (v==null || typeof v=='undefined') ? (d||'') : v; }
+function asws_fmtDt(v){
+	v = asws_nvl(v,'');
+	if(v.length==8 && typeof makeDate=='function') return makeDate(v,'-');
+	return v || '-';
+}
+
+/* ===== KPI ===== */
+function asws_loadKpi(){
+	common.ajaxCall({ firstFlag:'2' }, '/ad/main/getMainInfo.do', 'asws_makeKpi');
+}
+function asws_makeKpi(data){
+	var my   = (typeof data.top2 != 'undefined' && data.top2) ? data.top2 : [];
+	var team = (typeof data.top3 != 'undefined' && data.top3) ? data.top3 : [];
+
+	var recv=0, prog=0, done=0, wait=0;
+	for(var i=0;i<my.length;i++){
+		recv += Number(asws_nvl(my[i].FLAG1,0));   // 접수(C001)
+		prog += Number(asws_nvl(my[i].FLAG2,0));   // 처리중(C004)
+		done += Number(asws_nvl(my[i].FLAG3,0));   // 처리완료(당월 C005)
+		wait += Number(asws_nvl(my[i].FLAG4,0));   // 미처리(C005/C006 외)
+	}
+	var teamWait=0;
+	for(var j=0;j<team.length;j++){ teamWait += Number(asws_nvl(team[j].FLAG4,0)); }
+
+	asws_setText('kpi-mine', my.length);
+	asws_setText('kpi-recv', recv);
+	asws_setText('kpi-prog', prog);
+	asws_setText('kpi-wait', wait);
+	asws_setText('kpi-done', done);
+	asws_setText('kpi-team', teamWait);
+}
+function asws_setText(id, v){ var el=document.getElementById(id); if(el) el.innerHTML = v; }
+
+/* ===== 목록 행 클릭 -> 상세/처리정보 로드 ===== */
+function asws_openDetail(asNo, cnAsNo){
+	if(asws_nvl(asNo,'')=='') return;
+	asws.asNo = asNo;
+	asws.cnAsNo = asws_nvl(cnAsNo,'');
+	asws.curRow = asws.rowMap[asNo] || null;
+
+	$('#asList tr').removeClass('on');
+	$('#asList tr[data-asno="'+asNo+'"]').addClass('on');
+
+	$('#pinlabel').text(asNo);
+	$('#asDetail').html('<div class="empty">불러오는 중...</div>');
+	$('#asRecord').html('<div class="none" style="padding:14px">불러오는 중...</div>');
+
+	var pt = (asws.cnAsNo!=='') ? 'subUpdate' : 'update';
+	common.ajaxCall({ as_no:asNo, cn_as_no:asws.cnAsNo, pageType:pt }, '/ad/as/getAsInfo.do', 'asws_renderDetailRecord');
+	common.ajaxCall({ as_no:asNo, page:'1' }, '/ad/as/getAwsList.do', 'asws_renderThread');
+}
+
+/* ===== COL2 상세 + COL3 처리정보 ===== */
+function asws_renderDetailRecord(data){
+	var vo  = (typeof data.resultVO != 'undefined' && data.resultVO) ? data.resultVO : {};
+	var row = asws.curRow || {};
+	var hist = (typeof data.asHistList != 'undefined' && data.asHistList) ? data.asHistList : [];
+
+	var stCode = asws_nvl(row.proc_status, vo.proc_status);
+	var stNm   = asws_nvl(row.proc_status_nm, '-');
+	var client = '['+asws_nvl(row.cust_code, asws_nvl(vo.cust_code,''))+']'+asws_nvl(row.cust_kor_name,'');
+	var callContent = asws_nvl(vo.call_content, asws_nvl(row.call_content,''));
+	var applyNm = asws_nvl(vo.apply_nm,'');
+	var acceptWhen = asws_fmtDt(asws_nvl(vo.accept_dt, row.accept_dt)) + ' ' + asws_nvl(vo.accept_time,'');
+
+	/* ---- COL2 상세 ---- */
+	var titleTxt = callContent ? callContent.split('\n')[0] : ('접수번호 '+asws.asNo);
+	if(titleTxt.length>60) titleTxt = titleTxt.substr(0,60)+'...';
+
+	var html = ''
+	+ '<div class="dtop">'
+	+   '<div><div class="dtitle">'+asws_esc(titleTxt)+'</div>'
+	+     '<div class="dmeta">'+asws_esc(client)+' · 접수 '+asws_fmtDt(asws_nvl(vo.accept_dt,row.accept_dt))+' · 담당 '+asws_esc(asws_nvl(row.emp_nm,'-'))+' · 접수번호 '+asws_esc(asws.asNo)+'</div></div>'
+	+   '<span class="st '+asws_stClass(stCode)+'">'+asws_esc(stNm)+'</span>'
+	+ '</div>';
+
+	// 문의유형/시스템 키워드
+	var kws=[];
+	if(asws_nvl(row.request_type_nm,'')!='') kws.push(row.request_type_nm);
+	if(asws_nvl(row.service_cate_nm,'')!='') kws.push(row.service_cate_nm);
+	if(asws_nvl(row.inquiry_type_nm,'')!='') kws.push(row.inquiry_type_nm);
+	if(kws.length){
+		html += '<div class="kw">';
+		for(var k=0;k<kws.length;k++) html += '<span># '+asws_esc(kws[k])+'</span>';
+		html += '</div>';
+	}
+
+	// 요청(고객) 말풍선 + 답변 스레드 자리
+	html += '<div class="thread" id="asThread">'
+	     +  '<div class="bubble cust"><div class="bhd"><span class="bname">'+asws_esc(applyNm||'요청')+'</span><span class="btime">'+asws_esc(acceptWhen)+'</span></div>'
+	     +  '<div class="btxt">'+asws_esc(callContent||'(요청 내용 없음)')+'</div></div>'
+	     +  '<div class="none" style="padding:6px 2px">답변 불러오는 중...</div>'
+	     +  '</div>';
+
+	// 인라인 답변 등록 (기존 awsProc.do)
+	html += '<div class="reply">'
+	     +  '<textarea id="asReplyText" placeholder="고객에게 노출되는 답변 내용을 작성해주세요."></textarea>'
+	     +  '<div class="rbar"><span class="hint">고객 노출 · 답변 등록</span>'
+	     +  '<button type="button" class="send" onclick="asws_saveAnswer();">답변 등록</button></div>'
+	     +  '</div>';
+
+	// AI 영역 (추후 제공)
+	html += '<div class="aiblock"><div class="ahd">AI 추천 <span class="soon">추후 제공</span></div>'
+	     +  '<div class="adesc">유사 사례 · 관련 공지 · 운영정보 요약 · 답변 초안 기능이 이 영역에 제공될 예정입니다.</div></div>';
+
+	$('#asDetail').html(html);
+
+	/* ---- COL3 처리정보 ---- */
+	var priority = asws_nvl(row.priority,'')=='Y' ? '★ 우선' : '-';
+	var grade = asws_nvl(row.inportance_nm,'-');
+	var gradeCls = (asws_nvl(row.inportance,'')=='C001') ? 'v grade-b' : 'v';
+	var sysType = asws_nvl(row.service_cate_nm,'-') + (asws_nvl(row.inquiry_type_nm,'')!='' ? ' / '+row.inquiry_type_nm : '');
+	var completeDt = (stCode=='C005') ? asws_nvl(row.as_complete_dt,'-') : '-';
+	var stateDate = asws_nvl(row.star_state_date,'-'); if(stateDate.length>10) stateDate=stateDate.substr(0,10);
+	var star = asws_stars(row.star_state);
+	var applyTel = asws_nvl(vo.apply_tel,'-');
+
+	var rec = ''
+	+ '<div class="action-card">'
+	+   '<div class="field"><label>현재 처리상태 / 담당자</label>'
+	+     '<div class="row"><span class="st '+asws_stClass(stCode)+'">'+asws_esc(stNm)+'</span>'
+	+     '<span style="font-size:12.5px;color:var(--ink-2);font-weight:600;">'+asws_esc(asws_nvl(row.emp_nm,'-'))+'</span></div>'
+	+   '</div>'
+	+   '<a href="javascript:asws_openFull();" class="openfull">상세페이지에서 처리 · 상태 · 담당자 변경 →</a>'
+	+ '</div>';
+
+	rec += '<div class="rgroup"><div class="rgtitle">접수정보</div>'
+	+ asws_kv('접수번호', asws.asNo)
+	+ asws_kv('우선처', priority)
+	+ asws_kv('연결된 AS', asws_nvl(row.as_no_link_count,'0')+'건')
+	+ asws_kv('접수경로', asws_nvl(vo.accept_route,'-'))
+	+ asws_kv('처리예정일', asws_fmtDt(asws_nvl(row.proc_dt, vo.proc_dt)))
+	+ asws_kv('문의유형', asws_nvl(row.request_type_nm,'-'))
+	+ asws_kv('시스템유형', sysType)
+	+ asws_kvc('중요도', grade, gradeCls)
+	+ '</div>';
+
+	rec += '<div class="rgroup"><div class="rgtitle">고객사정보</div>'
+	+ asws_kv('고객사코드', asws_nvl(row.cust_code, asws_nvl(vo.cust_code,'-')))
+	+ asws_kv('거래처명', asws_nvl(row.cust_kor_name,'-'))
+	+ asws_kv('신청자', applyNm||'-')
+	+ asws_kv('연락처', applyTel)
+	+ '</div>';
+
+	rec += '<div class="rgroup"><div class="rgtitle">처리내역</div>'
+	+ asws_kv('처리담당자', asws_nvl(row.emp_nm,'-'))
+	+ asws_kv('작업시간', asws_nvl(vo.work_time,'-'))
+	+ asws_kv('원인유형', asws_nvl(row.cause_type_nm,'-'))
+	+ asws_kv('조치유형', asws_nvl(row.action_type_nm,'-'))
+	+ asws_kv('처리완료일', completeDt)
+	+ asws_kv('검수일', stateDate)
+	+ asws_kv('고객평가', star)
+	+ '</div>';
+
+	// 조치내용
+	var actionContent = asws_nvl(row.action_content,'');
+	rec += '<div class="rgroup"><div class="rgtitle">조치내용</div>'
+	+ '<div class="btxt" style="font-size:12px;color:var(--ink-2);white-space:pre-line;">'+(actionContent? asws_esc(actionContent) : '<span class="none">조치내용 없음</span>')+'</div></div>';
+
+	// 과거 상담이력
+	rec += '<div class="rgroup"><div class="rgtitle">처리 이력</div>';
+	if(hist && hist.length){
+		for(var h=0;h<hist.length;h++){
+			var hi = hist[h];
+			var t = asws_nvl(hi.proc_status_nm, asws_nvl(hi.PROC_STATUS_NM,'상태 변경'));
+			var regNm = asws_nvl(hi.reg_nm, asws_nvl(hi.REG_NM,''));
+			var regDt = asws_nvl(hi.reg_date, asws_nvl(hi.REG_DATE,''));
+			var act = asws_nvl(hi.action_content, asws_nvl(hi.ACTION_CONTENT,''));
+			rec += '<div class="histitem"><div class="ht">'+asws_esc(t)+'</div>'
+			     + '<div class="hm">'+asws_esc(regNm)+(regNm&&regDt?' · ':'')+asws_esc(regDt)+(act? '\n'+asws_esc(act):'')+'</div></div>';
+		}
+	}else{
+		rec += '<div class="none">처리 이력이 없습니다.</div>';
+	}
+	rec += '</div>';
+
+	$('#asRecord').html(rec);
+}
+
+function asws_kv(k,v){ return '<div class="kv"><span class="k">'+asws_esc(k)+'</span><span class="v">'+asws_esc(asws_nvl(v,'-'))+'</span></div>'; }
+function asws_kvc(k,v,cls){ return '<div class="kv"><span class="k">'+asws_esc(k)+'</span><span class="'+cls+'">'+asws_esc(asws_nvl(v,'-'))+'</span></div>'; }
+function asws_stars(n){
+	n = Number(asws_nvl(n,0));
+	if(n<1||n>5) return '-';
+	var full='★★★★★'.substr(0,n), empty='☆☆☆☆☆'.substr(0,5-n);
+	return full+empty;
+}
+
+/* ===== 답변 스레드 ===== */
+function asws_renderThread(data){
+	var box = document.getElementById('asThread');
+	if(!box) return;
+	var list = (typeof data.resultList != 'undefined' && data.resultList) ? data.resultList : [];
+
+	// 요청(고객) 말풍선은 유지하고, 그 아래 답변만 다시 그림
+	var first = box.querySelector('.bubble');
+	box.innerHTML = '';
+	if(first) box.appendChild(first);
+
+	if(!list.length){
+		var n = document.createElement('div');
+		n.className='none'; n.style.padding='6px 2px'; n.textContent='등록된 답변이 없습니다.';
+		box.appendChild(n);
+		return;
+	}
+	for(var i=0;i<list.length;i++){
+		var it = list[i];
+		var who = (asws_nvl(it.w_gubun,'')=='U') ? 'cust' : '';
+		var b = document.createElement('div');
+		b.className = 'bubble '+who;
+		b.innerHTML = '<div class="bhd"><span class="bname">'+asws_esc(asws_nvl(it.emp_nm,'-'))+'</span>'
+		            + '<span class="btime">'+asws_esc(asws_nvl(it.w_date,''))+'</span></div>'
+		            + '<div class="btxt">'+asws_esc(asws_nvl(it.w_content,''))+'</div>';
+		box.appendChild(b);
+	}
+}
+
+/* ===== 인라인 답변 등록 (기존 awsProc.do / answerForm 재사용) ===== */
+function asws_saveAnswer(){
+	if(asws_nvl(asws.asNo,'')==''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
+	var content = $('#asReplyText').val();
+	if(typeof common!='undefined' && common.isEmpty ? common.isEmpty(content) : (!content || content.replace(/\s/g,'')=='')){
+		alert('답변 내용을 입력해 주세요.'); return;
+	}
+	var f = document.answerForm;
+	f.w_content.value = content;
+	f.as_no.value = asws.asNo;
+	f.pageType.value = 'insert';
+
+	try{ $('#awsFrame').remove(); }catch(e){}
+	var frame = $('<iframe id="awsFrame" name="awsFrame" style="width:0;height:0;display:none;"></iframe>');
+	frame.appendTo('body');
+
+	f.method = 'post';
+	f.target = 'awsFrame';
+	f.action = '/ad/as/awsProc.do';
+	f.submit();
+}
+/* awsProc.do 응답은 parent.awsProcReturn(resultCode) 를 호출한다.
+   awsProcReturn 은 기존 팝업과 공유되므로 list.jsp 에서 통합 정의한다. */
+
+/* ===== 전체 편집(상세페이지) ===== */
+function asws_openFull(){
+	if(asws_nvl(asws.asNo,'')==''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
+	var pt = (asws.cnAsNo!=='') ? 'subUpdate' : 'update';
+	var url = '/ad/as/form.do?pageType='+pt+'&as_no='+encodeURIComponent(asws.asNo);
+	if(asws.cnAsNo!=='') url += '&cn_as_no='+encodeURIComponent(asws.cnAsNo);
+	location.href = url;
+}
+
+/* ===== HTML escape ===== */
+function asws_esc(s){
+	s = asws_nvl(s,'');
+	return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
