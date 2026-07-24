@@ -176,3 +176,14 @@
   #asWorkspace .grid{grid-template-columns:1fr; height:auto; min-height:0;}
   #asWorkspace .col{height:560px;}
 }
+
+/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): AS 통합 화면만 콘텐츠 프레임 와이드.
+   공통 헤더바/메뉴(.innerWrap)는 건드리지 않고, 본문 컨테이너(#jw_contents)만 넓힌다.
+   #asWorkspace 를 가진 페이지(=/ad/as/list.do)에서만 :has 로 스코프. */
+body:has(#asWorkspace) #jw_contents{
+  width:auto;
+  max-width:none;
+  margin:0 auto 44px;
+  padding:0 20px;
+}
+/* [AX Lab] 수정 끝 */
