@@ -2,9 +2,11 @@
 # [AX Lab] 로컬 실행 자동 셋업 스크립트 (2026-07-24 작성)
 # 목적: 새 PC 에서 git clone 후 이 스크립트 1회 실행으로 로컬 실행환경 구성.
 #   1) JDK 8 확인 (없거나 손상 시 portable Temurin 8 자동 다운로드)
-#   2) settings-local.xml 생성 (http->https 미러, git 에 안 올라가는 파일)
-#   3) jwcrm/local-run/tomcat-context.xml 생성 (DB 접속정보, git 에 안 올라가는 파일)
-#   4) (옵션) mvn tomcat7:run 실행
+#   2) Maven 확인 (없으면 portable Maven 3.8.8 자동 다운로드)
+#   2-1) Oracle JDBC 드라이버 확인 (WEB-INF/lib 의 ojdbc8.jar 또는 ojdbc7.jar 자동 감지)
+#   3) settings-local.xml 생성 (http->https 미러, git 에 안 올라가는 파일)
+#   4) jwcrm/local-run/tomcat-context.xml 생성 (DB 접속정보, git 에 안 올라가는 파일)
+#   5) (옵션) mvn tomcat7:run 실행
 #
 # 사용 예:
 #   powershell -ExecutionPolicy Bypass -File .\setup-local.ps1                # 대화형(비번 입력) 후 환경만 구성
@@ -15,6 +17,9 @@
 # 주의:
 #   - 이 스크립트에는 비밀번호를 하드코딩하지 않는다(=git 안전). 비번은 실행 시 입력받거나 -OraPass 로 전달.
 #   - pom.xml 변경분/이 스크립트/.gitignore/_origin_backup 은 git 으로 커밋해야 새 PC 에 반영됨.
+#   - Oracle 드라이버(ojdbc8.jar/ojdbc7.jar)는 .gitignore(*.jar) 대상이라 git 으로 전파되지 않는다.
+#     각 PC 의 jwcrm/src/main/webapp/WEB-INF/lib 에 ojdbc8.jar 또는 ojdbc7.jar 중 하나를 수동 배치할 것.
+#     (스크립트가 있는 파일을 감지해 pom 의 ${ojdbc.jar} 로 전달; ojdbc8 우선.)
 # =====================================================================
 [CmdletBinding()]
 param(
@@ -36,6 +41,13 @@ $Jwcrm    = Join-Path $RepoRoot "jwcrm"
 function Write-Step($msg) { Write-Host "`n==== $msg ====" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "  [OK] $msg"   -ForegroundColor Green }
 function Write-Warn2($msg){ Write-Host "  [!!] $msg"   -ForegroundColor Yellow }
+
+# BOM 없는 UTF-8 로 파일 기록. (Windows PowerShell 5.x 의 Set-Content -Encoding UTF8 은 BOM(EF BB BF)을
+# 추가하는데, tomcat7-maven-plugin 의 XML 파서가 BOM 을 처리하지 못해 context.xml 파싱이 실패하므로 BOM 을 제거한다.)
+function Write-Utf8NoBom($path, $content) {
+    $enc = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($path, $content, $enc)
+}
 
 # ---------------------------------------------------------------------
 # 1) 유효한 JDK 8 확보 (javac 가 실제로 동작하는지 검증: 손상된 tools.jar 걸러냄)
@@ -109,8 +121,14 @@ if ($Java8Home) {
 # 2) Maven 확인
 # ---------------------------------------------------------------------
 function Install-PortableMaven {
-    Write-Warn2 "Maven 이 없어 portable Apache Maven 3.8.8 을 다운로드합니다..."
     $mvnDir = Join-Path $env:USERPROFILE "apache-maven"
+    $cmd = Join-Path $mvnDir "apache-maven-3.8.8\bin\mvn.cmd"
+    # 이미 설치돼 있으면 재다운로드/재압축해제하지 않고 재사용 (반복 실행 시 잠긴 DLL 덮어쓰기 오류 방지)
+    if (Test-Path $cmd) {
+        Write-Ok "기존 portable Maven 재사용: $cmd"
+        return $cmd
+    }
+    Write-Warn2 "Maven 이 없어 portable Apache Maven 3.8.8 을 다운로드합니다..."
     New-Item -ItemType Directory -Force -Path $mvnDir | Out-Null
     $zip = Join-Path $env:TEMP "maven388.zip"
     $url = "https://archive.apache.org/dist/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.zip"
@@ -132,6 +150,28 @@ if ($mvn) {
 } else {
     $MvnCmd = Install-PortableMaven
     Write-Ok "portable Maven 설치 완료: $MvnCmd"
+}
+
+# ---------------------------------------------------------------------
+# 2-1) Oracle JDBC 드라이버(ojdbc) 확인
+#   - WEB-INF/lib 의 ojdbc*.jar 은 .gitignore(*.jar) 대상이라 git clone 으로는 받아지지 않는다.
+#     (Oracle 라이선스상 Maven Central 에도 없어 각 PC 에 수동 배치가 필요.)
+#   - PC 마다 ojdbc8.jar 또는 ojdbc7.jar 중 하나만 있어도 되도록, 있는 파일을 감지해 pom 의
+#     ${ojdbc.jar} 프로퍼티로 전달한다(ojdbc8 우선). 둘 다 없으면 명확히 안내하고 중단.
+# ---------------------------------------------------------------------
+Write-Step "2-1. Oracle JDBC 드라이버(ojdbc) 확인"
+$LibDir = Join-Path $Jwcrm "src\main\webapp\WEB-INF\lib"
+$OjdbcJar = $null
+foreach ($cand in @("ojdbc8.jar", "ojdbc7.jar")) {
+    if (Test-Path (Join-Path $LibDir $cand)) { $OjdbcJar = $cand; break }
+}
+if ($OjdbcJar) {
+    Write-Ok "사용할 Oracle 드라이버: $OjdbcJar  ($LibDir)"
+} else {
+    Write-Warn2 "Oracle 드라이버가 없습니다. 아래 위치에 ojdbc8.jar 또는 ojdbc7.jar 를 넣어주세요:"
+    Write-Warn2 "  $LibDir"
+    Write-Warn2 "  (git 에 올라가지 않는 파일입니다. 기존 PC 의 같은 경로에서 복사하거나 Oracle 에서 내려받으세요.)"
+    throw "ojdbc 드라이버(jar) 미존재로 중단"
 }
 
 # ---------------------------------------------------------------------
@@ -170,7 +210,7 @@ if ((Test-Path $settingsPath) -and (-not $Force)) {
   </mirrors>
 </settings>
 '@
-    Set-Content -Path $settingsPath -Value $settingsXml -Encoding UTF8
+    Write-Utf8NoBom $settingsPath $settingsXml
     Write-Ok "생성: $settingsPath"
 }
 
@@ -215,7 +255,7 @@ if ((Test-Path $contextPath) -and (-not $Force)) {
               testOnBorrow="false" testWhileIdle="false" />
 </Context>
 "@
-    Set-Content -Path $contextPath -Value $ctx -Encoding UTF8
+    Write-Utf8NoBom $contextPath $ctx
     Write-Ok "생성: $contextPath  (Oracle: $OraUser@$OraHost`:$OraPort`:$OraSid)"
 }
 
@@ -226,12 +266,13 @@ Write-Step "셋업 완료"
 Write-Host "  JAVA_HOME  = $Java8Home"
 Write-Host "  settings   = $settingsPath"
 Write-Host "  context    = $contextPath"
+Write-Host "  ojdbc      = $OjdbcJar"
 Write-Host "  Tomcat 포트 = (pom.xml 의 tomcat7-plugin 설정 사용)"
 Write-Host ""
 Write-Host "  [수동 실행 명령]" -ForegroundColor Cyan
 Write-Host "    `$env:JAVA_HOME='$Java8Home'"
 Write-Host "    cd '$Jwcrm'"
-Write-Host "    & '$MvnCmd' -s '$settingsPath' tomcat7:run"
+Write-Host "    & '$MvnCmd' -s '$settingsPath' `"-Dojdbc.jar=$OjdbcJar`" tomcat7:run"
 Write-Host ""
 Write-Host "  접속: http://localhost:$TomcatPort/   (AS 통합화면: /ad/as/list.do)" -ForegroundColor Green
 
@@ -241,7 +282,7 @@ if ($Run) {
     $env:Path = "$Java8Home\bin;$env:Path"
     Push-Location $Jwcrm
     try {
-        & $MvnCmd -s $settingsPath tomcat7:run
+        & $MvnCmd -s $settingsPath "-Dojdbc.jar=$OjdbcJar" tomcat7:run
     } finally {
         Pop-Location
     }

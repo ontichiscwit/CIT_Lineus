@@ -16,6 +16,9 @@
 		<ext.lib.path>${project.basedir}/src/main/webapp/WEB-INF/lib</ext.lib.path>
 		<java.version>1.8</java.version>
 		<tika.version>1.7</tika.version>
+		<!-- [AX Lab] 수정 시작 (2026-07-24): Oracle 드라이버 파일명을 프로퍼티로 분리. PC 마다 WEB-INF/lib 에 ojdbc7.jar 또는 ojdbc8.jar 중 하나만 있어도 되도록 함. 기본값 ojdbc8.jar. ojdbc7 만 있는 PC 는 -Dojdbc.jar=ojdbc7.jar 로 오버라이드(=setup-local.ps1 이 자동 감지해 전달). -->
+		<ojdbc.jar>ojdbc8.jar</ojdbc.jar>
+		<!-- [AX Lab] 수정 끝 -->
 	</properties>
 
 	<repositories>
@@ -411,13 +414,15 @@
 <!--             <version>10.2.0.4.0</version> -->
 <!--         </dependency> -->
 
+	<!-- [AX Lab] 수정 시작 (2026-07-24): systemPath 를 고정 파일명(ojdbc7.jar)에서 프로퍼티 ${ojdbc.jar} 로 변경. PC 에 ojdbc7.jar/ojdbc8.jar 중 하나만 있어도 빌드되도록 함(기본 ojdbc8.jar). -->
 	<dependency>
             <groupId>oracle.jdbc</groupId>
             <artifactId>OracleDriver</artifactId>
             <version>12.1.0.2.0</version>
             <scope>system</scope>
-            <systemPath>${ext.lib.path}/ojdbc7.jar</systemPath>
+            <systemPath>${ext.lib.path}/${ojdbc.jar}</systemPath>
         </dependency>
+	<!-- [AX Lab] 수정 끝 -->
 	
 	
 	<dependency>
