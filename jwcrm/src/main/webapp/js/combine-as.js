@@ -280,3 +280,178 @@ function asws_esc(s){
 	s = asws_nvl(s,'');
 	return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+/* =====================================================================
+ * [AX Lab] 고급 동적 검색구분 엔진 (2026-07-24)
+ *  - 검색구분(select) 을 고르면 타입에 맞는 값 UI(키워드/셀렉트/날짜) 를 렌더한다.
+ *  - '+ 조건 추가' 로 행 추가 / '−' 로 행 삭제.
+ *  - 같은 항목 2개 이상 = AND 누적. 단, 셀렉트형은 등호(=) 특성상 중복이 무의미하므로
+ *    이미 사용된 셀렉트 항목은 다른 행의 검색구분에서 비활성화하여 중복 추가를 막는다.
+ *  - 폼 정렬 유지를 위해 모든 행은 adv_field / adv_value / adv_value2 를 각각 1개씩 제출한다.
+ * ===================================================================== */
+
+/* 검색구분 카탈로그 (key = 쿼리 화이트리스트 키, cg/pc = 공통코드 그룹/부모코드) */
+var ASWS_ADV_CATALOG = [
+	{ key:'AS_NO',         label:'접수번호',      type:'keyword' },
+	{ key:'CUST_KOR_NAME', label:'거래처명',      type:'keyword' },
+	{ key:'CUST_CODE',     label:'거래처코드',    type:'keyword' },
+	{ key:'EMP_NM',        label:'처리담당자명',  type:'keyword' },
+	{ key:'DEPT',          label:'부서명/코드',   type:'keyword' },
+	{ key:'REQUEST_TYPE',  label:'문의유형',      type:'select', cg:'AS',     pc:'CD07' },
+	{ key:'SERVICE_CATE',  label:'시스템유형',    type:'select', cg:'AS',     pc:'CD03' },
+	{ key:'CAUSE_TYPE',    label:'원인유형',      type:'select', cg:'AS',     pc:'CD05' },
+	{ key:'ACTION_TYPE',   label:'조치유형',      type:'select', cg:'AS',     pc:'CD06' },
+	{ key:'INPORTANCE',    label:'중요도',        type:'select', cg:'AS',     pc:'CD04' },
+	{ key:'PART_TYPE',     label:'파트',          type:'select', cg:'COMMON', pc:'CD13' },
+	{ key:'ACCEPT_ROUTE',  label:'접수경로',      type:'select', cg:'AS',     pc:'CD02' },
+	{ key:'PROC_DT',       label:'처리예정일',    type:'date' },
+	{ key:'COMPLETE_DT',   label:'처리완료일',    type:'date' }
+];
+
+function asws_advMeta(key){
+	for(var i=0;i<ASWS_ADV_CATALOG.length;i++){ if(ASWS_ADV_CATALOG[i].key===key) return ASWS_ADV_CATALOG[i]; }
+	return null;
+}
+
+/* 공통코드 동기 로더 (그룹|부모코드 캐시) */
+var ASWS_CODE_CACHE = {};
+function asws_loadCodes(cg, pc){
+	var k = cg+'|'+pc;
+	if(ASWS_CODE_CACHE[k]) return ASWS_CODE_CACHE[k];
+	var out = [];
+	try{
+		$.ajax({
+			type:'POST', url:'/comm/getCode.do', dataType:'json', async:false,
+			data:{ code_group:cg, p_code:pc },
+			success:function(d){
+				var l = (d && d.resultList) ? d.resultList : [];
+				for(var i=0;i<l.length;i++){ out.push({ code:asws_nvl(l[i].code,''), name:asws_nvl(l[i].code_name,'') }); }
+			}
+		});
+	}catch(e){}
+	ASWS_CODE_CACHE[k] = out;
+	return out;
+}
+
+/* YYYYMMDD -> yy/mm/dd (datepicker 표시용) */
+function asws_fmtDateInput(v){
+	v = (''+asws_nvl(v,'')).replace(/[^0-9]/g,'');
+	if(v.length===8) return v.substr(0,4)+'/'+v.substr(4,2)+'/'+v.substr(6,2);
+	return v;
+}
+
+/* 이미 사용 중인 셀렉트형 검색구분 키 목록 (중복 방지용) */
+function asws_advUsedSelectKeys(exceptRowEl){
+	var used = {};
+	$('#advRows .adv-row').each(function(){
+		if(exceptRowEl && this===exceptRowEl) return;
+		var f = $(this).find('.adv-field').val();
+		var m = asws_advMeta(f);
+		if(m && m.type==='select') used[f] = true;
+	});
+	return used;
+}
+
+/* 검색구분 select 옵션 HTML (셀렉트형 중복은 disabled) */
+function asws_advFieldOptions(selectedKey, rowEl){
+	var used = asws_advUsedSelectKeys(rowEl);
+	var h = '<option value="">검색구분 선택</option>';
+	for(var i=0;i<ASWS_ADV_CATALOG.length;i++){
+		var c = ASWS_ADV_CATALOG[i];
+		var dis = (c.type==='select' && used[c.key] && c.key!==selectedKey) ? ' disabled' : '';
+		var sel = (c.key===selectedKey) ? ' selected' : '';
+		h += '<option value="'+c.key+'"'+dis+sel+'>'+asws_esc(c.label)+'</option>';
+	}
+	return h;
+}
+
+/* 모든 행의 검색구분 옵션 재계산(중복 disabled 갱신) */
+function asws_advRefreshFieldOptions(){
+	$('#advRows .adv-row').each(function(){
+		var $f = $(this).find('.adv-field');
+		var cur = $f.val();
+		$f.html(asws_advFieldOptions(cur, this));
+		$f.val(cur);
+	});
+}
+
+/* 값 UI 렌더 (미선택/keyword/select/date). name 은 항상 adv_value, adv_value2 유지 */
+function asws_advRenderVal($row, field, value, value2){
+	var $val = $row.find('.adv-val');
+	var m = asws_advMeta(field);
+	value = asws_nvl(value,''); value2 = asws_nvl(value2,'');
+
+	if(!m){
+		$val.html('<input type="hidden" name="adv_value" value=""><input type="hidden" name="adv_value2" value="">');
+		return;
+	}
+	if(m.type==='keyword'){
+		$val.html('<input type="text" class="adv-input" name="adv_value" placeholder="키워드 입력">'
+		        + '<input type="hidden" name="adv_value2" value="">');
+		$val.find('input[name=adv_value]').val(value);
+
+	}else if(m.type==='select'){
+		var opts = asws_loadCodes(m.cg, m.pc);
+		var h = '<select class="adv-input" name="adv_value" title="'+asws_esc(m.label)+' 선택"><option value="">전체선택</option>';
+		for(var i=0;i<opts.length;i++){ h += '<option value="'+asws_esc(opts[i].code)+'">'+asws_esc(opts[i].name)+'</option>'; }
+		h += '</select><input type="hidden" name="adv_value2" value="">';
+		$val.html(h);
+		$val.find('select[name=adv_value]').val(value);
+
+	}else if(m.type==='date'){
+		$val.html('<input type="text" class="adv-input adv-date" name="adv_value" title="시작일">'
+		        + '<span class="dwave">~</span>'
+		        + '<input type="text" class="adv-input adv-date" name="adv_value2" title="종료일">');
+		var $s = $val.find('input[name=adv_value]');
+		var $e = $val.find('input[name=adv_value2]');
+		try{ $s.datepicker(datepicker); $e.datepicker(datepicker); }catch(e){}
+		$s.val(value  ? value  : $.datepicker.formatDate('yy/mm/dd', new Date()));
+		$e.val(value2 ? value2 : $.datepicker.formatDate('yy/mm/dd', new Date()));
+	}
+}
+
+/* 행 추가 */
+function asws_advAddRow(field, value, value2){
+	field = asws_nvl(field,''); value = asws_nvl(value,''); value2 = asws_nvl(value2,'');
+	var $row = $('<div class="adv-row"></div>');
+	var $field = $('<select class="adv-field" name="adv_field" title="검색구분"></select>');
+	$field.html(asws_advFieldOptions(field, $row[0]));
+	var $val = $('<span class="adv-val"></span>');
+	var $del = $('<button type="button" class="adv-del" title="조건 삭제">&#8722;</button>');
+
+	$del.on('click', function(){ $row.remove(); asws_advRefreshFieldOptions(); });
+	$field.on('change', function(){ asws_advRenderVal($row, this.value, '', ''); asws_advRefreshFieldOptions(); });
+
+	$row.append($field).append($val).append($del);
+	$('#advRows').append($row);
+	asws_advRenderVal($row, field, value, value2);
+	asws_advRefreshFieldOptions();
+	return $row;
+}
+
+/* 전체 비우기 */
+function asws_advClear(){ $('#advRows').empty(); }
+
+/* 리로드 후 저장된 고급조건 복원 (ASWS_ADV_INIT) */
+function asws_advInit(){
+	asws_advClear();
+	var init = (typeof ASWS_ADV_INIT !== 'undefined' && ASWS_ADV_INIT) ? ASWS_ADV_INIT : [];
+	for(var i=0;i<init.length;i++){
+		var it = init[i] || {};
+		var f  = asws_nvl(it.field,'');
+		var m  = asws_advMeta(f);
+		var v  = asws_nvl(it.value,'');
+		var v2 = asws_nvl(it.value2,'');
+		if(m && m.type==='date'){ v = asws_fmtDateInput(v); v2 = asws_fmtDateInput(v2); }
+		asws_advAddRow(f, v, v2);
+	}
+}
+
+/* 고급필터 패널 토글 */
+function asws_advToggle(){
+	var b = document.getElementById('advToggle');
+	var body = document.getElementById('advBody');
+	if(!b || !body) return;
+	var open = b.classList.toggle('open');
+	if(open) body.classList.add('open'); else body.classList.remove('open');
+}
