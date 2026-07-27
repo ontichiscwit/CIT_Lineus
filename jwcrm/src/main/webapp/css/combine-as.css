@@ -176,3 +176,32 @@
   #asWorkspace .grid{grid-template-columns:1fr; height:auto; min-height:0;}
   #asWorkspace .col{height:560px;}
 }
+
+/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 고급필터 동적 검색구분 행 스타일 + 기본필터 보강 */
+#asWorkspace .basefilter .advf label{margin-bottom:4px;}
+#asWorkspace .basefilter select.procMultiSelect{width:100%;}
+#asWorkspace .basefilter .SumoSelect{width:100%;}
+#asWorkspace .basefilter .SumoSelect > .CaptionCont{border:1px solid var(--line); border-radius:7px; min-height:32px; padding:5px 8px; font-size:12px;}
+#asWorkspace .adv-row{display:flex; gap:6px; align-items:center; margin-bottom:6px;}
+#asWorkspace .adv-row .adv-field{flex:0 0 118px; border:1px solid var(--line); border-radius:7px; padding:5px 6px; font-size:11.5px; height:30px; background:var(--surface); color:var(--ink); outline:none;}
+#asWorkspace .adv-row .adv-field:focus{border-color:var(--accent);}
+#asWorkspace .adv-row .adv-val{flex:1; display:flex; align-items:center; gap:4px; min-width:0;}
+#asWorkspace .adv-row .adv-val .adv-input{flex:1; min-width:0; border:1px solid var(--line); border-radius:7px; padding:5px 7px; font-size:11.5px; height:30px; background:var(--surface); color:var(--ink); outline:none;}
+#asWorkspace .adv-row .adv-val .adv-input:focus{border-color:var(--accent);}
+#asWorkspace .adv-row .adv-val .adv-date{flex:1 1 0;}
+#asWorkspace .adv-row .adv-val .dwave{color:var(--ink-3); font-size:11px; flex-shrink:0;}
+#asWorkspace .adv-row .adv-del{flex:0 0 28px; height:30px; border:1px solid var(--line); border-radius:7px; background:var(--surface); color:var(--ink-3); font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;}
+#asWorkspace .adv-row .adv-del:hover{border-color:var(--red); color:var(--red);}
+#asWorkspace #advAddBtn{width:100%;}
+/* [AX Lab] 수정 끝 */
+
+/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): AS 통합 화면만 콘텐츠 프레임 와이드.
+   공통 헤더바/메뉴(.innerWrap)는 건드리지 않고, 본문 컨테이너(#jw_contents)만 넓힌다.
+   #asWorkspace 를 가진 페이지(=/ad/as/list.do)에서만 :has 로 스코프. */
+body:has(#asWorkspace) #jw_contents{
+  width:auto;
+  max-width:none;
+  margin:0 auto 44px;
+  padding:0 20px;
+}
+/* [AX Lab] 수정 끝 */

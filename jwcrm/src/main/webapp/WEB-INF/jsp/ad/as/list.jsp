@@ -36,9 +36,7 @@
 		makeListData();
 		asws_loadKpi();		/* [AX Lab] 상단 KPI (getMainInfo.do) */
 		$("#search_text").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
-		$("#emp_nm").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
-		$("#search_type4").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
-		$("#search_type6").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
+		/* [AX Lab] 삭제 (2026-07-24 AX Lab): emp_nm/search_type4/search_type6 필드는 고급필터 동적행으로 대체됨 */
 		
 		$("#searchKorName").keyup(function(e){if(e.keyCode == 13)  custList(1); });
 		
@@ -68,121 +66,68 @@
 		}
 	}) ;
 	
+	/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 검색조건을 COL1 기본/고급 필터로 이동하며 initForm 정리.
+	   - 기본필터(접수일자/처리구분/처리상태/통합검색)와 팝업(일괄처리/답변검색)용 코드/데이트픽커만 유지.
+	   - 나머지 검색필드는 고급필터 동적행(asws_advInit)으로 대체. */
 	function initForm(){
-		
- 		search_type(common.nvl('${ vo.search_gubun }','1')) ;
-		
-		commonCode.getCodeList('AS' , 'CD01' , 'search_type1') ;	//처리상태
-		//$("select[name='search_type1'] option[value='C006']").remove();	//2022.06.21.이설아 수정
-		commonCode.getCodeList('AS' , 'CD07' , 'search_type16') ;	//문의유형
-		commonCode.getCodeList('AS' , 'CD03' , 'search_type7') ; 	//시스템(대)
-		commonCode.getCodeList('AS' , 'CD05' , 'search_type2') ;	//원인유형
-		commonCode.getCodeList('AS' , 'CD02' , 'search_type14') ;	//접수경로
-		commonCode.getCodeList('AS' , 'CD06' , 'search_type3') ;	//조치유형
-		commonCode.getCodeList('AS' , 'CD04' , 'search_type9') ;	//중요도
-		commonCode.getCodeList('COMMON' , 'CD13' , 'search_type12') ;	//사원파트구분
-		commonCode.getCodeList('AS' , 'CD01' , 'procMultiSelect') ; //처리상태2
-		
-		commonCode.getCodeList('AS' , 'CD05' , 'cause_type_pop') ; 	/**	원인유형		*/
-		commonCode.getCodeList('AS' , 'CD06' , 'action_type_pop') ; /**	조치유형		*/
-		commonCode.getCodeList('AS' , 'CD09' , 'proc_gubun_pop');		/**	처리구분		*/
-		
-		//$('#search_type8').append(commonCode.defaultOption);
-		
+
+		commonCode.getCodeList('AS' , 'CD01' , 'procMultiSelect') ; //처리상태(멀티셀렉트)
+
+		commonCode.getCodeList('AS' , 'CD05' , 'cause_type_pop') ; 	/**	원인유형(팝업)		*/
+		commonCode.getCodeList('AS' , 'CD06' , 'action_type_pop') ; /**	조치유형(팝업)		*/
+		commonCode.getCodeList('AS' , 'CD09' , 'proc_gubun_pop');		/**	처리구분(팝업)		*/
+
+		/* 접수일자 datepicker (저장값 없으면 최근 7일 ~ 오늘) */
 		var searchStart = "${vo.search_start}";
-	
-	
 		if (searchStart) {
 			$("#search_start").val("${vo.search_start}").datepicker(datepicker);
-			} else {
+		} else {
 			$("#search_start").val($.datepicker.formatDate('yy/mm/dd', new Date(new Date().setDate(new Date().getDate() - 7)))).datepicker(datepicker);
-			}
-		$( "#search_end" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
-		
-		$( "#search_start2" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
-		$( "#search_end2" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
-		
-		$( "#search_start3" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
-		$( "#search_end3" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
-		
+		}
+		if ('${vo.search_end}' != '') {
+			$("#search_end").val('${vo.search_end}').datepicker(datepicker);
+		} else {
+			$("#search_end").val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
+		}
+
+		/* 답변검색 팝업 datepicker */
 		$( "#aw_search_start1" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
 		$( "#aw_search_end1" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
-		
 		$( "#aw_search_start2" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
 		$( "#aw_search_end2" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
-		
+
+		/* 일괄처리 팝업 datepicker */
 		$("#proc_dt_pop" ).datepicker(datepicker);
 		$("#complete_dt_pop").datepicker(datepicker);
-		
-		
-		$('#search_type1').val('${ vo.search_type1 }');
-		$('#search_type2').val('${ vo.search_type2 }');
-		$('#search_type3').val('${ vo.search_type3 }');
-		$('#search_type4').val('${ vo.search_type4 }');
-		$('#cust_kor_name').val('${ vo.cust_kor_name }');
-		$('#cust_code').val('${ vo.cust_code }');
-		$('#search_type6').val('${ vo.search_type6 }');
-		$('#search_type7').val('${ vo.search_type7 }');
-		$('#search_type9').val('${ vo.search_type9 }');
-		$('#search_type12').val('${ vo.search_type12 }');
-		$('#search_type14').val('${ vo.search_type14 }');
-		$('#search_type16').val('${ vo.search_type16 }');
+
+		/* 처리상태 멀티셀렉트 복원용 hidden 값 (getAsList 에서 SumoSelect 값으로 재설정) */
 		$('#procSelect').val('${ vo.procSelect }');
 
-		
-		 
-/* 		if( $("#search_type10").is(":checked") == true ){
-			 $("#search_type10").val('Y');
-		 }
+		/* 처리구분(나의/전체 A/S) - 저장값 없으면 '나의 A/S'(2) 기본 */
+		var asGubun = '${ vo.asGubunFlag }';
+		$('#asGubunFlag').val(asGubun === '' ? '2' : asGubun);
 
-		var search_type10 = '${ vo.search_type10 }';
-		(search_type10 == 'Y') ? $('#search_type10').prop('checked',true) : $('#search_type10').prop('checked',false); */
-			
-		var search_type11 = '${ vo.search_type11 }';
-		(search_type11 == 'Y') ? $('#search_type11').prop('checked',true) : $('#search_type11').prop('checked',false);
-		
-		var search_type15 = '${ vo.search_type15 }';
-		(search_type15 == 'Y') ? $('#search_type15').prop('checked',true) : $('#search_type15').prop('checked',false);
-		
-		
+		/* 고급필터 체크박스 상태 복원 */
 		var search_type13 = '${ vo.search_type13 }';
 		(search_type13 == 'Y') ? $('#search_type13').prop('checked',true) : $('#search_type13').prop('checked',false);
-		
+
 		var search_type17 = '${ vo.search_type17 }';
 		(search_type17 == 'Y') ? $('#search_type17').prop('checked',true) : $('#search_type17').prop('checked',false);
-		
-		if($('#search_type16').val() == 'C011'){
-			setService_cate("P010");
-			$('#search_type7').prop('disabled', true).addClass('write_gray');
-			$('#search_type7').val("P010");
-		}else{
-			setService_cate($('#search_type7').val());
-			$('#search_type7').prop('disabled', false).removeClass('write_gray');
-		}
-		
-		 if( $('#search_type7').val() !=''){
-				commonCode.getCodeList('AS' , $('#search_type7').val() , 'search_type8') ;
-				$('#search_type8').val('${ vo.search_type8 }');
-		     }
-		
-		
-		
-		$('#emp_nm').val('${ vo.emp_nm }');
-		
-		if ('${ vo.search_start }' != '') $('#search_start').val('${ vo.search_start }');
-		if ('${ vo.search_end }' != '') $('#search_end').val('${ vo.search_end }');
-		
-		if ('${ vo.search_start2 }' != '') $('#search_start2').val('${ vo.search_start2 }');
-		if ('${ vo.search_end2 }' != '') $('#search_end2').val('${ vo.search_end2 }');
-		
-		if ('${ vo.search_start3 }' != '') $('#search_start3').val('${ vo.search_start3 }');
-		if ('${ vo.search_end3 }' != '') $('#search_end3').val('${ vo.search_end3 }');
-		
-		
+
+		/* 통합 검색 키워드 / 페이징 */
 		$('#search_text').val('${ vo.search_text }');
 		$('#page').val('${ vo.page}') ;
 		$('#pageSize').val('${ vo.pageSize}') ;
+
+		/* 고급 동적 검색구분 행 복원 (combine-as.js) */
+		if (typeof asws_advInit === 'function') asws_advInit();
+
+		/* 저장된 고급조건이 있으면 고급필터 패널을 펼쳐둔다. */
+		if (typeof ASWS_ADV_INIT !== 'undefined' && ASWS_ADV_INIT && ASWS_ADV_INIT.length > 0) {
+			if (typeof asws_advToggle === 'function' && !$('#advToggle').hasClass('open')) asws_advToggle();
+		}
 	}
+	/* [AX Lab] 수정 끝 */
 	
 	function search_type(gubun){
 		
@@ -284,8 +229,12 @@
 		$("#search_start").val($.datepicker.formatDate('yy/mm/dd', new Date(new Date().setDate(new Date().getDate() - 7)))).datepicker(datepicker);
 		$( "#search_end" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
 		
-		$( "#search_complete_start" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
-		$( "#search_complete_end" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
+		/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 고급 동적조건/처리상태/처리구분 초기화 */
+		if (typeof asws_advClear === 'function') asws_advClear();
+		try{ if(typeof procSelect !== 'undefined' && procSelect) procSelect.sumo.unSelectAll(); }catch(e){}
+		$('#procSelect').val('');
+		$('#asGubunFlag').val('2');
+		/* [AX Lab] 수정 끝 */
 	}
 	
 	//(2024.05.09.김규민) 검색 기간 기입 가능하도록 설정(형식 검토 알림창 날짜 표시)
@@ -328,9 +277,7 @@
 			}
 		}
 		
-		$('#search_type7').prop('disabled',false);
-		$('#cust_kor_name').prop('disabled',false);
-		$('#cust_code').prop('disabled',false);
+		/* [AX Lab] 삭제 (2026-07-24 AX Lab): 제거된 검색필드(search_type7/cust_*) 재활성 코드 - 고급필터 동적행으로 대체 */
 
 		f.page.value = pageIndex;
 		f.target = '';
@@ -842,7 +789,10 @@
 	function change_exceptComplete(){
 		var is_checked = $("input:checkbox[id='search_type13']").is(":checked");
 		if(is_checked == true){
-			$('#search_type1 option').removeAttr('selected');
+			/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 처리상태 select -> 처리상태 멀티셀렉트(SumoSelect) 초기화 */
+			try{ if(typeof procSelect !== 'undefined' && procSelect) procSelect.sumo.unSelectAll(); }catch(e){}
+			$('#procSelect').val('');
+			/* [AX Lab] 수정 끝 */
 		}
 	}
 	
@@ -1230,6 +1180,8 @@
 <%-- [AX Lab] 수정 시작 (2026-07-23 AX Lab): AS 통합 워크스페이스(3분할) 화면 리뉴얼 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as.css" />
 <script type="text/javascript" src="/js/combine-as.js"></script>
+<%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
+<script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>
 
 <div id="asWorkspace">
 
@@ -1243,6 +1195,8 @@
     <div class="card"><div class="ctop"><div class="ico i-team">■</div><span class="clabel">팀 미처리</span></div><div class="cnum" id="kpi-team">0</div><div class="csub">부서 전체</div></div>
   </div>
 
+<%-- [AX Lab] 수정 시작 (2026-07-24 AX Lab): 검색조건을 AS목록(COL1) 내부 기본/고급 필터로 이동. 기존 상단 검색테이블 비활성화(원본 유지) --%>
+<%--
 <div class="tit_sWrap">
 
 <div class="ico_s_modify">
@@ -1378,6 +1332,8 @@
 	</tbody>
 	
 </table>
+--%>
+<%-- [AX Lab] 수정 끝 : 상단 검색테이블 비활성화 --%>
   <!-- 3분할 그리드 -->
   <div class="grid" id="asGrid">
 
@@ -1394,6 +1350,64 @@
         <button type="button" class="collapse-btn" onclick="asws_toggleCol('c1')" title="목록 접기">&#9666;</button>
       </div>
       <div class="col-content">
+        <%-- [AX Lab] 수정 시작 (2026-07-24 AX Lab): AS목록 상단 기본필터 + 고급필터(동적 검색구분) --%>
+        <div class="basefilter">
+          <!-- 기본필터 -->
+          <div class="bf-row">
+            <div class="advf">
+              <label>접수일자</label>
+              <div class="daterow">
+                <input type="checkbox" name="search_type10" id="search_type10" value="Y" title="접수일자 사용" checked>
+                <input type="text" name="search_start" id="search_start" title="접수 시작일" value="">
+                <span class="dwave">~</span>
+                <input type="text" name="search_end" id="search_end" title="접수 종료일" value="">
+              </div>
+            </div>
+          </div>
+          <div class="bf-row">
+            <div class="advf" style="flex:0 0 118px;">
+              <label>처리구분</label>
+              <select name="asGubunFlag" id="asGubunFlag" title="처리구분 선택">
+                <option value="2">나의 A/S</option>
+                <option value="">전체 A/S</option>
+              </select>
+            </div>
+            <div class="advf">
+              <label>처리상태</label>
+              <select name="procMultiSelect" id="procMultiSelect" class="procMultiSelect" title="처리상태 선택" multiple data-max="2"></select>
+            </div>
+          </div>
+          <div class="bf-row" style="margin-bottom:0;">
+            <div class="advf">
+              <label>통합 검색 키워드</label>
+              <div class="searchline">
+                <div class="sl-input">
+                  <input type="text" name="search_text" id="search_text" placeholder="접수번호 / 거래처 / 담당자 / 요청·조치내용" title="통합 검색 키워드">
+                  <button type="button" onclick="getAsList(1);" title="검색">검색</button>
+                </div>
+                <button type="button" class="btn-s" onclick="searchReset();" title="초기화">초기화</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 고급필터 토글 -->
+          <button type="button" class="moretoggle" id="advToggle" onclick="asws_advToggle();">
+            <span class="chev">&#9662;</span> 고급 검색
+          </button>
+          <div class="morebody" id="advBody">
+            <div class="bf-row" style="align-items:center; gap:16px; margin-bottom:8px;">
+              <label style="font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;gap:5px;cursor:pointer;">
+                <input type="checkbox" name="search_type13" id="search_type13" value="Y" onchange="javascript:change_exceptComplete();"> 처리완료 외 상태
+              </label>
+              <label style="font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;gap:5px;cursor:pointer;">
+                <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자 포함
+              </label>
+            </div>
+            <div id="advRows"></div>
+            <button type="button" class="btn-s" id="advAddBtn" onclick="asws_advAddRow();" style="margin-top:4px;">+ 조건 추가</button>
+          </div>
+        </div>
+        <%-- [AX Lab] 수정 끝 --%>
         <div class="toolbar">
           <button type="button" class="btn-s primary" onclick="javascript:openProcLayer();">일괄처리</button>
           <button type="button" class="btn-s" onclick="javascript:goInsertCopy();">복사</button>

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- [AX Lab] 원본 경로: jwcrm/src/main/resources/query/egov-as-query.xml (백업 2026-07-24) -->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="asDAO">
@@ -249,71 +250,6 @@
 			UPPER(IN_TB.ACTION_CONTENT) LIKE '%'|| UPPER(#{search_text}) ||'%'
 			)
 		</if>
-		<!-- [AX Lab] 수정 시작 (2026-07-24 AX Lab): 처리구분(나의 A/S) - 로그인 사용자 담당건만 -->
-		<if
-			test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(user_id) != ''">
-			AND IN_TB.ASSIGN_ID = #{user_id}
-		</if>
-		<!-- [AX Lab] 고급 동적 검색조건(검색구분 select/keyword/date). 같은 항목 2개 이상은 AND 로 누적. 컬럼명은 화이트리스트(choose)로 고정하여 안전. -->
-		<if test="advFilterList != null">
-			<foreach collection="advFilterList" item="af">
-				<choose>
-					<when test="af.field == 'AS_NO'">
-						AND UPPER(IN_TB.AS_NO) LIKE '%'|| UPPER(#{af.value}) ||'%'
-					</when>
-					<when test="af.field == 'CUST_KOR_NAME'">
-						AND UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{af.value}) ||'%'
-					</when>
-					<when test="af.field == 'CUST_CODE'">
-						AND UPPER(IN_TB.CUST_CODE) LIKE '%'|| UPPER(#{af.value}) ||'%'
-					</when>
-					<when test="af.field == 'EMP_NM'">
-						AND UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{af.value}) ||'%'
-					</when>
-					<when test="af.field == 'DEPT'">
-						AND (
-							 UPPER(IN_TB.DEPT_CD) LIKE '%'|| UPPER(#{af.value}) ||'%' OR
-							 UPPER(IN_TB.DEPT_NM) LIKE '%'|| UPPER(#{af.value}) ||'%'
-							)
-					</when>
-					<when test="af.field == 'REQUEST_TYPE'">
-						AND IN_TB.REQUEST_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'SERVICE_CATE'">
-						AND IN_TB.SERVICE_CATE = #{af.value}
-					</when>
-					<when test="af.field == 'INQUIRY_TYPE'">
-						AND IN_TB.INQUIRY_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'CAUSE_TYPE'">
-						AND IN_TB.CAUSE_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'ACTION_TYPE'">
-						AND IN_TB.ACTION_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'INPORTANCE'">
-						AND IN_TB.INPORTANCE = #{af.value}
-					</when>
-					<when test="af.field == 'PART_TYPE'">
-						AND IN_TB.PART_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'ACCEPT_ROUTE'">
-						AND IN_TB.ACCEPT_ROUTE = #{af.value}
-					</when>
-					<when test="af.field == 'PROC_DT'">
-						<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(af.value) != '' and @egovframework.com.comm.util.SsStringUtil@normalizeNull(af.value2) != ''">
-							AND IN_TB.PROC_DT BETWEEN #{af.value} AND #{af.value2}
-						</if>
-					</when>
-					<when test="af.field == 'COMPLETE_DT'">
-						<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(af.value) != '' and @egovframework.com.comm.util.SsStringUtil@normalizeNull(af.value2) != ''">
-							AND IN_TB.COMPLETE_DT BETWEEN #{af.value} AND #{af.value2}
-						</if>
-					</when>
-				</choose>
-			</foreach>
-		</if>
-		<!-- [AX Lab] 수정 끝 -->
 	</sql>
 
 	<select id="getAsListCnt" parameterType="asVO" resultType="java.lang.Integer">
