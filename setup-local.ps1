@@ -21,14 +21,27 @@
 #   - Oracle 드라이버(ojdbc8.jar/ojdbc7.jar)는 .gitignore(*.jar) 대상이라 git 으로 전파되지 않는다.
 #     각 PC 의 jwcrm/src/main/webapp/WEB-INF/lib 에 ojdbc8.jar 또는 ojdbc7.jar 중 하나를 수동 배치할 것.
 #     (스크립트가 있는 파일을 감지해 pom 의 ${ojdbc.jar} 로 전달; ojdbc8 우선.)
+#
+# 새 PC 이식 3단계:
+#   1) git clone 후, jwcrm/src/main/webapp/WEB-INF/lib 에 ojdbc7.jar 또는 ojdbc8.jar 수동 배치(유일한 수동 단계).
+#   2) setup-local.config.sample.ps1 을 setup-local.config.ps1 로 복사해 DB 접속정보(IP/SID/USER/PASS) 입력.
+#   3) powershell -ExecutionPolicy Bypass -File .\setup-local.ps1 -Run  실행 → 사전점검(Doctor) 통과 후 자동 기동.
+#
+# 트러블슈팅(자주 나오는 증상 → 원인):
+#   - 화면이 비거나 안 바뀜        → (a) 8080 을 옛 tomcat 이 점유 → -Run 이 자동 종료함.
+#                                     (b) 브라우저 캐시/세션 → Ctrl+Shift+R(강력 새로고침).
+#   - 로그인 시 한글 깨짐/실패      → orai18n.jar 누락(KO16MSWIN949). -Run 이 자동 다운로드 시도.
+#   - 로그인/조회 실패(빈 데이터)   → DB 미도달. 사전점검의 "DB 도달(TCP)" FAIL 확인 → 망/방화벽/OraHost.
+#   - 빌드 시 http repo 차단        → settings-local.xml(자동 생성)의 https 미러 사용 여부 확인.
 # =====================================================================
 [CmdletBinding()]
 param(
-    [string]$OraHost   = "192.168.20.56",
-    [string]$OraPort   = "1521",
-    [string]$OraSid    = "orcl",
-    [string]$OraUser   = "hislineus",
-    [string]$OraPass   = "",
+    [string]$OraHost    = "192.168.20.56",
+    [string]$OraPort    = "1521",
+    [string]$OraSid     = "orcl",
+    [string]$OraService = "",   # [AX Lab] Oracle SERVICE_NAME (값이 있으면 SID 대신 서비스명 URL 사용)
+    [string]$OraUser    = "hislineus",
+    [string]$OraPass    = "",
     [int]   $TomcatPort = 8080,
     [string]$Jdk8Dir   = "$env:USERPROFILE\jdk8-temurin",
     [switch]$Force,     # 이미 있는 settings/context 파일도 덮어쓰기
@@ -49,6 +62,49 @@ function Write-Utf8NoBom($path, $content) {
     $enc = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($path, $content, $enc)
 }
+
+# ---------------------------------------------------------------------
+# [AX Lab] 수정 시작 (2026-07-28): PC 별 로컬 설정 파일 분리.
+#   - DB 접속정보(IP/SID/USER/PASS 등)를 스크립트에 하드코딩하면 PC/망마다 다른 값이
+#     git 에 그대로 올라가고, 새 PC 에선 매번 인자로 덮어써야 해서 "이식 시 오설정" 이 잦다.
+#   - 따라서 저장소 루트의 setup-local.config.ps1 (gitignore 대상) 에서 값을 읽는다.
+#     이 파일이 $LocalConfig 해시테이블을 정의하면 그 값을 기본으로 사용한다.
+#   - 우선순위: 명령행 인자 > setup-local.config.ps1 > 스크립트 param 기본값.
+#   - 샘플: setup-local.config.sample.ps1 을 복사해 setup-local.config.ps1 로 만들어 값만 채운다.
+# ---------------------------------------------------------------------
+$cfgFile = Join-Path $RepoRoot "setup-local.config.ps1"
+if (Test-Path $cfgFile) {
+    try {
+        $LocalConfig = $null
+        . $cfgFile
+        if ($LocalConfig -is [hashtable]) {
+            foreach ($k in @('OraHost','OraPort','OraSid','OraService','OraUser','OraPass','TomcatPort','Jdk8Dir')) {
+                # 명령행에서 명시적으로 준 값은 건드리지 않는다(최우선).
+                if (-not $PSBoundParameters.ContainsKey($k) -and $LocalConfig.ContainsKey($k) `
+                    -and $null -ne $LocalConfig[$k] -and "$($LocalConfig[$k])" -ne "") {
+                    Set-Variable -Name $k -Value $LocalConfig[$k]
+                }
+            }
+            Write-Ok "로컬 설정 적용: $cfgFile"
+        } else {
+            Write-Warn2 "$cfgFile 에 `$LocalConfig 해시테이블이 없습니다. 건너뜁니다."
+        }
+    } catch {
+        Write-Warn2 "로컬 설정 파일 로드 실패($cfgFile): $($_.Exception.Message)"
+    }
+} else {
+    Write-Warn2 "로컬 설정 파일 없음: $cfgFile  (없어도 됨: 인자/기본값/대화형 입력 사용. setup-local.config.sample.ps1 참고)"
+}
+
+# Oracle JDBC URL 조립: SERVICE_NAME 이 지정되면 서비스명 형식(@//host:port/service), 아니면 SID 형식(@host:port:sid).
+if (-not [string]::IsNullOrWhiteSpace($OraService)) {
+    $OraJdbcUrl = "jdbc:oracle:thin:@//${OraHost}:${OraPort}/${OraService}"
+    $OraDbDesc  = "$OraUser@$OraHost`:$OraPort/$OraService (SERVICE_NAME)"
+} else {
+    $OraJdbcUrl = "jdbc:oracle:thin:@${OraHost}:${OraPort}:${OraSid}"
+    $OraDbDesc  = "$OraUser@$OraHost`:$OraPort`:$OraSid (SID)"
+}
+# [AX Lab] 수정 끝
 
 # ---------------------------------------------------------------------
 # 1) 유효한 JDK 8 확보 (javac 가 실제로 동작하는지 검증: 손상된 tools.jar 걸러냄)
@@ -208,23 +264,62 @@ if (Test-Path $Orai18nPath) {
     if ($ojdbcVer) {
         $segs = $ojdbcVer.Split('.')
         if ($segs.Count -ge 4) { $orai18nVer = ($segs[0..3] -join '.') }
-        Write-Ok "감지된 ojdbc 버전: $ojdbcVer  -> orai18n $orai18nVer 다운로드 시도"
+        Write-Ok "감지된 ojdbc 버전: $ojdbcVer  -> orai18n $orai18nVer 우선 시도"
     } else {
         Write-Warn2 "ojdbc 버전 자동감지 실패 -> 기본 orai18n $orai18nVer 로 시도"
     }
-    $orai18nUrl = "https://repo1.maven.org/maven2/com/oracle/database/nls/orai18n/$orai18nVer/orai18n-$orai18nVer.jar"
-    try {
-        $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri $orai18nUrl -OutFile $Orai18nPath -UseBasicParsing
-        $ProgressPreference = $old
-        Write-Ok "orai18n.jar 다운로드 완료: $Orai18nPath ($orai18nVer)"
-    } catch {
-        Write-Warn2 "orai18n.jar 자동 다운로드 실패: $($_.Exception.Message)"
-        Write-Warn2 "  아래 위치에 orai18n.jar(ojdbc 와 동일 버전)을 수동으로 넣어주세요:"
+
+    # [AX Lab] 수정 시작 (2026-07-28): ojdbc7(12.1.0.2 등) 처럼 동일 버전 orai18n 이
+    #   Maven Central 에 없어 404 로 중단되던 문제 근본 수정.
+    #   - orai18n 은 한글 charset(KO16MSWIN949) 클래스 제공 목적이라 major 가 같은 최신 릴리스로도 호환됨.
+    #   - "정확 버전 -> 동일 major 의 Central 존재 버전 -> 안전 기본값" 순으로 후보를 만들어
+    #     첫 성공까지 순차 시도(폴백)한다. 후보 맵은 maven-metadata.xml 기준 실제 존재 버전으로 구성.
+    #   (Maven Central 존재 버전 예: 11.2.0.4 / 12.2.0.1 / 18.3.0.0 / 19.x / 21.x / 23.x, 12.1.0.2 는 없음)
+    $orai18nFallbackByMajor = @{
+        "11" = "11.2.0.4"
+        "12" = "12.2.0.1"
+        "18" = "18.3.0.0"
+        "19" = "19.23.0.0"
+        "21" = "21.11.0.0"
+        "23" = "23.6.0.24.10"
+    }
+    $orai18nCandidates = New-Object System.Collections.Generic.List[string]
+    $orai18nCandidates.Add($orai18nVer)                 # 1) ojdbc 와 정확히 동일한 버전 우선
+    $major = $orai18nVer.Split('.')[0]
+    if ($orai18nFallbackByMajor.ContainsKey($major)) {  # 2) 동일 major 의 Central 존재 버전
+        $orai18nCandidates.Add($orai18nFallbackByMajor[$major])
+    }
+    $orai18nCandidates.Add("19.23.0.0")                 # 3) 최종 안전 기본값(JDK8 호환)
+    # 중복 제거(순서 유지)
+    $orai18nCandidates = $orai18nCandidates | Select-Object -Unique
+
+    $downloaded = $false
+    $lastErr = $null
+    foreach ($ver in $orai18nCandidates) {
+        $orai18nUrl = "https://repo1.maven.org/maven2/com/oracle/database/nls/orai18n/$ver/orai18n-$ver.jar"
+        try {
+            $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -Uri $orai18nUrl -OutFile $Orai18nPath -UseBasicParsing
+            $ProgressPreference = $old
+            if ($ver -ne $orai18nVer) {
+                Write-Warn2 "동일 버전($orai18nVer) 없음 -> 호환 버전 $ver 로 대체 다운로드"
+            }
+            Write-Ok "orai18n.jar 다운로드 완료: $Orai18nPath ($ver)"
+            $downloaded = $true
+            break
+        } catch {
+            $lastErr = $_.Exception.Message
+            Write-Warn2 "orai18n $ver 다운로드 실패: $lastErr"
+        }
+    }
+    if (-not $downloaded) {
+        Write-Warn2 "orai18n.jar 자동 다운로드 실패(모든 후보 소진): $lastErr"
+        Write-Warn2 "  아래 위치에 orai18n.jar(ojdbc 와 호환되는 버전)을 수동으로 넣어주세요:"
         Write-Warn2 "  $Orai18nPath"
-        Write-Warn2 "  다운로드 예시 URL: $orai18nUrl"
+        Write-Warn2 "  다운로드 예시 URL: https://repo1.maven.org/maven2/com/oracle/database/nls/orai18n/19.23.0.0/orai18n-19.23.0.0.jar"
         throw "orai18n.jar 미존재 및 자동 다운로드 실패로 중단"
     }
+    # [AX Lab] 수정 끝
 }
 # [AX Lab] 수정 끝
 
@@ -278,7 +373,7 @@ if ((Test-Path $contextPath) -and (-not $Force)) {
     Write-Ok "이미 존재 (건너뜀): $contextPath  (덮어쓰려면 -Force)"
 } else {
     if ([string]::IsNullOrWhiteSpace($OraPass)) {
-        $sec = Read-Host -Prompt "Oracle 비밀번호 입력 ($OraUser@$OraHost`:$OraPort`:$OraSid)" -AsSecureString
+        $sec = Read-Host -Prompt "Oracle 비밀번호 입력 ($OraDbDesc)" -AsSecureString
         $OraPass = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
                      [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
     }
@@ -293,7 +388,7 @@ if ((Test-Path $contextPath) -and (-not $Force)) {
     <Resource name="jdbc/lineUsDs" auth="Container" type="javax.sql.DataSource"
               factory="org.apache.tomcat.jdbc.pool.DataSourceFactory"
               driverClassName="oracle.jdbc.OracleDriver"
-              url="jdbc:oracle:thin:@${OraHost}:${OraPort}:${OraSid}"
+              url="${OraJdbcUrl}"
               username="${OraUser}" password="${OraPass}"
               initialSize="1" maxActive="20" maxIdle="5" minIdle="1" maxWait="10000"
               validationQuery="select 1 from dual" testOnBorrow="true" testWhileIdle="true"
@@ -310,8 +405,54 @@ if ((Test-Path $contextPath) -and (-not $Force)) {
 </Context>
 "@
     Write-Utf8NoBom $contextPath $ctx
-    Write-Ok "생성: $contextPath  (Oracle: $OraUser@$OraHost`:$OraPort`:$OraSid)"
+    Write-Ok "생성: $contextPath  (Oracle: $OraDbDesc)"
 }
+
+# ---------------------------------------------------------------------
+# [AX Lab] 수정 시작 (2026-07-28): 사전점검(Doctor) 요약.
+#   - 기동 전에 필수 조건을 한 번에 PASS/FAIL 로 보여줘, 새 PC 에서 "왜 안 되는지" 를
+#     로그를 뒤지지 않고 즉시 파악하게 한다. (특히 DB 네트워크 도달 여부)
+#   - 치명 항목(JDK/Maven/ojdbc/orai18n)은 위 단계에서 이미 throw 되므로 여기선 상태 표기 위주.
+#   - DB 미도달은 경고로만 표기(DB 가 나중에 열리는 경우도 있어 강제 중단하지 않음). 기동 후 헬스체크로 재확인.
+# ---------------------------------------------------------------------
+function Test-TcpPort($h, $p, $timeoutMs = 3000) {
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $iar = $client.BeginConnect($h, [int]$p, $null, $null)
+        $ok = $iar.AsyncWaitHandle.WaitOne($timeoutMs, $false)
+        if ($ok -and $client.Connected) { $client.EndConnect($iar); $client.Close(); return $true }
+        $client.Close(); return $false
+    } catch { return $false }
+}
+function PassFail($b) { if ($b) { return "PASS" } else { return "FAIL" } }
+
+Write-Step "환경 사전점검 (Doctor)"
+$jdkOk   = [bool]$Java8Home
+$mvnOk   = ($MvnCmd -and (Test-Path $MvnCmd))
+$ojdbcOk = ($OjdbcJar -and (Test-Path (Join-Path $LibDir $OjdbcJar)))
+$oraiOk  = (Test-Path $Orai18nPath)
+$dbOk    = Test-TcpPort $OraHost $OraPort
+$portOwnersPre = Get-NetTCPConnection -LocalPort $TomcatPort -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
+if ($portOwnersPre) {
+    $portResult = "USED"
+    $portDetail = ":$TomcatPort 점유 PID $($portOwnersPre -join ',') (-Run 시 자동 정리)"
+} else {
+    $portResult = "FREE"
+    $portDetail = ":$TomcatPort 사용 가능"
+}
+$checks = @()
+$checks += [pscustomobject]@{ 항목="JDK 8";       결과=(PassFail $jdkOk);   상세="$Java8Home" }
+$checks += [pscustomobject]@{ 항목="Maven";        결과=(PassFail $mvnOk);   상세="$MvnCmd" }
+$checks += [pscustomobject]@{ 항목="ojdbc";        결과=(PassFail $ojdbcOk); 상세="$OjdbcJar" }
+$checks += [pscustomobject]@{ 항목="orai18n";      결과=(PassFail $oraiOk);  상세="orai18n.jar (KO16MSWIN949)" }
+$checks += [pscustomobject]@{ 항목="DB 도달(TCP)"; 결과=(PassFail $dbOk);    상세="$OraDbDesc" }
+$checks += [pscustomobject]@{ 항목="Tomcat 포트";  결과=$portResult;         상세=$portDetail }
+$checks | Format-Table -AutoSize | Out-String | Write-Host
+if (-not $dbOk) {
+    Write-Warn2 "DB($OraHost`:$OraPort) 에 TCP 로 접속되지 않습니다. 방화벽/VPN/사내망/DB 기동 여부를 확인하세요."
+    Write-Warn2 "  (DB 가 안 열리면 서버는 떠도 로그인/조회가 실패합니다. setup-local.config.ps1 의 OraHost/OraPort 확인.)"
+}
+# [AX Lab] 수정 끝
 
 # ---------------------------------------------------------------------
 # 5) 완료 안내 / 실행
@@ -333,11 +474,77 @@ Write-Host "  접속: http://localhost:$TomcatPort/   (AS 통합화면: /ad/as/l
 
 if ($Run) {
     Write-Step "mvn tomcat7:run 실행"
+
+    # [AX Lab] 수정 시작 (2026-07-28): 기동 전 기존 tomcat 인스턴스(포트 점유) 정리.
+    #   - 재실행할 때 이전 mvn tomcat7:run 프로세스가 살아 8080 을 계속 점유하면,
+    #     새로 띄운 서버는 포트 바인딩에 실패하고 브라우저는 "옛 인스턴스"에 붙어
+    #     방금 고친 코드/의존성이 반영 안 된 것처럼 보이는(빈 화면 등) 혼선이 발생한다.
+    #   - 따라서 $TomcatPort 를 LISTEN 중인 프로세스를 찾아 종료한 뒤 새로 기동한다.
+    $portOwners = @()
+    try {
+        $portOwners = Get-NetTCPConnection -LocalPort $TomcatPort -State Listen -ErrorAction SilentlyContinue |
+                      Select-Object -ExpandProperty OwningProcess -Unique
+    } catch { $portOwners = @() }
+    if ($portOwners -and $portOwners.Count -gt 0) {
+        Write-Warn2 "포트 $TomcatPort 을(를) 이미 사용 중인 프로세스가 있습니다 (PID: $($portOwners -join ', ')). 기존 인스턴스를 종료합니다."
+        foreach ($opid in $portOwners) {
+            try {
+                Stop-Process -Id $opid -Force -ErrorAction Stop
+                Write-Ok "기존 프로세스 종료: PID $opid"
+            } catch {
+                Write-Warn2 "PID $opid 종료 실패: $($_.Exception.Message) (관리자 권한이 필요할 수 있습니다)"
+            }
+        }
+        # 포트가 실제로 해제될 때까지 잠시 대기
+        for ($i = 0; $i -lt 10; $i++) {
+            Start-Sleep -Milliseconds 500
+            $still = Get-NetTCPConnection -LocalPort $TomcatPort -State Listen -ErrorAction SilentlyContinue
+            if (-not $still) { break }
+        }
+        $still = Get-NetTCPConnection -LocalPort $TomcatPort -State Listen -ErrorAction SilentlyContinue
+        if ($still) {
+            throw "포트 $TomcatPort 이(가) 여전히 사용 중입니다. 기존 프로세스를 수동으로 종료 후 다시 실행하세요."
+        }
+        Write-Ok "포트 $TomcatPort 정리 완료"
+    } else {
+        Write-Ok "포트 $TomcatPort 사용 가능 (기존 인스턴스 없음)"
+    }
+    # [AX Lab] 수정 끝
+
     $env:JAVA_HOME = $Java8Home
     $env:Path = "$Java8Home\bin;$env:Path"
     Push-Location $Jwcrm
     try {
-        & $MvnCmd -s $settingsPath "-Dojdbc.jar=$OjdbcJar" tomcat7:run
+        # [AX Lab] 수정 시작 (2026-07-28): 기동 후 자동 헬스체크.
+        #   - mvn 을 자식 프로세스로 띄우고(로그는 그대로 콘솔에 스트리밍), 로그인 페이지가 200 을
+        #     돌려줄 때까지 폴링한다. 성공하면 "이 인스턴스가 :$TomcatPort 에서 서비스 중" 을 명시해,
+        #     이번처럼 옛 인스턴스/캐시로 인한 혼선을 원천 차단한다.
+        $mvnArgs = @('-s', $settingsPath, "-Dojdbc.jar=$OjdbcJar", 'tomcat7:run')
+        Write-Ok "mvn 기동: $MvnCmd $($mvnArgs -join ' ')"
+        $proc = Start-Process -FilePath $MvnCmd -ArgumentList $mvnArgs -WorkingDirectory $Jwcrm -NoNewWindow -PassThru
+
+        $healthUrl = "http://localhost:$TomcatPort/ad/login/form.do"
+        $health = $false
+        for ($i = 0; $i -lt 60; $i++) {   # 최대 약 120초(2초 * 60) 대기
+            Start-Sleep -Seconds 2
+            if ($proc.HasExited) { break }
+            try {
+                $resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 3
+                if ($resp.StatusCode -eq 200) { $health = $true; break }
+            } catch { }
+        }
+        Write-Host ""
+        if ($health) {
+            Write-Ok "헬스체크 성공: $healthUrl → 200 (이 인스턴스가 :$TomcatPort 에서 정상 서비스 중)"
+            Write-Host "  접속: http://localhost:$TomcatPort/   (AS 통합화면: /ad/as/list.do)" -ForegroundColor Green
+            Write-Host "  * 화면이 그대로면 브라우저에서 Ctrl+Shift+R(강력 새로고침) 하세요(옛 캐시/세션 제거)." -ForegroundColor Green
+        } elseif ($proc.HasExited) {
+            Write-Warn2 "서버가 조기 종료되었습니다 (exit=$($proc.ExitCode)). 위 로그의 오류를 확인하세요."
+        } else {
+            Write-Warn2 "헬스체크 시간초과: $healthUrl 응답 없음. 위 로그/DB 접속($OraHost`:$OraPort)을 확인하세요."
+        }
+        if (-not $proc.HasExited) { Wait-Process -Id $proc.Id }   # 서버 종료까지 콘솔 유지(기존 foreground 동작 유지)
+        # [AX Lab] 수정 끝
     } finally {
         Pop-Location
     }
