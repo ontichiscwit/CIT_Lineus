@@ -25,6 +25,10 @@
 #asWorkspace .spacer{flex:1;}
 
 /* ===== KPI strip ===== */
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 블록이 "나의" 현황임을 명확히 하는 제목 */
+#asWorkspace .kpi-title{display:flex; align-items:baseline; gap:6px; padding:2px 8px 6px; font-size:13.5px; font-weight:700; color:var(--ink);}
+#asWorkspace .kpi-title .kpi-title-sub{font-size:11px; font-weight:500; color:var(--ink-3);}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .kpi{display:flex; gap:9px; padding:2px 6px 12px; overflow-x:auto;}
 #asWorkspace .kpi .card{flex:1; min-width:130px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:11px 13px; cursor:pointer; transition:border-color .12s, box-shadow .12s; position:relative;}
 #asWorkspace .kpi .card:hover{border-color:var(--accent-line); box-shadow:0 2px 10px rgba(20,40,30,.06);}
@@ -40,6 +44,10 @@
 #asWorkspace .ico.i-wait{background:#EEF0F3; color:var(--ink-2);}
 #asWorkspace .ico.i-done{background:var(--green-bg); color:var(--green);}
 #asWorkspace .ico.i-team{background:var(--pro-bg); color:var(--pro);}
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 긴급/지연 강조용 아이콘 색상 */
+#asWorkspace .ico.i-urgent{background:var(--red-bg); color:var(--red);}
+#asWorkspace .ico.i-overdue{background:var(--red-bg); color:var(--red);}
+/* [AX Lab] 수정 끝 */
 
 /* ===== grid ===== */
 #asWorkspace .grid{display:grid; grid-template-columns: var(--c1,1.35fr) var(--c2,1.9fr) var(--c3,1.2fr); gap:10px; height:calc(100vh - var(--ws-offset)); min-height:560px; transition:grid-template-columns .22s ease;}

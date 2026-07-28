@@ -234,8 +234,22 @@ public class AdAsController {
 			returnMap.put("resultList", resultList) ;
 			returnMap.put("vo",vo);
 		}
+		
+		// [AX Lab] 수정 시작 (2026-07-28 AX Lab): 상단 KPI 6종을 목록 응답에 동봉.
+		// (신규 전용 URL은 MenuAuthFilter 권한목록 미등록으로 403 차단되므로, 권한 있는 getAsList.do 응답에 태운다)
+		// KPI는 항상 "나에게 배정된 건" 기준이므로 목록 검색필터와 무관하게 reg_id(=로그인 사번)를 세팅 후 조회.
+		if (adUserInfo != null) {
+			vo.setReg_id(SsStringUtil.normalizeNull(adUserInfo.getEmp_no())) ;
+		}
+		returnMap.put("kpi", commonDAO.selectOne(vo, "asDAO.getAswsKpi")) ;
+		// [AX Lab] 수정 끝
+		
 		CommonExecute.returnJson(response, returnMap);
 	}
+	
+	// [AX Lab] 삭제 (2026-07-28 AX Lab): 전용 엔드포인트 /ad/as/getAswsKpi.do 는 MenuAuthFilter 권한목록(CRM_ROLE_PROG)
+	//           미등록으로 항상 403 차단됨. KPI는 권한 있는 getAsList.do 응답에 동봉하는 방식으로 대체하여 이 메서드는 제거함.
+	//           (KPI 집계 쿼리 asDAO.getAswsKpi 는 getAsList 에서 재사용하므로 유지)
 	
 	/**
 	 * 고객사 정보 조회

@@ -1,6 +1,6 @@
 /* [AX Lab] 신규 파일 (2026-07-23): AS 통합 워크스페이스 로직
    - list.jsp 3분할(목록/상세/처리정보) 화면 전용.
-   - 기존 엔드포인트 재사용: getMainInfo.do(KPI), getAsInfo.do(상세), getAwsList.do(답변),
+   - 기존 엔드포인트 재사용: getAswsKpi.do(상단 KPI), getAsInfo.do(상세), getAwsList.do(답변),
      awsProc.do(답변등록), form.do(전체편집).
    - 모든 콜백은 common.ajaxCall(datas,url,'콜백명') 규칙상 전역 함수여야 한다. */
 
@@ -32,30 +32,19 @@ function asws_fmtDt(v){
 }
 
 /* ===== KPI ===== */
-function asws_loadKpi(){
-	common.ajaxCall({ firstFlag:'2' }, '/ad/main/getMainInfo.do', 'asws_makeKpi');
-}
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 상단 KPI를 "나에게 배정된 건" 기준 6종으로 표시.
+   신규 전용 URL은 MenuAuthFilter 권한목록 미등록으로 403 차단되므로, 권한 있는 getAsList.do 응답에
+   KPI(data.kpi)를 동봉해 받는다. asws_makeKpi 는 list.jsp 의 setAsList(data) 에서 호출된다. */
 function asws_makeKpi(data){
-	var my   = (typeof data.top2 != 'undefined' && data.top2) ? data.top2 : [];
-	var team = (typeof data.top3 != 'undefined' && data.top3) ? data.top3 : [];
-
-	var recv=0, prog=0, done=0, wait=0;
-	for(var i=0;i<my.length;i++){
-		recv += Number(asws_nvl(my[i].FLAG1,0));   // 접수(C001)
-		prog += Number(asws_nvl(my[i].FLAG2,0));   // 처리중(C004)
-		done += Number(asws_nvl(my[i].FLAG3,0));   // 처리완료(당월 C005)
-		wait += Number(asws_nvl(my[i].FLAG4,0));   // 미처리(C005/C006 외)
-	}
-	var teamWait=0;
-	for(var j=0;j<team.length;j++){ teamWait += Number(asws_nvl(team[j].FLAG4,0)); }
-
-	asws_setText('kpi-mine', my.length);
-	asws_setText('kpi-recv', recv);
-	asws_setText('kpi-prog', prog);
-	asws_setText('kpi-wait', wait);
-	asws_setText('kpi-done', done);
-	asws_setText('kpi-team', teamWait);
+	var k = (data && data.kpi) ? data.kpi : {};
+	asws_setText('kpi-today',   Number(asws_nvl(k.KPI1,0)));  // 오늘 나에게 배정된 접수 건수(접수일=오늘)
+	asws_setText('kpi-recv',    Number(asws_nvl(k.KPI2,0)));  // 현재 나에게 배정된 미처리 건수(완료/철회 제외)
+	asws_setText('kpi-urgent',  Number(asws_nvl(k.KPI3,0)));  // 현재 나에게 배정된 긴급 건수
+	asws_setText('kpi-duetoday',Number(asws_nvl(k.KPI4,0)));  // 처리예정일이 오늘인 건수
+	asws_setText('kpi-overdue', Number(asws_nvl(k.KPI5,0)));  // 처리예정일 지난 건수
+	asws_setText('kpi-donetoday',Number(asws_nvl(k.KPI6,0))); // 오늘 처리완료한 건수
 }
+/* [AX Lab] 수정 끝 */
 function asws_setText(id, v){ var el=document.getElementById(id); if(el) el.innerHTML = v; }
 
 /* ===== 목록 행 클릭 -> 상세/처리정보 로드 ===== */
