@@ -21,6 +21,38 @@
 	var v_as_no = "" ; 
 	var procSelect;
 	
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 고급필터의 '처리완료 외 상태' 체크박스(search_type13)를 화면에서 제거하고,
+	   동일한 조회결과를 "처리상태 멀티셀렉트의 기본 체크"로 대체한다.
+	   - 기본 체크 = 접수(C001) + 처리중(C004)  → 기존 체크박스가 걸던 조건과 완전히 동일
+	   - 체크박스 제거 이유: (1) 자주 쓰는데 고급필터 안에 숨어 있었음 (2) 체크 시 처리상태 멀티셀렉트를
+	     강제로 비워버려(change_exceptComplete) 사용자가 이유를 알 수 없었음 (3) 조회조건이 두 곳으로 갈려 있었음
+	   - search_type13 은 hidden 으로만 남겨 항상 'N' 을 전송한다. 이 값으로 "첫 진입"을 판별한다.
+	       · ''  (첫 진입, 검색 파라미터 없음) → 기본 체크 적용
+	       · 'Y' (기능 제거 전 구 북마크/링크)  → 기본 체크 적용 (SQL 은 하위호환으로 동일 결과)
+	       · 'N' (이 화면에서 검색 실행함)      → 사용자가 고른 처리상태를 그대로 존중
+	     ※ 이 구분이 없으면 사용자가 처리상태를 전부 해제해도 매번 기본값으로 되돌아가 필터를 풀 수 없다.
+	   - SQL(egov-as-query.xml)은 search_type13 != 'Y' 분기를 그대로 타므로 쿼리 무수정. */
+	var ASWS_PROC_DEFAULT = 'C001,C004';	/* 접수, 처리중 */
+	var ASWS_IS_FIRST_ENTRY = ('${ vo.search_type13 }' !== 'N');
+
+	/* 처리상태 초기값 문자열 : 첫 진입이면 기본(접수+처리중), 검색 이후에는 저장된 사용자 선택 */
+	function asws_procInitStr(){
+		return ASWS_IS_FIRST_ENTRY ? ASWS_PROC_DEFAULT : '${ vo.procSelect }';
+	}
+
+	/* SumoSelect 에 처리상태 코드들을 체크 표시 (공식 API 사용 → 캡션/전체선택 상태까지 자동 갱신) */
+	function asws_procApply(csv){
+		if(typeof procSelect === 'undefined' || !procSelect) return;
+		var arr = ('' + (csv || '')).split(',');
+		for(var i = 0; i < arr.length; i++){
+			var code = $.trim(arr[i]);
+			if(code !== ''){
+				try{ procSelect.sumo.selectItem(code); }catch(e){}
+			}
+		}
+	}
+	/* [AX Lab] 수정 끝 */
+	
 	$(document).ready(function(){
 		
 		var savedCheck = sessionStorage.getItem("search_type10_checked");
@@ -33,7 +65,7 @@
 		
 		
 		initForm();
-		if (typeof asws_initKpiCollapse === 'function') asws_initKpiCollapse(); /* [AX Lab] KPI 접힘상태 복원 (2026-07-28 AX Lab) */
+		if (typeof asws_initKpiCollapse === 'function') asws_initKpiCollapse(); /* [AX Lab] KPI 영역을 접힘으로 고정 + 구버전 저장값 정리 (2026-07-28 AX Lab) */
 		makeListData();	/* [AX Lab] 상단 KPI(나에게 배정된 건 6종)는 getAsList.do 응답에 동봉되어 setAsList 에서 갱신됨 */
 		$("#search_text").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
 		/* [AX Lab] 삭제 (2026-07-24 AX Lab): emp_nm/search_type4/search_type6 필드는 고급필터 동적행으로 대체됨 */
@@ -52,18 +84,12 @@
 											});
 		
 		
-		var procSelectStr = '${ vo.procSelect }';
-		var procSelectArray = procSelectStr.split(",");
-		for(var i = 0 ; i < procMultiSelect.childElementCount ; i++){
-			for(var j = 0 ; j < procSelectArray.length ; j++){
-				if ($("#procMultiSelect").find('option').eq(i).val() == procSelectArray[j]){
-					$("ul.options > li.opt").eq(i).addClass('selected');
-					$("#procMultiSelect").find('option').eq(i).attr("selected","selected");
-					$('span.placeholder').text(procSelectArray.length+" Selected");
-				}
-			}
-				
-		}
+		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 처리상태 초기 체크 반영.
+		   기존 코드는 option 의 selected "속성"과 캡션 텍스트를 직접 조작해서, getSelStr() 이 실제로 읽는
+		   selected "프로퍼티"와 어긋날 수 있었다(검색 시 처리상태가 누락될 위험).
+		   → 공식 API(sumo.selectItem) 로 교체하고, 초기값은 asws_procInitStr() 로 통일한다. */
+		asws_procApply(asws_procInitStr());
+		/* [AX Lab] 수정 끝 */
 	}) ;
 	
 	/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 검색조건을 COL1 기본/고급 필터로 이동하며 initForm 정리.
@@ -101,15 +127,21 @@
 		$("#complete_dt_pop").datepicker(datepicker);
 
 		/* 처리상태 멀티셀렉트 복원용 hidden 값 (getAsList 에서 SumoSelect 값으로 재설정) */
-		$('#procSelect').val('${ vo.procSelect }');
+		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 최초 목록조회(makeListData)는 SumoSelect 초기화보다 먼저 실행되어
+		   이 hidden 값만 사용한다. 따라서 화면 표시(asws_procApply)와 별개로 여기에도 기본값을 넣어야
+		   "목록은 필터됐는데 처리상태 칸은 비어 보이는" 불일치가 생기지 않는다. */
+		$('#procSelect').val(asws_procInitStr());
 
 		/* 처리구분(나의/전체 A/S) - 저장값 없으면 '나의 A/S'(2) 기본 */
 		var asGubun = '${ vo.asGubunFlag }';
 		$('#asGubunFlag').val(asGubun === '' ? '2' : asGubun);
 
 		/* 고급필터 체크박스 상태 복원 */
+		/* [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스를 제거하고 처리상태 기본 체크(접수+처리중)로
+		   대체했으므로 복원 대상이 아니다. search_type13 은 hidden 으로 항상 'N' 을 전송한다.
 		var search_type13 = '${ vo.search_type13 }';
 		(search_type13 == 'Y') ? $('#search_type13').prop('checked',true) : $('#search_type13').prop('checked',false);
+		*/
 
 		var search_type17 = '${ vo.search_type17 }';
 		(search_type17 == 'Y') ? $('#search_type17').prop('checked',true) : $('#search_type17').prop('checked',false);
@@ -225,14 +257,24 @@
 	}
 
 	function searchReset() {
+		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 처리상태 해제를 form.reset() "앞"으로 이동.
+		   reset() 이 먼저 돌면 option.selected 가 이미 false 로 바뀌어, 뒤이은 unSelectAll() 이
+		   "해제할 항목이 없다"고 판단해 아무 것도 하지 않는다(내부 toggSelAll 은 선택된 항목만 클릭 처리).
+		   그러면 드롭다운 목록의 체크 표시(li.selected)만 이전 상태로 남아 실제 조회조건과 어긋난다. */
+		try{ if(typeof procSelect !== 'undefined' && procSelect) procSelect.sumo.unSelectAll(); }catch(e){}
+		/* [AX Lab] 수정 끝 */
+
  		document.listFrm.reset() ;
 		$("#search_start").val($.datepicker.formatDate('yy/mm/dd', new Date(new Date().setDate(new Date().getDate() - 7)))).datepicker(datepicker);
 		$( "#search_end" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
 		
 		/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 고급 동적조건/처리상태/처리구분 초기화 */
 		if (typeof asws_advClear === 'function') asws_advClear();
-		try{ if(typeof procSelect !== 'undefined' && procSelect) procSelect.sumo.unSelectAll(); }catch(e){}
-		$('#procSelect').val('');
+		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 초기화 시 처리상태를 "빈 값(=전체 조회)"으로 두면
+		   처리완료 건까지 다 나와 첫 진입 상태와 달라진다. 첫 진입과 동일하게 기본 체크(접수+처리중)로 복원한다. */
+		asws_procApply(ASWS_PROC_DEFAULT);
+		$('#procSelect').val(ASWS_PROC_DEFAULT);
+		/* [AX Lab] 수정 끝 */
 		$('#asGubunFlag').val('2');
 		/* [AX Lab] 수정 끝 */
 	}
@@ -815,24 +857,27 @@
 	
 	
 	
+	/* [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스를 제거하고 처리상태 기본 체크(접수+처리중)로
+	   대체했으므로 아래 두 함수는 호출처가 없다.
+	   - change_exceptComplete : 체크 시 처리상태 멀티셀렉트를 강제로 비우던 충돌 처리(혼란의 원인). 호출처는 그 체크박스 onchange 뿐.
+	   - change_sate           : 이전부터 호출처가 없던 사용하지 않는 코드(원본 검색테이블 비활성화 시점에 이미 고아 상태).
 	function change_exceptComplete(){
 		var is_checked = $("input:checkbox[id='search_type13']").is(":checked");
 		if(is_checked == true){
-			/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 처리상태 select -> 처리상태 멀티셀렉트(SumoSelect) 초기화 */
 			try{ if(typeof procSelect !== 'undefined' && procSelect) procSelect.sumo.unSelectAll(); }catch(e){}
 			$('#procSelect').val('');
-			/* [AX Lab] 수정 끝 */
 		}
 	}
-	
-	
+
+
 	function change_sate(){
 		var is_checked = $("input:checkbox[id='search_type13']").is(":checked");
 		if(is_checked == true){
 			$("input:checkbox[id='search_type13']").prop('checked', false);
 		}
-		
+
 	}
+	*/
 	
 	function setProcGrade(v_proc_grade) {
 		$('.dev_proc, .dev_proc_shape').children('span').remove();
@@ -1219,7 +1264,11 @@
   <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 카드가 상단 영역을 과도하게 차지해 목록이 아래로 밀리는 문제 개선.
        KPI를 접기/펼치기 가능한 구조로 바꾸고, 접힌 상태에서도 핵심 수치(미처리/긴급/처리예정 오늘/지연)는
        요약 배지로 계속 노출해 중요 정보 손실 없이 화면 공간을 확보한다. (asws_toggleKpi, combine-as.js) --%>
-  <div class="kpi-wrap" id="asKpiWrap">
+  <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): class 에 collapsed 를 직접 넣어 "닫힌 상태"로 그려지게 한다.
+       JS(asws_initKpiCollapse) 로만 접으면 스크립트 실행 전까지 카드가 펼쳐진 채 렌더링돼
+       화면이 한 번 출렁이므로(깜빡임), 처음부터 접힌 마크업으로 내려보낸다. --%>
+  <div class="kpi-wrap collapsed" id="asKpiWrap">
+  <%-- [AX Lab] 수정 끝 --%>
     <div class="kpi-head" onclick="asws_toggleKpi();" title="클릭하여 나의 A/S 현황 펼치기/접기">
       <div class="kpi-title">
         <span class="kpi-chev">&#9662;</span>
@@ -1432,12 +1481,23 @@
             <button type="button" class="btn-s" onclick="searchReset();" title="검색조건 초기화">초기화</button>
           </div>
 
-          <!-- 고급필터 본문 (토글은 위 1행 우측 '고급' 칩) -->
-          <div class="morebody" id="advBody">
-            <div class="bf-line" style="gap:16px; margin-bottom:7px;">
+          <%-- [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스를 화면에서 제거.
+               동일 조건(접수+처리중)을 위 2행의 처리상태 멀티셀렉트 기본 체크로 대체했다.
+               조회조건이 처리상태 한 곳으로 모여, 현재 어떤 상태로 조회 중인지 화면에서 바로 보인다.
               <label class="bf-chk">
                 <input type="checkbox" name="search_type13" id="search_type13" value="Y" onchange="javascript:change_exceptComplete();"> 처리완료 외 상태
               </label>
+          --%>
+          <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): search_type13 은 hidden 으로만 유지.
+               항상 'N' 을 전송해 "이 화면에서 검색을 실행했다"는 표시로 쓴다.
+               (값이 없으면=첫 진입 → 처리상태 기본 체크 적용 / 'N'이면 → 사용자 선택 존중)
+               SQL 은 search_type13 != 'Y' 분기를 타므로 조회 결과에는 영향이 없다. --%>
+          <input type="hidden" name="search_type13" id="search_type13" value="N" />
+          <%-- [AX Lab] 수정 끝 --%>
+
+          <!-- 고급필터 본문 (토글은 위 1행 우측 '고급' 칩) -->
+          <div class="morebody" id="advBody">
+            <div class="bf-line" style="gap:16px; margin-bottom:7px;">
               <label class="bf-chk">
                 <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자 포함
               </label>

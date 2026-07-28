@@ -55,10 +55,13 @@ function asws_makeKpi(data){
 function asws_setText(id, v){ var el=document.getElementById(id); if(el) el.innerHTML = v; }
 
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 카드 영역 접기/펼치기.
-   접힘 상태는 localStorage 에 저장해 재방문/새로고침 시에도 유지한다.
-   기본 상태: 접힘 (localStorage 에 명시적으로 '0'이 저장된 경우에만 펼침 유지).
-   UI: 제목 좌측 화살표(kpi-chev)가 CSS 회전으로 상태 표시, 별도 버튼 텍스트 없음. */
-var ASWS_KPI_COLLAPSE_KEY = 'asws_kpi_collapsed';
+   UI: 제목 좌측 화살표(kpi-chev)가 CSS 회전으로 상태 표시, 별도 버튼 텍스트 없음.
+   [AX Lab] 수정 (2026-07-28 AX Lab): 화면 진입 시 "항상 접힘"으로 고정.
+   기존에는 접힘여부를 localStorage 에 저장해 유지했는데, 사용자가 한 번 펼치면 그 뒤로는
+   새로고침/재방문해도 계속 펼쳐진 상태로 열려 KPI 카드가 목록을 아래로 밀어냈다.
+   → localStorage 저장/복원을 제거. 펼침은 지금 보고 있는 화면에서만 유효하며, 다시 들어오면 접힘이다.
+   (접힌 상태에서도 핵심 수치는 kpi-summary 요약으로 계속 보이므로 정보 손실은 없다.) */
+var ASWS_KPI_COLLAPSE_KEY = 'asws_kpi_collapsed';	/* 과거 저장값 정리용으로만 남겨둔 키 */
 
 function asws_updateKpiToggleText(collapsed){ /* 화살표 전환 방식으로 변경 후 텍스트 갱신 불필요 — 안전하게 유지 */ }
 
@@ -67,17 +70,15 @@ function asws_toggleKpi(){
 	if(!wrap) return;
 	var collapsed = wrap.classList.toggle('collapsed');
 	asws_updateKpiToggleText(collapsed);
-	try{ localStorage.setItem(ASWS_KPI_COLLAPSE_KEY, collapsed ? '1' : '0'); }catch(e){}
 }
 
 function asws_initKpiCollapse(){
 	var wrap = document.getElementById('asKpiWrap');
 	if(!wrap) return;
-	var saved = null;
-	try{ saved = localStorage.getItem(ASWS_KPI_COLLAPSE_KEY); }catch(e){}
-	var collapsed = (saved !== '0'); // 기본값: 접힘 (펼침을 명시적으로 선택했을 때만 펼침 유지)
-	if(collapsed) wrap.classList.add('collapsed');
-	asws_updateKpiToggleText(collapsed);
+	/* 이전 버전에서 저장해 둔 펼침상태가 남아 있어도 더 이상 쓰지 않으므로 정리한다. */
+	try{ localStorage.removeItem(ASWS_KPI_COLLAPSE_KEY); }catch(e){}
+	wrap.classList.add('collapsed');	/* 진입 시 항상 접힘 */
+	asws_updateKpiToggleText(true);
 }
 /* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
@@ -443,7 +444,10 @@ function asws_advUpdateCount(){
 	$('#advRows .adv-row').each(function(){
 		if(asws_nvl($(this).find('.adv-field').val(),'') !== '') n++;
 	});
+	/* [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스가 처리상태 기본 체크로 대체되어 제거됨.
+	   search_type13 은 hidden(value='N')으로만 남아 있어 고급조건 개수에서 세지 않는다.
 	if($('#search_type13').is(':checked')) n++;
+	*/
 	if($('#search_type17').is(':checked')) n++;
 	badge.innerHTML = n;
 	badge.style.display = (n > 0) ? '' : 'none';
@@ -488,9 +492,10 @@ function asws_advInit(){
 		if(m && m.type==='date'){ v = asws_fmtDateInput(v); v2 = asws_fmtDateInput(v2); }
 		asws_advAddRow(f, v, v2);
 	}
-	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 복원 후 배지 갱신 + 체크박스형 고급조건 변경 감지 */
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 복원 후 배지 갱신 + 체크박스형 고급조건 변경 감지
+	   (2026-07-28 수정: search_type13 은 체크박스 → hidden 으로 바뀌어 감지 대상에서 제외) */
 	asws_advUpdateCount();
-	$('#search_type13, #search_type17').off('change.aswsAdvCnt').on('change.aswsAdvCnt', asws_advUpdateCount);
+	$('#search_type17').off('change.aswsAdvCnt').on('change.aswsAdvCnt', asws_advUpdateCount);
 	/* [AX Lab] 수정 끝 */
 }
 
