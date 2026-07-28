@@ -1,6 +1,6 @@
 /* [AX Lab] 신규 파일 (2026-07-23): AS 통합 워크스페이스 로직
    - list.jsp 3분할(목록/상세/처리정보) 화면 전용.
-   - 기존 엔드포인트 재사용: getMainInfo.do(KPI), getAsInfo.do(상세), getAwsList.do(답변),
+   - 기존 엔드포인트 재사용: getAswsKpi.do(상단 KPI), getAsInfo.do(상세), getAwsList.do(답변),
      awsProc.do(답변등록), form.do(전체편집).
    - 모든 콜백은 common.ajaxCall(datas,url,'콜백명') 규칙상 전역 함수여야 한다. */
 
@@ -32,31 +32,56 @@ function asws_fmtDt(v){
 }
 
 /* ===== KPI ===== */
-function asws_loadKpi(){
-	common.ajaxCall({ firstFlag:'2' }, '/ad/main/getMainInfo.do', 'asws_makeKpi');
-}
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 상단 KPI를 "나에게 배정된 건" 기준 6종으로 표시.
+   신규 전용 URL은 MenuAuthFilter 권한목록 미등록으로 403 차단되므로, 권한 있는 getAsList.do 응답에
+   KPI(data.kpi)를 동봉해 받는다. asws_makeKpi 는 list.jsp 의 setAsList(data) 에서 호출된다. */
 function asws_makeKpi(data){
-	var my   = (typeof data.top2 != 'undefined' && data.top2) ? data.top2 : [];
-	var team = (typeof data.top3 != 'undefined' && data.top3) ? data.top3 : [];
+	var k = (data && data.kpi) ? data.kpi : {};
+	asws_setText('kpi-today',   Number(asws_nvl(k.KPI1,0)));  // 오늘 나에게 배정된 접수 건수(접수일=오늘)
+	asws_setText('kpi-recv',    Number(asws_nvl(k.KPI2,0)));  // 현재 나에게 배정된 미처리 건수(완료/철회 제외)
+	asws_setText('kpi-urgent',  Number(asws_nvl(k.KPI3,0)));  // 현재 나에게 배정된 긴급 건수
+	asws_setText('kpi-duetoday',Number(asws_nvl(k.KPI4,0)));  // 처리예정일이 오늘인 건수
+	asws_setText('kpi-overdue', Number(asws_nvl(k.KPI5,0)));  // 처리예정일 지난 건수
+	asws_setText('kpi-donetoday',Number(asws_nvl(k.KPI6,0))); // 오늘 처리완료한 건수
 
-	var recv=0, prog=0, done=0, wait=0;
-	for(var i=0;i<my.length;i++){
-		recv += Number(asws_nvl(my[i].FLAG1,0));   // 접수(C001)
-		prog += Number(asws_nvl(my[i].FLAG2,0));   // 처리중(C004)
-		done += Number(asws_nvl(my[i].FLAG3,0));   // 처리완료(당월 C005)
-		wait += Number(asws_nvl(my[i].FLAG4,0));   // 미처리(C005/C006 외)
-	}
-	var teamWait=0;
-	for(var j=0;j<team.length;j++){ teamWait += Number(asws_nvl(team[j].FLAG4,0)); }
-
-	asws_setText('kpi-mine', my.length);
-	asws_setText('kpi-recv', recv);
-	asws_setText('kpi-prog', prog);
-	asws_setText('kpi-wait', wait);
-	asws_setText('kpi-done', done);
-	asws_setText('kpi-team', teamWait);
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI가 접힌 상태에서도 핵심 수치를 요약 배지로 노출 */
+	asws_setText('kpi-recv-mini',    Number(asws_nvl(k.KPI2,0)));
+	asws_setText('kpi-urgent-mini',  Number(asws_nvl(k.KPI3,0)));
+	asws_setText('kpi-duetoday-mini',Number(asws_nvl(k.KPI4,0)));
+	asws_setText('kpi-overdue-mini', Number(asws_nvl(k.KPI5,0)));
+	/* [AX Lab] 수정 끝 */
 }
+/* [AX Lab] 수정 끝 */
 function asws_setText(id, v){ var el=document.getElementById(id); if(el) el.innerHTML = v; }
+
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 카드 영역 접기/펼치기.
+   UI: 제목 좌측 화살표(kpi-chev)가 CSS 회전으로 상태 표시, 별도 버튼 텍스트 없음.
+   [AX Lab] 수정 (2026-07-28 AX Lab): 화면 진입 시 "항상 접힘"으로 고정.
+   기존에는 접힘여부를 localStorage 에 저장해 유지했는데, 사용자가 한 번 펼치면 그 뒤로는
+   새로고침/재방문해도 계속 펼쳐진 상태로 열려 KPI 카드가 목록을 아래로 밀어냈다.
+   → localStorage 저장/복원을 제거. 펼침은 지금 보고 있는 화면에서만 유효하며, 다시 들어오면 접힘이다.
+   (접힌 상태에서도 핵심 수치는 kpi-summary 요약으로 계속 보이므로 정보 손실은 없다.) */
+var ASWS_KPI_COLLAPSE_KEY = 'asws_kpi_collapsed';	/* 과거 저장값 정리용으로만 남겨둔 키 */
+
+function asws_updateKpiToggleText(collapsed){ /* 화살표 전환 방식으로 변경 후 텍스트 갱신 불필요 — 안전하게 유지 */ }
+
+function asws_toggleKpi(){
+	var wrap = document.getElementById('asKpiWrap');
+	if(!wrap) return;
+	var collapsed = wrap.classList.toggle('collapsed');
+	asws_updateKpiToggleText(collapsed);
+}
+
+function asws_initKpiCollapse(){
+	var wrap = document.getElementById('asKpiWrap');
+	if(!wrap) return;
+	/* 이전 버전에서 저장해 둔 펼침상태가 남아 있어도 더 이상 쓰지 않으므로 정리한다. */
+	try{ localStorage.removeItem(ASWS_KPI_COLLAPSE_KEY); }catch(e){}
+	wrap.classList.add('collapsed');	/* 진입 시 항상 접힘 */
+	asws_updateKpiToggleText(true);
+}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 끝 */
 
 /* ===== 목록 행 클릭 -> 상세/처리정보 로드 ===== */
 function asws_openDetail(asNo, cnAsNo){
@@ -283,18 +308,27 @@ function asws_esc(s){
 
 /* =====================================================================
  * [AX Lab] 고급 동적 검색구분 엔진 (2026-07-24)
- *  - 검색구분(select) 을 고르면 타입에 맞는 값 UI(키워드/셀렉트/날짜) 를 렌더한다.
+ *  - 검색구분(select) 을 고르면 타입에 맞는 값 UI(키워드/셀렉트/날짜/거래처모달) 를 렌더한다.
  *  - '+ 조건 추가' 로 행 추가 / '−' 로 행 삭제.
- *  - 같은 항목 2개 이상 = AND 누적. 단, 셀렉트형은 등호(=) 특성상 중복이 무의미하므로
- *    이미 사용된 셀렉트 항목은 다른 행의 검색구분에서 비활성화하여 중복 추가를 막는다.
+ *  - 같은 항목 2개 이상 = AND 누적. 단, 셀렉트형/거래처는 등호(=) 특성상 중복이 무의미하므로
+ *    이미 사용된 항목은 다른 행의 검색구분에서 비활성화하여 중복 추가를 막는다. (asws_advIsSingleUse)
  *  - 폼 정렬 유지를 위해 모든 행은 adv_field / adv_value / adv_value2 를 각각 1개씩 제출한다.
  * ===================================================================== */
 
 /* 검색구분 카탈로그 (key = 쿼리 화이트리스트 키, cg/pc = 공통코드 그룹/부모코드) */
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건을 원본 화면과 동일한 "모달 조회" 방식으로 되돌린다.
+   기존(리뉴얼 직후): 거래처명 / 거래처코드 를 각각 keyword 로 두어 직접 타이핑 → LIKE 부분일치 검색.
+   문제: 원본 화면은 거래처 조회 모달(#div1)에서 거래처를 "골라야" 했고(오타/동명이인 방지),
+         쿼리도 cust_kor_name / cust_code 정확일치(=) 조건이었다. 현업이 쓰던 흐름과 달라짐.
+   → CUST_KOR_NAME / CUST_CODE 두 항목을 'CUST'(type:'cust') 한 항목으로 통합하고,
+     값 UI 는 읽기전용 입력 2개 + [조회] 버튼(기존 showCustLayer 모달 재사용) 으로 렌더한다.
+     전송 파라미터도 원본과 동일한 cust_kor_name / cust_code 를 그대로 사용하므로
+     쿼리(egov-as-query.xml)와 컨트롤러는 수정하지 않는다.
+   ※ 구버전 북마크(adv_field=CUST_KOR_NAME 등)로 들어와도 쿼리의 해당 when 분기는 그대로 남아 있어
+     조회 결과는 정상이며, 화면에서는 검색구분이 미선택으로 표시된다. */
 var ASWS_ADV_CATALOG = [
 	{ key:'AS_NO',         label:'접수번호',      type:'keyword' },
-	{ key:'CUST_KOR_NAME', label:'거래처명',      type:'keyword' },
-	{ key:'CUST_CODE',     label:'거래처코드',    type:'keyword' },
+	{ key:'CUST',          label:'거래처명/코드', type:'cust' },
 	{ key:'EMP_NM',        label:'처리담당자명',  type:'keyword' },
 	{ key:'DEPT',          label:'부서명/코드',   type:'keyword' },
 	{ key:'REQUEST_TYPE',  label:'문의유형',      type:'select', cg:'AS',     pc:'CD07' },
@@ -340,25 +374,32 @@ function asws_fmtDateInput(v){
 	return v;
 }
 
-/* 이미 사용 중인 셀렉트형 검색구분 키 목록 (중복 방지용) */
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 중복 추가가 무의미한(1회만 쓸 수 있는) 타입 판정.
+   - select : 등호(=) 조건이라 같은 항목을 2개 걸면 결과가 없거나 의미가 없다.
+   - cust   : 정확일치(=) 조건 + 값 UI 가 고정 id(cust_kor_name/cust_code)를 쓰는 기존 모달 콜백
+              (makeCustInfo)에 의존하므로 화면에 1개만 존재해야 한다. */
+function asws_advIsSingleUse(type){ return type==='select' || type==='cust'; }
+/* [AX Lab] 수정 끝 */
+
+/* 이미 사용 중인 1회성 검색구분 키 목록 (중복 방지용) */
 function asws_advUsedSelectKeys(exceptRowEl){
 	var used = {};
 	$('#advRows .adv-row').each(function(){
 		if(exceptRowEl && this===exceptRowEl) return;
 		var f = $(this).find('.adv-field').val();
 		var m = asws_advMeta(f);
-		if(m && m.type==='select') used[f] = true;
+		if(m && asws_advIsSingleUse(m.type)) used[f] = true;
 	});
 	return used;
 }
 
-/* 검색구분 select 옵션 HTML (셀렉트형 중복은 disabled) */
+/* 검색구분 select 옵션 HTML (1회성 항목의 중복은 disabled) */
 function asws_advFieldOptions(selectedKey, rowEl){
 	var used = asws_advUsedSelectKeys(rowEl);
 	var h = '<option value="">검색구분 선택</option>';
 	for(var i=0;i<ASWS_ADV_CATALOG.length;i++){
 		var c = ASWS_ADV_CATALOG[i];
-		var dis = (c.type==='select' && used[c.key] && c.key!==selectedKey) ? ' disabled' : '';
+		var dis = (asws_advIsSingleUse(c.type) && used[c.key] && c.key!==selectedKey) ? ' disabled' : '';
 		var sel = (c.key===selectedKey) ? ' selected' : '';
 		h += '<option value="'+c.key+'"'+dis+sel+'>'+asws_esc(c.label)+'</option>';
 	}
@@ -375,7 +416,7 @@ function asws_advRefreshFieldOptions(){
 	});
 }
 
-/* 값 UI 렌더 (미선택/keyword/select/date). name 은 항상 adv_value, adv_value2 유지 */
+/* 값 UI 렌더 (미선택/keyword/select/cust/date). adv_value, adv_value2 는 항상 각 1개씩 제출 */
 function asws_advRenderVal($row, field, value, value2){
 	var $val = $row.find('.adv-val');
 	var m = asws_advMeta(field);
@@ -398,6 +439,24 @@ function asws_advRenderVal($row, field, value, value2){
 		$val.html(h);
 		$val.find('select[name=adv_value]').val(value);
 
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건 = 기존 거래처 조회 모달(#div1) 방식.
+	   - 직접 입력을 막고(readonly) [조회] 버튼 또는 입력칸 클릭으로 모달을 띄운다. (원본 화면과 동일)
+	   - 전송 파라미터는 원본과 같은 cust_kor_name / cust_code → 쿼리의 기존 정확일치 조건을 그대로 사용.
+	   - id 를 cust_kor_name / cust_code 로 두는 이유: 모달에서 거래처를 고르면
+	     list.jsp 의 기존 콜백 makeCustInfo() 가 이 id 에 값을 넣는다(원본 흐름 그대로 재사용).
+	     CUST 항목은 1행만 추가 가능하므로(asws_advIsSingleUse) id 중복은 발생하지 않는다.
+	   - 값을 비우려면 행의 [−] 버튼으로 조건을 삭제하면 된다(원본의 [초기화] 역할).
+	   - adv_value / adv_value2 는 빈 hidden 으로 함께 보낸다. 값 전달용이 아니라
+	     adv_field / adv_value / adv_value2 배열의 "인덱스 정렬"을 깨지 않기 위한 자리표시자다. */
+	}else if(m.type==='cust'){
+		$val.html('<input type="text" class="adv-input adv-cust-nm" id="cust_kor_name" name="cust_kor_name" title="거래처명" placeholder="거래처 조회" readonly onclick="showCustLayer();">'
+		        + '<input type="text" class="adv-input adv-cust-cd" id="cust_code" name="cust_code" title="거래처코드" placeholder="코드" readonly onclick="showCustLayer();">'
+		        + '<button type="button" class="btn-s adv-cust-btn" onclick="showCustLayer();" title="거래처 조회 팝업 열기">조회</button>'
+		        + '<input type="hidden" name="adv_value" value=""><input type="hidden" name="adv_value2" value="">');
+		$val.find('#cust_kor_name').val(value);
+		$val.find('#cust_code').val(value2);
+	/* [AX Lab] 수정 끝 */
+
 	}else if(m.type==='date'){
 		$val.html('<input type="text" class="adv-input adv-date" name="adv_value" title="시작일">'
 		        + '<span class="dwave">~</span>'
@@ -410,6 +469,50 @@ function asws_advRenderVal($row, field, value, value2){
 	}
 }
 
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자만' 체크박스는 처리담당자명(EMP_NM) 조건이 있을 때만 노출.
+   이 체크박스는 쿼리에서 IN_TB.RETIRE_DATE IS NOT NULL (= 처리담당자의 퇴사일이 있는 건) 으로 동작하므로
+   처리담당자 조건과 함께 쓸 때만 의미가 있다. 단독으로 켜면 "퇴사자 담당 건 전체"가 나와
+   사용자가 의도를 알기 어려운 조회결과가 됐다.
+   → EMP_NM 행이 없으면 숨기고, 숨길 때는 체크도 해제해서 "보이지 않는 조건"이 남지 않게 한다. */
+function asws_advSyncRetireChk(){
+	var wrap = document.getElementById('advRetireWrap');
+	if(!wrap) return;
+	var hasEmp = false;
+	$('#advRows .adv-row').each(function(){
+		if($(this).find('.adv-field').val() === 'EMP_NM') hasEmp = true;
+	});
+	if(hasEmp){
+		wrap.style.display = '';
+	}else{
+		wrap.style.display = 'none';
+		$('#search_type17').prop('checked', false);
+	}
+}
+/* [AX Lab] 수정 끝 */
+
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 고급필터가 접혀 있어도 적용중인 조건 개수를 '고급' 칩 배지로 노출.
+   필터 영역을 컴팩트하게 줄이면서 조건이 숨겨져 "왜 이 결과인지" 모르게 되는 문제를 막는다. */
+function asws_advUpdateCount(){
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 개수를 세기 전에 '퇴사자만' 노출/체크상태를 먼저 정리한다.
+	   (행 추가/삭제/변경 시 반드시 호출되는 함수라 여기에 두면 호출 누락이 생기지 않는다) */
+	asws_advSyncRetireChk();
+	/* [AX Lab] 수정 끝 */
+	var badge = document.getElementById('advCnt');
+	if(!badge) return;
+	var n = 0;
+	$('#advRows .adv-row').each(function(){
+		if(asws_nvl($(this).find('.adv-field').val(),'') !== '') n++;
+	});
+	/* [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스가 처리상태 기본 체크로 대체되어 제거됨.
+	   search_type13 은 hidden(value='N')으로만 남아 있어 고급조건 개수에서 세지 않는다.
+	if($('#search_type13').is(':checked')) n++;
+	*/
+	if($('#search_type17').is(':checked')) n++;
+	badge.innerHTML = n;
+	badge.style.display = (n > 0) ? '' : 'none';
+}
+/* [AX Lab] 수정 끝 */
+
 /* 행 추가 */
 function asws_advAddRow(field, value, value2){
 	field = asws_nvl(field,''); value = asws_nvl(value,''); value2 = asws_nvl(value2,'');
@@ -419,18 +522,21 @@ function asws_advAddRow(field, value, value2){
 	var $val = $('<span class="adv-val"></span>');
 	var $del = $('<button type="button" class="adv-del" title="조건 삭제">&#8722;</button>');
 
-	$del.on('click', function(){ $row.remove(); asws_advRefreshFieldOptions(); });
-	$field.on('change', function(){ asws_advRenderVal($row, this.value, '', ''); asws_advRefreshFieldOptions(); });
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 행 추가/삭제/변경 시 '고급' 칩 배지 개수 갱신 */
+	$del.on('click', function(){ $row.remove(); asws_advRefreshFieldOptions(); asws_advUpdateCount(); });
+	$field.on('change', function(){ asws_advRenderVal($row, this.value, '', ''); asws_advRefreshFieldOptions(); asws_advUpdateCount(); });
 
 	$row.append($field).append($val).append($del);
 	$('#advRows').append($row);
 	asws_advRenderVal($row, field, value, value2);
 	asws_advRefreshFieldOptions();
+	asws_advUpdateCount();
+	/* [AX Lab] 수정 끝 */
 	return $row;
 }
 
 /* 전체 비우기 */
-function asws_advClear(){ $('#advRows').empty(); }
+function asws_advClear(){ $('#advRows').empty(); asws_advUpdateCount(); /* [AX Lab] (2026-07-28) 배지 초기화 */ }
 
 /* 리로드 후 저장된 고급조건 복원 (ASWS_ADV_INIT) */
 function asws_advInit(){
@@ -445,13 +551,61 @@ function asws_advInit(){
 		if(m && m.type==='date'){ v = asws_fmtDateInput(v); v2 = asws_fmtDateInput(v2); }
 		asws_advAddRow(f, v, v2);
 	}
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건 행 복원.
+	   거래처 행은 원본과 동일한 파라미터(cust_kor_name/cust_code)로 전송되어 adv_* 배열에 담기지 않으므로
+	   ASWS_ADV_INIT 에는 들어오지 않는다. list.jsp 의 #advCustInit data 속성(vo 값)으로 별도 복원한다. */
+	var $ci = $('#advCustInit');
+	if($ci.length){
+		var ciNm = asws_nvl($ci.attr('data-name'), '');
+		var ciCd = asws_nvl($ci.attr('data-code'), '');
+		if(ciNm !== '' || ciCd !== '') asws_advAddRow('CUST', ciNm, ciCd);
+	}
+	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 복원 후 배지 갱신 + 체크박스형 고급조건 변경 감지
+	   (2026-07-28 수정: search_type13 은 체크박스 → hidden 으로 바뀌어 감지 대상에서 제외) */
+	asws_advUpdateCount();
+	$('#search_type17').off('change.aswsAdvCnt').on('change.aswsAdvCnt', asws_advUpdateCount);
+	/* [AX Lab] 수정 끝 */
 }
 
 /* 고급필터 패널 토글 */
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 고급필터 펼침상태를 검색 후에도 유지.
+   원인: 검색(getAsList)은 listFrm 을 /ad/as/list.do 로 재요청해 화면을 처음부터 다시 그린다.
+        고급필터 패널은 기본이 '접힘' 이고, 예전에는 "복원된 고급조건이 1건 이상일 때만" 펼쳤다.
+        그래서 ① 조건을 넣지 않고 열어만 둔 경우 ② 값이 비어 서버에서 버려진 행만 있는 경우
+        ③ '퇴사자만' 체크만 한 경우 에는 검색할 때마다 패널이 닫혀, 조건을 손볼 때 매번 다시 열어야 했다.
+   해결: 펼침/접힘을 사용자의 명시적 선택으로 보고 sessionStorage 에 저장한 뒤 재요청 후 복원한다.
+        단, "메뉴로 새로 들어온 첫 진입"에서는 복원하지 않고 저장값을 지운다. 첫 화면부터 고급필터가
+        펼쳐져 있으면 정작 중요한 목록이 아래로 밀리기 때문이다(KPI 영역을 항상 접힘으로 고정한 것과 동일한 이유).
+        첫 진입 판별은 기존 마커인 search_type13(검색 시 'N' 전송)을 재사용한다. */
+var ASWS_ADV_OPEN_KEY = 'asws_adv_open';
+
 function asws_advToggle(){
 	var b = document.getElementById('advToggle');
 	var body = document.getElementById('advBody');
 	if(!b || !body) return;
 	var open = b.classList.toggle('open');
 	if(open) body.classList.add('open'); else body.classList.remove('open');
+	try{ sessionStorage.setItem(ASWS_ADV_OPEN_KEY, open ? 'Y' : 'N'); }catch(e){}
 }
+
+/* 검색 후 고급필터 펼침상태 복원. asws_advInit() 이후에 호출해야 한다.
+   isFirstEntry : 메뉴로 새로 들어온 첫 진입인지 (list.jsp 의 ASWS_IS_FIRST_ENTRY) */
+function asws_advRestoreOpen(isFirstEntry){
+	var b = document.getElementById('advToggle');
+	if(!b) return;
+	var saved = null;
+	if(isFirstEntry){
+		try{ sessionStorage.removeItem(ASWS_ADV_OPEN_KEY); }catch(e){}
+	}else{
+		try{ saved = sessionStorage.getItem(ASWS_ADV_OPEN_KEY); }catch(e){}
+	}
+	var open;
+	if(saved === 'Y' || saved === 'N'){
+		open = (saved === 'Y');
+	}else{
+		open = ($('#advRows .adv-row').length > 0);	/* 저장값 없음(첫 진입 등): 복원된 조건이 있으면 펼침 */
+	}
+	if(open !== b.classList.contains('open')) asws_advToggle();
+}
+/* [AX Lab] 수정 끝 */

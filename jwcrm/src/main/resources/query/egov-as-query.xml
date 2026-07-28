@@ -3015,4 +3015,36 @@ SELECT OUT_TB3.EMP_NO,
 	]]>
 	</select>
 
+	<!-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): AS 통합화면(list.do) 상단 KPI 6종 집계 (나에게 배정된 건 기준) -->
+	<!--
+		KPI1: 오늘 나에게 배정된 접수 건수 (접수일=오늘)
+		KPI2: 현재 나에게 배정된 미처리 건수 (완료 C005/철회 C006 제외한 모든 미완료 건)
+		KPI3: 현재 나에게 배정된 긴급(중요도 S) 미완료 건수
+		KPI4: 처리예정일이 오늘인 미완료 건수
+		KPI5: 처리예정일이 지난 미완료 건수
+		KPI6: 오늘 처리완료한 건수 (PROC_STATUS=C005, 완료일=오늘)
+		※ 미완료 = PROC_STATUS NOT IN ('C005','C006')  (완료/철회 제외)
+	-->
+	<select id="getAswsKpi" parameterType="asVO" resultType="map">
+	<![CDATA[
+	/*[egov-as-query.xml] asDAO.getAswsKpi*/
+		SELECT
+		    SUM(CASE WHEN ACCEPT_DT = TO_CHAR(SYSDATE,'YYYYMMDD') THEN 1 ELSE 0 END) AS KPI1,
+		    SUM(CASE WHEN PROC_STATUS NOT IN ('C005','C006') THEN 1 ELSE 0 END) AS KPI2,
+		    SUM(CASE WHEN INPORTANCE = 'S'
+		              AND PROC_STATUS NOT IN ('C005','C006') THEN 1 ELSE 0 END) AS KPI3,
+		    SUM(CASE WHEN PROC_DT = TO_CHAR(SYSDATE,'YYYYMMDD')
+		              AND PROC_STATUS NOT IN ('C005','C006') THEN 1 ELSE 0 END) AS KPI4,
+		    SUM(CASE WHEN PROC_DT IS NOT NULL
+		              AND PROC_DT < TO_CHAR(SYSDATE,'YYYYMMDD')
+		              AND PROC_STATUS NOT IN ('C005','C006') THEN 1 ELSE 0 END) AS KPI5,
+		    SUM(CASE WHEN PROC_STATUS = 'C005'
+		              AND COMPLETE_DT = TO_CHAR(SYSDATE,'YYYYMMDD') THEN 1 ELSE 0 END) AS KPI6
+		FROM CRM_AS_MGT
+		WHERE (DEL_YN IS NULL OR DEL_YN = 'N')
+		  AND ASSIGN_ID = #{reg_id, jdbcType=VARCHAR}
+	]]>
+	</select>
+	<!-- [AX Lab] 수정 끝 -->
+
 </mapper>
