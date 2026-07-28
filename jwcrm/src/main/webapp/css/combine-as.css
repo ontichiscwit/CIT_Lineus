@@ -306,6 +306,16 @@
 #asWorkspace .bf-line .SumoSelect > .CaptionCont > span{padding-right:22px; font-size:11.5px;}
 #asWorkspace .bf-line .SumoSelect.open > .optWrapper{top:30px;}
 /* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 처리상태 드롭다운 맨 위 '전체선택' 칸이 잘려 보이는 문제 수정.
+   원인: 플러그인 CSS(sumoselect.css)는 이 행을 content-box 기준으로 만들어 뒀다.
+         `.select-all { height:20px; padding:8px 0 3px 35px; }` → 원래 의도는 "글자칸 20px + 위아래 여백" = 31px.
+         그런데 이 화면은 `#asWorkspace *{ box-sizing:border-box }` 를 전역으로 걸기 때문에 height:20px 가
+         "패딩까지 포함한 전체 높이"로 해석되어, 글자가 들어갈 공간이 20-8-3 = 9px 밖에 남지 않는다.
+         → '전체선택' 글자가 9px 칸을 넘쳐 아래 구분선(border-bottom)에 걸리고 첫 옵션과 겹쳐 잘려 보였다.
+   해결: 이 행만 높이를 내용에 맞게 잡도록 되돌리고(height:auto), 여백을 옵션행(li.opt, padding:6px)과 맞춘다.
+   ※ 플러그인 공통 파일(sumoselect.css)은 다른 화면에서도 쓰이므로 수정하지 않고 #asWorkspace 하위로만 스코프한다. */
+#asWorkspace .SumoSelect .select-all{height:auto; min-height:0; padding:6px 6px 6px 35px; line-height:1.4;}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 고급필터 행 높이도 기본필터(28px)와 통일 */
 #asWorkspace .adv-row{display:flex; gap:5px; align-items:center; margin-bottom:5px;}
 #asWorkspace .adv-row .adv-field{flex:0 0 112px; border:1px solid var(--line); border-radius:6px; padding:0 19px 0 6px; font-size:11.5px; height:28px; line-height:26px; background-color:var(--surface); color:var(--ink); outline:none;}
@@ -319,6 +329,13 @@
 #asWorkspace .adv-row .adv-del{flex:0 0 26px; height:28px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--ink-3); font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;}
 /* [AX Lab] 수정 끝 */
 #asWorkspace .adv-row .adv-del:hover{border-color:var(--red); color:var(--red);}
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건행(모달 조회 방식) 값 UI.
+   직접 입력이 불가한 readonly 칸임을 배경색으로 알리고, 눌러도 모달이 열리므로 커서를 pointer 로 둔다.
+   거래처코드는 고정폭(72px), 거래처명은 남는 폭을 모두 사용한다. */
+#asWorkspace .adv-row .adv-val .adv-cust-nm{flex:1 1 auto; background:var(--surface-1); cursor:pointer;}
+#asWorkspace .adv-row .adv-val .adv-cust-cd{flex:0 0 72px; background:var(--surface-1); cursor:pointer; text-align:center;}
+#asWorkspace .adv-row .adv-val .adv-cust-btn{flex:0 0 auto; height:28px; padding:0 8px;}
+/* [AX Lab] 수정 끝 */
 #asWorkspace #advAddBtn{width:100%;}
 /* [AX Lab] 수정 끝 */
 

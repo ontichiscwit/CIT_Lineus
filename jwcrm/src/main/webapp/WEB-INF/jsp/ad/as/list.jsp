@@ -153,8 +153,11 @@
 		(search_type13 == 'Y') ? $('#search_type13').prop('checked',true) : $('#search_type13').prop('checked',false);
 		*/
 
+		/* [AX Lab] 삭제 (2026-07-28 AX Lab): '퇴사자만'(search_type17) 복원 위치를 asws_advInit() 뒤로 이동.
+		   (이유는 아래 이동한 자리의 주석 참고)
 		var search_type17 = '${ vo.search_type17 }';
 		(search_type17 == 'Y') ? $('#search_type17').prop('checked',true) : $('#search_type17').prop('checked',false);
+		*/
 
 		/* 통합 검색 키워드 / 페이징 */
 		$('#search_text').val('${ vo.search_text }');
@@ -164,10 +167,24 @@
 		/* 고급 동적 검색구분 행 복원 (combine-as.js) */
 		if (typeof asws_advInit === 'function') asws_advInit();
 
-		/* 저장된 고급조건이 있으면 고급필터 패널을 펼쳐둔다. */
-		if (typeof ASWS_ADV_INIT !== 'undefined' && ASWS_ADV_INIT && ASWS_ADV_INIT.length > 0) {
-			if (typeof asws_advToggle === 'function' && !$('#advToggle').hasClass('open')) asws_advToggle();
-		}
+		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자만' 체크 복원은 반드시 asws_advInit() "뒤"에서 한다.
+		   asws_advInit() 은 시작할 때 조건행을 전부 비우는데(asws_advClear), 그 순간에는 처리담당자명 조건이
+		   없는 상태이므로 '퇴사자만'을 숨기면서 체크까지 해제한다(asws_advSyncRetireChk).
+		   앞에서 복원하면 이 해제에 덮여 검색 후 체크가 매번 풀려버린다.
+		   복원 후 asws_advUpdateCount() 로 노출여부와 '고급' 칩 배지 개수를 다시 맞춘다.
+		   (처리담당자명 조건이 없으면 이 시점에 다시 해제된다 = 의도된 동작) */
+		$('#search_type17').prop('checked', '${ vo.search_type17 }' == 'Y');
+		if (typeof asws_advUpdateCount === 'function') asws_advUpdateCount();
+		/* [AX Lab] 수정 끝 */
+
+		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 고급필터 펼침상태 복원.
+		   기존에는 "복원된 고급조건이 1건 이상일 때만" 펼쳤기 때문에, 조건을 아직 채우지 않은 상태로
+		   검색하면 패널이 매번 닫혀 조건을 다시 열어야 했다.
+		   → 검색으로 화면이 다시 그려진 경우에는 사용자가 마지막에 펼쳤는지/접었는지를 그대로 복원한다.
+		     (메뉴로 새로 들어온 첫 진입은 목록 공간 확보를 위해 접힌 상태 유지 → ASWS_IS_FIRST_ENTRY 전달)
+		   ※ 반드시 asws_advInit() 뒤에 호출해야 한다. (복원된 조건행 개수를 기본값 판단에 사용) */
+		if (typeof asws_advRestoreOpen === 'function') asws_advRestoreOpen(ASWS_IS_FIRST_ENTRY);
+		/* [AX Lab] 수정 끝 */
 	}
 	/* [AX Lab] 수정 끝 */
 	
@@ -1469,9 +1486,12 @@
             <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): '전체 A/S' 의 value 를 '' → '1' 로 변경.
                  ''(빈값)은 "처리구분 미지정(첫 진입)" 과 값이 겹쳐, 검색 후 화면 복원 시 '전체 A/S' 가
                  매번 '나의 A/S' 로 되돌아갔다(=담당건 없는 계정은 목록이 비어 보임).
-                 서버는 "2" 일 때만 담당자 필터를 걸므로 '1' 은 전체 조회로 동작한다.
-                 또한 선택 즉시 조회되도록 onchange 를 추가해 별도로 검색 버튼을 누르지 않아도 되게 한다. --%>
-            <select name="asGubunFlag" id="asGubunFlag" class="bf-sel-narrow" title="처리구분 선택" onchange="getAsList(1);">
+                 서버는 "2" 일 때만 담당자 필터를 걸므로 '1' 은 전체 조회로 동작한다. --%>
+            <%-- [AX Lab] 삭제 (2026-07-28 AX Lab): 선택 즉시 조회하던 onchange="getAsList(1);" 제거.
+                 다른 조건(접수일/처리상태/통합검색)은 모두 [검색] 버튼을 눌러야 조회되는데 처리구분만
+                 선택하는 순간 조회가 나가, 나머지 조건을 입력하던 중에 화면이 리로드되어 흐름이 끊겼다.
+                 → 조회 시점을 [검색] 버튼 하나로 통일한다. (선택값은 검색 후에도 그대로 복원됨) --%>
+            <select name="asGubunFlag" id="asGubunFlag" class="bf-sel-narrow" title="처리구분 선택">
               <option value="2">나의 A/S</option>
               <option value="1">전체 A/S</option>
             </select>
@@ -1513,12 +1533,32 @@
 
           <!-- 고급필터 본문 (토글은 위 1행 우측 '고급' 칩) -->
           <div class="morebody" id="advBody">
-            <div class="bf-line" style="gap:16px; margin-bottom:7px;">
-              <label class="bf-chk">
-                <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자 포함
+            <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처(모달 조회) 조건 화면복원용 초기값.
+                 거래처 조건은 원본 화면과 동일하게 cust_kor_name / cust_code 파라미터로 전송되므로
+                 adv_field/adv_value 배열(=ASWS_ADV_INIT)에는 담기지 않는다. 검색 후 리로드 시 조건행을
+                 되살리려면 이 값이 필요하다. (combine-as.js / asws_advInit)
+                 ※ JS 리터럴('${...}')이 아니라 data 속성으로 내려보내는 이유: 거래처명에 따옴표(')가
+                   들어있으면 JS 문자열이 깨져 화면 스크립트 전체가 죽는다. c:out 으로 XML 이스케이프한
+                   속성값은 브라우저가 파싱할 때 원래 문자로 복원되므로 안전하다.
+                 ※ name 속성을 주지 않는 이유: 조건행의 실제 입력칸과 파라미터명이 중복 전송되지 않게 하기 위함. --%>
+            <span id="advCustInit" style="display:none;"
+                  data-name="<c:out value='${vo.cust_kor_name}'/>"
+                  data-code="<c:out value='${vo.cust_code}'/>"></span>
+            <%-- [AX Lab] 수정 끝 --%>
+            <div id="advRows"></div>
+            <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자' 체크박스를 조건행 아래로 옮기고 조건부 노출로 변경.
+                 ① 위치: 처리담당자명 조건에 딸린 하위 옵션이므로 조건행 바로 아래에 둔다.
+                 ② 노출: 처리담당자명(EMP_NM) 조건행이 있을 때만 보인다. (combine-as.js / asws_advSyncRetireChk)
+                    display:none 을 마크업에 박아두어 스크립트 실행 전 잠깐 보이는 깜빡임을 막는다.
+                 ③ 라벨: '퇴사자 포함' → '퇴사자만'. 쿼리 조건이 RETIRE_DATE IS NOT NULL 이라
+                    실제 동작은 "퇴사한 처리담당자의 건만" 조회하는 것이어서 '포함' 이라는 표현이 사실과 달랐다.
+                    (name/id/value = search_type17/Y 는 그대로 → 서버·쿼리 영향 없음) --%>
+            <div class="bf-line" id="advRetireWrap" style="display:none; gap:16px; margin:2px 0 7px;">
+              <label class="bf-chk" title="체크하면 퇴사한 처리담당자가 담당했던 건만 조회합니다.">
+                <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자만
               </label>
             </div>
-            <div id="advRows"></div>
+            <%-- [AX Lab] 수정 끝 --%>
             <button type="button" class="btn-s" id="advAddBtn" onclick="asws_advAddRow();" style="margin-top:4px;">+ 조건 추가</button>
           </div>
         </div>
