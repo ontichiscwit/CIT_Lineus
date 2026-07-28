@@ -329,10 +329,27 @@
 				var gradeTag = gradeNm ? ' <span class="'+gradeCls+'">'+gradeNm+'</span>' : '';
 
 				// 문의/조치 내용 요약
+				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 제목(q-title)과 본문(q-body)에 같은 call_content 를
+				   중복 출력해 행 높이를 불필요하게 2배로 쓰던 문제 수정.
+				   → 제목 = 첫 번째 유효 줄, 본문 = 그 이후 내용(없으면 본문 div 자체를 생략). */
 				var callC = common.nvl(datas.call_content, '');
 				var actC  = common.nvl(datas.action_content, '');
-				var callHead = callC ? callC.substr(0, 46) : '(내용 없음)';
+
+				var callLines = callC.replace(/\r/g, '').split('\n');
+				var callHead = '';
+				var restIdx = callLines.length;
+				for (var li = 0; li < callLines.length; li++) {
+					if (callLines[li].replace(/\s/g, '') !== '') {
+						callHead = $.trim(callLines[li]);
+						restIdx = li + 1;
+						break;
+					}
+				}
+				var callRest = $.trim(callLines.slice(restIdx).join(' ').replace(/\s+/g, ' '));
+				if (callHead === '') callHead = '(내용 없음)';
+				/* 제목이 길 경우의 잘림은 CSS(.q-title .q-t : 1줄 ellipsis)가 처리하므로 여기서 자르지 않는다. */
 				var actInfo = actC ? ('조치: ' + actC.substr(0, 40)) : '';
+				/* [AX Lab] 수정 끝 */
 
 				str += '<tr data-asno="'+asNo+'" onclick="asws_openDetail(\''+asNo+'\',\''+cnAsNo+'\');">';
 				str += '  <td class="col-chk" onclick="event.cancelBubble=true;">' +
@@ -341,10 +358,18 @@
 				       'data-as-no-link="'+asNoLink+'" ' +
 				       'data-proc-status="'+stCode+'"/></td>';
 				str += '  <td class="col-date">'+vAcceptDt+'</td>';
-				str += '  <td class="col-client">['+common.nvl(datas.cust_code, '')+']'+common.nvl(datas.cust_kor_name,'')+'</td>';
+				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처명이 길면 3~4줄로 늘어나 행 높이를 키우던 문제 → 2줄 클램프
+				   (td 에는 -webkit-box 를 쓸 수 없어 내부 div(cl-t)로 감싼다. 전체 값은 title 툴팁으로 확인 가능) */
+				var custTxt = '['+common.nvl(datas.cust_code, '')+']'+common.nvl(datas.cust_kor_name,'');
+				str += '  <td class="col-client"><div class="cl-t" title="'+asws_esc(custTxt)+'">'+asws_esc(custTxt)+'</div></td>';
+				/* [AX Lab] 수정 끝 */
 				str += '  <td>';
-				str += '    <div class="q-title">'+prioIco+asws_esc(callHead)+gradeTag+'</div>';
-				str += '    <div class="q-body">'+asws_esc(callC)+'</div>';
+				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 제목을 q-t 로 감싸 1줄 ellipsis 처리 (좁은 컬럼에서 2~3줄로 늘어나는 것 방지) */
+				str += '    <div class="q-title">'+prioIco+'<span class="q-t">'+asws_esc(callHead)+'</span>'+gradeTag+'</div>';
+				/* [AX Lab] 수정 끝 */
+				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 추가 내용이 있을 때만 본문 줄을 출력 (빈 줄로 행 높이 낭비 방지) */
+				if (callRest !== '') str += '    <div class="q-body">'+asws_esc(callRest)+'</div>';
+				/* [AX Lab] 수정 끝 */
 				str += '    <div class="q-act">담당 '+common.nvl(datas.emp_nm,'-')+' · 답변 '+common.nvl(datas.total_aws_cnt,'0')+'건'+(actInfo? ' · '+asws_esc(actInfo):'')+'</div>';
 				str += '  </td>';
 				str += '  <td class="col-status"><span class="st '+stCls+'">'+common.nvl(datas.proc_status_nm, '')+'</span></td>';
@@ -1375,55 +1400,45 @@
       </div>
       <div class="col-content">
         <%-- [AX Lab] 수정 시작 (2026-07-24 AX Lab): AS목록 상단 기본필터 + 고급필터(동적 검색구분) --%>
+        <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): 필터 영역이 화면을 과도하게 차지해 문의내용 목록이 아래로
+             밀리는 문제 개선. 라벨을 필드 위에 쌓던 3행(bf-row) 구조를 인라인 2행(bf-line) 구조로 축약하고,
+             전체폭 1행을 차지하던 '고급 검색' 토글을 1행 우측 인라인 칩으로 이동해 총 1행을 더 절약했다.
+             (필드/name/id 는 그대로 유지 → 검색 로직·서버 파라미터 변경 없음) --%>
         <div class="basefilter">
-          <!-- 기본필터 -->
-          <div class="bf-row">
-            <div class="advf">
-              <label>접수일자</label>
-              <div class="daterow">
-                <input type="checkbox" name="search_type10" id="search_type10" value="Y" title="접수일자 사용" checked>
-                <input type="text" name="search_start" id="search_start" title="접수 시작일" value="">
-                <span class="dwave">~</span>
-                <input type="text" name="search_end" id="search_end" title="접수 종료일" value="">
-              </div>
-            </div>
+          <!-- 기본필터 1행 : 처리구분 · 접수일자 · 고급검색 토글 -->
+          <div class="bf-line">
+            <select name="asGubunFlag" id="asGubunFlag" class="bf-sel-narrow" title="처리구분 선택">
+              <option value="2">나의 A/S</option>
+              <option value="">전체 A/S</option>
+            </select>
+            <label class="bf-chk" title="접수일자 기간조건 사용">
+              <input type="checkbox" name="search_type10" id="search_type10" value="Y" checked> 접수일
+            </label>
+            <input type="text" name="search_start" id="search_start" class="bf-date" title="접수 시작일" value="">
+            <span class="dwave">~</span>
+            <input type="text" name="search_end" id="search_end" class="bf-date" title="접수 종료일" value="">
+            <div class="spacer"></div>
+            <button type="button" class="moretoggle" id="advToggle" onclick="asws_advToggle();" title="고급 검색조건 펼치기/접기">
+              <span class="chev">&#9662;</span> 고급<span class="adv-cnt" id="advCnt" style="display:none;">0</span>
+            </button>
           </div>
-          <div class="bf-row">
-            <div class="advf" style="flex:0 0 118px;">
-              <label>처리구분</label>
-              <select name="asGubunFlag" id="asGubunFlag" title="처리구분 선택">
-                <option value="2">나의 A/S</option>
-                <option value="">전체 A/S</option>
-              </select>
+          <!-- 기본필터 2행 : 처리상태 · 통합검색 -->
+          <div class="bf-line">
+            <select name="procMultiSelect" id="procMultiSelect" class="procMultiSelect" title="처리상태 선택" multiple data-max="2"></select>
+            <div class="sl-input">
+              <input type="text" name="search_text" id="search_text" placeholder="접수번호 / 거래처 / 담당자 / 요청·조치내용" title="통합 검색 키워드">
+              <button type="button" onclick="getAsList(1);" title="검색">검색</button>
             </div>
-            <div class="advf">
-              <label>처리상태</label>
-              <select name="procMultiSelect" id="procMultiSelect" class="procMultiSelect" title="처리상태 선택" multiple data-max="2"></select>
-            </div>
-          </div>
-          <div class="bf-row" style="margin-bottom:0;">
-            <div class="advf">
-              <label>통합 검색 키워드</label>
-              <div class="searchline">
-                <div class="sl-input">
-                  <input type="text" name="search_text" id="search_text" placeholder="접수번호 / 거래처 / 담당자 / 요청·조치내용" title="통합 검색 키워드">
-                  <button type="button" onclick="getAsList(1);" title="검색">검색</button>
-                </div>
-                <button type="button" class="btn-s" onclick="searchReset();" title="초기화">초기화</button>
-              </div>
-            </div>
+            <button type="button" class="btn-s" onclick="searchReset();" title="검색조건 초기화">초기화</button>
           </div>
 
-          <!-- 고급필터 토글 -->
-          <button type="button" class="moretoggle" id="advToggle" onclick="asws_advToggle();">
-            <span class="chev">&#9662;</span> 고급 검색
-          </button>
+          <!-- 고급필터 본문 (토글은 위 1행 우측 '고급' 칩) -->
           <div class="morebody" id="advBody">
-            <div class="bf-row" style="align-items:center; gap:16px; margin-bottom:8px;">
-              <label style="font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <div class="bf-line" style="gap:16px; margin-bottom:7px;">
+              <label class="bf-chk">
                 <input type="checkbox" name="search_type13" id="search_type13" value="Y" onchange="javascript:change_exceptComplete();"> 처리완료 외 상태
               </label>
-              <label style="font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;gap:5px;cursor:pointer;">
+              <label class="bf-chk">
                 <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자 포함
               </label>
             </div>
@@ -1431,6 +1446,7 @@
             <button type="button" class="btn-s" id="advAddBtn" onclick="asws_advAddRow();" style="margin-top:4px;">+ 조건 추가</button>
           </div>
         </div>
+        <%-- [AX Lab] 수정 끝 --%>
         <%-- [AX Lab] 수정 끝 --%>
         <div class="toolbar">
           <button type="button" class="btn-s primary" onclick="javascript:openProcLayer();">일괄처리</button>

@@ -434,6 +434,22 @@ function asws_advRenderVal($row, field, value, value2){
 	}
 }
 
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 고급필터가 접혀 있어도 적용중인 조건 개수를 '고급' 칩 배지로 노출.
+   필터 영역을 컴팩트하게 줄이면서 조건이 숨겨져 "왜 이 결과인지" 모르게 되는 문제를 막는다. */
+function asws_advUpdateCount(){
+	var badge = document.getElementById('advCnt');
+	if(!badge) return;
+	var n = 0;
+	$('#advRows .adv-row').each(function(){
+		if(asws_nvl($(this).find('.adv-field').val(),'') !== '') n++;
+	});
+	if($('#search_type13').is(':checked')) n++;
+	if($('#search_type17').is(':checked')) n++;
+	badge.innerHTML = n;
+	badge.style.display = (n > 0) ? '' : 'none';
+}
+/* [AX Lab] 수정 끝 */
+
 /* 행 추가 */
 function asws_advAddRow(field, value, value2){
 	field = asws_nvl(field,''); value = asws_nvl(value,''); value2 = asws_nvl(value2,'');
@@ -443,18 +459,21 @@ function asws_advAddRow(field, value, value2){
 	var $val = $('<span class="adv-val"></span>');
 	var $del = $('<button type="button" class="adv-del" title="조건 삭제">&#8722;</button>');
 
-	$del.on('click', function(){ $row.remove(); asws_advRefreshFieldOptions(); });
-	$field.on('change', function(){ asws_advRenderVal($row, this.value, '', ''); asws_advRefreshFieldOptions(); });
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 행 추가/삭제/변경 시 '고급' 칩 배지 개수 갱신 */
+	$del.on('click', function(){ $row.remove(); asws_advRefreshFieldOptions(); asws_advUpdateCount(); });
+	$field.on('change', function(){ asws_advRenderVal($row, this.value, '', ''); asws_advRefreshFieldOptions(); asws_advUpdateCount(); });
 
 	$row.append($field).append($val).append($del);
 	$('#advRows').append($row);
 	asws_advRenderVal($row, field, value, value2);
 	asws_advRefreshFieldOptions();
+	asws_advUpdateCount();
+	/* [AX Lab] 수정 끝 */
 	return $row;
 }
 
 /* 전체 비우기 */
-function asws_advClear(){ $('#advRows').empty(); }
+function asws_advClear(){ $('#advRows').empty(); asws_advUpdateCount(); /* [AX Lab] (2026-07-28) 배지 초기화 */ }
 
 /* 리로드 후 저장된 고급조건 복원 (ASWS_ADV_INIT) */
 function asws_advInit(){
@@ -469,6 +488,10 @@ function asws_advInit(){
 		if(m && m.type==='date'){ v = asws_fmtDateInput(v); v2 = asws_fmtDateInput(v2); }
 		asws_advAddRow(f, v, v2);
 	}
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 복원 후 배지 갱신 + 체크박스형 고급조건 변경 감지 */
+	asws_advUpdateCount();
+	$('#search_type13, #search_type17').off('change.aswsAdvCnt').on('change.aswsAdvCnt', asws_advUpdateCount);
+	/* [AX Lab] 수정 끝 */
 }
 
 /* 고급필터 패널 토글 */
