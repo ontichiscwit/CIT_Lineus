@@ -121,7 +121,21 @@
    아래로 밀리는 문제 개선. 라벨을 필드 위에 쌓던 3행 구조(약 200px)를 인라인 2행 구조(약 80px)로 축약.
    - .bf-line : 라벨/입력을 한 줄에 인라인 배치하는 새 컴팩트 행 (기존 .bf-row 는 고급필터에서 계속 사용)
    - 입력 높이 32→28px, 폰트 12→11.5px, 좌우/상하 패딩 축소 */
-#asWorkspace .basefilter{border-bottom:1px solid var(--line); flex-shrink:0; padding:7px 10px 4px;}
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 접수일/처리예정일 달력(jQuery UI datepicker)이 목록 헤더에 가려져
+   첫째 주가 잘려 보이던 문제 수정.
+   원인: 목록 헤더(table.aslist thead th)가 position:sticky + z-index:2 로 "쌓임 순서를 가진 요소"인데,
+         datepicker 팝업(#ui-datepicker-div, body 직속)의 z-index 는 jQuery UI 가
+         `dpDiv.css("z-index", $.fn.zIndex(input) + 1)` 로 계산한다. $.fn.zIndex 는 input 의 조상 중
+         position 이 지정되고 z-index 가 숫자인 첫 요소의 값을 찾는데, 필터 영역에는 그런 조상이 없어
+         0 을 반환한다 → 달력이 z-index:1 로 그려져 z-index:2 인 목록 헤더 아래에 깔렸다.
+   해결: 필터 영역에 position:relative + z-index 를 부여해 jQuery UI 가 달력 z-index 를 21 로 계산하게 한다.
+         (달력 CSS 에 !important 를 거는 대신 jQuery UI 의 기본 계산방식을 그대로 활용)
+   값 선정: 20 > 목록헤더(2) 이면서, GNB 서브메뉴(99)·모달 딤/레이어(1000·1001)보다는 낮아
+           팝업이 열렸을 때 필터가 그 위로 튀어나오지 않는다.
+   ※ 이 규칙은 #asWorkspace 하위로만 적용되고 combine-as.css 는 AS 통합화면(list.jsp)에서만 로딩되므로
+     다른 화면의 달력/레이어에는 영향이 없다. */
+#asWorkspace .basefilter{border-bottom:1px solid var(--line); flex-shrink:0; padding:7px 10px 4px; position:relative; z-index:20;}
+/* [AX Lab] 수정 끝 */
 /* flex-wrap : 창 폭이 좁아 한 줄에 다 못 들어갈 때 넘치지 않고 아래로 흐르게 함 */
 #asWorkspace .bf-line{display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-bottom:5px;}
 /* 직접 자식만 대상 : SumoSelect 가 만드는 내부 select/input(.SumoUnder, .search-txt)까지 잡지 않도록 함 */

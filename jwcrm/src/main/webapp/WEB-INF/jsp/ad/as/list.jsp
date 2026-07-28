@@ -133,8 +133,18 @@
 		$('#procSelect').val(asws_procInitStr());
 
 		/* 처리구분(나의/전체 A/S) - 저장값 없으면 '나의 A/S'(2) 기본 */
+		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '전체 A/S' 선택이 검색 후 유지되지 않던 문제 수정.
+		   기존에는 '전체 A/S' 의 option value 가 빈 문자열('') 이라 "미지정(첫 진입)" 과 구분되지 않았다.
+		   검색(getAsList)은 listFrm 을 /ad/as/list.do 로 재요청해 화면을 다시 그리는데, 이때 돌아온
+		   ''(=전체 선택) 이 "저장값 없음" 으로 판정되어 매번 '2'(나의 A/S) 로 되돌아갔다.
+		   → AS 처리담당자가 아닌 계정은 담당건이 0건이라 '전체 A/S' 를 골라도 목록이 계속 비어 보였다.
+		   해결: '전체 A/S' 의 값을 '1' 로 부여해 ''(미지정) 과 구분한다. 아래 복원 로직은 그대로 두어도
+		   '1' 이 그대로 복원되므로 정상 동작한다.
+		   서버(AdAsController.getAsList / exl)는 "2".equals(asGubunFlag) 일 때만 담당자(ASSIGN_ID) 필터를
+		   걸고 그 외 값은 전체 조회로 처리하므로 Java·쿼리 수정 없이 동작한다. */
 		var asGubun = '${ vo.asGubunFlag }';
 		$('#asGubunFlag').val(asGubun === '' ? '2' : asGubun);
+		/* [AX Lab] 수정 끝 */
 
 		/* 고급필터 체크박스 상태 복원 */
 		/* [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스를 제거하고 처리상태 기본 체크(접수+처리중)로
@@ -1456,10 +1466,16 @@
         <div class="basefilter">
           <!-- 기본필터 1행 : 처리구분 · 접수일자 · 고급검색 토글 -->
           <div class="bf-line">
-            <select name="asGubunFlag" id="asGubunFlag" class="bf-sel-narrow" title="처리구분 선택">
+            <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): '전체 A/S' 의 value 를 '' → '1' 로 변경.
+                 ''(빈값)은 "처리구분 미지정(첫 진입)" 과 값이 겹쳐, 검색 후 화면 복원 시 '전체 A/S' 가
+                 매번 '나의 A/S' 로 되돌아갔다(=담당건 없는 계정은 목록이 비어 보임).
+                 서버는 "2" 일 때만 담당자 필터를 걸므로 '1' 은 전체 조회로 동작한다.
+                 또한 선택 즉시 조회되도록 onchange 를 추가해 별도로 검색 버튼을 누르지 않아도 되게 한다. --%>
+            <select name="asGubunFlag" id="asGubunFlag" class="bf-sel-narrow" title="처리구분 선택" onchange="getAsList(1);">
               <option value="2">나의 A/S</option>
-              <option value="">전체 A/S</option>
+              <option value="1">전체 A/S</option>
             </select>
+            <%-- [AX Lab] 수정 끝 --%>
             <label class="bf-chk" title="접수일자 기간조건 사용">
               <input type="checkbox" name="search_type10" id="search_type10" value="Y" checked> 접수일
             </label>
