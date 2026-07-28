@@ -26,8 +26,30 @@
 
 /* ===== KPI strip ===== */
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 블록이 "나의" 현황임을 명확히 하는 제목 */
-#asWorkspace .kpi-title{display:flex; align-items:baseline; gap:6px; padding:2px 8px 6px; font-size:13.5px; font-weight:700; color:var(--ink);}
+#asWorkspace .kpi-title{display:flex; align-items:center; gap:6px; font-size:13.5px; font-weight:700; color:var(--ink);}
 #asWorkspace .kpi-title .kpi-title-sub{font-size:11px; font-weight:500; color:var(--ink-3);}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 카드가 상단 공간을 과도하게 차지하는 문제 개선.
+   kpi-wrap(헤더+카드) 구조로 감싸 접기/펼치기가 가능하도록 하고, 접힌 상태에서는 kpi-summary
+   요약 배지로 핵심 수치(미처리/긴급/처리예정 오늘/지연)는 계속 노출한다.
+   [AX Lab] 수정 시작 (2026-07-28 AX Lab): 뱃지 버튼 제거, 아코디언/트리 토글 방식으로 변경.
+   - 제목("나의 A/S 현황") 왼쪽에 화살표(▾)만 두어 토글 목록처럼 인식하도록 함.
+   - 접힌 상태: 화살표 ▶ + 제목 + 우측에 요약 수치(미처리/긴급/처리예정 오늘/지연).
+   - 펼친 상태: 화살표 ▾ + 제목 + KPI 카드 6개.
+   - 기본 상태를 "접힘"으로 변경 (asws_initKpiCollapse, combine-as.js). */
+#asWorkspace .kpi-wrap{margin-bottom:2px;}
+#asWorkspace .kpi-head{display:flex; align-items:center; gap:14px; padding:6px 10px 7px; cursor:pointer; -webkit-user-select:none; user-select:none; border-radius:8px;}
+#asWorkspace .kpi-head:hover{background:rgba(28,124,160,.06);}
+#asWorkspace .kpi-chev{display:inline-block; font-size:16px; color:var(--ink-2); transition:transform .15s; flex-shrink:0; line-height:1;}
+#asWorkspace .kpi-summary{display:none; align-items:center; gap:14px; font-size:12px; color:var(--ink-2); flex-wrap:wrap;}
+#asWorkspace .kpi-summary b{color:var(--ink); font-weight:800; margin-left:2px;}
+#asWorkspace .kpi-summary .kpi-urgent-item{color:var(--red);}
+#asWorkspace .kpi-summary .kpi-urgent-item b{color:var(--red);}
+/* 접힌 상태(기본값): 카드는 숨기고 요약 배지만 노출, 화살표는 -90도(▶ 방향)로 회전 */
+#asWorkspace .kpi-wrap.collapsed .kpi{display:none;}
+#asWorkspace .kpi-wrap.collapsed .kpi-summary{display:flex;}
+#asWorkspace .kpi-wrap.collapsed .kpi-chev{transform:rotate(-90deg);}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 #asWorkspace .kpi{display:flex; gap:9px; padding:2px 6px 12px; overflow-x:auto;}
 #asWorkspace .kpi .card{flex:1; min-width:130px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:11px 13px; cursor:pointer; transition:border-color .12s, box-shadow .12s; position:relative;}

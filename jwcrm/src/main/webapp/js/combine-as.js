@@ -43,9 +43,44 @@ function asws_makeKpi(data){
 	asws_setText('kpi-duetoday',Number(asws_nvl(k.KPI4,0)));  // 처리예정일이 오늘인 건수
 	asws_setText('kpi-overdue', Number(asws_nvl(k.KPI5,0)));  // 처리예정일 지난 건수
 	asws_setText('kpi-donetoday',Number(asws_nvl(k.KPI6,0))); // 오늘 처리완료한 건수
+
+	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI가 접힌 상태에서도 핵심 수치를 요약 배지로 노출 */
+	asws_setText('kpi-recv-mini',    Number(asws_nvl(k.KPI2,0)));
+	asws_setText('kpi-urgent-mini',  Number(asws_nvl(k.KPI3,0)));
+	asws_setText('kpi-duetoday-mini',Number(asws_nvl(k.KPI4,0)));
+	asws_setText('kpi-overdue-mini', Number(asws_nvl(k.KPI5,0)));
+	/* [AX Lab] 수정 끝 */
 }
 /* [AX Lab] 수정 끝 */
 function asws_setText(id, v){ var el=document.getElementById(id); if(el) el.innerHTML = v; }
+
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 카드 영역 접기/펼치기.
+   접힘 상태는 localStorage 에 저장해 재방문/새로고침 시에도 유지한다.
+   기본 상태: 접힘 (localStorage 에 명시적으로 '0'이 저장된 경우에만 펼침 유지).
+   UI: 제목 좌측 화살표(kpi-chev)가 CSS 회전으로 상태 표시, 별도 버튼 텍스트 없음. */
+var ASWS_KPI_COLLAPSE_KEY = 'asws_kpi_collapsed';
+
+function asws_updateKpiToggleText(collapsed){ /* 화살표 전환 방식으로 변경 후 텍스트 갱신 불필요 — 안전하게 유지 */ }
+
+function asws_toggleKpi(){
+	var wrap = document.getElementById('asKpiWrap');
+	if(!wrap) return;
+	var collapsed = wrap.classList.toggle('collapsed');
+	asws_updateKpiToggleText(collapsed);
+	try{ localStorage.setItem(ASWS_KPI_COLLAPSE_KEY, collapsed ? '1' : '0'); }catch(e){}
+}
+
+function asws_initKpiCollapse(){
+	var wrap = document.getElementById('asKpiWrap');
+	if(!wrap) return;
+	var saved = null;
+	try{ saved = localStorage.getItem(ASWS_KPI_COLLAPSE_KEY); }catch(e){}
+	var collapsed = (saved !== '0'); // 기본값: 접힘 (펼침을 명시적으로 선택했을 때만 펼침 유지)
+	if(collapsed) wrap.classList.add('collapsed');
+	asws_updateKpiToggleText(collapsed);
+}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 끝 */
 
 /* ===== 목록 행 클릭 -> 상세/처리정보 로드 ===== */
 function asws_openDetail(asNo, cnAsNo){

@@ -33,6 +33,7 @@
 		
 		
 		initForm();
+		if (typeof asws_initKpiCollapse === 'function') asws_initKpiCollapse(); /* [AX Lab] KPI 접힘상태 복원 (2026-07-28 AX Lab) */
 		makeListData();	/* [AX Lab] 상단 KPI(나에게 배정된 건 6종)는 getAsList.do 응답에 동봉되어 setAsList 에서 갱신됨 */
 		$("#search_text").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
 		/* [AX Lab] 삭제 (2026-07-24 AX Lab): emp_nm/search_type4/search_type6 필드는 고급필터 동적행으로 대체됨 */
@@ -1190,15 +1191,32 @@
 
   <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): 상단 KPI를 "나에게 배정된 건" 기준 6종으로 변경 (KPI는 getAsList.do 응답에 동봉되어 setAsList 에서 갱신) --%>
   <!-- 상단 KPI (getAsList.do 응답 data.kpi, 나에게 배정된 건 기준 현황) -->
-  <div class="kpi-title">나의 A/S 현황 <span class="kpi-title-sub">(나에게 배정된 건 기준)</span></div>
-  <div class="kpi" id="asKpi">
-    <div class="card" title="오늘(접수일 기준) 나에게 배정된 접수 건수입니다. 처리 상태와 무관하게 오늘 들어온 모든 건을 셉니다."><div class="ctop"><div class="ico i-mine">■</div><span class="clabel">오늘 신규 접수</span></div><div class="cnum" id="kpi-today">0</div><div class="csub">오늘 접수된 내 건</div></div>
-    <div class="card" title="나에게 배정된 건 중 아직 처리완료·철회되지 않은 모든 미완료 건수입니다."><div class="ctop"><div class="ico i-recv">■</div><span class="clabel">미처리</span></div><div class="cnum" id="kpi-recv">0</div><div class="csub">완료·철회 제외</div></div>
-    <div class="card" title="중요도 S(긴급)로 지정된 미완료 건수입니다. (완료·철회 제외)"><div class="ctop"><div class="ico i-urgent">■</div><span class="clabel">긴급</span></div><div class="cnum" id="kpi-urgent">0</div><div class="csub">중요도 S · 미완료</div></div>
-    <div class="card" title="나에게 배정된 건 중 처리예정일이 오늘인 미완료 건수입니다. 오늘 안에 끝내야 하는 건입니다."><div class="ctop"><div class="ico i-prog">■</div><span class="clabel">처리예정 오늘</span></div><div class="cnum" id="kpi-duetoday">0</div><div class="csub">처리예정일=오늘</div></div>
-    <div class="card" title="나에게 배정된 건 중 처리예정일이 지났는데 아직 완료하지 못한 건수입니다. (대시보드의 '지연'과 달리 처리예정일 초과 기준)"><div class="ctop"><div class="ico i-overdue">■</div><span class="clabel">처리예정일 지남</span></div><div class="cnum" id="kpi-overdue">0</div><div class="csub">예정일 초과 · 미완료</div></div>
-    <div class="card" title="처리완료일(COMPLETE_DT)이 오늘인 내 건수입니다. 접수일과는 무관합니다."><div class="ctop"><div class="ico i-done">■</div><span class="clabel">오늘 처리완료</span></div><div class="cnum" id="kpi-donetoday">0</div><div class="csub">오늘 완료 건</div></div>
+  <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): KPI 카드가 상단 영역을 과도하게 차지해 목록이 아래로 밀리는 문제 개선.
+       KPI를 접기/펼치기 가능한 구조로 바꾸고, 접힌 상태에서도 핵심 수치(미처리/긴급/처리예정 오늘/지연)는
+       요약 배지로 계속 노출해 중요 정보 손실 없이 화면 공간을 확보한다. (asws_toggleKpi, combine-as.js) --%>
+  <div class="kpi-wrap" id="asKpiWrap">
+    <div class="kpi-head" onclick="asws_toggleKpi();" title="클릭하여 나의 A/S 현황 펼치기/접기">
+      <div class="kpi-title">
+        <span class="kpi-chev">&#9662;</span>
+        나의 A/S 현황 <span class="kpi-title-sub">(나에게 배정된 건 기준)</span>
+      </div>
+      <div class="kpi-summary" id="kpiSummary">
+        <span>미처리 <b id="kpi-recv-mini">0</b></span>
+        <span class="kpi-urgent-item">긴급 <b id="kpi-urgent-mini">0</b></span>
+        <span>처리예정 오늘 <b id="kpi-duetoday-mini">0</b></span>
+        <span>지연 <b id="kpi-overdue-mini">0</b></span>
+      </div>
+    </div>
+    <div class="kpi" id="asKpi">
+      <div class="card" title="오늘(접수일 기준) 나에게 배정된 접수 건수입니다. 처리 상태와 무관하게 오늘 들어온 모든 건을 셉니다."><div class="ctop"><div class="ico i-mine">■</div><span class="clabel">오늘 신규 접수</span></div><div class="cnum" id="kpi-today">0</div><div class="csub">오늘 접수된 내 건</div></div>
+      <div class="card" title="나에게 배정된 건 중 아직 처리완료·철회되지 않은 모든 미완료 건수입니다."><div class="ctop"><div class="ico i-recv">■</div><span class="clabel">미처리</span></div><div class="cnum" id="kpi-recv">0</div><div class="csub">완료·철회 제외</div></div>
+      <div class="card" title="중요도 S(긴급)로 지정된 미완료 건수입니다. (완료·철회 제외)"><div class="ctop"><div class="ico i-urgent">■</div><span class="clabel">긴급</span></div><div class="cnum" id="kpi-urgent">0</div><div class="csub">중요도 S · 미완료</div></div>
+      <div class="card" title="나에게 배정된 건 중 처리예정일이 오늘인 미완료 건수입니다. 오늘 안에 끝내야 하는 건입니다."><div class="ctop"><div class="ico i-prog">■</div><span class="clabel">처리예정 오늘</span></div><div class="cnum" id="kpi-duetoday">0</div><div class="csub">처리예정일=오늘</div></div>
+      <div class="card" title="나에게 배정된 건 중 처리예정일이 지났는데 아직 완료하지 못한 건수입니다. (대시보드의 '지연'과 달리 처리예정일 초과 기준)"><div class="ctop"><div class="ico i-overdue">■</div><span class="clabel">처리예정일 지남</span></div><div class="cnum" id="kpi-overdue">0</div><div class="csub">예정일 초과 · 미완료</div></div>
+      <div class="card" title="처리완료일(COMPLETE_DT)이 오늘인 내 건수입니다. 접수일과는 무관합니다."><div class="ctop"><div class="ico i-done">■</div><span class="clabel">오늘 처리완료</span></div><div class="cnum" id="kpi-donetoday">0</div><div class="csub">오늘 완료 건</div></div>
+    </div>
   </div>
+  <%-- [AX Lab] 수정 끝 --%>
   <%-- [AX Lab] 수정 끝 --%>
 
 <%-- [AX Lab] 수정 시작 (2026-07-24 AX Lab): 검색조건을 AS목록(COL1) 내부 기본/고급 필터로 이동. 기존 상단 검색테이블 비활성화(원본 유지) --%>
