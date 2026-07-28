@@ -1503,18 +1503,56 @@
             <span class="dwave">~</span>
             <input type="text" name="search_end" id="search_end" class="bf-date" title="접수 종료일" value="">
             <div class="spacer"></div>
-            <button type="button" class="moretoggle" id="advToggle" onclick="asws_advToggle();" title="고급 검색조건 펼치기/접기">
-              <span class="chev">&#9662;</span> 고급<span class="adv-cnt" id="advCnt" style="display:none;">0</span>
-            </button>
+            <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): [초기화] 를 1행 우측(고급 토글 좌측)에 배치.
+                 - 2행에 두면 통합검색 입력칸이 그만큼 좁아진다(약 220px → 146px)는 문제가 있었다.
+                 - 1행은 컨트롤이 모두 flex-shrink:0 이라 폭 여유가 65px 뿐이어서 [초기화](구분선 포함 72px)가
+                   그대로는 들어가지 않았다. 그래서 잘리지 않는 최소폭까지 축소해 자리를 만들었다.
+                   (처리구분 88→78px, 날짜칸 92→84px, 구분선 좌우여백 4→2px : combine-as.css 참고)
+                 - bf-act 로 [초기화 │ 고급] 을 묶은 이유: 더 좁은 해상도에서 줄바꿈이 나더라도 버튼 하나만
+                   떨어지지 않고 묶음 통째로 내려가게 한다. --%>
+            <span class="bf-act">
+              <button type="button" class="btn-s bf-reset" onclick="searchReset();" title="접수일·처리구분·처리상태·통합검색·고급조건을 모두 초기화합니다">초기화</button>
+              <span class="bf-div"></span>
+              <button type="button" class="moretoggle" id="advToggle" onclick="asws_advToggle();" title="고급 검색조건 펼치기/접기">
+                <span class="chev">&#9662;</span> 고급<span class="adv-cnt" id="advCnt" style="display:none;">0</span>
+              </button>
+            </span>
+            <%-- [AX Lab] 수정 끝 --%>
           </div>
           <!-- 기본필터 2행 : 처리상태 · 통합검색 -->
           <div class="bf-line">
+            <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): 처리상태 멀티셀렉트와 통합검색 입력줄의 경계가 없어
+                 "처리상태를 검색하는 칸"처럼 오해되던 문제 개선.
+                 ① 라벨('처리상태') 추가 : 셀렉트 캡션에 선택값(예: '접수, 처리중')만 떠 있어서
+                    그게 무슨 항목인지, 오른쪽 검색창의 검색범위 지정인지 구분할 수 없었다.
+                 ② 구분선(bf-div) 추가 : 두 컨트롤이 같은 흰 배경·같은 테두리로 5px 간격만 두고 붙어 있어
+                    하나의 입력줄처럼 읽혔다. '조건(처리상태)'과 '키워드(통합검색)'의 경계를 시각적으로 나눈다.
+                 (name/id 는 그대로 → 검색 로직·서버 파라미터 변경 없음) --%>
+            <span class="bf-lb">처리상태</span>
             <select name="procMultiSelect" id="procMultiSelect" class="procMultiSelect" title="처리상태 선택" multiple data-max="2"></select>
-            <div class="sl-input">
-              <input type="text" name="search_text" id="search_text" placeholder="접수번호 / 거래처 / 담당자 / 요청·조치내용" title="통합 검색 키워드">
-              <button type="button" onclick="getAsList(1);" title="검색">검색</button>
-            </div>
-            <button type="button" class="btn-s" onclick="searchReset();" title="검색조건 초기화">초기화</button>
+            <span class="bf-div"></span>
+            <%-- [AX Lab] 수정 끝 --%>
+            <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): 통합검색 라벨 추가 + [검색] 버튼을 입력창 밖으로 분리.
+                 문제: 입력창 안(.sl-input)에 [검색] 버튼이 들어 있어 "검색어를 입력해야 눌리는 버튼"으로 보였다.
+                       실제로는 처리구분·접수일·처리상태·고급조건까지 화면의 모든 조건을 반영해 목록을 다시
+                       불러오는 "전체 조회" 버튼이고, 통합검색 키워드는 비워둬도 된다.
+                 해결: ① 입력창을 감싸던 .sl-input 래퍼를 벗기고 일반 입력칸(.bf-text)으로 바꿔 버튼을 밖으로 뺐다.
+                       ② 버튼 문구를 '검색' → '조회' 로 바꿔 "키워드 검색"이 아니라 "조건으로 목록 조회"임을 드러낸다.
+                       ③ 어떤 항목인지 알 수 있도록 '통합검색' 라벨을 붙이고, 키워드가 선택 입력임을
+                          placeholder 의 '(선택)' 과 툴팁으로 명시한다.
+                 (name/id 는 그대로 → 검색 로직·서버 파라미터 변경 없음. Enter 키 조회도 그대로 동작) --%>
+            <span class="bf-lb">통합검색</span>
+            <%-- placeholder 구분자를 ' / ' → '·' 로 축약. 원본은 입력칸이 640px(w640) 였어서 6개 항목을
+                 다 적을 수 있었지만 이 컴팩트 레이아웃은 약 220px 이라 축약이 필요하다.
+                 검색 대상 6개 항목 전체는 title 툴팁에 남겨 둔다. --%>
+            <input type="text" name="search_text" id="search_text" class="bf-text" placeholder="접수번호·거래처·담당자·내용 (선택)" title="통합 검색 키워드 (선택 입력) - 접수번호 / 거래처명 / 거래처코드 / 처리담당자명 / 요청내용 / 조치 및 처리의견 에서 찾습니다. 비워두면 나머지 조건으로만 조회합니다.">
+            <%-- 조건(왼쪽) ↔ 액션(오른쪽) 경계 구분선. [조회] 가 입력칸에 붙어 "검색어 전용 버튼"으로
+                 읽히지 않게 띄워 준다. ([초기화] 는 1행으로 올려 이 줄의 폭을 통합검색 입력칸에 몰아줬다) --%>
+            <span class="bf-act">
+              <span class="bf-div"></span>
+              <button type="button" class="btn-s primary bf-go" onclick="getAsList(1);" title="위에 설정한 모든 조건(처리구분·접수일·처리상태·통합검색·고급조건)으로 목록을 조회합니다">조회</button>
+            </span>
+            <%-- [AX Lab] 수정 끝 --%>
           </div>
 
           <%-- [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스를 화면에서 제거.

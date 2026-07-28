@@ -142,14 +142,45 @@
 #asWorkspace .bf-line > select{width:auto; flex:0 0 auto; height:28px; padding:0 19px 0 7px; font-size:11.5px; line-height:26px; border:1px solid var(--line); border-radius:6px; color:var(--ink); outline:none;}
 #asWorkspace .bf-line > input[type=text]{width:auto; height:28px; padding:0 7px; font-size:11.5px; line-height:26px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--ink); outline:none; min-width:0;}
 #asWorkspace .bf-line > select:focus, #asWorkspace .bf-line > input[type=text]:focus{border-color:var(--accent);}
-#asWorkspace .bf-line .bf-sel-narrow{flex:0 0 88px;}
-#asWorkspace .bf-line .bf-date{flex:0 1 92px; min-width:70px; text-align:center;}
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 1행에 [초기화] 를 넣을 자리(72px)를 만들기 위한 축소.
+   1행 컨트롤은 전부 flex-shrink:0 이라 폭 여유가 65px 뿐이었다. 아래 값은 "글자가 잘리지 않는 최소폭"이다.
+   - .bf-sel-narrow 88→78px : '나의 A/S' 텍스트 44px + select 좌우패딩/화살표 26px = 70px 필요
+   - .bf-date       92→84px : '2026/07/21' 텍스트 63px + 좌우패딩 14px = 77px 필요
+   (min-width:70px 는 유지 → 더 좁은 해상도에서는 날짜칸이 먼저 줄어들며 줄바꿈을 늦춘다) */
+#asWorkspace .bf-line .bf-sel-narrow{flex:0 0 78px;}
+#asWorkspace .bf-line .bf-date{flex:0 1 84px; min-width:70px; text-align:center;}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .bf-line .dwave{color:var(--ink-3); font-size:11px; flex-shrink:0;}
 /* 체크박스 + 라벨 묶음 (접수일 사용여부) */
 #asWorkspace .bf-chk{display:inline-flex; align-items:center; gap:4px; flex-shrink:0; font-size:11.5px; font-weight:600; color:var(--ink-2); white-space:nowrap; cursor:pointer;}
 /* [AX Lab] 수정 끝 */
-/* [AX Lab] (2026-07-28) 아래 .bf-row / .advf / .daterow / .searchline 은 기본필터가 .bf-line 인라인 구조로
-   교체되면서 list.jsp 에서는 더 이상 사용하지 않는다. 원복 대비 및 타 화면 참조 가능성 때문에 규칙은 남겨둔다. */
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 인라인 필터 항목 라벨 + 항목 구분선.
+   컴팩트 1행 구조에서는 컨트롤들이 같은 배경/테두리로 나란히 붙어 서로 다른 조건인지 구분되지 않았다.
+   - .bf-lb  : 값만 보이는 컨트롤(처리상태 멀티셀렉트) 앞에 붙이는 짧은 항목명
+   - .bf-div : 성격이 다른 조건 묶음(조건 ↔ 키워드) 사이의 세로 구분선 */
+#asWorkspace .bf-line .bf-lb{flex:0 0 auto; font-size:11.5px; font-weight:600; color:var(--ink-2); white-space:nowrap;}
+#asWorkspace .bf-line .bf-div{flex:0 0 auto; width:1px; height:18px; background:var(--line); margin:0 4px;}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 통합검색 입력칸(래퍼 없는 단독 입력) + 조회 버튼.
+   - .bf-text : 남는 폭을 모두 차지하는 키워드 입력칸. 위 `.bf-line > input[type=text]` 규칙이
+                type 선택자를 포함해 특이도가 더 높으므로, 여기서도 input[type=text] 를 함께 적어 확실히 덮는다.
+   - .bf-go   : 조회 버튼. 필터 블록의 주 동작이므로 primary(accent) 로 눈에 띄게 한다.
+   - .bf-reset: 초기화 버튼. 1행의 고급 토글(28px)과 높이를 맞춘다(.btn-s 기본 26px → 28px).
+   - .bf-act  : 구분선+버튼 묶음. flex-wrap:nowrap 이라 폭이 부족해 줄바꿈이 나더라도 묶음이 통째로 내려간다.
+                (버튼 하나만 다음 줄로 떨어지는 현상 방지 - 해상도 100% 에서 실제 발생했던 문제)
+                안쪽 구분선 여백은 4→2px 로 줄여 1행 폭을 4px 더 확보한다.
+   ※ .bf-text 의 min-width 를 60px 까지 낮게 잡은 것은 의도된 것이다. 폭이 부족할 때 "키워드 입력칸이 먼저
+     줄어들어" 흡수하게 만들어야 하고, 그렇지 않으면 줄바꿈이 일어난다. */
+#asWorkspace .bf-line > input[type=text].bf-text{flex:1 1 auto; min-width:60px;}
+#asWorkspace .bf-line .bf-act{display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; flex-wrap:nowrap;}
+#asWorkspace .bf-line .bf-act .bf-div{margin:0 2px;}
+#asWorkspace .bf-line .bf-go{flex:0 0 auto; height:28px; padding:0 12px;}
+#asWorkspace .bf-line .bf-reset{flex:0 0 auto; height:28px;}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] (2026-07-28) 아래 .bf-row / .advf / .daterow / .searchline / .sl-input 은 기본필터가 .bf-line 인라인
+   구조로 교체되면서 list.jsp 에서는 더 이상 사용하지 않는다. 원복 대비 및 타 화면 참조 가능성 때문에 규칙은 남겨둔다.
+   ※ .sl-input 은 "입력창 안에 [검색] 버튼을 넣는" 래퍼였는데, 그 때문에 검색어를 반드시 입력해야 하는 것처럼
+     보여 통합검색 입력칸(.bf-text)과 조회 버튼(.bf-go)으로 분리했다. (2026-07-28) */
 #asWorkspace .bf-row{display:flex; gap:7px; align-items:flex-end; margin-bottom:8px;}
 #asWorkspace .advf{flex:1; min-width:0;}
 #asWorkspace .advf label{display:block; font-size:10.5px; color:var(--ink-3); font-weight:600; margin-bottom:3px;}
@@ -300,8 +331,13 @@
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 처리상태(SumoSelect)를 컴팩트 인라인 1행(.bf-line)에 맞게 축소.
    위 .basefilter .SumoSelect(width:100%) 와 동일 특이도이므로 반드시 뒤에 위치해야 한다.
    [AX Lab] 수정 (2026-07-28): 128→152px. 기본 체크가 "접수, 처리중" 2개가 되어 캡션이 길어졌으므로
-   잘리지 않게 폭을 확보한다. (통합검색 입력줄이 flex:1 이라 남는 폭은 자동 조정됨) */
-#asWorkspace .bf-line .SumoSelect{flex:0 0 152px; width:152px; min-width:0;}
+   잘리지 않게 폭을 확보한다. (통합검색 입력줄이 flex:1 이라 남는 폭은 자동 조정됨)
+   [AX Lab] 수정 (2026-07-28): flex:0 0 → 0 1 (축소 허용) + min-width 확보.
+   2행에 조회 버튼까지 얹히면서 152px 고정은 폭 부족 시 줄바꿈(맨 끝 버튼이 다음 줄로 떨어짐)을 유발했다.
+   기본 캡션 "접수, 처리중" 이 들어가는 최소폭(112px)까지는 줄어들 수 있게 해 폭 압박을 흡수한다.
+   [AX Lab] 수정 (2026-07-28): 152→136px. 통합검색 입력칸이 좁다는 요청에 따라, 캡션이 잘리지 않는 범위에서
+   남는 폭(16px)을 입력칸으로 넘긴다. 캡션 실측 소요폭은 104px(글자 66 + 화살표 22 + 좌우패딩 16). */
+#asWorkspace .bf-line .SumoSelect{flex:0 1 136px; width:136px; min-width:112px;}
 #asWorkspace .bf-line .SumoSelect > .CaptionCont{display:flex; align-items:center; height:28px; min-height:28px; padding:0 8px; border-radius:6px; font-size:11.5px;}
 #asWorkspace .bf-line .SumoSelect > .CaptionCont > span{padding-right:22px; font-size:11.5px;}
 #asWorkspace .bf-line .SumoSelect.open > .optWrapper{top:30px;}
