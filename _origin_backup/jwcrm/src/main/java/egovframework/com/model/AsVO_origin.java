@@ -1,3 +1,4 @@
+// [AX Lab] 원본 경로: jwcrm/src/main/java/egovframework/com/model/AsVO.java (백업 2026-07-24)
 package egovframework.com.model;
 
 import java.io.Serializable;
@@ -207,66 +208,6 @@ public class AsVO extends PagingVO implements Serializable {
 	private String sender_email ="";
 	private String retire_yn ="";	
 	
-	// [AX Lab] 수정 시작 (2026-07-24 AX Lab): AS 통합검색 - 처리구분(나의/전체 A/S) + 고급 동적 검색조건(AND 중복)
-	/** 처리구분: "2"=나의 A/S(담당자=로그인계정), ""=전체 A/S */
-	private String asGubunFlag = "";
-	/** 나의 A/S 필터용 로그인 사용자 사번(=CRM_AS_MGT.ASSIGN_ID) */
-	private String user_id = "";
-	/** 고급 동적필터 검색구분 키 배열 (예: AS_NO, EMP_NM, CAUSE_TYPE, PROC_DT ...) */
-	private String[] adv_field;
-	/** 고급 동적필터 값 배열 (키워드/선택코드/날짜 시작일). adv_field 와 인덱스 정렬 */
-	private String[] adv_value;
-	/** 고급 동적필터 보조값 배열 (날짜형의 종료일). adv_field 와 인덱스 정렬 */
-	private String[] adv_value2;
-	/** 컨트롤러에서 adv_field/adv_value/adv_value2 를 조립한 쿼리용 조건 목록 (field/value/value2) */
-	private List<Map<String, String>> advFilterList;
-	/** 화면 재구성용 고급필터 JSON (리로드 시 동적행 복원) */
-	private String advFiltersJson = "[]";
-
-	public String getAsGubunFlag() {
-		return asGubunFlag;
-	}
-	public void setAsGubunFlag(String asGubunFlag) {
-		this.asGubunFlag = asGubunFlag;
-	}
-	public String getUser_id() {
-		return user_id;
-	}
-	public void setUser_id(String user_id) {
-		this.user_id = user_id;
-	}
-	public String[] getAdv_field() {
-		return adv_field;
-	}
-	public void setAdv_field(String[] adv_field) {
-		this.adv_field = adv_field;
-	}
-	public String[] getAdv_value() {
-		return adv_value;
-	}
-	public void setAdv_value(String[] adv_value) {
-		this.adv_value = adv_value;
-	}
-	public String[] getAdv_value2() {
-		return adv_value2;
-	}
-	public void setAdv_value2(String[] adv_value2) {
-		this.adv_value2 = adv_value2;
-	}
-	public List<Map<String, String>> getAdvFilterList() {
-		return advFilterList;
-	}
-	public void setAdvFilterList(List<Map<String, String>> advFilterList) {
-		this.advFilterList = advFilterList;
-	}
-	public String getAdvFiltersJson() {
-		return advFiltersJson;
-	}
-	public void setAdvFiltersJson(String advFiltersJson) {
-		this.advFiltersJson = advFiltersJson;
-	}
-	// [AX Lab] 수정 끝
-
 	
 	public String getOnce_flag() {
 		return once_flag;

@@ -1,3 +1,4 @@
+// [AX Lab] 원본 경로: jwcrm/src/main/java/egovframework/com/controller/AdAsController.java (백업 2026-07-24)
 package egovframework.com.controller;
 
 import java.io.OutputStream;
@@ -89,53 +90,8 @@ public class AdAsController {
 //			}
 //		}
 		
-		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 검색 후 리로드 시 고급 동적필터를 화면에서 복원할 수 있도록 JSON 으로 내려준다.
-		vo.setAdvFiltersJson(buildAdvFiltersJson(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
-		// [AX Lab] 수정 끝
-		
 		return "ad/as/list";
 	}
-	
-	// [AX Lab] 수정 시작 (2026-07-24 AX Lab): AS 통합검색 고급 동적필터 공통 유틸
-	/**
-	 * 고급 동적필터의 병렬 배열(adv_field/adv_value/adv_value2)을 쿼리용 조건 목록으로 조립한다.
-	 * - 값이 없는(빈) 행은 제외한다.
-	 * - 날짜형(PROC_DT/COMPLETE_DT)은 시작/종료 둘 다 비어있으면 제외하고, '/' 는 제거하여 YYYYMMDD 로 맞춘다.
-	 */
-	private List<Map<String, String>> buildAdvFilterList(String[] fields, String[] values, String[] values2) {
-		List<Map<String, String>> list = new ArrayList<Map<String, String>>();
-		if (fields == null) return list;
-		for (int i = 0; i < fields.length; i++) {
-			String f = SsStringUtil.normalizeNull(fields[i]);
-			String v  = (values  != null && i < values.length)  ? SsStringUtil.normalizeNull(values[i])  : "";
-			String v2 = (values2 != null && i < values2.length) ? SsStringUtil.normalizeNull(values2[i]) : "";
-			if ("".equals(f)) continue;
-			boolean isDate = "PROC_DT".equals(f) || "COMPLETE_DT".equals(f);
-			if (isDate) {
-				if ("".equals(v) && "".equals(v2)) continue;
-				v  = v.replaceAll("/", "");
-				v2 = v2.replaceAll("/", "");
-			} else {
-				if ("".equals(v)) continue;
-			}
-			Map<String, String> m = new HashMap<String, String>();
-			m.put("field", f);
-			m.put("value", v);
-			m.put("value2", v2);
-			list.add(m);
-		}
-		return list;
-	}
-
-	/** 고급 동적필터 배열을 화면 복원용 JSON 문자열로 변환한다. (실패 시 빈 배열) */
-	private String buildAdvFiltersJson(String[] fields, String[] values, String[] values2) {
-		try {
-			return new ObjectMapper().writeValueAsString(buildAdvFilterList(fields, values, values2));
-		} catch (Exception e) {
-			return "[]";
-		}
-	}
-	// [AX Lab] 수정 끝
 	
 	/**
 	 * 처리담당자 관리 목록
@@ -206,18 +162,6 @@ public class AdAsController {
 		
 		String[] procSelectArray =  vo.getProcSelect().split(",");
 		vo.setProcSelectArray(procSelectArray);
-		
-		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 처리구분(나의 A/S) + 고급 동적필터(AND 중복) 조건 조립
-		// 나의 A/S(asGubunFlag="2")이면 로그인 사용자 사번을 담당자(ASSIGN_ID) 필터로 사용
-		if ("2".equals(SsStringUtil.normalizeNull(vo.getAsGubunFlag())) && adUserInfo != null) {
-			vo.setUser_id(SsStringUtil.normalizeNull(adUserInfo.getEmp_no()));
-		} else {
-			vo.setUser_id("");
-		}
-		// 고급 동적 검색조건(검색구분 select/keyword/date)을 쿼리용 목록으로 변환
-		vo.setAdvFilterList(buildAdvFilterList(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
-		// [AX Lab] 수정 끝
-		
 		int totalCount = asService.getTotalCnt(vo,"asDAO.getAsListCnt") ;
 		
 		if(totalCount > 0){
@@ -234,22 +178,8 @@ public class AdAsController {
 			returnMap.put("resultList", resultList) ;
 			returnMap.put("vo",vo);
 		}
-		
-		// [AX Lab] 수정 시작 (2026-07-28 AX Lab): 상단 KPI 6종을 목록 응답에 동봉.
-		// (신규 전용 URL은 MenuAuthFilter 권한목록 미등록으로 403 차단되므로, 권한 있는 getAsList.do 응답에 태운다)
-		// KPI는 항상 "나에게 배정된 건" 기준이므로 목록 검색필터와 무관하게 reg_id(=로그인 사번)를 세팅 후 조회.
-		if (adUserInfo != null) {
-			vo.setReg_id(SsStringUtil.normalizeNull(adUserInfo.getEmp_no())) ;
-		}
-		returnMap.put("kpi", commonDAO.selectOne(vo, "asDAO.getAswsKpi")) ;
-		// [AX Lab] 수정 끝
-		
 		CommonExecute.returnJson(response, returnMap);
 	}
-	
-	// [AX Lab] 삭제 (2026-07-28 AX Lab): 전용 엔드포인트 /ad/as/getAswsKpi.do 는 MenuAuthFilter 권한목록(CRM_ROLE_PROG)
-	//           미등록으로 항상 403 차단됨. KPI는 권한 있는 getAsList.do 응답에 동봉하는 방식으로 대체하여 이 메서드는 제거함.
-	//           (KPI 집계 쿼리 asDAO.getAswsKpi 는 getAsList 에서 재사용하므로 유지)
 	
 	/**
 	 * 고객사 정보 조회
@@ -562,15 +492,6 @@ public class AdAsController {
 		
 		String[] procSelectArray =  vo.getProcSelect().split(",");
 		vo.setProcSelectArray(procSelectArray);
-	
-		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 엑셀도 목록과 동일하게 처리구분(나의 A/S)+고급 동적필터 적용
-		if ("2".equals(SsStringUtil.normalizeNull(vo.getAsGubunFlag())) && userInfo != null) {
-			vo.setUser_id(SsStringUtil.normalizeNull(userInfo.getEmp_no()));
-		} else {
-			vo.setUser_id("");
-		}
-		vo.setAdvFilterList(buildAdvFilterList(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
-		// [AX Lab] 수정 끝
 	
 		List<AsVO> resultList = asService.getList(vo, "asDAO.getAsList");
 		

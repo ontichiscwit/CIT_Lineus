@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- [AX Lab] 원본 경로: jwcrm/src/main/resources/query/egov-as-query.xml (백업 2026-07-24) -->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="asDAO">
@@ -249,71 +250,6 @@
 			UPPER(IN_TB.ACTION_CONTENT) LIKE '%'|| UPPER(#{search_text}) ||'%'
 			)
 		</if>
-		<!-- [AX Lab] 수정 시작 (2026-07-24 AX Lab): 처리구분(나의 A/S) - 로그인 사용자 담당건만 -->
-		<if
-			test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(user_id) != ''">
-			AND IN_TB.ASSIGN_ID = #{user_id}
-		</if>
-		<!-- [AX Lab] 고급 동적 검색조건(검색구분 select/keyword/date). 같은 항목 2개 이상은 AND 로 누적. 컬럼명은 화이트리스트(choose)로 고정하여 안전. -->
-		<if test="advFilterList != null">
-			<foreach collection="advFilterList" item="af">
-				<choose>
-					<when test="af.field == 'AS_NO'">
-						AND UPPER(IN_TB.AS_NO) LIKE '%'|| UPPER(#{af.value}) ||'%'
-					</when>
-					<when test="af.field == 'CUST_KOR_NAME'">
-						AND UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{af.value}) ||'%'
-					</when>
-					<when test="af.field == 'CUST_CODE'">
-						AND UPPER(IN_TB.CUST_CODE) LIKE '%'|| UPPER(#{af.value}) ||'%'
-					</when>
-					<when test="af.field == 'EMP_NM'">
-						AND UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{af.value}) ||'%'
-					</when>
-					<when test="af.field == 'DEPT'">
-						AND (
-							 UPPER(IN_TB.DEPT_CD) LIKE '%'|| UPPER(#{af.value}) ||'%' OR
-							 UPPER(IN_TB.DEPT_NM) LIKE '%'|| UPPER(#{af.value}) ||'%'
-							)
-					</when>
-					<when test="af.field == 'REQUEST_TYPE'">
-						AND IN_TB.REQUEST_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'SERVICE_CATE'">
-						AND IN_TB.SERVICE_CATE = #{af.value}
-					</when>
-					<when test="af.field == 'INQUIRY_TYPE'">
-						AND IN_TB.INQUIRY_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'CAUSE_TYPE'">
-						AND IN_TB.CAUSE_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'ACTION_TYPE'">
-						AND IN_TB.ACTION_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'INPORTANCE'">
-						AND IN_TB.INPORTANCE = #{af.value}
-					</when>
-					<when test="af.field == 'PART_TYPE'">
-						AND IN_TB.PART_TYPE = #{af.value}
-					</when>
-					<when test="af.field == 'ACCEPT_ROUTE'">
-						AND IN_TB.ACCEPT_ROUTE = #{af.value}
-					</when>
-					<when test="af.field == 'PROC_DT'">
-						<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(af.value) != '' and @egovframework.com.comm.util.SsStringUtil@normalizeNull(af.value2) != ''">
-							AND IN_TB.PROC_DT BETWEEN #{af.value} AND #{af.value2}
-						</if>
-					</when>
-					<when test="af.field == 'COMPLETE_DT'">
-						<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(af.value) != '' and @egovframework.com.comm.util.SsStringUtil@normalizeNull(af.value2) != ''">
-							AND IN_TB.COMPLETE_DT BETWEEN #{af.value} AND #{af.value2}
-						</if>
-					</when>
-				</choose>
-			</foreach>
-		</if>
-		<!-- [AX Lab] 수정 끝 -->
 	</sql>
 
 	<select id="getAsListCnt" parameterType="asVO" resultType="java.lang.Integer">
@@ -3014,37 +2950,5 @@ SELECT OUT_TB3.EMP_NO,
 		WHERE ROWNUM = 1
 	]]>
 	</select>
-
-	<!-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): AS 통합화면(list.do) 상단 KPI 6종 집계 (나에게 배정된 건 기준) -->
-	<!--
-		KPI1: 오늘 나에게 배정된 접수 건수 (접수일=오늘)
-		KPI2: 현재 나에게 배정된 미처리 건수 (완료 C005/철회 C006 제외한 모든 미완료 건)
-		KPI3: 현재 나에게 배정된 긴급(중요도 S) 미완료 건수
-		KPI4: 처리예정일이 오늘인 미완료 건수
-		KPI5: 처리예정일이 지난 미완료 건수
-		KPI6: 오늘 처리완료한 건수 (PROC_STATUS=C005, 완료일=오늘)
-		※ 미완료 = PROC_STATUS NOT IN ('C005','C006')  (완료/철회 제외)
-	-->
-	<select id="getAswsKpi" parameterType="asVO" resultType="map">
-	<![CDATA[
-	/*[egov-as-query.xml] asDAO.getAswsKpi*/
-		SELECT
-		    SUM(CASE WHEN ACCEPT_DT = TO_CHAR(SYSDATE,'YYYYMMDD') THEN 1 ELSE 0 END) AS KPI1,
-		    SUM(CASE WHEN PROC_STATUS NOT IN ('C005','C006') THEN 1 ELSE 0 END) AS KPI2,
-		    SUM(CASE WHEN INPORTANCE = 'S'
-		              AND PROC_STATUS NOT IN ('C005','C006') THEN 1 ELSE 0 END) AS KPI3,
-		    SUM(CASE WHEN PROC_DT = TO_CHAR(SYSDATE,'YYYYMMDD')
-		              AND PROC_STATUS NOT IN ('C005','C006') THEN 1 ELSE 0 END) AS KPI4,
-		    SUM(CASE WHEN PROC_DT IS NOT NULL
-		              AND PROC_DT < TO_CHAR(SYSDATE,'YYYYMMDD')
-		              AND PROC_STATUS NOT IN ('C005','C006') THEN 1 ELSE 0 END) AS KPI5,
-		    SUM(CASE WHEN PROC_STATUS = 'C005'
-		              AND COMPLETE_DT = TO_CHAR(SYSDATE,'YYYYMMDD') THEN 1 ELSE 0 END) AS KPI6
-		FROM CRM_AS_MGT
-		WHERE (DEL_YN IS NULL OR DEL_YN = 'N')
-		  AND ASSIGN_ID = #{reg_id, jdbcType=VARCHAR}
-	]]>
-	</select>
-	<!-- [AX Lab] 수정 끝 -->
 
 </mapper>

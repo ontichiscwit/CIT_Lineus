@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- [AX Lab] 원본 경로: jwcrm/pom.xml (백업 2026-07-24) : 로컬 실행용 tomcat7 plugin 옵션 추가 전 백업 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
@@ -16,9 +17,6 @@
 		<ext.lib.path>${project.basedir}/src/main/webapp/WEB-INF/lib</ext.lib.path>
 		<java.version>1.8</java.version>
 		<tika.version>1.7</tika.version>
-		<!-- [AX Lab] 수정 시작 (2026-07-24): Oracle 드라이버 파일명을 프로퍼티로 분리. PC 마다 WEB-INF/lib 에 ojdbc7.jar 또는 ojdbc8.jar 중 하나만 있어도 되도록 함. 기본값 ojdbc8.jar. ojdbc7 만 있는 PC 는 -Dojdbc.jar=ojdbc7.jar 로 오버라이드(=setup-local.ps1 이 자동 감지해 전달). -->
-		<ojdbc.jar>ojdbc8.jar</ojdbc.jar>
-		<!-- [AX Lab] 수정 끝 -->
 	</properties>
 
 	<repositories>
@@ -223,19 +221,17 @@
             </exclusions>
         </dependency>
 	
-	<!-- [AX Lab] 수정 시작 (2026-07-24): log4j-api/core 2.5 -> 2.12.4. 전이 의존성 log4j-slf4j-impl:2.12.4 와 버전 정렬(StackLocatorUtil NoClassDefFoundError 해결). eGov 공식 배포본과 동일 버전. -->
 	<dependency>
 		<groupId>org.apache.logging.log4j</groupId>
 		<artifactId>log4j-api</artifactId>
-		<version>2.12.4</version>
+		<version>2.5</version>
 	</dependency>
 	
 	<dependency>
 		<groupId>org.apache.logging.log4j</groupId>
 		<artifactId>log4j-core</artifactId>
-		<version>2.12.4</version>
+		<version>2.5</version>
 	</dependency>
-	<!-- [AX Lab] 수정 끝 -->
 	
 	<dependency>
             <groupId>org.jasypt</groupId>
@@ -414,32 +410,13 @@
 <!--             <version>10.2.0.4.0</version> -->
 <!--         </dependency> -->
 
-	<!-- [AX Lab] 수정 시작 (2026-07-24): systemPath 를 고정 파일명(ojdbc7.jar)에서 프로퍼티 ${ojdbc.jar} 로 변경. PC 에 ojdbc7.jar/ojdbc8.jar 중 하나만 있어도 빌드되도록 함(기본 ojdbc8.jar). -->
 	<dependency>
             <groupId>oracle.jdbc</groupId>
             <artifactId>OracleDriver</artifactId>
             <version>12.1.0.2.0</version>
             <scope>system</scope>
-            <systemPath>${ext.lib.path}/${ojdbc.jar}</systemPath>
+            <systemPath>${ext.lib.path}/ojdbc7.jar</systemPath>
         </dependency>
-	<!-- [AX Lab] 수정 끝 -->
-
-	<!-- [AX Lab] 수정 시작 (2026-07-24): Oracle NLS 확장 문자집합 지원 jar(orai18n) 추가.
-	     ojdbc 단독으로는 KO16MSWIN949 등 확장 charset 변환 클래스가 없어, 로그인 프로시저
-	     PROC_EMP_LOGIN_INFO 가 한글 결과를 반환할 때 SQLException
-	     "지원되지 않는 문자 집합(클래스 경로에 orai18n.jar 추가): KO16MSWIN949" 가 발생함.
-	     ojdbc8.jar(19.23.0.0.0)과 동일 릴리스의 orai18n.jar 을 WEB-INF/lib 에 배치해 클래스패스에 포함시킨다.
-	     - orai18n.jar 도 *.jar 이므로 .gitignore 대상 → git 전파 안 됨. 각 PC 에 수동 배치하거나
-	       setup-local.ps1 이 ojdbc 버전에 맞춰 Maven Central 에서 자동 다운로드한다.
-	     - systemPath 는 ojdbc 와 동일하게 WEB-INF/lib 를 가리키며, 파일명은 orai18n.jar 로 고정. -->
-	<dependency>
-            <groupId>com.oracle.database.nls</groupId>
-            <artifactId>orai18n</artifactId>
-            <version>19.23.0.0</version>
-            <scope>system</scope>
-            <systemPath>${ext.lib.path}/orai18n.jar</systemPath>
-        </dependency>
-	<!-- [AX Lab] 수정 끝 -->
 	
 	
 	<dependency>
@@ -588,10 +565,7 @@
 	                <artifactId>tomcat7-maven-plugin</artifactId>
 	                <version>2.2</version>
 	                <configuration>
-	                    <!-- [AX Lab] 수정 시작 (2026-07-24): 로컬 실행(mvn tomcat7:run)용. 원본 port=80 -> 8080, 로컬 JNDI 데이터소스 컨텍스트 파일 연결. 운영 배포(WAR)와 무관. -->
-	                    <port>8080</port>
-	                    <contextFile>${project.basedir}/local-run/tomcat-context.xml</contextFile>
-	                    <!-- [AX Lab] 수정 끝 -->
+	                    <port>80</port>
 	                    <path>/</path>
 	                    <systemProperties>
 	                        <JAVA_OPTS>-Xms256m -Xmx768m -XX:MaxPermSize=256m</JAVA_OPTS>
