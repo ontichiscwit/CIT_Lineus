@@ -609,3 +609,204 @@ function asws_advRestoreOpen(isFirstEntry){
 	if(open !== b.classList.contains('open')) asws_advToggle();
 }
 /* [AX Lab] 수정 끝 */
+
+/* =====================================================================
+ * [AX Lab] 수정 시작 (2026-07-29 AX Lab): A/S 목록 컬럼 개편 부가기능
+ *   1) 우측 가로스크롤 셀 렌더 헬퍼 (asws_cell / asws_cell_txt)
+ *   2) 헤더 클릭 정렬 (asws_sortBind / asws_sortClick / asws_sortSync / asws_sortInit)
+ *   3) 목록 넓게 보기 (asws_toggleListWide / asws_restoreListWide)
+ *   4) 문의내용 호버 전문 툴팁 (asws_tipBind / asws_tipShow / asws_tipHide)
+ * ===================================================================== */
+
+/* ---- 1) 우측 컬럼 셀 ------------------------------------------------
+   값이 비면 '-' 로 보여 빈칸과 구분하고, 잘린 값은 title 로 전체를 확인할 수 있게 한다.
+   말줄임 처리를 위해 내부 div(.ct)로 한 번 감싼다. td 에는 overflow 말줄임이 잘 먹지 않는다. */
+function asws_cell(v){
+	return '<td class="ctxt">'+asws_cell_txt(v)+'</td>';
+}
+function asws_cell_txt(v){
+	v = asws_nvl(v, '');
+	var t = (v === '' || v === null) ? '-' : v;
+	return '<div class="ct" title="'+asws_esc(v)+'">'+asws_esc(t)+'</div>';
+}
+
+/* ---- 2) 헤더 클릭 정렬 ----------------------------------------------
+   동작: 미정렬 -> 오름(ASC) -> 내림(DESC) -> 오름 ... 순환. (해제 상태는 두지 않는다.
+         "정렬을 풀고 싶다"는 요구보다 "반대로 보고 싶다"는 요구가 압도적으로 많기 때문)
+   조회 방식: 페이지 리로드(폼 submit)가 아니라 makeListData() 의 ajax 로 다시 그린다.
+             리로드하면 고급필터 펼침/선택행/스크롤 위치가 모두 초기화되어 체감이 나쁘다.
+   ※ 정렬을 바꾸면 페이지 구성이 통째로 달라지므로 반드시 1페이지로 되돌린다.
+   ※ 서버는 sort_col 을 화이트리스트(AdAsController.AS_SORT_COLS)로 검증하므로, 여기서 보내는 키는
+     반드시 그 목록에 있어야 한다. 없으면 조용히 기본정렬(AS_NO DESC)로 처리된다. */
+function asws_sortBind(){
+	var thead = document.querySelector('#asWorkspace table.aslist thead');
+	if(!thead || thead.getAttribute('data-sortbound') === 'Y') return;
+	thead.setAttribute('data-sortbound', 'Y');
+	thead.addEventListener('click', function(e){
+		var th = e.target.closest ? e.target.closest('th.srt') : null;
+		if(!th || !thead.contains(th)) return;
+		asws_sortClick(th.getAttribute('data-sort'));
+	});
+}
+
+function asws_sortClick(key){
+	key = asws_nvl(key, '');
+	if(key === '') return;
+
+	var colEl = document.getElementById('sort_col');
+	var dirEl = document.getElementById('sort_dir');
+	if(!colEl || !dirEl) return;
+
+	// 같은 컬럼을 다시 누르면 방향만 뒤집고, 다른 컬럼이면 오름차순부터 시작한다.
+	var dir = (colEl.value === key && dirEl.value === 'ASC') ? 'DESC' : 'ASC';
+	colEl.value = key;
+	dirEl.value = dir;
+
+	var pageEl = document.getElementById('page');
+	if(pageEl) pageEl.value = '1';
+
+	/* 처리상태 멀티셀렉트는 화면 위젯(SumoSelect)의 선택값이 hidden(#procSelect)에 반영돼 있어야 필터가 유지된다.
+	   검색/페이징(list.jsp getAsList)이 하는 것과 동일한 동기화를 정렬에서도 해 준다.
+	   ※ 위젯 초기화 전에 호출될 수 있으므로 방어적으로 감싼다. 이 경우 hidden 의 기존 값이 그대로 쓰인다. */
+	try{
+		if(typeof procSelect !== 'undefined' && procSelect && procSelect.sumo){
+			var pe = document.getElementById('procSelect');
+			if(pe) pe.value = procSelect.sumo.getSelStr();
+		}
+	}catch(e){}
+
+	asws_sortSync();
+	if(typeof makeListData === 'function') makeListData();
+}
+
+/* 현재 정렬 상태를 헤더 화살표에 반영 */
+function asws_sortSync(){
+	var colEl = document.getElementById('sort_col');
+	var dirEl = document.getElementById('sort_dir');
+	var col = colEl ? asws_nvl(colEl.value, '') : '';
+	var dir = dirEl ? asws_nvl(dirEl.value, '') : '';
+
+	var ths = document.querySelectorAll('#asWorkspace table.aslist thead th.srt');
+	for(var i=0; i<ths.length; i++){
+		var th = ths[i];
+		th.classList.remove('srt-asc', 'srt-desc');
+		if(col !== '' && th.getAttribute('data-sort') === col){
+			th.classList.add(dir === 'ASC' ? 'srt-asc' : 'srt-desc');
+		}
+	}
+}
+
+/* 화면 진입/검색 리로드 직후 1회 호출 (list.jsp initForm) */
+function asws_sortInit(){
+	asws_sortBind();
+	asws_sortSync();
+}
+
+/* ---- 3) 목록 넓게 보기 ----------------------------------------------
+   COL2/COL3 을 숨겨 목록을 화면 전체폭으로 쓴다. 우측 34컬럼을 훑을 때 사용한다.
+   검색/페이징은 폼 submit 으로 화면을 다시 그리므로 sessionStorage 로 상태를 넘긴다.
+   (고급필터 펼침상태와 동일한 방식 - ASWS_ADV_OPEN_KEY 참고) */
+var ASWS_LIST_WIDE_KEY = 'asws_list_wide';
+
+function asws_toggleListWide(){
+	var g = document.getElementById('asGrid');
+	if(!g) return;
+	var wide = g.classList.toggle('list-wide');
+
+	/* 목록이 접힌 상태에서 넓게 보기를 켜면 "전체폭인데 내용이 안 보이는" 상태가 되므로 함께 펼친다. */
+	if(wide){
+		var c1 = document.getElementById('col-c1');
+		if(c1 && c1.classList.contains('is-collapsed')) asws_toggleCol('c1');
+	}
+
+	asws_syncListWideBtn(wide);
+	try{ sessionStorage.setItem(ASWS_LIST_WIDE_KEY, wide ? 'Y' : 'N'); }catch(e){}
+}
+
+function asws_syncListWideBtn(wide){
+	var b = document.getElementById('listWideBtn');
+	if(!b) return;
+	b.classList.toggle('on', wide);
+	b.innerHTML = wide ? '\u2194 원래대로' : '\u2194 넓게 보기';
+	b.title = wide ? '3분할 화면(문의 상세 · 접수/처리 정보)으로 돌아갑니다' : '목록을 화면 전체폭으로 넓혀 우측 컬럼을 봅니다';
+}
+
+/* isFirstEntry : 메뉴로 새로 들어온 첫 진입이면 기본 3분할로 시작한다.
+   (첫 화면부터 상세 패널이 사라져 있으면 "상세가 왜 안 보이지" 하는 혼란이 생긴다) */
+function asws_restoreListWide(isFirstEntry){
+	var saved = null;
+	if(isFirstEntry){
+		try{ sessionStorage.removeItem(ASWS_LIST_WIDE_KEY); }catch(e){}
+	}else{
+		try{ saved = sessionStorage.getItem(ASWS_LIST_WIDE_KEY); }catch(e){}
+	}
+	var g = document.getElementById('asGrid');
+	if(!g) return;
+	var wide = (saved === 'Y');
+	g.classList.toggle('list-wide', wide);
+	asws_syncListWideBtn(wide);
+}
+
+/* ---- 4) 문의내용 호버 툴팁 ------------------------------------------
+   목록의 문의내용 칸은 제목 1줄 + 본문 1줄로 잘리므로, 마우스를 올리면 요청내용 전문과 조치내용을
+   합쳐 보여준다. 원문은 행 렌더 시 td[data-full] 에 실려 있다(list.jsp setAsList).
+   툴팁 요소는 body 직속에 만든다. 목록을 감싼 .tscroll 이 overflow:auto 라 그 안에 넣으면 잘린다. */
+var asws_tipEl = null;
+
+function asws_tipBind(){
+	var tb = document.getElementById('asList');
+	if(!tb || tb.getAttribute('data-tipbound') === 'Y') return;
+	tb.setAttribute('data-tipbound', 'Y');
+
+	/* mouseover/mouseout 은 버블링되므로 ajax 로 행을 다시 그려도 재바인딩이 필요 없다. */
+	tb.addEventListener('mouseover', function(e){
+		var td = e.target.closest ? e.target.closest('td[data-full]') : null;
+		if(!td || !tb.contains(td)) return;
+		if(asws_tipEl && asws_tipEl.__owner === td) return;	/* 같은 셀 안에서의 이동은 무시 */
+		asws_tipShow(td);
+	});
+	tb.addEventListener('mouseout', function(e){
+		var td = e.target.closest ? e.target.closest('td[data-full]') : null;
+		if(!td) return;
+		/* 셀 내부 자식 요소로 이동한 것뿐이라면 닫지 않는다. */
+		var to = e.relatedTarget;
+		if(to && td.contains(to)) return;
+		asws_tipHide();
+	});
+	/* 스크롤하면 좌표가 어긋나므로 그냥 닫는다. */
+	var sc = document.querySelector('#asWorkspace .tscroll');
+	if(sc) sc.addEventListener('scroll', asws_tipHide);
+	window.addEventListener('scroll', asws_tipHide, true);
+}
+
+function asws_tipShow(td){
+	var txt = asws_nvl(td.getAttribute('data-full'), '').replace(/\s+$/, '');
+	if(txt === '') return;
+
+	asws_tipHide();
+	asws_tipEl = document.createElement('div');
+	asws_tipEl.className = 'asws-tip';
+	asws_tipEl.textContent = txt;
+	asws_tipEl.__owner = td;
+	document.body.appendChild(asws_tipEl);
+
+	/* 셀 오른쪽에 붙이되, 화면 밖으로 나가면 왼쪽/위쪽으로 접어 넣는다. */
+	var r = td.getBoundingClientRect();
+	var w = asws_tipEl.offsetWidth, h = asws_tipEl.offsetHeight;
+	var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+
+	var left = r.right + 10;
+	if(left + w > vw - 8) left = Math.max(8, r.left - w - 10);
+
+	var top = r.top;
+	if(top + h > vh - 8) top = Math.max(8, vh - h - 8);
+
+	asws_tipEl.style.left = left + 'px';
+	asws_tipEl.style.top  = top + 'px';
+}
+
+function asws_tipHide(){
+	if(asws_tipEl && asws_tipEl.parentNode) asws_tipEl.parentNode.removeChild(asws_tipEl);
+	asws_tipEl = null;
+}
+/* [AX Lab] 수정 끝 */

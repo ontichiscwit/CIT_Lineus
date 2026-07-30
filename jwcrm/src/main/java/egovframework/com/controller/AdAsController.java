@@ -66,6 +66,96 @@ public class AdAsController {
 	@Autowired AsService asService ; 
 	@Autowired CommonDao commonDAO ;
 	
+	// [AX Lab] 수정 시작 (2026-07-29 AX Lab): AS 목록 헤더클릭 정렬(오름/내림) 지원.
+	/**
+	 * 정렬 화이트리스트. key = 화면(list.jsp thead 의 data-sort)이 보내는 키, value = 실제 SQL 컬럼명.
+	 *
+	 * 이 값은 egov-as-query.xml 의 getAsList 에서 ${sort_expr} 로 "문자열 치환"되어 SQL 에 직접 박힌다.
+	 * 바인딩(#{})이 아니므로 이 화이트리스트가 SQL Injection 방어의 전부다. 절대 화면 값을 그대로 쓰지 말 것.
+	 *
+	 * [주의 1] 정렬은 ROW_NUMBER() 시점(=in_tb)에 걸리므로 in_tb 에 실재하는 컬럼만 넣을 수 있다.
+	 *          proc_status_nm 같은 _nm 컬럼은 최외곽 스칼라 서브쿼리라 이 시점에 존재하지 않는다.
+	 *          → 원본 코드 컬럼(PROC_STATUS 등)으로 매핑한다. 즉 명칭 가나다순이 아니라 코드순으로 정렬된다.
+	 *          반대로 EMP_NM / DEPT_NM / PART_TYPE 은 in_tb 안에서 이미 계산되므로 실제 이름순으로 정렬된다.
+	 * [주의 2] 요청내용(CALL_CONTENT)/조치내용(ACTION_CONTENT)/최신댓글(W_CONTENT)은 장문 컬럼이라
+	 *          정렬 의미가 없고 CLOB 인 경우 ORDER BY 자체가 불가(ORA-00932)하므로 의도적으로 제외한다.
+	 * [주의 3] 연결AS개수/답변수/첨부여부는 최외곽에서 계산되는 파생값이라 정렬 대상이 아니다.
+	 */
+	private static final Map<String, String> AS_SORT_COLS = new HashMap<String, String>() ;
+	static {
+		AS_SORT_COLS.put("as_no"             , "AS_NO") ;
+		AS_SORT_COLS.put("cn_as_no"          , "CN_AS_NO") ;
+		AS_SORT_COLS.put("accept_dt"         , "ACCEPT_DT") ;
+		AS_SORT_COLS.put("as_accept_dt"      , "ACCEPT_DT") ;
+		AS_SORT_COLS.put("cust_code"         , "CUST_CODE") ;
+		AS_SORT_COLS.put("cust_kor_name"     , "CUST_KOR_NAME") ;
+		AS_SORT_COLS.put("erp_code"          , "ERP_CODE") ;
+		AS_SORT_COLS.put("priority"          , "PRIORITY") ;
+		AS_SORT_COLS.put("deal_code_nm"      , "DEAL_CODE") ;
+		AS_SORT_COLS.put("apply_nm"          , "APPLY_NM") ;
+		AS_SORT_COLS.put("rl_apply_nm"       , "RL_APPLY_NM") ;
+		AS_SORT_COLS.put("chatbot_id"        , "CHATBOT_ID") ;
+		AS_SORT_COLS.put("proc_status_nm"    , "PROC_STATUS") ;
+		AS_SORT_COLS.put("accept_route_nm"   , "ACCEPT_ROUTE") ;
+		AS_SORT_COLS.put("request_type_nm"   , "REQUEST_TYPE") ;
+		AS_SORT_COLS.put("service_cate_nm"   , "SERVICE_CATE") ;
+		AS_SORT_COLS.put("inquiry_type_nm"   , "INQUIRY_TYPE") ;
+		AS_SORT_COLS.put("inportance_nm"     , "INPORTANCE") ;
+		AS_SORT_COLS.put("cause_type_nm"     , "CAUSE_TYPE") ;
+		AS_SORT_COLS.put("action_type_nm"    , "ACTION_TYPE") ;
+		AS_SORT_COLS.put("tel_confirm"       , "TEL_CONFIRM") ;
+		AS_SORT_COLS.put("tel_absence"       , "TEL_ABSENCE") ;
+		AS_SORT_COLS.put("tel_absence_cnt"   , "TEL_ABSENCE_CNT") ;
+		AS_SORT_COLS.put("emp_nm"            , "EMP_NM") ;
+		AS_SORT_COLS.put("dept_nm"           , "DEPT_NM") ;
+		AS_SORT_COLS.put("part_type"         , "PART_TYPE") ;
+		AS_SORT_COLS.put("as_proc_dt"        , "PROC_DT") ;
+		AS_SORT_COLS.put("as_complete_dt"    , "COMPLETE_DT") ;
+		AS_SORT_COLS.put("work_time"         , "WORK_TIME") ;
+		AS_SORT_COLS.put("proc_gubun_nm"     , "PROC_GUBUN") ;
+		AS_SORT_COLS.put("proc_build_info"   , "PROC_BUILD_INFO") ;
+		AS_SORT_COLS.put("proc_test_info"    , "PROC_TEST_INFO") ;
+		AS_SORT_COLS.put("proc_process_sp"   , "PROC_PROCESS_SP") ;
+		AS_SORT_COLS.put("proc_screen_sp"    , "PROC_SCREEN_SP") ;
+		AS_SORT_COLS.put("proc_table_sp"     , "PROC_TABLE_SP") ;
+		AS_SORT_COLS.put("proc_function_sp"  , "PROC_FUNCTION_SP") ;
+		AS_SORT_COLS.put("proc_interface_sp" , "PROC_INTERFACE_SP") ;
+		AS_SORT_COLS.put("star_state_date"   , "STAR_STATE_DATE") ;
+		AS_SORT_COLS.put("star_state"        , "STAR_STATE") ;
+	}
+
+	/**
+	 * 화면이 보낸 정렬조건(sort_col/sort_dir)을 검증해 쿼리용 값(sort_expr/sort_dir_sql/sort_dir_inv)으로 확정한다.
+	 *
+	 * sort_dir_inv 가 sort_dir_sql 의 반대인 이유: PagingVO.setPaging() 이
+	 * startRow = rowCnt - page*pageSize + 1 로 "뒤에서부터" 페이지 창을 잡기 때문에 1페이지가 RNUM 최대 구간이다.
+	 * 따라서 ROW_NUMBER 채번은 최종 출력순서의 역방향이어야 1페이지에 원하는 행이 나온다.
+	 * (자세한 내용은 egov-as-query.xml getAsList 의 ROW_NUMBER 주석 참고)
+	 *
+	 * 화이트리스트에 없는 키가 오면 정렬 미지정으로 간주해 AS_NO DESC 기본값으로 되돌린다(=개편 전과 동일한 동작).
+	 */
+	private void applyAsSort(AsVO vo) {
+		String sortKey = SsStringUtil.normalizeNull(vo.getSort_col()) ;
+		String sortCol = AS_SORT_COLS.get(sortKey) ;
+
+		if (sortCol == null) {
+			// 화면 표시용 값도 함께 비워 헤더에 엉뚱한 정렬표시가 남지 않게 한다.
+			vo.setSort_col("") ;
+			vo.setSort_dir("") ;
+			vo.setSort_expr("AS_NO") ;
+			vo.setSort_dir_sql("DESC") ;
+			vo.setSort_dir_inv("ASC") ;
+			return ;
+		}
+
+		boolean asc = "ASC".equalsIgnoreCase(SsStringUtil.normalizeNull(vo.getSort_dir())) ;
+
+		vo.setSort_dir(asc ? "ASC" : "DESC") ;	// 화면 복원용(정규화)
+		vo.setSort_expr(sortCol) ;
+		vo.setSort_dir_sql(asc ? "ASC" : "DESC") ;
+		vo.setSort_dir_inv(asc ? "DESC" : "ASC") ;
+	}
+	// [AX Lab] 수정 끝
 	
 	
 	/**
@@ -91,6 +181,12 @@ public class AdAsController {
 		
 		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 검색 후 리로드 시 고급 동적필터를 화면에서 복원할 수 있도록 JSON 으로 내려준다.
 		vo.setAdvFiltersJson(buildAdvFiltersJson(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
+		// [AX Lab] 수정 끝
+		
+		// [AX Lab] 수정 시작 (2026-07-29 AX Lab): 정렬조건 정규화.
+		// 화면(list.jsp)이 ${vo.sort_col} / ${vo.sort_dir} 로 헤더의 정렬표시를 복원하므로, 화이트리스트에 없는
+		// 값이 그대로 내려가 "정렬된 것처럼" 보이는 일이 없도록 여기서도 검증을 거친다.
+		applyAsSort(vo);
 		// [AX Lab] 수정 끝
 		
 		return "ad/as/list";
@@ -216,6 +312,10 @@ public class AdAsController {
 		}
 		// 고급 동적 검색조건(검색구분 select/keyword/date)을 쿼리용 목록으로 변환
 		vo.setAdvFilterList(buildAdvFilterList(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
+		// [AX Lab] 수정 끝
+		
+		// [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록 헤더클릭 정렬조건 확정 (화이트리스트 검증 필수)
+		applyAsSort(vo);
 		// [AX Lab] 수정 끝
 		
 		int totalCount = asService.getTotalCnt(vo,"asDAO.getAsListCnt") ;
@@ -570,6 +670,11 @@ public class AdAsController {
 			vo.setUser_id("");
 		}
 		vo.setAdvFilterList(buildAdvFilterList(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
+		// [AX Lab] 수정 끝
+	
+		// [AX Lab] 수정 시작 (2026-07-29 AX Lab): 화면에서 정렬한 순서 그대로 엑셀이 나오도록 동일한 정렬조건을 적용.
+		// 정렬 미지정 시 AS_NO DESC 로 확정되므로 기존 다운로드 결과와 완전히 동일하다.
+		applyAsSort(vo);
 		// [AX Lab] 수정 끝
 	
 		List<AsVO> resultList = asService.getList(vo, "asDAO.getAsList");
