@@ -102,8 +102,9 @@
 #asWorkspace .grid.c1-collapsed{--c1:46px;}
 #asWorkspace .grid.c3-collapsed{--c3:46px;}
 /* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록 넓게 보기.
-   기본 3분할에서는 목록 칸이 약 560px 이라 좌측 고정 6컬럼을 넘는 컬럼을 볼 가로스크롤 폭이 거의 없다.
+   기본 3분할에서는 목록 칸이 약 560px 이라 앞쪽 6컬럼 외에는 계속 가로스크롤을 해야 본다.
    이 모드에서는 문의상세(COL2)/접수·처리정보(COL3)를 감추고 목록이 화면 전체폭(약 1870px)을 쓴다.
+   (2026-07-30: 컬럼이 16개 / 전체폭 약 1428px 로 줄어, 이 모드에서는 가로스크롤 없이 전 컬럼이 들어온다)
    grid-template-columns 를 var 가 아닌 1fr 로 직접 지정하므로 c1/c3-collapsed 상태와 무관하게 동작한다.
    문의내용 컬럼(--w-q)도 넓혀 늘어난 폭을 본문 가독성에 쓴다. */
 #asWorkspace .grid.list-wide{grid-template-columns:1fr;}
@@ -242,32 +243,34 @@
 
 #asWorkspace .tscroll{flex:1; overflow:auto; min-height:0;}
 
-/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): A/S 목록 컬럼 개편 - 좌측 6컬럼 고정 + 우측 34컬럼 가로스크롤.
+/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): A/S 목록 컬럼 개편 - 좌측 6컬럼 + 우측 가로스크롤 컬럼.
    ── 폭 관리 규칙 ────────────────────────────────────────────────────────────────
-   좌측 6컬럼의 폭은 아래 --w-* 변수 하나로 관리한다. 같은 변수를 col 폭과 sticky 의 left 오프셋
-   양쪽에 쓰기 때문에, 폭을 바꿔도 고정 위치가 저절로 따라와 어긋날 수 없다.
-   우측 34컬럼의 폭은 list.jsp 의 colgroup 에 인라인으로 두었다(고정영역에 영향이 없는 구간).
-   --w-right-sum 은 그 우측 34개 폭의 합계다. list.jsp colgroup 을 고치면 이 값도 같이 고쳐야
-   테이블 전체폭이 맞는다. (틀려도 table-layout:fixed 가 오차를 흡수하지만 스크롤 끝이 어색해짐)
+   좌측 6컬럼의 폭은 아래 --w-* 변수 하나로 관리한다.
+   우측 컬럼의 폭은 list.jsp 의 colgroup 에 인라인으로 두었다.
+   --w-right-sum 은 그 우측 컬럼 폭의 합계다. list.jsp colgroup 을 고치면 이 값도 같이 고쳐야
+   테이블 전체폭이 맞는다. (틀려도 table-layout:fixed 가 오차를 흡수하지만 스크롤 끝이 어색해짐.
+   test/check-aslist-columns.js 가 이 합계 일치를 검사한다)
    ── 왜 min-width 인가 ───────────────────────────────────────────────────────────
-   width:100% 만 두면 좁은 목록 칸(약 560px)에 40컬럼을 욱여넣어 전부 뭉개진다.
-   min-width 로 실제 필요한 폭을 보장해야 .tscroll 에 가로스크롤이 생긴다. */
+   width:100% 만 두면 좁은 목록 칸(약 560px)에 16컬럼을 욱여넣어 전부 뭉개진다.
+   min-width 로 실제 필요한 폭을 보장해야 .tscroll 에 가로스크롤이 생긴다.
+
+   [AX Lab] 수정 (2026-07-30 AX Lab): 현업 요청 반영으로 폭 변수 재정의.
+   - --w-date(접수일 50px) → --w-no(접수번호 96px) : 맨 앞 컬럼이 접수번호로 교체됐다.
+     접수번호는 잘리면 식별 자체가 안 되므로 값 전체가 들어가는 96px 를 준다.
+     (접수일은 우측 컬럼으로 이동했고, 폭은 list.jsp colgroup 에 있다)
+   - --w-emp 56 → 64px : '담당자' 헤더 + 정렬화살표(약 61px)가 56px 를 넘쳐 삐져나오던 것 보정.
+   - --w-right-sum 3144 → 878px : 우측 컬럼이 34개 → 10개로 축소됐다.
+   - sticky 오프셋 변수(--sl2~--sl6) 는 컬럼 고정 해제로 삭제. */
 #asWorkspace table.aslist{
-  --w-chk:26px; --w-date:50px; --w-cli:96px; --w-q:210px; --w-st:58px; --w-emp:56px;
-  --w-right-sum:3144px;
-  /* sticky 좌측 오프셋 = 자기 앞 컬럼 폭의 누적합 */
-  --sl2:var(--w-chk);
-  --sl3:calc(var(--w-chk) + var(--w-date));
-  --sl4:calc(var(--w-chk) + var(--w-date) + var(--w-cli));
-  --sl5:calc(var(--w-chk) + var(--w-date) + var(--w-cli) + var(--w-q));
-  --sl6:calc(var(--w-chk) + var(--w-date) + var(--w-cli) + var(--w-q) + var(--w-st));
+  --w-chk:26px; --w-no:96px; --w-cli:96px; --w-q:210px; --w-st:58px; --w-emp:64px;
+  --w-right-sum:878px;
   width:100%; border-collapse:collapse;
-  table-layout:fixed;	/* colgroup 폭을 그대로 적용시켜 sticky 오프셋과 실제 컬럼 위치를 일치시킨다 */
-  min-width:calc(var(--w-right-sum) + var(--sl6) + var(--w-emp));
+  table-layout:fixed;	/* colgroup 폭을 그대로 적용시켜 좁은 칸에서도 컬럼이 뭉개지지 않게 한다 */
+  min-width:calc(var(--w-chk) + var(--w-no) + var(--w-cli) + var(--w-q) + var(--w-st) + var(--w-emp) + var(--w-right-sum));
 }
-/* 좌측 고정 6컬럼 폭 (colgroup 의 col 에 적용) */
+/* 좌측 6컬럼 폭 (colgroup 의 col 에 적용) */
 #asWorkspace table.aslist col.c-chk {width:var(--w-chk);}
-#asWorkspace table.aslist col.c-date{width:var(--w-date);}
+#asWorkspace table.aslist col.c-no  {width:var(--w-no);}
 #asWorkspace table.aslist col.c-cli {width:var(--w-cli);}
 #asWorkspace table.aslist col.c-q   {width:var(--w-q);}
 #asWorkspace table.aslist col.c-st  {width:var(--w-st);}
@@ -290,36 +293,27 @@
 #asWorkspace table.aslist tbody tr.on{background:var(--accent-bg);}
 #asWorkspace table.aslist tbody tr.on:hover{background:var(--accent-bg);}
 
-/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 좌측 6컬럼 고정(sticky).
-   [필수] sticky 셀에는 배경을 "반드시" 지정해야 한다. 배경이 투명하면 가로스크롤로 지나가는
-   우측 셀 내용이 고정 컬럼 밑으로 비쳐 글자가 겹쳐 보인다.
-   그래서 기본/hover/선택(on)/거래중지(cust-off) 네 가지 행 상태의 배경을 sticky 셀에도 각각 다시 준다.
-   [필수] border-collapse:collapse 인 표에서는 sticky 셀의 border 가 렌더링되지 않는 브라우저 이슈가 있어
-   구분선을 inset box-shadow 로 대신 그린다. */
-#asWorkspace table.aslist .stk{position:sticky;}
-#asWorkspace table.aslist .stk1{left:0;}
-#asWorkspace table.aslist .stk2{left:var(--sl2);}
-#asWorkspace table.aslist .stk3{left:var(--sl3);}
-#asWorkspace table.aslist .stk4{left:var(--sl4);}
-#asWorkspace table.aslist .stk5{left:var(--sl5);}
-#asWorkspace table.aslist .stk6{left:var(--sl6);}
-/* 헤더의 고정 컬럼은 좌상단 교차점이라 일반 헤더(z-index:2)보다 위에 있어야 한다 */
-#asWorkspace table.aslist thead th.stk{z-index:3;}
-#asWorkspace table.aslist tbody td.stk{z-index:1; background:var(--surface); box-shadow:inset 0 -1px 0 var(--line);}
-#asWorkspace table.aslist tbody tr.cust-off td.stk{background:#F0F1F2;}
-#asWorkspace table.aslist tbody tr:hover td.stk{background:var(--surface-1);}
-#asWorkspace table.aslist tbody tr.cust-off:hover td.stk{background:#E7E9EA;}
-/* 선택행이 항상 최우선. cust-off:hover 보다 특이도가 높도록 .cust-off.on 조합까지 명시한다. */
-#asWorkspace table.aslist tbody tr.on td.stk,
-#asWorkspace table.aslist tbody tr.on:hover td.stk,
-#asWorkspace table.aslist tbody tr.cust-off.on td.stk,
-#asWorkspace table.aslist tbody tr.cust-off.on:hover td.stk{background:var(--accent-bg);}
-/* 고정영역과 스크롤영역의 경계선 (어디까지가 고정인지 눈으로 구분) */
-#asWorkspace table.aslist thead th.stk6{box-shadow:6px 0 6px -4px rgba(0,0,0,.20);}
-#asWorkspace table.aslist tbody td.stk6{box-shadow:inset 0 -1px 0 var(--line), 6px 0 6px -4px rgba(0,0,0,.14);}
-/* [AX Lab] 수정 끝 */
+/* [AX Lab] 삭제 (2026-07-30 AX Lab): 좌측 6컬럼 sticky 고정 규칙 전체 제거.
+   사유: 현업 요청 - "우측으로 스크롤할 때 앞의 6컬럼(체크박스/접수번호/거래처/문의내용/처리상태/담당자)이
+        고정되어 있지 않게 해달라". 이제 모든 컬럼이 가로스크롤과 함께 움직인다.
+   제거한 규칙: table.aslist 의 .stk / .stk1~.stk6 (position:sticky, left 오프셋),
+              고정셀 배경 재지정(기본·hover·선택(on)·거래중지(cust-off) 4개 상태),
+              고정↔스크롤 경계 그림자(thead th.stk6 / tbody td.stk6).
+   함께 정리한 것: 폭 변수의 sticky 오프셋(--sl2~--sl6), list.jsp 의 th/td 에 있던 stk·stkN 클래스.
+   ※ 원복이 필요하면 list.jsp 의 좌측 6개 th/td 에 stk stk1~stk6 클래스를 되돌리고,
+     위 폭 변수 블록에 --sl2~--sl6 누적합을 다시 정의한 뒤 이 규칙들을 복원하면 된다.
+     (sticky 셀은 배경을 반드시 지정해야 우측 셀 내용이 밑으로 비치지 않는다는 점 주의) */
 
-#asWorkspace .col-date{color:var(--ink-2); font-size:11.5px; white-space:nowrap;}
+/* [AX Lab] 삭제 (2026-07-30 AX Lab): .col-date 는 좌측 접수일 컬럼 전용 스타일이었으나,
+   접수일이 우측 가로스크롤 컬럼(.ctxt 공용 스타일)으로 이동해 사용처가 없어져 제거. */
+/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 맨 앞으로 옮겨온 접수번호 컬럼.
+   행의 식별자이므로 본문(ink-2)보다 진하게, 굵게 표시해 눈으로 바로 잡히게 한다. */
+#asWorkspace .col-no{color:var(--ink); font-size:12px; font-weight:600; white-space:nowrap;}
+/* 신규답변 : [확인] 버튼이 들어가는 칸이라 버튼 높이를 행에 맞춰 줄인다. */
+#asWorkspace .col-aws{text-align:center;}
+#asWorkspace .col-aws .aws-new{height:22px; padding:0 8px; font-size:11px; border-color:var(--red); color:var(--red);}
+#asWorkspace .col-aws .aws-new:hover{background:var(--red-bg); border-color:var(--red); color:var(--red);}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .col-client{font-weight:600; word-break:break-all;}
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 셀 2줄 클램프 (행 높이 균일화) */
 #asWorkspace .col-client .cl-t{display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.35;}
@@ -329,7 +323,7 @@
 #asWorkspace .prio{color:var(--red); font-weight:700; margin-right:2px;}		/* 우선처 ★ */
 #asWorkspace .dealoff{display:inline-block; margin-left:3px; padding:0 5px; border-radius:8px; background:#D6D9DB; color:#4B5459; font-size:10px; font-weight:700; vertical-align:1px; white-space:nowrap;}
 #asWorkspace .clip{flex:0 0 auto; font-size:11px; opacity:.65;}					/* 첨부파일 클립 */
-/* 값 1줄 말줄임 (전체 값은 title 툴팁). 우측 34컬럼과 좌측 담당자 컬럼이 공용으로 쓴다.
+/* 값 1줄 말줄임 (전체 값은 title 툴팁). 우측 가로스크롤 컬럼과 좌측 접수번호·담당자 컬럼이 공용으로 쓴다.
    td 에 직접 말줄임을 주면 잘 먹지 않아 내부 div(.ct)로 한 번 감싼다. */
 #asWorkspace table.aslist tbody td.ctxt{color:var(--ink-2); font-size:12px;}
 #asWorkspace table.aslist tbody .ct{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -354,8 +348,17 @@
 #asWorkspace .q-body{color:var(--ink-2); font-size:12px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:1; line-clamp:1; -webkit-box-orient:vertical; overflow:hidden;}
 #asWorkspace .q-act{margin-top:2px; font-size:11.5px; color:var(--ink-3);}
 /* [AX Lab] 수정 끝 */
-#asWorkspace .grade{color:var(--warn); font-weight:700; font-size:11px;}
-#asWorkspace .grade.emc{color:var(--red);}
+/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 중요도 표식을 "그냥 색 글자" → 배경이 있는 칩으로 변경.
+   사유: 중요도는 별도 컬럼 없이 문의내용 앞에만 표시하는데(요청사항), 색 글자만으로는 문의 제목의
+        일부처럼 보여 "중요도가 안 보인다 / 반영이 안 됐다"고 읽혔다. 거래상태 뱃지(.dealoff)와 같은
+        칩 형태로 맞춰 문의내용과 시각적으로 분리한다. C001(긴급)은 붉은 칩으로 더 강조한다. */
+#asWorkspace .grade{
+  display:inline-block; padding:0 6px; border-radius:9px;
+  background:var(--warn-bg); color:var(--warn);
+  font-weight:700; font-size:10.5px; line-height:16px; vertical-align:1px; white-space:nowrap;
+}
+#asWorkspace .grade.emc{background:var(--red-bg); color:var(--red);}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .st{display:inline-block; font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:10px; white-space:nowrap; background:#EEF0F3; color:var(--ink-2);}
 #asWorkspace .st.recv{background:var(--blue-bg); color:var(--blue);}
 #asWorkspace .st.prog{background:var(--warn-bg); color:var(--warn);}

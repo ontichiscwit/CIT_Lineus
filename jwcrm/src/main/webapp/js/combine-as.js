@@ -620,7 +620,8 @@ function asws_advRestoreOpen(isFirstEntry){
 
 /* ---- 1) 우측 컬럼 셀 ------------------------------------------------
    값이 비면 '-' 로 보여 빈칸과 구분하고, 잘린 값은 title 로 전체를 확인할 수 있게 한다.
-   말줄임 처리를 위해 내부 div(.ct)로 한 번 감싼다. td 에는 overflow 말줄임이 잘 먹지 않는다. */
+   말줄임 처리를 위해 내부 div(.ct)로 한 번 감싼다. td 에는 overflow 말줄임이 잘 먹지 않는다.
+   ※ asws_cell_txt 는 td 를 직접 만들어야 하는 칸(접수번호·담당자 등)에서 내용만 따로 쓴다. */
 function asws_cell(v){
 	return '<td class="ctxt">'+asws_cell_txt(v)+'</td>';
 }
@@ -703,7 +704,7 @@ function asws_sortInit(){
 }
 
 /* ---- 3) 목록 넓게 보기 ----------------------------------------------
-   COL2/COL3 을 숨겨 목록을 화면 전체폭으로 쓴다. 우측 34컬럼을 훑을 때 사용한다.
+   COL2/COL3 을 숨겨 목록을 화면 전체폭으로 쓴다. 우측 컬럼까지 한 번에 훑을 때 사용한다.
    검색/페이징은 폼 submit 으로 화면을 다시 그리므로 sessionStorage 로 상태를 넘긴다.
    (고급필터 펼침상태와 동일한 방식 - ASWS_ADV_OPEN_KEY 참고) */
 var ASWS_LIST_WIDE_KEY = 'asws_list_wide';

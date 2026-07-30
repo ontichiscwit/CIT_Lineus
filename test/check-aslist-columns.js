@@ -43,7 +43,10 @@ const thCnt = (tbl.match(/<th\b/g) || []).length;
 
 /* ---- setAsList() 가 한 행에 그리는 td 개수 ----
    행 렌더 구간: '<tr data-asno=' 부터 "str += '</tr>';" 까지.
-   좌측 6칸은 문자열 리터럴 <td ...> 로, 우측 34칸은 asws_cell(...) 호출로 만들어진다. */
+   대부분은 asws_cell(...) 호출로 만들고, 값 가공이 필요한 칸(체크박스·접수번호·거래처·문의내용·
+   상태·담당자·신규답변)만 문자열 리터럴 <td ...> 로 만든다.
+   ※ 리터럴 td 는 "한 칸당 정확히 1개" 여야 한다. 조건 분기로 <td 를 두 번 쓰면 실제 컬럼은 1개인데
+     여기서는 2개로 세어 오탐이 난다. (그래서 list.jsp 는 내용만 변수로 만들고 td 는 한 번만 출력한다) */
 const rowStart = jsp.indexOf("str += '<tr data-asno=");
 const rowEnd = jsp.indexOf("str += '</tr>';", rowStart);
 if (rowStart < 0 || rowEnd < 0) {
@@ -54,6 +57,11 @@ const row = jsp.slice(rowStart, rowEnd);
 const literalTd = (row.match(/<td\b/g) || []).length;
 const cellTd = (row.match(/str \+= asws_cell\(/g) || []).length;
 const tdCnt = literalTd + cellTd;
+
+/* ---- 좌측 6컬럼 sticky 고정 해제 확인 (2026-07-30 요청사항) ----
+   stk/stkN 클래스가 남아 있으면 CSS 규칙이 지워진 상태에서 의미 없는 클래스만 붙어 있는 것이므로
+   (또는 CSS 를 되살렸을 때 의도치 않게 고정이 되살아나므로) 0 이어야 한다. */
+const stkLeft = (tbl.match(/\bstk\d?\b/g) || []).length + (row.match(/\bstk\d?\b/g) || []).length;
 
 console.log('--- A/S 목록 컬럼 정합성 ---');
 console.log(`colgroup <col> : ${colCnt}`);
@@ -68,11 +76,21 @@ check('행 <td> 개수가 <col> 개수와 일치', tdCnt, colCnt);
 const colspanM = jsp.match(/colspan="(\d+)"[^>]*>조회된 데이터가 없습니다/);
 check('빈 목록 colspan', colspanM ? Number(colspanM[1]) : -1, colCnt);
 
-/* ---- 좌측 고정 6컬럼: col 클래스 / th·td 의 stk 클래스 ---- */
-const stkTh = (tbl.match(/<th class="stk stk\d/g) || []).length;
-const stkTd = (row.match(/stk stk\d/g) || []).length;
-check('thead 좌측 고정 th 개수', stkTh, 6);
-check('행 좌측 고정 td 개수', stkTd, 6);
+/* ---- 좌측 컬럼 고정(sticky) 해제 상태 ---- */
+check('sticky 고정 클래스(stk/stkN) 잔존 개수', stkLeft, 0);
+
+/* ---- 헤더 순서 (2026-07-30 현업 요청 순서) ----
+   체크박스 헤더는 내용이 <input> 이라 아래 정규식에서 빈 문자열로 걸러진다.
+   순서가 바뀌면 어떤 컬럼이 어디로 갔는지 로그에 그대로 찍히므로 원인 파악이 쉽다. */
+const EXPECTED_HEAD = [
+	'접수번호', '거래처', '문의 내용 · 조치', '상태', '담당자',	/* 좌측 6컬럼 (체크박스 제외) */
+	'연결AS', '처리예정일', '문의유형', '시스템유형', '신규답변',
+	'접수일', '처리완료일자', '원인유형', '조치유형', '고객평가'	/* 우측 가로스크롤 10컬럼 */
+];
+const heads = [...tbl.matchAll(/<th[^>]*>([^<]*)</g)].map(m => m[1].trim()).filter(t => t !== '');
+console.log('');
+console.log(`헤더 순서 : ${heads.join(' | ')}`);
+check('헤더 순서가 요청 순서와 일치', heads.join(' > '), EXPECTED_HEAD.join(' > '));
 
 /* ---- 정렬키가 서버 화이트리스트(AS_SORT_COLS)에 모두 등록돼 있는지 ----
    등록되지 않은 키는 서버가 조용히 기본정렬로 폴백하므로, 클릭해도 아무 일이 없는 것처럼 보인다. */

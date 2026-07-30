@@ -410,7 +410,11 @@
 				   (요구사항: 우선처/중요도는 별도 컬럼을 만들지 않고 해당 값 앞에 표식으로만 노출) */
 				// 우선처 : 거래처명 앞에 붙는 ★
 				var prioIco = (common.nvl(datas.priority, '') == 'Y') ? '<span class="prio" title="우선처">★</span>' : '';
-				// 중요도 : 문의내용 앞에 붙는 뱃지 (C001=긴급이면 붉은색 강조)
+				/* 중요도 : 문의내용 앞에 붙는 뱃지 (C001=긴급이면 붉은색 강조)
+				   [AX Lab] 수정 (2026-07-30 AX Lab): "중요도는 별도 컬럼 없이 문의내용 앞에만" 요청이 반영되지 않은 것으로
+				   보였던 원인은, 이 뱃지는 그려지고 있었지만 우측 가로스크롤 영역에 중요도 컬럼이 그대로 남아 있어
+				   여전히 '별도 컬럼'으로 보였던 것. → 우측 중요도 컬럼을 제거하고(colgroup/thead 참고),
+				   뱃지는 배경이 있는 칩 형태로 바꿔 문의내용 앞 표식임이 분명히 드러나게 했다(combine-as.css .grade). */
 				var gradeNm = common.nvl(datas.inportance_nm, '');
 				var gradeCls = (common.nvl(datas.inportance, '') == 'C001') ? 'grade emc' : 'grade';
 				var gradeTag = gradeNm ? '<span class="'+gradeCls+'" title="중요도 '+asws_esc(gradeNm)+'">'+asws_esc(gradeNm)+'</span> ' : '';
@@ -449,28 +453,32 @@
 				var actInfo = actC ? ('조치: ' + actC.substr(0, 40)) : '';
 				/* [AX Lab] 수정 끝 */
 
-				/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 좌측 고정 6컬럼 + 우측 가로스크롤 컬럼 구조로 행 재구성.
-				   - 좌측 6칸은 stk/stkN 클래스로 sticky 고정된다. (폭·left 오프셋은 combine-as.css 변수)
+				/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 좌측 6컬럼 + 우측 가로스크롤 컬럼 구조로 행 재구성.
 				   - 마우스 호버 시 문의/조치 내용을 전부 보여주기 위해 원문을 data-full 에 실어 보낸다.
-				     (title 속성은 줄바꿈·긴 글 표현이 빈약해 combine-as.js 의 커스텀 툴팁을 쓴다) */
+				     (title 속성은 줄바꿈·긴 글 표현이 빈약해 combine-as.js 의 커스텀 툴팁을 쓴다)
+				   [AX Lab] 수정 (2026-07-30 AX Lab): sticky 고정 해제로 stk/stkN 클래스 제거, 맨 앞 컬럼을 접수번호로 교체.
+				   ※ 여기서 그리는 td 의 개수·순서는 위 colgroup/thead 와 반드시 1:1 로 맞아야 한다.
+				     어긋나면 브라우저가 조용히 밀어서 그리므로 눈으로 찾기 어렵다.
+				     (test/check-aslist-columns.js 로 개수 정합성을 정적 검사할 수 있다) */
 				var fullTxt = callC + (actC ? '\n\n[조치]\n' + actC : '');
 
 				str += '<tr data-asno="'+asNo+'" class="'+(isOff ? 'cust-off' : '')+'" onclick="asws_openDetail(\''+asNo+'\',\''+cnAsNo+'\');">';
-				str += '  <td class="col-chk stk stk1" onclick="event.cancelBubble=true;">' +
+				str += '  <td class="col-chk" onclick="event.cancelBubble=true;">' +
 				       '<input type="checkbox" title="거래선택" name="chk" ' +
 				       'value="'+asNo+'@'+cnAsNo+'" ' +
 				       'data-as-no-link="'+asNoLink+'" ' +
 				       'data-proc-status="'+stCode+'"/></td>';
-				str += '  <td class="col-date stk stk2">'+vAcceptDt+'</td>';
+				/* 접수번호 : 행의 식별자. 폭이 부족하면 말줄임 + title 로 전체값을 보여주는 asws_cell_txt 를 쓴다. */
+				str += '  <td class="col-no">'+asws_cell_txt(asNo)+'</td>';
 				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처명이 길면 3~4줄로 늘어나 행 높이를 키우던 문제 → 2줄 클램프
 				   (td 에는 -webkit-box 를 쓸 수 없어 내부 div(cl-t)로 감싼다. 전체 값은 title 툴팁으로 확인 가능)
-				   [AX Lab] 수정 (2026-07-29): 거래처명 앞 ★(우선처), 뒤 거래상태 뱃지 추가. 코드는 우측 CRM코드 컬럼에
-				   따로 있으므로 여기서는 [코드] 접두를 빼고 거래처명에 폭을 몰아준다. */
+				   [AX Lab] 수정 (2026-07-29): 거래처명 앞 ★(우선처), 뒤 거래상태 뱃지 추가. 거래처코드는 별도 컬럼 없이
+				   title 툴팁으로만 보여주고 폭은 거래처명에 몰아준다. */
 				var custNm  = common.nvl(datas.cust_kor_name, '');
 				var custTip = '['+common.nvl(datas.cust_code, '')+'] '+custNm+(isOff ? ' (거래상태: '+dealNm+')' : '');
-				str += '  <td class="col-client stk stk3"><div class="cl-t" title="'+asws_esc(custTip)+'">'+prioIco+asws_esc(custNm)+dealTag+'</div></td>';
+				str += '  <td class="col-client"><div class="cl-t" title="'+asws_esc(custTip)+'">'+prioIco+asws_esc(custNm)+dealTag+'</div></td>';
 				/* [AX Lab] 수정 끝 */
-				str += '  <td class="col-q stk stk4" data-full="'+asws_esc(fullTxt)+'">';
+				str += '  <td class="col-q" data-full="'+asws_esc(fullTxt)+'">';
 				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 제목을 q-t 로 감싸 1줄 ellipsis 처리 (좁은 컬럼에서 2~3줄로 늘어나는 것 방지)
 				   [AX Lab] 수정 (2026-07-29): 중요도 뱃지를 제목 앞으로, 첨부 표식을 제목 뒤로 배치 */
 				str += '    <div class="q-title">'+gradeTag+'<span class="q-t">'+asws_esc(callHead)+'</span>'+clipTag+'</div>';
@@ -482,45 +490,38 @@
 				str += '    <div class="q-act">답변 '+common.nvl(datas.total_aws_cnt,'0')+'건'+(actInfo? ' · '+asws_esc(actInfo):'')+'</div>';
 				/* [AX Lab] 수정 끝 */
 				str += '  </td>';
-				str += '  <td class="col-status stk stk5"><span class="st '+stCls+'">'+common.nvl(datas.proc_status_nm, '')+'</span></td>';
-				str += '  <td class="col-emp stk stk6">'+asws_cell_txt(datas.emp_nm)+'</td>';
+				str += '  <td class="col-status"><span class="st '+stCls+'">'+common.nvl(datas.proc_status_nm, '')+'</span></td>';
+				str += '  <td class="col-emp">'+asws_cell_txt(datas.emp_nm)+'</td>';
 
-				/* 우측 가로스크롤 컬럼 (thead 의 col/th 순서와 반드시 1:1 로 맞출 것) */
-				str += asws_cell(datas.as_no);
-				str += asws_cell(datas.cn_as_no);
-				str += asws_cell(datas.cust_code);
-				str += asws_cell(datas.rl_apply_nm);
-				str += asws_cell(datas.accept_route_nm);
-				str += asws_cell(datas.chatbot_id);
+				/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 우측 가로스크롤 컬럼 10개 (thead 의 col/th 순서와 1:1).
+				   원본 화면(list_origin.jsp)의 값 가공 방식을 그대로 따른다.
+				   - 시스템유형   : 원본과 동일하게 시스템(대) / 시스템(소) 를 한 칸에 합쳐 보여준다.
+				   - 신규답변     : aws_cnt = "가장 마지막 답변을 고객(w_gubun='U')이 썼는가" 플래그.
+				                    1이면 답변 대기 건이므로 원본과 동일하게 [확인] 버튼(신규답변 팝업)을 노출하고,
+				                    0이면 누적 답변수를 숫자로 보여준다.
+				   - 처리완료일자 : 원본과 동일하게 처리상태가 완료(C005)일 때만 값을 노출한다.
+				   ※ 조건 분기로 td 리터럴을 2개 쓰면 컬럼수 정적검사(check-aslist-columns.js)가 오탐하므로
+				     내용만 변수로 만들고 td 는 한 번만 출력한다. */
+				var sysType = common.nvl(datas.service_cate_nm, '')
+				            + (common.nvl(datas.inquiry_type_nm, '') !== '' ? ' / ' + datas.inquiry_type_nm : '');
+				var completeDt = (stCode == 'C005') ? common.nvl(datas.as_complete_dt, '') : '';
+				var awsHtml = (common.nvl(datas.aws_cnt, '0') == '0')
+				            ? asws_cell_txt(common.nvl(datas.total_aws_cnt, '0'))
+				            : '<button type="button" class="btn-s aws-new" title="고객이 마지막으로 남긴 답변이 있습니다"'
+				              + ' onclick="event.cancelBubble=true;btnAws(\''+asNo+'\');">확인</button>';
+
+				str += asws_cell(datas.as_no_link_count);
+				str += asws_cell(datas.as_proc_dt);
 				str += asws_cell(datas.request_type_nm);
-				str += asws_cell(datas.service_cate_nm);
-				str += asws_cell(datas.inquiry_type_nm);
-				str += asws_cell(datas.inportance_nm);
-				str += asws_cell(datas.tel_confirm);
-				str += asws_cell(datas.tel_absence);
-				str += asws_cell(datas.tel_absence_cnt);
+				str += asws_cell(sysType);
+				str += '  <td class="ctxt col-aws">'+awsHtml+'</td>';
+				str += asws_cell(vAcceptDt);
+				str += asws_cell(completeDt);
 				str += asws_cell(datas.cause_type_nm);
 				str += asws_cell(datas.action_type_nm);
-				str += asws_cell(datas.dept_nm);
-				str += asws_cell(datas.as_proc_dt);
-				str += asws_cell(datas.as_complete_dt);
-				str += asws_cell(datas.work_time);
-				str += asws_cell(datas.proc_gubun_nm);
-				str += asws_cell(datas.proc_build_info);
-				str += asws_cell(datas.proc_test_info);
-				str += asws_cell(datas.proc_process_sp);
-				str += asws_cell(datas.proc_screen_sp);
-				str += asws_cell(datas.proc_table_sp);
-				str += asws_cell(datas.proc_function_sp);
-				str += asws_cell(datas.proc_interface_sp);
-				str += asws_cell(datas.star_state_date);
 				str += asws_cell(asws_stars(datas.star_state));
-				str += asws_cell(datas.as_no_link_count);
-				str += asws_cell(datas.total_aws_cnt);
-				str += asws_cell(callC);
-				str += asws_cell(actC);
-				str += asws_cell(datas.w_content);
 				str += '</tr>';
+				/* [AX Lab] 수정 끝 */
 				/* [AX Lab] 수정 끝 */
 			}
 
@@ -533,8 +534,8 @@
 			asws_openDetail(common.nvl(first.as_no,''), common.nvl(first.cn_as_no,''));
 
 		} else {
-			/* [AX Lab] 수정 (2026-07-29 AX Lab): 컬럼이 5개 -> 40개(좌측고정 6 + 우측 34)로 늘어나 colspan 보정 */
-			$('#asList').html('<tr><td colspan="40" style="text-align:center;padding:30px;color:#8A979E;">조회된 데이터가 없습니다.</td></tr>');
+			/* [AX Lab] 수정 (2026-07-30 AX Lab): 컬럼 구성 변경(좌측 6 + 우측 10)에 맞춰 colspan 보정 */
+			$('#asList').html('<tr><td colspan="16" style="text-align:center;padding:30px;color:#8A979E;">조회된 데이터가 없습니다.</td></tr>');
 			$('#count').html('0');
 			$("#pagination").html('');
 			$('#asDetail').html('<div class="empty">조회된 접수건이 없습니다.</div>');
@@ -1709,103 +1710,69 @@
           </select>
         </div>
         <%-- [AX Lab] 수정 시작 (2026-07-29 AX Lab): A/S 리스트 컬럼 구성 개편.
-             - 가로스크롤 전에 한눈에 보이는 6컬럼(체크박스/접수일/거래처/문의내용·조치/상태/담당자)을 좌측에 고정(sticky)하고,
-               기존 컬럼 전체(엑셀 다운로드와 동일 구성)를 우측 가로스크롤 영역에 배치한다.
+             - 좌측 6컬럼(체크박스/접수번호/거래처/문의내용·조치/상태/담당자) + 우측 가로스크롤 컬럼 구조.
              - 우선처(★)는 별도 컬럼 없이 거래처명 앞에, 중요도는 문의내용 앞에, 거래상태(해지/폐업/중지)는
                거래처명 뒤 뱃지 + 행 배경 회색으로 표시한다. (setAsList 참고)
              - 정렬 가능한 헤더에는 class="srt" 와 data-sort(=서버 화이트리스트 키)를 준다.
                클릭 처리는 combine-as.js 의 위임 핸들러(asws_sortBind)가 담당한다.
-             ※ 좌측 6컬럼의 폭은 combine-as.css 의 --w-chk/--w-date/--w-cli/--w-q/--w-st/--w-emp 변수가 가진다.
-               sticky 위치 계산(left 오프셋)에 같은 변수를 쓰므로 폭과 고정위치가 어긋날 수 없다.
-               우측 컬럼 폭만 아래 인라인 style 로 둔다(어긋나도 sticky 에 영향이 없는 영역). --%>
+             ※ 좌측 6컬럼의 폭은 combine-as.css 의 --w-chk/--w-no/--w-cli/--w-q/--w-st/--w-emp 변수가 가진다.
+               우측 컬럼 폭만 아래 인라인 style 로 둔다. (합계는 CSS --w-right-sum 과 일치시켜야 하며
+               test/check-aslist-columns.js 가 이를 검사한다)
+
+             [AX Lab] 수정 (2026-07-30 AX Lab): 현업 요청 3건 반영.
+             ① 맨 앞 컬럼을 접수일 → 접수번호(as_no)로 교체. 접수번호가 행의 식별자이므로 선두가 맞고,
+                값이 잘리지 않도록 폭을 96px(--w-no)로 잡았다. (접수일은 우측 컬럼으로 이동)
+             ② 좌측 6컬럼 sticky 고정 해제 : th/td 의 stk·stkN 클래스를 모두 제거했다.
+                (CSS 의 .stk 규칙도 함께 삭제 - combine-as.css 참고)
+             ③ 우측 컬럼을 원본 화면(list_origin.jsp)과 동일한 10개로 축소하고 요청 순서대로 재배열.
+                연결된AS개수 → 처리예정일 → 문의유형 → 시스템유형 → 신규답변 → 접수일 →
+                처리완료일자 → 원인유형 → 조치유형 → 고객평가
+                ※ 이때 제외된 컬럼(하위작업/CRM코드/A/S신청자/접수경로/챗봇ID/전화확인/전화부재중/
+                  부재중횟수/부서명/작업시간/처리구분/빌드순번/각종 정의서/검수일/답변수/요청내용/
+                  조치내용/최신댓글) 은 값 자체는 그대로 조회되고 있으므로(egov-as-query.xml getAsList),
+                  다시 필요해지면 colgroup·thead·setAsList 세 곳에 같은 순서로 한 줄씩 추가하면 된다.
+                ※ 중요도 컬럼도 여기서 제거됐다. 중요도는 문의내용 앞 인라인 뱃지로만 표시한다(요청사항). --%>
         <div class="tscroll">
           <table class="aslist">
             <colgroup>
-              <%-- 좌측 고정 6컬럼 : 폭은 CSS 변수로 관리 --%>
-              <col class="c-chk" /><col class="c-date" /><col class="c-cli" /><col class="c-q" /><col class="c-st" /><col class="c-emp" />
-              <%-- 우측 가로스크롤 컬럼 (엑셀 다운로드 컬럼 순서 기준) --%>
-              <col style="width:92px" /><!-- 접수번호 -->
-              <col style="width:92px" /><!-- 하위작업 -->
-              <col style="width:76px" /><!-- CRM코드 -->
-              <col style="width:80px" /><!-- A/S신청자 -->
-              <col style="width:72px" /><!-- 접수경로 -->
-              <col style="width:80px" /><!-- 챗봇ID -->
-              <col style="width:84px" /><!-- 문의유형 -->
-              <col style="width:84px" /><!-- 시스템(대) -->
-              <col style="width:84px" /><!-- 시스템(소) -->
-              <col style="width:56px" /><!-- 중요도 -->
-              <col style="width:60px" /><!-- 전화확인 완료 -->
-              <col style="width:60px" /><!-- 전화 부재중 -->
-              <col style="width:64px" /><!-- 부재중 횟수 -->
-              <col style="width:84px" /><!-- 원인유형 -->
-              <col style="width:84px" /><!-- 조치유형 -->
-              <col style="width:90px" /><!-- 부서명 -->
-              <col style="width:78px" /><!-- 처리완료예정일 -->
-              <col style="width:78px" /><!-- 처리완료일 -->
-              <col style="width:60px" /><!-- 작업시간 -->
-              <col style="width:72px" /><!-- 처리구분 -->
-              <col style="width:80px" /><!-- 빌드순번 -->
-              <col style="width:110px" /><!-- 개발처리서(테스트케이스) -->
-              <col style="width:100px" /><!-- 프로세스정의서 -->
-              <col style="width:100px" /><!-- 화면정의서 -->
-              <col style="width:100px" /><!-- 테이블정의서 -->
-              <col style="width:100px" /><!-- 기능분해도 -->
-              <col style="width:110px" /><!-- 인터페이스정의서 -->
-              <col style="width:78px" /><!-- 검수일 -->
-              <col style="width:68px" /><!-- 고객평가 -->
-              <col style="width:56px" /><!-- 연결AS -->
-              <col style="width:52px" /><!-- 답변수 -->
-              <col style="width:220px" /><!-- 요청내용(전문) -->
-              <col style="width:220px" /><!-- 조치내용 -->
-              <col style="width:220px" /><!-- 내부직원 최신댓글 -->
+              <%-- 좌측 6컬럼 : 폭은 CSS 변수로 관리 --%>
+              <col class="c-chk" /><col class="c-no" /><col class="c-cli" /><col class="c-q" /><col class="c-st" /><col class="c-emp" />
+              <%-- 우측 가로스크롤 컬럼 (현업 요청 순서) --%>
+              <col style="width:72px" /><!-- 연결된AS개수 -->
+              <col style="width:88px" /><!-- 처리예정일 -->
+              <col style="width:90px" /><!-- 문의유형 -->
+              <col style="width:120px" /><!-- 시스템유형 (대/소) -->
+              <col style="width:68px" /><!-- 신규답변 -->
+              <col style="width:84px" /><!-- 접수일 -->
+              <col style="width:96px" /><!-- 처리완료일자 -->
+              <col style="width:90px" /><!-- 원인유형 -->
+              <col style="width:90px" /><!-- 조치유형 -->
+              <col style="width:80px" /><!-- 고객평가 -->
             </colgroup>
             <thead>
               <tr>
-                <%-- 좌측 고정 6컬럼 --%>
-                <th class="stk stk1"><input type="checkbox" id="chkall" onclick="asws_toggleAll(this);" title="전체선택" /></th>
-                <th class="stk stk2 srt" data-sort="accept_dt"      title="클릭하면 접수일 오름차순 → 내림차순으로 정렬합니다">접수일<i class="sar"></i></th>
-                <th class="stk stk3 srt" data-sort="cust_kor_name"  title="클릭하면 거래처명 오름차순 → 내림차순으로 정렬합니다">거래처<i class="sar"></i></th>
+                <%-- 좌측 6컬럼 --%>
+                <th><input type="checkbox" id="chkall" onclick="asws_toggleAll(this);" title="전체선택" /></th>
+                <th class="srt" data-sort="as_no"         title="클릭하면 접수번호 오름차순 → 내림차순으로 정렬합니다">접수번호<i class="sar"></i></th>
+                <th class="srt" data-sort="cust_kor_name" title="클릭하면 거래처명 오름차순 → 내림차순으로 정렬합니다">거래처<i class="sar"></i></th>
                 <%-- 문의내용은 장문이라 정렬 대상에서 제외 (서버 화이트리스트에도 없음) --%>
-                <th class="stk stk4">문의 내용 · 조치</th>
+                <th>문의 내용 · 조치</th>
                 <%-- 처리상태/중요도 등 공통코드 항목은 명칭 가나다순이 아니라 코드순으로 정렬된다(쿼리 구조상 제약, AdAsController.AS_SORT_COLS 주석 참고) --%>
-                <th class="stk stk5 srt" data-sort="proc_status_nm" title="클릭하면 처리상태 순으로 정렬합니다">상태<i class="sar"></i></th>
-                <th class="stk stk6 srt" data-sort="emp_nm"         title="클릭하면 담당자명 오름차순 → 내림차순으로 정렬합니다">담당자<i class="sar"></i></th>
+                <th class="srt" data-sort="proc_status_nm" title="클릭하면 처리상태 순으로 정렬합니다">상태<i class="sar"></i></th>
+                <th class="srt" data-sort="emp_nm"         title="클릭하면 담당자명 오름차순 → 내림차순으로 정렬합니다">담당자<i class="sar"></i></th>
                 <%-- 우측 가로스크롤 컬럼 --%>
-                <th class="srt" data-sort="as_no">접수번호<i class="sar"></i></th>
-                <th class="srt" data-sort="cn_as_no">하위작업<i class="sar"></i></th>
-                <th class="srt" data-sort="cust_code">CRM코드<i class="sar"></i></th>
-                <th class="srt" data-sort="rl_apply_nm">A/S신청자<i class="sar"></i></th>
-                <th class="srt" data-sort="accept_route_nm">접수경로<i class="sar"></i></th>
-                <th class="srt" data-sort="chatbot_id">챗봇ID<i class="sar"></i></th>
+                <%-- 연결된AS개수는 AS_NO_LINK 문자열에서 계산되는 파생값이라 서버 정렬 화이트리스트에 없다 --%>
+                <th title="연결된 AS 개수">연결AS</th>
+                <th class="srt" data-sort="as_proc_dt">처리예정일<i class="sar"></i></th>
                 <th class="srt" data-sort="request_type_nm">문의유형<i class="sar"></i></th>
-                <th class="srt" data-sort="service_cate_nm">시스템(대)<i class="sar"></i></th>
-                <th class="srt" data-sort="inquiry_type_nm">시스템(소)<i class="sar"></i></th>
-                <th class="srt" data-sort="inportance_nm">중요도<i class="sar"></i></th>
-                <th class="srt" data-sort="tel_confirm">전화확인<i class="sar"></i></th>
-                <th class="srt" data-sort="tel_absence">전화부재중<i class="sar"></i></th>
-                <th class="srt" data-sort="tel_absence_cnt">부재중횟수<i class="sar"></i></th>
+                <th class="srt" data-sort="service_cate_nm" title="시스템(대) / 시스템(소)">시스템유형<i class="sar"></i></th>
+                <%-- 신규답변(aws_cnt)도 최종 답변 작성자로 계산되는 파생값이라 정렬 불가 --%>
+                <th title="고객이 마지막으로 답변을 남긴 건은 [확인] 버튼으로 표시됩니다">신규답변</th>
+                <th class="srt" data-sort="accept_dt">접수일<i class="sar"></i></th>
+                <th class="srt" data-sort="as_complete_dt">처리완료일자<i class="sar"></i></th>
                 <th class="srt" data-sort="cause_type_nm">원인유형<i class="sar"></i></th>
                 <th class="srt" data-sort="action_type_nm">조치유형<i class="sar"></i></th>
-                <th class="srt" data-sort="dept_nm">부서명<i class="sar"></i></th>
-                <th class="srt" data-sort="as_proc_dt">처리예정일<i class="sar"></i></th>
-                <th class="srt" data-sort="as_complete_dt">처리완료일<i class="sar"></i></th>
-                <th class="srt" data-sort="work_time">작업시간<i class="sar"></i></th>
-                <th class="srt" data-sort="proc_gubun_nm">처리구분<i class="sar"></i></th>
-                <th class="srt" data-sort="proc_build_info">빌드순번<i class="sar"></i></th>
-                <th class="srt" data-sort="proc_test_info">개발처리서<i class="sar"></i></th>
-                <th class="srt" data-sort="proc_process_sp">프로세스정의서<i class="sar"></i></th>
-                <th class="srt" data-sort="proc_screen_sp">화면정의서<i class="sar"></i></th>
-                <th class="srt" data-sort="proc_table_sp">테이블정의서<i class="sar"></i></th>
-                <th class="srt" data-sort="proc_function_sp">기능분해도<i class="sar"></i></th>
-                <th class="srt" data-sort="proc_interface_sp">인터페이스정의서<i class="sar"></i></th>
-                <th class="srt" data-sort="star_state_date">검수일<i class="sar"></i></th>
                 <th class="srt" data-sort="star_state">고객평가<i class="sar"></i></th>
-                <%-- 아래 5개는 최외곽에서 계산되는 파생값/장문이라 정렬 불가 --%>
-                <th>연결AS</th>
-                <th>답변수</th>
-                <th>요청내용</th>
-                <th>조치내용</th>
-                <th>최신댓글</th>
               </tr>
             </thead>
             <tbody id="asList"></tbody>
