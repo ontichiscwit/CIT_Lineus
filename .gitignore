@@ -80,6 +80,8 @@ logs/
 # [AX Lab] 로컬 실행 전용 (DB 접속정보 포함, 커밋 금지)
 jwcrm/local-run/
 settings-local.xml
+# [AX Lab] PC 별 로컬 설정(DB 비번 포함, 커밋 금지). 샘플(setup-local.config.sample.ps1)만 커밋.
+setup-local.config.ps1
 *.jks
 *.keystore
 *.p12
