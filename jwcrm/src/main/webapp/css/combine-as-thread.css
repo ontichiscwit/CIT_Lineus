@@ -477,3 +477,67 @@
   #asWorkspace .grid.detail-wide #col-c1 .col-content{display:flex;}
   #asWorkspace .grid.detail-wide #col-c1 .rail{display:none;}
 }
+
+/* =============================================================================
+ * [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수처리정보 필드 단위 클릭 즉시 수정
+ * 편집 가능한 값(.caws-fv)은 hover 없이도 항상 점선 밑줄 + 흐린 연필로 구분되고,
+ * 클릭하면 그 자리가 입력 컨트롤로 바뀐다. hover 하면 강조색으로 진해진다.
+ * ========================================================================== */
+/* 클릭 가능한 값 — 항상 점선 밑줄과 연필 아이콘으로 "수정 가능"을 표시 */
+#asWorkspace .kv .v.caws-fv{cursor:pointer; border-bottom:1px dashed var(--line);}
+#asWorkspace .kv .v.caws-fv:after{content:'\270E'; margin-left:4px; font-size:10px; color:var(--ink-3); opacity:.55;}
+#asWorkspace .kv .v.caws-fv:hover{color:var(--accent); border-bottom-color:var(--accent);}
+#asWorkspace .kv .v.caws-fv:hover:after{color:var(--accent); opacity:1;}
+/* 요청내용(블록형 본문)도 항상 점선 테두리로 클릭 가능 표시 */
+#asWorkspace .caws-btxt.caws-fv{cursor:pointer; border:1px dashed var(--line); border-radius:6px; padding:2px 4px; margin-left:-4px;}
+#asWorkspace .caws-btxt.caws-fv:hover{border-color:var(--accent); background:var(--accent-bg);}
+
+/* 인라인 입력 컨트롤 (한 번에 한 필드만 열린다) */
+#asWorkspace .caws-fin{
+  width:100%; max-width:180px; height:26px; padding:0 7px; box-sizing:border-box;
+  border:1px solid var(--accent); border-radius:6px; outline:none;
+  background:var(--surface); color:var(--ink); font-size:12px;
+}
+#asWorkspace .kv.caws-fe .v.caws-fev{flex:1; display:flex; justify-content:flex-end;}
+#asWorkspace .caws-feb{margin-top:5px;}
+#asWorkspace .caws-feb .caws-fin{max-width:none;}
+#asWorkspace .caws-fin.caws-fgrow{max-width:none; flex:1; min-width:0;}
+#asWorkspace .caws-fin.caws-fwide{max-width:none;}
+#asWorkspace .caws-fin.caws-fcnt{width:46px; max-width:46px; text-align:center;}
+
+/* 인라인 textarea (요청내용 / 팝오버 메모) — 기본 .caws-ta 는 border 가 없어 테두리를 되살린다 */
+#asWorkspace .caws-fta{
+  border:1px solid var(--accent); border-radius:8px; background:var(--surface);
+  min-height:64px; box-sizing:border-box; padding:7px 8px;
+}
+
+/* 인라인 취소(×) 버튼 — 시스템(대/소) 쌍처럼 blur 로 닫기 어려운 컨트롤 옆에 붙인다 */
+#asWorkspace .caws-fx{
+  flex:0 0 auto; width:26px; height:26px; border-radius:6px; line-height:1;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-3); font-size:14px;
+}
+#asWorkspace .caws-fx:hover{border-color:var(--red); color:var(--red);}
+
+/* 처리상태/담당자 팝오버 — 조치내용(이력) 메모가 필수인 필드용 소형 폼 */
+#asWorkspace .caws-pop{
+  margin:4px 0 8px; padding:9px 10px;
+  border:1px solid var(--accent); border-radius:9px; background:var(--accent-bg);
+}
+#asWorkspace .caws-pop .caws-emplist{max-height:96px; overflow-y:auto; background:var(--surface);}
+
+/* 전화확인/부재중 즉시 저장 체크박스 행 */
+#asWorkspace .caws-ck{display:inline-flex; align-items:center; gap:4px; font-size:12px; cursor:pointer; color:var(--ink);}
+#asWorkspace .kv .v.caws-telv{display:inline-flex; align-items:center; gap:5px;}
+
+/* 접수정보 부가 UI — 하위작업 생성/연관접수 열기 미니 버튼, 탐색용 select */
+#asWorkspace .caws-minib{
+  height:22px; padding:0 8px; font-size:11px; border-radius:6px; white-space:nowrap;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-2); flex:0 0 auto;
+}
+#asWorkspace .caws-minib:hover{border-color:var(--accent); color:var(--accent);}
+/* 탐색용 select 는 편집 중인 컨트롤(강조 테두리)처럼 보이지 않게 기본 테두리로 */
+#asWorkspace .caws-fin.caws-fnav{border-color:var(--line); max-width:150px;}
+/* 클릭 가능한 접수번호 링크(상위접수번호 등) */
+#asWorkspace .kv .v.caws-lnk{cursor:pointer;}
+#asWorkspace .kv .v.caws-lnk:hover{text-decoration:underline;}
+/* [AX Lab] 수정 끝 */

@@ -637,6 +637,25 @@ public class AdAsController {
 		returnValue = procAswsSaveAction(vo, userInfo) ;
 		// [AX Lab] 수정 끝
 	// [AX Lab] 수정 끝
+	// [AX Lab] 수정 시작 (2026-07-31 AX Lab): AS 통합화면 아코디언 그룹별 인라인 편집(접수정보/고객사정보/
+	//   문의유형정보/처리완료사항/처리완료 상세사항). 기존 updateAsInfoAll 은 건드리지 않고
+	//   egov-combine-as-thread-query.xml 의 새 쿼리(그룹별 부분 UPDATE)만 사용한다.
+	} else if("saveAccept".equals(vo.getPageType())) {
+		returnValue = procAswsSaveAccept(vo, userInfo) ;
+	} else if("saveCust".equals(vo.getPageType())) {
+		returnValue = procAswsSaveCust(vo, userInfo) ;
+	} else if("saveInquiry".equals(vo.getPageType())) {
+		returnValue = procAswsSaveInquiry(vo, userInfo) ;
+	} else if("saveDone".equals(vo.getPageType())) {
+		returnValue = procAswsSaveDone(vo, userInfo) ;
+	} else if("saveDoneDt".equals(vo.getPageType())) {
+		returnValue = procAswsSaveDoneDt(vo, userInfo) ;
+	} else if("saveProcExtra".equals(vo.getPageType())) {
+		/* 중요도/전화확인/전화부재중 즉시 저장 (필드 클릭 즉시 수정 UX).
+		   처리상태·담당자와 달리 조치메모 없이 저장하며 이력도 남기지 않는다
+		   (원본 화면(form.jsp)도 이 필드들은 이력 없이 마스터만 갱신). */
+		returnValue = procAswsSaveProcExtra(vo, userInfo) ;
+	// [AX Lab] 수정 끝
 	}
 
 		if(returnValue > 0) returnCode = "000" ;
@@ -826,6 +845,14 @@ public class AdAsController {
 		boolean statusChanged = !"".equals(newStatus) && !newStatus.equals(curStatus) ;
 		boolean assignChanged = !"".equals(newAssign) && !newAssign.equals(curAssign) ;
 
+		// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 처리상태사항 편집폼에 중요도/전화확인/전화부재중 추가.
+		//   updateAsInfoAll 의 SET 절에는 이 3개 컬럼이 없어 위 read-modify-write 로는 반영이 안 되므로,
+		//   egov-combine-as-thread-query.xml 의 updateAsProcExtra(부분 UPDATE) 로 별도 처리한다.
+		String newGrade = SsStringUtil.normalizeNull(vo.getInportance()).trim() ;
+		String curGrade = SsStringUtil.normalizeNull(cur.getInportance()).trim() ;
+		boolean gradeChanged = !"".equals(newGrade) && !newGrade.equals(curGrade) ;
+		// [AX Lab] 수정 끝
+
 		/* 이력 기본값 — 변경된 값은 아래에서 덮어쓴다 */
 		AsVO hist = new AsVO() ;
 		hist.setAs_no(asNo) ;
@@ -886,12 +913,158 @@ public class AdAsController {
 			}
 		}
 
+		// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 중요도/전화확인/전화부재중 저장.
+		//   updateAsInfoAll 과 별도 쿼리라 실패해도 위에서 이미 커밋된 상태변경까지 되돌리지는 않는다
+		//   (커밋 단위는 함수 전체 트랜잭션이므로 return 0 이면 전체 롤백된다. 정상 케이스만 고려).
+		if(returnValue > 0) {
+			AsVO extra = new AsVO() ;
+			extra.setAs_no(asNo) ;
+			extra.setReg_id(empNo) ;
+			extra.setInportance(gradeChanged ? newGrade : curGrade) ;
+			extra.setTel_confirm(SsStringUtil.normalize(vo.getTel_confirm(), SsStringUtil.normalizeNull(cur.getTel_confirm()))) ;
+			extra.setTel_absence(SsStringUtil.normalize(vo.getTel_absence(), SsStringUtil.normalizeNull(cur.getTel_absence()))) ;
+			extra.setTel_absence_cnt(SsStringUtil.normalize(vo.getTel_absence_cnt(), SsStringUtil.normalizeNull(cur.getTel_absence_cnt()))) ;
+			commonDAO.update(extra, "asDAO.updateAsProcExtra") ;
+			if(gradeChanged) hist.setInportance(newGrade) ;
+		}
+		// [AX Lab] 수정 끝
+
 		if(returnValue > 0) {
 			hist.setSeq(String.valueOf(commonDAO.selectOneInt(hist, "asDAO.getAsHistMaxSeq"))) ;
 			commonDAO.insert(hist, "asDAO.insertAsInfoHist") ;
 		}
 
 		return returnValue ;
+	}
+	// [AX Lab] 수정 끝
+
+
+	// [AX Lab] 수정 시작 (2026-07-31 AX Lab): AS 통합화면 아코디언 그룹별 인라인 편집 저장.
+	//   접수정보/고객사정보/문의유형정보/처리완료사항/처리완료 상세사항 — 5개 그룹.
+	//   각 그룹은 egov-combine-as-thread-query.xml 의 "그 그룹 컬럼만 SET 하는" 좁은 쿼리를 쓴다.
+	//   (updateAsInfoAll 처럼 전체 덮어쓰기가 아니므로 read-modify-write 가 필요 없다)
+	//   ★ 원본 화면(form.jsp)도 이 필드들을 저장할 때 CRM_AS_MGT_HIST 에 이력을 남기지 않으므로,
+	//     여기서도 동일하게 이력 없이 마스터만 갱신한다(처리상태사항 편집만 이력을 남기는 기존 규칙 유지).
+
+	/** 접수정보 — 접수경로 */
+	private int procAswsSaveAccept(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setAccept_route(SsStringUtil.normalizeNull(vo.getAccept_route()).trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsAccept") ;
+	}
+
+	/** 고객사정보 — 실신청자명 / 연락처 / SMS수신동의 */
+	private int procAswsSaveCust(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setRl_apply_nm(SsStringUtil.normalizeNull(vo.getRl_apply_nm()).trim()) ;
+		upd.setApply_tel(SsStringUtil.normalizeNull(vo.getApply_tel()).trim()) ;
+		upd.setSend_sms(SsStringUtil.normalizeNull(vo.getSend_sms()).trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsCust") ;
+	}
+
+	/** 문의유형정보 — 문의유형 / 시스템(대) / 시스템(소) / 요청내용
+	 *  ★ 일반 담당자(as_admin != 'Y')는 원본 화면(form.jsp)과 동일하게 문의유형/시스템유형을 바꿀 수 없다.
+	 *    화면에서도 select 를 비활성화하지만, 우회 호출을 막기 위해 서버에서도 한 번 더 확인한다. */
+	private int procAswsSaveInquiry(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(asNo) ;
+		curKey.setReg_id(userInfo.getEmp_no()) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		boolean isAdmin = "Y".equals(SsStringUtil.normalizeNull(cur.getAs_admin())) ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		if(isAdmin) {
+			upd.setRequest_type(SsStringUtil.normalizeNull(vo.getRequest_type()).trim()) ;
+			upd.setService_cate(SsStringUtil.normalizeNull(vo.getService_cate()).trim()) ;
+			upd.setInquiry_type(SsStringUtil.normalizeNull(vo.getInquiry_type()).trim()) ;
+		} else {
+			/* 권한이 없으면 3개 필드는 현재 값을 그대로 유지하고, 요청내용만 반영한다 */
+			upd.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type())) ;
+			upd.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate())) ;
+			upd.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type())) ;
+		}
+		upd.setCall_content(SsStringUtil.normalizeNull(vo.getCall_content()).trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsInquiry") ;
+	}
+
+	/** 처리완료사항 — 처리예정일자/시각 / 원인유형 / 조치유형 / 작업시간 / 처리완료일자 */
+	private int procAswsSaveDone(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setProc_dt(SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim()) ;
+		upd.setProc_time(SsStringUtil.normalizeNull(vo.getProc_time()).trim()) ;
+		upd.setCause_type(SsStringUtil.normalizeNull(vo.getCause_type()).trim()) ;
+		upd.setAction_type(SsStringUtil.normalizeNull(vo.getAction_type()).trim()) ;
+		upd.setWork_time(SsStringUtil.normalizeNull(vo.getWork_time()).trim()) ;
+		upd.setComplete_dt(SsStringUtil.normalizeNull(vo.getComplete_dt()).replaceAll("/", "").trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsDone") ;
+	}
+
+	/** 처리완료 상세사항 — 처리구분 / 빌드순번 / 각종 정의서 (개발팀 참고용) */
+	private int procAswsSaveDoneDt(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setProc_gubun(SsStringUtil.normalizeNull(vo.getProc_gubun()).trim()) ;
+		upd.setProc_build_info(SsStringUtil.normalizeNull(vo.getProc_build_info()).trim()) ;
+		upd.setProc_test_info(SsStringUtil.normalizeNull(vo.getProc_test_info()).trim()) ;
+		upd.setProc_process_sp(SsStringUtil.normalizeNull(vo.getProc_process_sp()).trim()) ;
+		upd.setProc_screen_sp(SsStringUtil.normalizeNull(vo.getProc_screen_sp()).trim()) ;
+		upd.setProc_table_sp(SsStringUtil.normalizeNull(vo.getProc_table_sp()).trim()) ;
+		upd.setProc_function_sp(SsStringUtil.normalizeNull(vo.getProc_function_sp()).trim()) ;
+		upd.setProc_interface_sp(SsStringUtil.normalizeNull(vo.getProc_interface_sp()).trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsDoneDt") ;
+	}
+
+	/** 처리상태사항 부가필드 — 중요도 / 전화확인 / 전화부재중 (조치메모 불필요, 이력 미기록)
+	 *  화면에서 빈 값으로 온 필드는 현재 값을 유지한다(체크박스·select 하나만 바꿔도 안전). */
+	private int procAswsSaveProcExtra(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(asNo) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setInportance(SsStringUtil.normalize(vo.getInportance(), SsStringUtil.normalizeNull(cur.getInportance()))) ;
+		upd.setTel_confirm(SsStringUtil.normalize(vo.getTel_confirm(), SsStringUtil.normalizeNull(cur.getTel_confirm()))) ;
+		upd.setTel_absence(SsStringUtil.normalize(vo.getTel_absence(), SsStringUtil.normalizeNull(cur.getTel_absence()))) ;
+		upd.setTel_absence_cnt(SsStringUtil.normalize(vo.getTel_absence_cnt(), SsStringUtil.normalizeNull(cur.getTel_absence_cnt()))) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsProcExtra") ;
 	}
 	// [AX Lab] 수정 끝
 

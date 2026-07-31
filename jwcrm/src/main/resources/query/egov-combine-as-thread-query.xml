@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- [AX Lab] 신규 파일 (2026-07-31 AX Lab): AS 통합 상담 스레드(combine-as-thread.js) 인라인 편집 전용 쿼리.
+     ─────────────────────────────────────────────────────────────────────────────
+     기존 asDAO.updateAsInfoAll(egov-as-query.xml)을 확장하지 않고 새 쿼리ID로 분리한 이유:
+     updateAsInfoAll 은 20여 개 컬럼을 무조건 SET 하는 "전체 덮어쓰기" 쿼리이고,
+     AdAsController.updateProcDetailByChecked()(연결된 AS 일괄완료 처리) 가 이미 이 쿼리를
+     "부분 필드만 채운 VO"로 호출하고 있다. 여기에 REQUEST_TYPE/SERVICE_CATE/INQUIRY_TYPE/
+     INPORTANCE/ACCEPT_ROUTE/RL_APPLY_NM/APPLY_TEL/SEND_SMS 등을 추가하면, 그 배치 호출에서
+     값이 채워지지 않은 필드가 전부 NULL 로 덮어써져 기존 데이터가 유실된다.
+     → 그래서 각 편집 그룹마다 "그 그룹의 컬럼만" SET 하는 좁은 쿼리를 새로 만들어
+       기존 updateAsInfoAll 호출부(changeStatus/saveAction/subUpdate/updateProcDetailByChecked)에는
+       전혀 영향이 없도록 격리한다. (AdAsController.java 의 procAswsSaveAccept 등에서 사용) -->
+<mapper namespace="asDAO">
+
+	<!-- 접수정보 — 접수경로 -->
+	<update id="updateAsAccept" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			ACCEPT_ROUTE = #{accept_route, jdbcType=VARCHAR},
+			UPT_DATE     = SYSDATE,
+			UPT_ID       = #{reg_id, jdbcType=VARCHAR}
+		WHERE
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+
+	<!-- 고객사정보 — 실신청자 / 연락처 / SMS수신동의 -->
+	<update id="updateAsCust" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			RL_APPLY_NM = #{rl_apply_nm, jdbcType=VARCHAR},
+			APPLY_TEL   = #{apply_tel, jdbcType=VARCHAR},
+			SEND_SMS    = #{send_sms, jdbcType=VARCHAR},
+			UPT_DATE    = SYSDATE,
+			UPT_ID      = #{reg_id, jdbcType=VARCHAR}
+		WHERE
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+
+	<!-- 문의유형정보 — 문의유형 / 시스템(대) / 시스템(소) / 요청내용
+	     ※ VERSION_INFO 는 원본화면(form.jsp)에서 시스템(대) 선택에 연동해 자동 계산되는 파생값이라
+	       여기서는 손대지 않는다(표시만 하고 편집 대상에서 제외). -->
+	<update id="updateAsInquiry" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			REQUEST_TYPE = #{request_type, jdbcType=VARCHAR},
+			SERVICE_CATE = #{service_cate, jdbcType=VARCHAR},
+			INQUIRY_TYPE = #{inquiry_type, jdbcType=VARCHAR},
+			CALL_CONTENT = #{call_content, jdbcType=VARCHAR},
+			UPT_DATE     = SYSDATE,
+			UPT_ID       = #{reg_id, jdbcType=VARCHAR}
+		WHERE
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+
+	<!-- 처리상태사항 추가필드 — 중요도 / 전화확인 / 전화부재중
+	     (처리상태·담당자·조치메모는 기존 asDAO.updateAsInfoAll 로 처리하므로 겹치지 않는 컬럼만 둔다) -->
+	<update id="updateAsProcExtra" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			INPORTANCE      = #{inportance, jdbcType=VARCHAR},
+			TEL_CONFIRM     = #{tel_confirm, jdbcType=VARCHAR},
+			TEL_ABSENCE     = #{tel_absence, jdbcType=VARCHAR},
+			TEL_ABSENCE_CNT = #{tel_absence_cnt, jdbcType=VARCHAR},
+			UPT_DATE        = SYSDATE,
+			UPT_ID          = #{reg_id, jdbcType=VARCHAR}
+		WHERE
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+
+	<!-- 처리완료사항 — 처리예정일자/시각 / 원인유형 / 조치유형 / 작업시간 / 처리완료일자 -->
+	<update id="updateAsDone" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			PROC_DT     = #{proc_dt, jdbcType=VARCHAR},
+			PROC_TIME   = #{proc_time, jdbcType=VARCHAR},
+			CAUSE_TYPE  = #{cause_type, jdbcType=VARCHAR},
+			ACTION_TYPE = #{action_type, jdbcType=VARCHAR},
+			WORK_TIME   = #{work_time, jdbcType=VARCHAR},
+			COMPLETE_DT = #{complete_dt, jdbcType=VARCHAR},
+			UPT_DATE    = SYSDATE,
+			UPT_ID      = #{reg_id, jdbcType=VARCHAR}
+		WHERE
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+
+	<!-- 처리완료 상세사항 — 처리구분 / 빌드순번 / 각종 정의서 -->
+	<update id="updateAsDoneDt" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			PROC_GUBUN        = #{proc_gubun, jdbcType=VARCHAR},
+			PROC_BUILD_INFO   = #{proc_build_info, jdbcType=VARCHAR},
+			PROC_TEST_INFO    = #{proc_test_info, jdbcType=VARCHAR},
+			PROC_PROCESS_SP   = #{proc_process_sp, jdbcType=VARCHAR},
+			PROC_SCREEN_SP    = #{proc_screen_sp, jdbcType=VARCHAR},
+			PROC_TABLE_SP     = #{proc_table_sp, jdbcType=VARCHAR},
+			PROC_FUNCTION_SP  = #{proc_function_sp, jdbcType=VARCHAR},
+			PROC_INTERFACE_SP = #{proc_interface_sp, jdbcType=VARCHAR},
+			UPT_DATE          = SYSDATE,
+			UPT_ID            = #{reg_id, jdbcType=VARCHAR}
+		WHERE
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+
+</mapper>
