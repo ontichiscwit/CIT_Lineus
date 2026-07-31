@@ -622,16 +622,22 @@ public class AdAsController {
 				fileVO.setAttach_seq(Integer.parseInt(vo.getFile_seq()));
 				returnValue += commonFileService.deleteFileByAttachSeq(fileVO) ;
 			}
-		// [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 인라인 처리(조치내용 작성 / 처리상태 변경 / 담당자 이관).
-		//   ★ 신규 URL 을 만들지 않고 기존 histProc.do 에 pageType 을 추가하는 이유는
-		//     MenuAuthFilter 가 acceptUrlList 와 완전일치 비교만 해서 신규 /ad/as/*.do 가 403 이 되기 때문이다.
-		//     (awsProc.do 의 insert/update/delete, histProc.do 의 updateHistActionContent 와 같은 기존 관례)
-		} else if("insertAction".equals(vo.getPageType())
-				|| "changeStatus".equals(vo.getPageType())
-				|| "transferAssign".equals(vo.getPageType())) {
-			returnValue = procAswsInline(vo, userInfo) ;
+	// [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 인라인 처리(조치내용 작성 / 처리상태 변경 / 담당자 이관).
+	//   ★ 신규 URL 을 만들지 않고 기존 histProc.do 에 pageType 을 추가하는 이유는
+	//     MenuAuthFilter 가 acceptUrlList 와 완전일치 비교만 해서 신규 /ad/as/*.do 가 403 이 되기 때문이다.
+	//     (awsProc.do 의 insert/update/delete, histProc.do 의 updateHistActionContent 와 같은 기존 관례)
+	} else if("insertAction".equals(vo.getPageType())
+			|| "changeStatus".equals(vo.getPageType())
+			|| "transferAssign".equals(vo.getPageType())) {
+		returnValue = procAswsInline(vo, userInfo) ;
+	} else if("saveAction".equals(vo.getPageType())) {
+		// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 처리 탭 통합 저장 (처리상태 + 담당자 + 조치메모 한 번에).
+		//   기존 changeStatus/transferAssign 를 각각 모달로 처리하던 것을
+		//   처리 탭 단일 폼으로 통합하면서 추가한 pageType.
+		returnValue = procAswsSaveAction(vo, userInfo) ;
 		// [AX Lab] 수정 끝
-		}
+	// [AX Lab] 수정 끝
+	}
 
 		if(returnValue > 0) returnCode = "000" ;
 
@@ -780,7 +786,116 @@ public class AdAsController {
 	}
 	// [AX Lab] 수정 끝
 
-	
+
+	// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 처리 탭 통합 저장 로직.
+	/**
+	 * AS 통합화면 처리 탭 — 처리상태 · 담당자 · 조치메모를 한 번에 저장한다.
+	 *
+	 * 기존에는 '처리상태 변경' 과 '담당자 이관' 이 각각 별도 모달(changeStatus / transferAssign)이었다.
+	 * 통합 처리 탭으로 합치면서 아래 규칙으로 동작한다.
+	 *
+	 * ① 처리상태 또는 담당자가 변경된 경우:
+	 *    updateAsInfoAll 로 마스터 1회 업데이트 (read-modify-write 패턴은 changeStatus 분기와 동일).
+	 *    updateAsInfoAll 이 PROC_STATUS 와 ASSIGN_ID 를 모두 덮어쓰므로 두 번 호출할 필요 없다.
+	 * ② 아무것도 바뀌지 않은 "메모만" 케이스: 마스터는 건드리지 않고 이력만 추가한다.
+	 * ③ 담당자가 바뀌면 이력 ACTION_CONTENT 에 ASWS_TRANSFER_PREFIX 를 붙여 이관 이벤트로 식별한다.
+	 *    (JS 의 CAWS_TR_PREFIX 상수와 반드시 같아야 한다)
+	 *
+	 * @return 처리 건수 (0 이면 실패)
+	 */
+	private int procAswsSaveAction(AsVO vo, UserVO userInfo) throws Exception {
+
+		String asNo    = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		String comment = SsStringUtil.normalizeNull(vo.getAction_content()).trim() ;
+
+		if("".equals(asNo) || "".equals(comment) || userInfo == null) return 0 ;
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(asNo) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		String empNo     = SsStringUtil.normalizeNull(userInfo.getEmp_no()) ;
+		String newStatus = SsStringUtil.normalizeNull(vo.getProc_status()).trim() ;
+		String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim() ;
+		String newAssign = SsStringUtil.normalizeNull(vo.getAssign_id()).trim() ;
+
+		String curStatus = SsStringUtil.normalizeNull(cur.getProc_status()).trim() ;
+		String curAssign = SsStringUtil.normalizeNull(cur.getAssign_id()).trim() ;
+
+		boolean statusChanged = !"".equals(newStatus) && !newStatus.equals(curStatus) ;
+		boolean assignChanged = !"".equals(newAssign) && !newAssign.equals(curAssign) ;
+
+		/* 이력 기본값 — 변경된 값은 아래에서 덮어쓴다 */
+		AsVO hist = new AsVO() ;
+		hist.setAs_no(asNo) ;
+		hist.setProc_dt(SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+		hist.setProc_status(curStatus) ;
+		hist.setInportance(SsStringUtil.normalizeNull(cur.getInportance())) ;
+		hist.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type())) ;
+		hist.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate())) ;
+		hist.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type())) ;
+		hist.setAssign_id(curAssign) ;
+		hist.setAttach_seq2(0) ;
+		hist.setReg_id(empNo) ;
+		hist.setAction_content(comment) ;
+
+		int returnValue = 1 ;		/* 메모만 남기는 케이스(상태/담당자 모두 그대로)도 이력 추가는 성공 */
+
+		if(statusChanged || assignChanged) {
+
+			/* read-modify-write : updateAsInfoAll 이 20여 개 컬럼을 무조건 덮어쓰므로
+			   현재 값을 먼저 복사한 뒤 바뀐 값만 교체한다. (changeStatus 분기와 동일한 패턴) */
+			AsVO upd = new AsVO() ;
+			upd.setAs_no(asNo) ;
+			upd.setPageType("") ;					/* subUpdate 분기(CN_AS_NO 조건) 회피 */
+			upd.setReg_id(empNo) ;
+			upd.setTel_confirm(SsStringUtil.normalizeNull(cur.getTel_confirm())) ;
+			upd.setProc_dt(SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+			upd.setProc_time(SsStringUtil.normalizeNull(cur.getProc_time())) ;
+			upd.setCause_type(SsStringUtil.normalizeNull(cur.getCause_type())) ;
+			upd.setAction_type(SsStringUtil.normalizeNull(cur.getAction_type())) ;
+			upd.setAssign_id(curAssign) ;
+			upd.setAttach_seq2(cur.getAttach_seq2()) ;
+			upd.setWork_time(SsStringUtil.normalizeNull(cur.getWork_time())) ;
+			upd.setComplete_dt(SsStringUtil.normalizeNull(cur.getComplete_dt())) ;
+			upd.setProc_gubun(SsStringUtil.normalizeNull(cur.getProc_gubun())) ;
+			upd.setProc_build_info(SsStringUtil.normalizeNull(cur.getProc_build_info())) ;
+			upd.setProc_test_info(SsStringUtil.normalizeNull(cur.getProc_test_info())) ;
+			upd.setProc_process_sp(SsStringUtil.normalizeNull(cur.getProc_process_sp())) ;
+			upd.setProc_screen_sp(SsStringUtil.normalizeNull(cur.getProc_screen_sp())) ;
+			upd.setProc_table_sp(SsStringUtil.normalizeNull(cur.getProc_table_sp())) ;
+			upd.setProc_function_sp(SsStringUtil.normalizeNull(cur.getProc_function_sp())) ;
+			upd.setProc_interface_sp(SsStringUtil.normalizeNull(cur.getProc_interface_sp())) ;
+			upd.setProc_status(statusChanged ? newStatus : curStatus) ;
+			upd.setAction_content(comment) ;
+			if(statusChanged && !"".equals(newProcDt)) upd.setProc_dt(newProcDt) ;
+			if(assignChanged) upd.setAssign_id(newAssign) ;
+
+			returnValue = commonDAO.update(upd, "asDAO.updateAsInfoAll") ;
+
+			if(returnValue > 0) {
+				if(statusChanged) {
+					hist.setProc_status(newStatus) ;
+					if(!"".equals(newProcDt)) hist.setProc_dt(newProcDt) ;
+				}
+				if(assignChanged) {
+					hist.setAssign_id(newAssign) ;
+					hist.setAction_content(ASWS_TRANSFER_PREFIX + comment) ;
+				}
+			}
+		}
+
+		if(returnValue > 0) {
+			hist.setSeq(String.valueOf(commonDAO.selectOneInt(hist, "asDAO.getAsHistMaxSeq"))) ;
+			commonDAO.insert(hist, "asDAO.insertAsInfoHist") ;
+		}
+
+		return returnValue ;
+	}
+	// [AX Lab] 수정 끝
+
+
 	/**
 	 * 엑셀처리
 	 * @param vo

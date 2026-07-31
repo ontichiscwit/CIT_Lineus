@@ -25,11 +25,13 @@ var caws = {
 	aws:[], hist:[], attach1:[], attach2:[],
 	events:[],
 	tab:'all',			/* 타임라인 필터탭 : all | talk | act | tr */
-	ctab:'ans',			/* 작성영역 탭   : ans(고객 답변) | act(내부 조치) */
+	ctab:'ans',			/* 작성영역 (고객 답변만 남음 — act 탭은 COL3 처리 패널로 이동) */
 	fileSeq:0,			/* 첨부 슬롯 이름 채번용 (uploadFile{n}) */
 	lb:{ list:[], idx:0 },
 	past:{ quick:'1w', list:[] },
-	emp:{ list:[], sel:'', selNm:'' },
+	emp:{ list:[], sel:'', selNm:'' },	/* 구 이관모달용 - 하위호환 유지 */
+	act:{ empList:[], assignId:'', assignNm:'' },	/* COL3 처리 패널 상태 */
+	rec3edit: false,	/* COL3 처리상태사항 편집모드 여부 */
 	ai:{ target:'', src:'', out:'', tone:'polite' }
 };
 
@@ -155,6 +157,8 @@ function caws_renderAll(data){
 	caws.hist   = data.asHistList || [];
 	caws.attach1 = data.attachList  || [];
 	caws.attach2 = data.attachList2 || [];
+	caws.act.empList = [];		/* COL3 처리 패널 담당자 목록은 건마다 새로 로드 */
+	caws.rec3edit = false;		/* 편집모드 초기화 */
 
 	caws.events = caws_buildEvents();
 
@@ -337,9 +341,7 @@ function caws_renderHead(){
 	+   '</div>'
 	+ '</div>'
 	+ '<div class="caws-acts">'
-	+   '<button type="button" class="btn-s primary" onclick="caws_openStatus();" title="처리상태와 처리예정일을 바꾸고 조치의견을 이력에 남깁니다">상태 변경</button>'
-	+   '<button type="button" class="btn-s" onclick="caws_openTransfer();" title="담당자를 다른 직원에게 넘기고 이관 코멘트를 남깁니다">담당자 이관</button>'
-	+   '<button type="button" class="btn-s" onclick="caws_focusAct();" title="아래 작성영역의 [내부 조치내용] 탭으로 이동합니다">조치내용 작성</button>'
+	+   '<button type="button" class="btn-s primary" onclick="caws_focusAct();" title="처리상태·담당자 변경 및 조치내용을 한 번에 작성합니다">처리 작성</button>'
 	+   '<div class="caws-sp"></div>'
 	+   '<button type="button" class="btn-s" onclick="asws_openFull();" title="빌드순번·각종 정의서 등 상세 항목은 전체 상세 페이지에서 수정합니다">전체 상세 페이지</button>'
 	+ '</div>'
@@ -572,22 +574,16 @@ function caws_lbDown(){
 }
 
 /* =============================================================================
- * 5) COL2 하단 고정 작성영역 (2탭 : 고객 답변 / 내부 조치내용)
+ * 5) COL2 하단 작성영역 (고객 답변 전용)
  * -----------------------------------------------------------------------------
- * 탭A 고객 답변   → awsProc.do (pageType=insert, w_gubun 은 서버가 'A' 로 지정) · 첨부 가능
- * 탭B 내부 조치   → histProc.do (pageType=insertAction) · 첨부 불가
- *   ※ 조치내용에 첨부를 못 붙이는 이유: histProc.do 는 멀티파트 요청을 받지 않는다.
- *     기존 메서드 시그니처에 MultipartHttpServletRequest 를 끼우면 멀티파트가 아닌 기존 호출
- *     (updateHistActionContent / deleteFileSeqHist)이 인자 해석에 실패한다. 조치 첨부가 필요하면
- *     전체 상세 페이지를 쓰도록 안내한다. (조치이력 첨부 "조회"는 타임라인에서 정상 지원)
+ * '처리' 탭(처리상태·담당자·조치메모)은 COL3 처리상태사항 편집 패널로 이동됐다.
+ * (caws_rec3Open / caws_saveAct 참고)
  * ========================================================================== */
 function caws_renderCompose(){
-	var isAns = (caws.ctab === 'ans');
 	var open = caws_composeOpen();
 	var h = ''
 	+ '<div class="caws-ctabs">'
-	+   '<button type="button" class="caws-ctab'+(isAns ? ' on' : '')+'" onclick="caws_ctab(\'ans\');">고객 답변</button>'
-	+   '<button type="button" class="caws-ctab act'+(!isAns ? ' on' : '')+'" onclick="caws_ctab(\'act\');">내부 조치내용</button>'
+	+   '<span class="caws-ctab on" style="cursor:default; pointer-events:none;">고객 답변</span>'
 	+   '<span class="caws-cdraft" id="cawsDraftTag">작성 중</span>'
 	+   '<div class="caws-sp"></div>'
 	+   '<button type="button" class="caws-cfold" id="cawsFoldBtn" onclick="caws_toggleCompose();" '
@@ -596,34 +592,142 @@ function caws_renderCompose(){
 	+   '</button>'
 	+ '</div>'
 	+ '<div class="caws-cbody">'
-	+   (isAns
-	     ? '<div class="caws-cnote ans">이 글은 고객에게 그대로 노출됩니다.</div>'
-	     : '<div class="caws-cnote act">내부 전용 기록입니다. 고객에게 보이지 않습니다.</div>')
+	+   '<div class="caws-cnote ans">이 글은 고객에게 그대로 노출됩니다.</div>'
 	+   '<div class="caws-tools">'
 	+     '<button type="button" class="btn-s" onclick="caws_openAi();" title="작성 중인 문장을 다듬습니다">AI 문장 다듬기</button>'
 	+     '<button type="button" class="btn-s" onclick="caws_openLink();" title="본문에 게시물 링크를 삽입합니다">게시물 링크</button>'
-	+     (isAns
-	       ? '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다 (최대 '+CAWS_MAX_FILES+'개)">파일 첨부</button>'
-	       : '<button type="button" class="btn-s" disabled title="내부 조치내용에는 첨부를 붙일 수 없습니다. 첨부가 필요하면 [전체 상세 페이지]를 이용해주세요.">파일 첨부</button>')
+	+     '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다 (최대 '+CAWS_MAX_FILES+'개)">파일 첨부</button>'
 	+     '<div class="caws-sp"></div>'
 	+   '</div>'
 	+   '<div class="caws-drop" id="cawsDrop">'
-	+     '<textarea class="caws-ta" id="cawsText" oninput="caws_autoGrow(this);" placeholder="'
-	+       (isAns ? '고객에게 보낼 답변 내용을 입력하세요. 파일을 이 영역에 끌어다 놓으면 첨부됩니다.' : '내부에 남길 조치내용을 입력하세요.')
-	+     '"></textarea>'
+	+     '<textarea class="caws-ta" id="cawsText" oninput="caws_autoGrow(this);" placeholder="고객에게 보낼 답변 내용을 입력하세요. 파일을 이 영역에 끌어다 놓으면 첨부됩니다."></textarea>'
 	+   '</div>'
 	+   '<div class="caws-thumbs" id="cawsThumbs"></div>'
 	+   '<div class="caws-cbar">'
-	+     '<span class="caws-chint">'+(isAns ? '등록 시 고객에게 알림이 발송될 수 있습니다.' : '처리상태는 바뀌지 않고 이력만 추가됩니다.')+'</span>'
-	+     '<button type="button" class="caws-send'+(isAns ? '' : ' act')+'" onclick="caws_send();">'+(isAns ? '답변 등록' : '조치내용 등록')+'</button>'
+	+     '<span class="caws-chint">등록 시 고객에게 알림이 발송될 수 있습니다.</span>'
+	+     '<button type="button" class="caws-send" onclick="caws_send();">답변 등록</button>'
 	+   '</div>'
 	+ '</div>';
 
 	caws_html('asCompose', h);
 	var comp = caws_el('asCompose');
 	if(comp) comp.classList.toggle('off', !open);
-	if(caws.ctab === 'ans') caws_bindDrop();
+	caws_bindDrop();
 	caws_renderThumbs();
+}
+
+/* ---- 처리 탭 초기화 / 담당자 검색 ---------------------------------------- */
+function caws_actInitPanel(){
+	/* 처리상태 select — 현재 값 미리 선택 */
+	var stSel = caws_el('cawsActStatus');
+	if(stSel) stSel.innerHTML = caws_codeOptions('AS','CD01', caws_stCode(), '');
+
+	/* 처리예정일 — 현재 값으로 초기화 */
+	var dtIn = caws_el('cawsActProcDt');
+	if(dtIn){
+		dtIn.value = caws_dateSlash(caws_nvl((caws.vo||{}).proc_dt, caws_nvl((caws.row||{}).proc_dt,'')));
+		try{ $('#cawsActProcDt').datepicker({ dateFormat:'yy/mm/dd', changeMonth:true, changeYear:true }); }catch(e){}
+	}
+
+	/* 담당자 선택 상태 초기화 */
+	caws.act.assignId = caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''));
+	caws.act.assignNm = caws_empNm();
+	var selNm = caws_el('cawsActSelNm');
+	if(selNm) selNm.innerHTML = caws_esc(caws.act.assignNm);
+
+	/* 담당자 목록 — 이미 로드됐으면 재사용, 없으면 새로 요청 */
+	if(caws.act.empList.length > 0){
+		caws_actEmpFilter();
+	} else {
+		common.ajaxCall({ as_no:caws.asNo, assign_id:caws.act.assignId }, '/ad/as/getAsEmpList.do', 'caws_actEmpLoaded');
+	}
+}
+function caws_actEmpLoaded(data){
+	caws.act.empList = (data && data.resultList) ? data.resultList : [];
+	caws_actEmpFilter();
+}
+function caws_actEmpFilter(){
+	var kwEl = caws_el('cawsActEmpKw');
+	var kw = kwEl ? String(kwEl.value||'').trim() : '';
+	var list = caws_el('cawsActEmpList');
+	if(!list) return;
+	var curId = caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''));
+	var s = '', n = 0;
+	for(var i=0; i<caws.act.empList.length; i++){
+		var e = caws.act.empList[i];
+		var no = caws_nvl(e.emp_no,''), nm = caws_nvl(e.emp_nm,'');
+		if(kw !== '' && nm.indexOf(kw) < 0 && no.indexOf(kw) < 0) continue;
+		n++;
+		/* ★ 이름을 onclick 인자로 넘기지 않는 이유: esc 된 &#39; 가 HTML 파싱 후 ' 로 복원되어 스크립트가 깨진다. */
+		s += '<button type="button" class="caws-empit'+(caws.act.assignId === no ? ' on' : '')+'" '
+		  +  'onclick="caws_actSelEmp(\''+caws_esc(no)+'\');">'
+		  +  '<span class="caws-enm">'+caws_esc(nm)+'</span>'
+		  +  '<span class="caws-edp">'+caws_esc(no)+'</span>'
+		  +  (no === curId ? '<span class="caws-ecur">현재 담당</span>' : '')
+		  +  '</button>';
+	}
+	if(n === 0) s = '<div class="caws-pempty">'+(kw !== '' ? '검색 결과 없음' : '담당 가능한 직원 없음')+'</div>';
+	list.innerHTML = s;
+}
+function caws_actSelEmp(no){
+	for(var i=0; i<caws.act.empList.length; i++){
+		if(caws.act.empList[i].emp_no === no){
+			caws.act.assignId = no;
+			caws.act.assignNm = caws_nvl(caws.act.empList[i].emp_nm,'');
+			break;
+		}
+	}
+	var selNm = caws_el('cawsActSelNm');
+	if(selNm) selNm.innerHTML = caws_esc(caws.act.assignNm);
+	caws_actEmpFilter();		/* 목록 재렌더해서 선택 강조(on 클래스) 업데이트 */
+}
+
+/* ---- COL3 처리 패널 저장  →  histProc.do (pageType=saveAction) ------------ */
+function caws_saveAct(){
+	if(caws_nvl(caws.asNo,'') === ''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
+	/* cawsText 는 고객 답변 textarea. 조치메모는 COL3 폼의 cawsActMemo 를 읽는다. */
+	var ta = caws_el('cawsActMemo');
+	var comment = ta ? String(ta.value||'').trim() : '';
+	if(!comment){ alert('조치내용을 입력해주세요.'); if(ta) ta.focus(); return; }
+
+	var stEl = caws_el('cawsActStatus');
+	var dtEl = caws_el('cawsActProcDt');
+
+	common.ajaxCall({
+		as_no: caws.asNo,
+		pageType: 'saveAction',
+		proc_status: stEl ? String(stEl.value||'') : '',
+		proc_dt:     dtEl ? String(dtEl.value||'') : '',
+		assign_id:   caws_nvl(caws.act.assignId,''),
+		action_content: comment
+	}, '/ad/as/histProc.do', 'caws_histReturn');
+}
+
+/* ---- COL3 처리 패널 편집 토글 ------------------------------------------ */
+/* [편집] 버튼 클릭 → 편집모드로 전환.
+   proc 아코디언이 닫혀 있으면 먼저 펼친다(편집폼이 눈에 띄어야 하기 때문).
+   re-render 는 caws_renderRecord 가 caws.rec3edit 플래그를 보고 처리한다. */
+function caws_rec3Open(){
+	if(caws_nvl(caws.asNo,'') === ''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
+	/* proc 아코디언이 닫혀 있으면 강제로 열어준다 */
+	try{
+		var s = sessionStorage.getItem(CAWS_ACC_KEY);
+		var st = s ? JSON.parse(s) : {};
+		if(st.proc === false){
+			st.proc = true;
+			sessionStorage.setItem(CAWS_ACC_KEY, JSON.stringify(st));
+		}
+	}catch(e){}
+	caws.rec3edit = true;
+	caws_renderRecord();	/* rec3edit=true 이면 b3 를 편집폼으로 그린다 */
+}
+
+/* [취소] 버튼 클릭 → 읽기모드로 복귀 */
+function caws_rec3Cancel(){
+	caws.rec3edit = false;
+	caws.act.assignId = '';	/* 선택 초기화 */
+	caws.act.assignNm = '';
+	caws_renderRecord();
 }
 
 /* ---- 접기/펼치기 -------------------------------------------------------- */
@@ -681,22 +785,17 @@ function caws_autoGrow(el){
 }
 
 function caws_ctab(t){
-	/* 접힌 상태에서 탭을 누른 것은 "그 탭으로 쓰겠다"는 뜻이므로 같은 탭이어도 펼쳐준다. */
-	if(caws.ctab === t){ caws_openCompose(); return; }
-	/* 탭을 옮기면 첨부는 초기화한다. 조치 탭에는 첨부를 보낼 수 없으므로 남겨두면 오해를 준다. */
-	caws_clearFiles();
-	caws.ctab = t;
-	caws_renderCompose();
+	/* '처리' 탭이 COL3 로 이동됐으므로 'act' 요청이 오면 COL3 편집 패널로 보낸다. */
+	if(t === 'act'){ caws_rec3Open(); return; }
+	/* 'ans' : 작성영역 펼치고 포커스 */
 	caws_openCompose();
 	var ta = caws_el('cawsText');
-	if(ta) ta.focus();
+	if(ta){ caws_autoGrow(ta); ta.focus(); }
 }
 
 function caws_focusAct(){
-	if(caws.ctab !== 'act'){ caws_ctab('act'); return; }
-	caws_openCompose();
-	var ta = caws_el('cawsText');
-	if(ta) ta.focus();
+	/* 기존에는 '처리' 탭으로 전환했지만 이제는 COL3 편집 패널을 연다. */
+	caws_rec3Open();
 }
 
 /* ---- 드래그&드롭 첨부 ---------------------------------------------------- */
@@ -821,15 +920,8 @@ function caws_send(){
 	var ta = caws_el('cawsText');
 	var txt = ta ? ta.value : '';
 	if(caws_nvl(txt,'').replace(/\s/g,'') === ''){
-		alert(caws.ctab === 'ans' ? '답변 내용을 입력해 주세요.' : '조치내용을 입력해 주세요.');
+		alert('답변 내용을 입력해 주세요.');
 		if(ta) ta.focus();
-		return;
-	}
-
-	if(caws.ctab === 'act'){
-		/* 조치내용 단독 추가 : CRM_AS_MGT 는 건드리지 않고 이력만 남긴다. */
-		common.ajaxCall({ as_no:caws.asNo, pageType:'insertAction', action_content:txt },
-		                '/ad/as/histProc.do', 'caws_histReturn');
 		return;
 	}
 
@@ -850,13 +942,14 @@ function caws_send(){
 	f.submit();
 }
 
-/* histProc.do 공통 콜백 (조치내용 / 상태변경 / 이관) */
+/* histProc.do 공통 콜백 (COL3 처리 패널 저장) */
 function caws_histReturn(data){
 	var code = (data && typeof data.returnCode != 'undefined') ? data.returnCode : '';
 	if(code !== '000'){ alert('처리도중 오류가 발생했습니다.'); return; }
 	alert('정상처리 되었습니다.');
 	caws_closeAll();
-	var ta = caws_el('cawsText');
+	caws.rec3edit = false;		/* 저장 후 편집모드 닫기 (목록·상세 재조회 전에 먼저 닫아야 read 모드로 렌더됨) */
+	var ta = caws_el('cawsActMemo');
 	if(ta) ta.value = '';
 	caws_reload(true);
 }
@@ -917,127 +1010,7 @@ function caws_codeOptions(cg, pc, sel, placeholder){
 }
 
 /* =============================================================================
- * 7) 상태 변경 모달  →  histProc.do (pageType=changeStatus)
- * -----------------------------------------------------------------------------
- * 중요도는 여기서 다루지 않는다. 서버의 updateAsInfoAll SET 절에 INPORTANCE 가 없어서
- * 이 경로로는 바꿀 수 없기 때문이다. 중요도 변경은 전체 상세 페이지에 위임한다.
- * ========================================================================== */
-function caws_openStatus(){
-	if(caws_nvl(caws.asNo,'') === ''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
-	var vo = caws.vo || {}, row = caws.row || {};
-	var cur = caws_nvl(row.proc_status, caws_nvl(vo.proc_status,''));
-
-	caws_html('cawsStStatus', caws_codeOptions('AS','CD01', cur, ''));
-	var dt = caws_el('cawsStProcDt');
-	if(dt) dt.value = caws_dateSlash(caws_nvl(vo.proc_dt, caws_nvl(row.proc_dt,'')));
-	var cm = caws_el('cawsStComment');
-	if(cm) cm.value = '';
-	caws_html('cawsStCur', caws_esc(caws_stNm()));
-
-	/* 기존 화면과 동일한 datepicker 를 붙인다(중복 초기화는 jQuery UI 가 무시). */
-	try{ $('#cawsStProcDt').datepicker({ dateFormat:'yy/mm/dd', changeMonth:true, changeYear:true }); }catch(e){}
-
-	caws_openModal('cawsStatus');
-	if(cm) cm.focus();
-}
-function caws_saveStatus(){
-	var st = caws_el('cawsStStatus'), dt = caws_el('cawsStProcDt'), cm = caws_el('cawsStComment');
-	var status = st ? st.value : '';
-	var comment = cm ? cm.value : '';
-	if(caws_nvl(status,'') === ''){ alert('처리상태를 선택해주세요.'); return; }
-	if(caws_nvl(comment,'').replace(/\s/g,'') === ''){
-		/* 상태만 바뀌고 왜 바뀌었는지 기록이 없으면 이력의 가치가 사라지므로 화면에서 필수로 강제한다.
-		   (기존 상세페이지 chgProcStatus 도 조치의견을 필수로 검증한다) */
-		alert('조치의견을 입력해주세요.'); if(cm) cm.focus(); return;
-	}
-	common.ajaxCall({
-		as_no: caws.asNo,
-		pageType: 'changeStatus',
-		proc_status: status,
-		proc_dt: (dt ? dt.value : ''),
-		action_content: comment
-	}, '/ad/as/histProc.do', 'caws_histReturn');
-}
-
-/* =============================================================================
- * 8) 담당자 이관 모달  →  histProc.do (pageType=transferAssign)
- * -----------------------------------------------------------------------------
- * 후보 목록은 기존 /ad/as/getAsEmpList.do 를 그대로 쓴다.
- * 이 쿼리는 EMP_NO / EMP_NM 만 주고 부서·파트를 주지 않으므로, 필터는 화면에서 이름 검색으로 제공한다.
- * ========================================================================== */
-function caws_openTransfer(){
-	if(caws_nvl(caws.asNo,'') === ''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
-	var vo = caws.vo || {}, row = caws.row || {};
-	caws.emp.sel = ''; caws.emp.selNm = '';
-
-	caws_html('cawsTrCur', caws_esc(caws_empNm()));
-	var kw = caws_el('cawsTrKw'); if(kw) kw.value = '';
-	var cm = caws_el('cawsTrComment'); if(cm) cm.value = '';
-
-	/* assign_id 는 후보 산출 조건(같은 부서 등)에 쓰이므로 반드시 현재 담당자를 넘긴다. */
-	common.ajaxCall({ as_no:caws.asNo, assign_id:caws_nvl(vo.assign_id, caws_nvl(row.assign_id,'')) },
-	                '/ad/as/getAsEmpList.do', 'caws_setEmpList');
-
-	caws_openModal('cawsTransfer');
-}
-function caws_setEmpList(data){
-	caws.emp.list = (data && data.resultList) ? data.resultList : [];
-	caws_renderEmpList();
-}
-function caws_renderEmpList(){
-	var kwEl = caws_el('cawsTrKw');
-	var kw = kwEl ? String(kwEl.value||'').trim() : '';
-	var curId = caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''));
-	var s = '', n = 0;
-
-	for(var i=0; i<caws.emp.list.length; i++){
-		var e = caws.emp.list[i];
-		var no = caws_nvl(e.emp_no,''), nm = caws_nvl(e.emp_nm,'');
-		if(kw !== '' && nm.indexOf(kw) < 0 && no.indexOf(kw) < 0) continue;
-		n++;
-		/* ★ 이름을 onclick 인자로 넘기지 않는 이유: caws_esc 가 만든 &#39; 를 HTML 파서가 ' 로 되돌린 뒤
-		   JS 가 파싱하므로 이름에 따옴표가 섞이면 스크립트가 깨진다. 사번만 넘기고 이름은 배열에서 찾는다. */
-		s += '<button type="button" class="caws-empit'+(caws.emp.sel === no ? ' on' : '')+'" '
-		  +  'onclick="caws_selEmp(\''+caws_esc(no)+'\');">'
-		  +  '<span class="caws-enm">'+caws_esc(nm)+'</span>'
-		  +  '<span class="caws-edp">'+caws_esc(no)+'</span>'
-		  +  (no === curId ? '<span class="caws-ecur">현재 담당</span>' : '')
-		  +  '</button>';
-	}
-	if(!n) s = '<div class="caws-pempty">이관할 수 있는 담당자가 없습니다.</div>';
-	caws_html('cawsTrList', s);
-}
-function caws_selEmp(no){
-	caws.emp.sel = no;
-	caws.emp.selNm = no;
-	for(var i=0; i<caws.emp.list.length; i++){
-		if(caws_nvl(caws.emp.list[i].emp_no,'') === no){ caws.emp.selNm = caws_nvl(caws.emp.list[i].emp_nm, no); break; }
-	}
-	caws_renderEmpList();
-}
-function caws_saveTransfer(){
-	var curId = caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''));
-	var cm = caws_el('cawsTrComment');
-	var comment = cm ? cm.value : '';
-
-	if(caws_nvl(caws.emp.sel,'') === ''){ alert('이관할 담당자를 선택해주세요.'); return; }
-	if(caws.emp.sel === curId){ alert('현재 담당자와 같습니다. 다른 담당자를 선택해주세요.'); return; }
-	if(caws_nvl(comment,'').replace(/\s/g,'') === ''){
-		alert('이관 코멘트를 입력해주세요.\n(인수자가 상황을 파악할 수 있도록 필수 입력입니다)');
-		if(cm) cm.focus(); return;
-	}
-	if(!confirm('담당자를 [' + caws.emp.selNm + '] 님에게 이관하시겠습니까?')) return;
-
-	common.ajaxCall({
-		as_no: caws.asNo,
-		pageType: 'transferAssign',
-		assign_id: caws.emp.sel,
-		action_content: comment
-	}, '/ad/as/histProc.do', 'caws_histReturn');
-}
-
-/* =============================================================================
- * 9) AI 문장 다듬기 모달 (★ 화면만)
+ * 7) AI 문장 다듬기 모달 (★ 화면만)
  * ========================================================================== */
 function caws_openAi(){
 	var ta = caws_el('cawsText');
@@ -1292,15 +1265,49 @@ function caws_renderRecord(){
 	/* --- 처리상태사항 --- */
 	var absence = (caws_nvl(vo.tel_absence,'') === 'Y')
 	            ? ('부재중 ' + caws_nvl(vo.tel_absence_cnt,'0') + '회') : '-';
-	var b3 = '<div class="kv"><span class="k">현재 처리상태</span>'
-	       +   '<span class="v"><span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span></span></div>'
-	       + caws_kv('처리담당자', empNm)
-	       + caws_kv('전화확인', (caws_nvl(vo.tel_confirm,'') === 'Y') ? '완료' : '-')
-	       + caws_kv('전화 부재중', absence)
-	       + '<div class="caws-frow" style="margin-top:7px;">'
-	       +   '<button type="button" class="btn-s primary" onclick="caws_openStatus();">상태 변경</button>'
-	       +   '<button type="button" class="btn-s" onclick="caws_openTransfer();">담당자 이관</button>'
-	       + '</div>';
+	var b3;
+	if(!caws.rec3edit){
+		/* 읽기모드 : 현재 상태 표시 + [편집] 버튼 */
+		b3 = '<div class="kv"><span class="k">현재 처리상태</span>'
+		   +   '<span class="v"><span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span></span></div>'
+		   + caws_kv('처리담당자', empNm)
+		   + caws_kv('전화확인', (caws_nvl(vo.tel_confirm,'') === 'Y') ? '완료' : '-')
+		   + caws_kv('전화 부재중', absence)
+		   + '<div class="caws-frow" style="margin-top:8px;">'
+		   +   '<button type="button" class="btn-s primary caws-rec3btn" onclick="caws_rec3Open();" '
+		   +     'title="처리상태·담당자 변경 및 조치메모를 작성합니다">&#9998; 편집</button>'
+		   + '</div>';
+	} else {
+		/* 편집모드 : 처리상태·처리예정일·담당자·조치메모를 한 폼에 배치한다. */
+		var curAssignNm = caws_nvl(caws.act.assignNm, empNm);
+		b3 = '<div class="caws-rec3form">'
+		   +   '<div class="caws-actrow">'
+		   +     '<div class="caws-actfld">'
+		   +       '<label class="caws-aclb">처리상태</label>'
+		   +       '<select id="cawsActStatus" class="caws-acsel"></select>'
+		   +     '</div>'
+		   +     '<div class="caws-actfld">'
+		   +       '<label class="caws-aclb">처리예정일</label>'
+		   +       '<input type="text" id="cawsActProcDt" class="caws-acdt" readonly placeholder="YYYY/MM/DD" />'
+		   +     '</div>'
+		   +   '</div>'
+		   +   '<div class="caws-actfld caws-actemp">'
+		   +     '<label class="caws-aclb">배정담당자 <span class="caws-actselnm" id="cawsActSelNm">'+caws_esc(curAssignNm)+'</span></label>'
+		   +     '<input type="text" id="cawsActEmpKw" class="caws-acempkw" placeholder="이름·사번으로 변경" onkeyup="caws_actEmpFilter();" />'
+		   +     '<div class="caws-emplist" id="cawsActEmpList"><div class="caws-pempty">담당자 목록 로딩 중...</div></div>'
+		   +   '</div>'
+		   +   '<div class="caws-actfld caws-actmemo">'
+		   +     '<label class="caws-aclb">조치내용 / 인계메모 <span class="caws-req">*</span></label>'
+		   +     '<textarea class="caws-ta" id="cawsActMemo" oninput="caws_autoGrow(this);" placeholder="처리 내용이나 인수인계 사항을 입력하세요. 이력에 기록됩니다."></textarea>'
+		   +   '</div>'
+		   +   '<div class="caws-cbar">'
+		   +     '<button type="button" class="btn-s" onclick="caws_rec3Cancel();">취소</button>'
+		   +     '<span style="flex:1;"></span>'
+		   +     '<span class="caws-chint">중요도 변경은 [전체 상세 페이지]에서 처리하세요.</span>'
+		   +     '<button type="button" class="caws-send act" onclick="caws_saveAct();">저장</button>'
+		   +   '</div>'
+		   + '</div>';
+	}
 
 	/* --- 처리완료사항 --- */
 	var b4 = caws_kv('원인유형', (caws_nvl(row.cause_type_nm,'') !== '') ? row.cause_type_nm : caws_codeNm('AS','CD05', caws_nvl(vo.cause_type,'')))
@@ -1332,6 +1339,15 @@ function caws_renderRecord(){
 	        + caws_pastHtml();
 
 	caws_html('asRecord', rec);
+
+	/* 편집모드로 렌더됐으면 컨트롤 초기화 후 패널로 포커스 이동 */
+	if(caws.rec3edit){
+		caws_actInitPanel();
+		var ta = caws_el('cawsActMemo');
+		if(ta){ caws_autoGrow(ta); ta.focus(); }
+		var procEl = caws_el('cawsAcc_proc');
+		if(procEl) setTimeout(function(){ procEl.scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 50);
+	}
 }
 
 /* =============================================================================
