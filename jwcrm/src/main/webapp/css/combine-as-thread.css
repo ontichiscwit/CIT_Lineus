@@ -588,3 +588,28 @@
   #asWorkspace .grid > .caws-rz{display:none;}
 }
 /* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * [AX Lab] 추가 (2026-07-31 AX Lab): 접수 등록 모달 (신규작업/복사/하위작업)
+ * combine-as-form.js (cafm_*) / combine-as-modal.jsp #cawsRegist
+ * 모달 골격(caws-modal/mh/mb/mf)과 폼 요소(caws-fld 등)는 위 공통 규칙을 그대로 쓰고,
+ * 여기는 등록 모달 전용(2열 그리드 / 검색 내장패널 / 결과목록 / 페이저)만 추가한다.
+ * ========================================================================== */
+#asWorkspace .caws-modal.cafm{width:700px;}
+#asWorkspace .cafm-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
+/* 고객사/신청자 검색 내장 패널 */
+#asWorkspace .cafm-pick{border:1px solid var(--line); border-radius:9px; padding:9px; margin-top:7px; background:var(--surface-1);}
+#asWorkspace .cafm-list{max-height:170px; overflow-y:auto; margin-top:7px; border:1px solid var(--line); border-radius:7px; background:var(--surface);}
+#asWorkspace .cafm-list table{width:100%; border-collapse:collapse; font-size:11.5px;}
+#asWorkspace .cafm-list th{position:sticky; top:0; background:var(--surface-1); color:var(--ink-3); font-size:10.5px; font-weight:700; text-align:left; padding:5px 8px; border-bottom:1px solid var(--line);}
+#asWorkspace .cafm-list td{padding:6px 8px; border-bottom:1px solid var(--line); cursor:pointer; color:var(--ink-2);}
+#asWorkspace .cafm-list tbody tr:hover td{background:var(--accent-bg); color:var(--accent);}
+#asWorkspace .cafm-list td.cafm-none{text-align:center; color:var(--ink-3); cursor:default; padding:14px;}
+#asWorkspace .cafm-list tbody tr:hover td.cafm-none{background:none; color:var(--ink-3);}
+#asWorkspace .cafm-pgr{display:flex; align-items:center; justify-content:flex-end; gap:7px; margin-top:7px; font-size:11px; color:var(--ink-3);}
+#asWorkspace .cafm-pgr:empty{display:none;}
+/* 연락처 3분할 입력 */
+#asWorkspace .caws-modal input[type=text].cafm-tel{width:64px; flex:0 0 auto; text-align:center;}
+/* 담당자 자동배정 안내 */
+#asWorkspace .cafm-assign-msg{font-size:11px; color:var(--accent); font-weight:600;}
+/* [AX Lab] 추가 끝 */

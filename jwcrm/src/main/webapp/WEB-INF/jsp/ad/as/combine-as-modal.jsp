@@ -108,3 +108,157 @@
     <button type="button" class="btn-s primary" onclick="caws_insertLink();">삽입</button>
   </div>
 </div>
+
+<%-- ============================================================
+     4-4. 접수 등록 모달 (신규작업 / 복사 / 하위작업) — combine-as-form.js (cafm_*)
+     [AX Lab] 추가 (2026-07-31 AX Lab)
+     기존에는 목록 상단 [신규작업]/[복사]/[하위작업] 버튼이 전체 상세페이지(/ad/as/form.do)로
+     이동했지만, 이제 이 모달에서 페이지 이동 없이 바로 등록한다.
+     저장은 원본 화면과 동일한 기존 URL /ad/as/proc.do (pageType=insert/subInsert) 를
+     재사용하므로 서버 수정·신규 메뉴권한 등록이 필요 없다.
+     ★ 여기 입력요소에도 name 을 주지 않는다(listFrm 오염 방지 — 파일 상단 주석 참고).
+       서버 전송용 hidden 과 첨부파일 input 은 combine-as-form.js 가 body 직속의
+       별도 폼(#cafmForm, multipart)에 만들어 숨은 iframe 으로 제출한다.
+     ★ 텍스트 입력의 Enter 는 listFrm 암묵 제출을 막기 위해 return false 로 흡수한다.
+     ============================================================ --%>
+<div class="caws-modal cafm" id="cawsRegist" style="display:none;">
+  <div class="caws-mh">
+    <h3 id="cafmTitle">신규 접수 등록</h3>
+    <span class="caws-msub" id="cafmSub"></span>
+    <button type="button" class="caws-mx" onclick="cafm_close();" title="닫기">&times;</button>
+  </div>
+  <div class="caws-mb">
+
+    <%-- 접수경로 / 중요도 --%>
+    <div class="cafm-grid">
+      <div class="caws-fld">
+        <label>접수 경로<span class="caws-req">*</span></label>
+        <select id="cafmRoute" title="접수 경로 선택"></select>
+      </div>
+      <div class="caws-fld">
+        <label>중요도<span class="caws-req">*</span></label>
+        <select id="cafmGrade" title="중요도 선택"></select>
+      </div>
+    </div>
+
+    <%-- 고객사 (신규만 [조회] 가능, 복사/하위작업은 원본과 동일하게 변경 불가) --%>
+    <div class="caws-fld">
+      <label>고객사<span class="caws-req">*</span></label>
+      <div class="caws-frow">
+        <input type="text" id="cafmCustNm" readonly class="caws-ro" placeholder="고객사를 조회해주세요" style="flex:1; min-width:0;" title="고객사 명" />
+        <input type="text" id="cafmCustCd" readonly class="caws-ro" placeholder="코드" style="width:110px; flex:0 0 auto;" title="고객사 코드" />
+        <button type="button" class="btn-s" id="cafmCustBtn" onclick="cafm_custToggle();">조회</button>
+      </div>
+      <div class="cafm-pick" id="cafmCustPanel" style="display:none;">
+        <div class="caws-frow">
+          <input type="text" id="cafmCustKw" placeholder="기관명 검색" style="flex:1; min-width:0;" title="기관명 검색"
+                 onkeydown="if(event.keyCode===13){cafm_custSearch(1);return false;}" />
+          <button type="button" class="btn-s" onclick="cafm_custSearch(1);">검색</button>
+        </div>
+        <div class="cafm-list" id="cafmCustList"></div>
+        <div class="cafm-pgr" id="cafmCustPager"></div>
+      </div>
+      <div class="caws-mnote" id="cafmCustInfo"></div>
+    </div>
+
+    <%-- A/S 신청자 --%>
+    <div class="caws-fld">
+      <label>A/S 신청자<span class="caws-req">*</span></label>
+      <div class="caws-frow">
+        <input type="text" id="cafmApplyNm" readonly placeholder="이름" style="width:130px; flex:0 0 auto;" title="A/S 신청자 이름" />
+        <input type="text" id="cafmApplyId" readonly placeholder="아이디" style="width:150px; flex:0 0 auto;" title="A/S 신청자 아이디" />
+        <button type="button" class="btn-s" onclick="cafm_empToggle();" title="고객사 회원 중에서 선택합니다">조회</button>
+        <button type="button" class="btn-s" onclick="cafm_empManual();" title="회원이 아닌 신청자의 이름을 직접 입력합니다">직접입력</button>
+      </div>
+      <div class="cafm-pick" id="cafmEmpPanel" style="display:none;">
+        <div class="caws-frow">
+          <input type="text" id="cafmEmpKw" placeholder="이름 검색" style="flex:1; min-width:0;" title="신청자 이름 검색"
+                 onkeydown="if(event.keyCode===13){cafm_empSearch(1);return false;}" />
+          <button type="button" class="btn-s" onclick="cafm_empSearch(1);">검색</button>
+        </div>
+        <div class="cafm-list" id="cafmEmpList"></div>
+        <div class="cafm-pgr" id="cafmEmpPager"></div>
+      </div>
+    </div>
+
+    <%-- 실명 / 연락처 --%>
+    <div class="cafm-grid">
+      <div class="caws-fld">
+        <label>A/S 신청자 이름(실명)<span class="caws-req">*</span></label>
+        <input type="text" id="cafmRlNm" title="A/S 신청자 이름(실명) 입력" />
+      </div>
+      <div class="caws-fld">
+        <label>A/S 신청자 연락처</label>
+        <div class="caws-frow" style="flex-wrap:nowrap;">
+          <input type="text" id="cafmTel1" maxlength="4" class="cafm-tel" title="연락처 첫자리" />
+          <span>-</span>
+          <input type="text" id="cafmTel2" maxlength="4" class="cafm-tel" title="연락처 가운데자리" />
+          <span>-</span>
+          <input type="text" id="cafmTel3" maxlength="4" class="cafm-tel" title="연락처 끝자리" />
+        </div>
+      </div>
+    </div>
+
+    <%-- SMS 수신동의 (radio 는 name 이 필요해 listFrm 오염 위험 → 칩 버튼) --%>
+    <div class="caws-fld">
+      <label>SMS 수신동의여부<span class="caws-req">*</span></label>
+      <div class="caws-frow">
+        <button type="button" class="caws-pchip" id="cafmSmsY" onclick="cafm_sms('Y');">동의</button>
+        <button type="button" class="caws-pchip" id="cafmSmsN" onclick="cafm_sms('N');">미동의</button>
+      </div>
+    </div>
+
+    <%-- 문의유형 / 버전정보 / 시스템(대/소) --%>
+    <div class="cafm-grid">
+      <div class="caws-fld">
+        <label>문의유형<span class="caws-req">*</span></label>
+        <select id="cafmReq" title="문의유형 선택" onchange="cafm_reqChange();"></select>
+      </div>
+      <div class="caws-fld">
+        <label>버전 정보</label>
+        <input type="text" id="cafmVer" readonly class="caws-ro" title="버전 정보 (고객사 HIS 버전)" />
+      </div>
+      <div class="caws-fld">
+        <label>시스템(대)</label>
+        <select id="cafmCate" title="시스템(대) 선택" onchange="cafm_cateChange();"></select>
+      </div>
+      <div class="caws-fld">
+        <label>시스템(소)</label>
+        <select id="cafmInq" title="시스템(소) 선택" onchange="cafm_inqChange();"></select>
+      </div>
+    </div>
+
+    <%-- 배정담당자 (문의유형/시스템유형 선택 시 최소부하 담당자 자동배정 — 변경 가능) --%>
+    <div class="caws-fld">
+      <label>배정담당자<span class="caws-req">*</span></label>
+      <div class="caws-frow">
+        <select id="cafmAssign" style="width:200px; flex:0 0 auto;" title="배정담당자 선택" onchange="cafm_assignChange();">
+          <option value="">담당자 선택</option>
+        </select>
+        <span class="cafm-assign-msg" id="cafmAssignMsg"></span>
+      </div>
+    </div>
+
+    <%-- 요청내용 --%>
+    <div class="caws-fld">
+      <label>요청 내용 <span style="color:var(--blue); font-weight:600;">(고객에게 공개되는 내용입니다)</span></label>
+      <textarea id="cafmContent" title="요청 내용 입력" oninput="cafm_cntUpd();"></textarea>
+      <div class="caws-mnote"><span id="cafmCnt">0</span> / 1000자</div>
+    </div>
+
+    <%-- 첨부파일 --%>
+    <div class="caws-fld">
+      <label>첨부파일</label>
+      <button type="button" class="btn-s" onclick="cafm_pickFile();">+ 파일 첨부</button>
+      <div class="caws-thumbs" id="cafmThumbs"></div>
+    </div>
+
+    <div class="caws-mnote">저장 시 처리상태는 '접수' 로 등록되며, 접수일시는 저장 시각으로 자동 기록됩니다.
+      상태 변경·답변 등록 등 이후 처리는 이 화면(타임라인/접수처리정보)에서 이어서 하시면 됩니다.</div>
+  </div>
+  <div class="caws-mf">
+    <div class="caws-sp"></div>
+    <button type="button" class="btn-s" onclick="cafm_close();">취소</button>
+    <button type="button" class="btn-s primary" id="cafmSaveBtn" onclick="cafm_save();">등록</button>
+  </div>
+</div>

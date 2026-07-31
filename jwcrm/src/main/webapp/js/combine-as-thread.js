@@ -213,12 +213,20 @@ function caws_custInfoReturn(data){
 	caws.custInfo = (data && data.resultVO) ? data.resultVO : null;
 }
 
-/* '하위작업 생성' — 원본(form.jsp btnInitCnAs)과 동일하게 하위작업 작성 화면으로 이동한다 */
+/* '하위작업 생성'
+   [AX Lab] 수정 시작 (2026-07-31 AX Lab): 전체 상세페이지(form.do?pageType=subInsert)로 이동하던 것을
+   통합화면의 접수 등록 모달(combine-as-form.js / cafm_openSubFor)로 교체.
+   combine-as-form.js 가 로드되지 않은 환경에서는 기존 페이지 이동 방식으로 폴백한다. */
 function caws_subCreate(){
 	if(caws_nvl(caws.asNo,'') === '') return;
+	if(typeof cafm_openSubFor === 'function'){
+		cafm_openSubFor(caws.asNo);
+		return;
+	}
 	if(!confirm('하위작업을 생성하시겠습니까?\n하위작업 작성 화면(전체 상세 페이지)으로 이동합니다.')) return;
 	location.href = '/ad/as/form.do?pageType=subInsert&as_no='+encodeURIComponent(caws.asNo);
 }
+/* [AX Lab] 수정 끝 */
 
 /* 연관접수번호 select 에서 고른 건을 페이지 이동 없이 이 화면(COL2/COL3)으로 갈아끼운다 */
 function caws_cnAsOpen(){
@@ -1876,7 +1884,7 @@ function caws_renderRecord(){
 	var parentNo = caws_nvl(vo.cn_as_no, caws_nvl(caws.cnAsNo,''));
 	var b1 = '<div class="kv"><span class="k">접수번호</span><span class="v">'+caws_esc(caws.asNo)
 	   +   (parentNo === '' && caws_nvl(caws.asNo,'') !== ''
-	       ? ' <button type="button" class="caws-minib" onclick="caws_subCreate();" title="이 건의 하위작업(연관 접수건)을 생성합니다. 하위작업 작성 화면으로 이동합니다">+ 하위작업</button>' : '')
+	       ? ' <button type="button" class="caws-minib" onclick="caws_subCreate();" title="이 건의 하위작업(연관 접수건)을 이 화면의 등록 모달에서 바로 등록합니다">+ 하위작업</button>' : '')
 	   + '</span></div>'
 	   + (parentNo !== ''
 	       ? '<div class="kv"><span class="k">상위접수번호</span><span class="v link caws-lnk" onclick="caws_pastOpen(\''+caws_esc(parentNo)+'\',\'\');" title="상위 접수건을 이 화면에서 엽니다">'+caws_esc(parentNo)+'</span></div>' : '')

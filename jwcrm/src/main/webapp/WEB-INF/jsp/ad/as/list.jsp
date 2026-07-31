@@ -1394,6 +1394,12 @@
 <link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css" />
 <script type="text/javascript" src="/js/combine-as-thread.js"></script>
 <%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수 등록 모달(신규작업/복사/하위작업).
+     기존에는 세 버튼이 전체 상세페이지(/ad/as/form.do)로 이동했지만, 이제 페이지 이동 없이
+     통합화면의 모달에서 등록한다. 저장은 기존 /ad/as/proc.do 재사용(서버 무수정).
+     combine-as-thread.js 뒤에 로드해야 한다(caws_* 모달/코드 헬퍼를 재사용하기 때문). --%>
+<script type="text/javascript" src="/js/combine-as-form.js"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>
 
@@ -1723,9 +1729,20 @@
         <%-- [AX Lab] 수정 끝 --%>
         <div class="toolbar">
           <button type="button" class="btn-s primary" onclick="javascript:openProcLayer();">일괄처리</button>
-          <button type="button" class="btn-s" onclick="javascript:goInsertCopy();">복사</button>
-          <button type="button" class="btn-s" onclick="javascript:goForm('insert','');">신규작업</button>
-          <button type="button" class="btn-s" onclick="javascript:goForm('subInsert','');">하위작업</button>
+          <%-- [AX Lab] 수정 시작 (2026-07-31 AX Lab): 복사/신규작업/하위작업을 상세페이지 이동 대신
+               통합화면의 접수 등록 모달(combine-as-form.js)로 처리. 기존 goInsertCopy/goForm 함수는
+               원복 대비 + combine-as-form.js 미로드 시 자동 폴백용으로 그대로 남겨둔다.
+               (원래 코드)
+               <button type="button" class="btn-s" onclick="javascript:goInsertCopy();">복사</button>
+               <button type="button" class="btn-s" onclick="javascript:goForm('insert','');">신규작업</button>
+               <button type="button" class="btn-s" onclick="javascript:goForm('subInsert','');">하위작업</button> --%>
+          <button type="button" class="btn-s" title="선택한 접수건의 고객사·신청자 정보를 복사해 새 접수를 등록합니다 (이 화면에서 바로 등록)"
+                  onclick="javascript:typeof cafm_openCopy==='function'?cafm_openCopy():goInsertCopy();">복사</button>
+          <button type="button" class="btn-s" title="새 접수를 등록합니다 (이 화면에서 바로 등록)"
+                  onclick="javascript:typeof cafm_openInsert==='function'?cafm_openInsert():goForm('insert','');">신규작업</button>
+          <button type="button" class="btn-s" title="선택한 접수건의 하위작업(연관 접수건)을 등록합니다 (이 화면에서 바로 등록)"
+                  onclick="javascript:typeof cafm_openSub==='function'?cafm_openSub():goForm('subInsert','');">하위작업</button>
+          <%-- [AX Lab] 수정 끝 --%>
           <button type="button" class="btn-s" onclick="javascript:goExl();">엑셀</button>
           <div class="spacer"></div>
           <select id="pageSize" name="pageSize" onchange="getAsList(1);" title="리스트 행 선택">
