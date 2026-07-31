@@ -1925,6 +1925,144 @@ function caws_restoreDetailWide(){
 	if(btn) btn.innerHTML = '기본 보기';
 }
 
+/* =============================================================================
+ * [AX Lab] 수정 시작 (2026-07-31 AX Lab)
+ * 14) 3분할 컬럼 폭 마우스 드래그 리사이즈
+ * -----------------------------------------------------------------------------
+ * 컬럼 사이 gap(10px) 위치에 핸들(.caws-rz)을 JS 로 만들어 얹고, 드래그하면
+ * #asGrid 인라인의 --caws-c1/c2/c3 변수(fr)를 갱신한다. CSS 쪽 var 체인은
+ * combine-as-thread.css 의 grid-template-columns 재선언 주석 참고.
+ *   - fr 단위를 유지하므로 창 크기가 바뀌어도 조절한 "비율"이 유지된다.
+ *   - 접기(c1/c3-collapsed)·목록/상세 넓게보기 모드에서는 CSS 가 핸들을 숨긴다.
+ *   - 더블클릭 : 기본 폭으로 복원. 조절값은 sessionStorage 에 저장(다른 상태키와 동일 패턴).
+ * ========================================================================== */
+var CAWS_RZ_KEY = 'caws_col_fr';
+/* 기본 폭. combine-as-thread.css 의 grid-template-columns 기본값과 반드시 같아야 한다. */
+var CAWS_RZ_DEF = { c1:1.45, c2:2.1, c3:0.9 };
+/* 드래그 시 각 컬럼이 이보다 좁아지지 않게 막는 px 최소폭 */
+var CAWS_RZ_MIN = { c1:300, c2:340, c3:230 };
+
+caws.rz = { c1:CAWS_RZ_DEF.c1, c2:CAWS_RZ_DEF.c2, c3:CAWS_RZ_DEF.c3 };
+
+function caws_rzApply(){
+	var g = caws_el('asGrid');
+	if(!g) return;
+	g.style.setProperty('--caws-c1', caws.rz.c1.toFixed(4) + 'fr');
+	g.style.setProperty('--caws-c2', caws.rz.c2.toFixed(4) + 'fr');
+	g.style.setProperty('--caws-c3', caws.rz.c3.toFixed(4) + 'fr');
+}
+
+/* 핸들을 항상 "컬럼 오른쪽 경계의 gap" 위에 겹쳐 둔다.
+   폭이 바뀌는 모든 경우(드래그/접기 transition/창 크기)는 ResizeObserver 가 다시 불러준다. */
+function caws_rzPos(){
+	var c1 = caws_el('col-c1'), c2 = caws_el('col-c2');
+	var h1 = caws_el('cawsRz1'), h2 = caws_el('cawsRz2');
+	if(h1 && c1) h1.style.left = (c1.offsetLeft + c1.offsetWidth) + 'px';
+	if(h2 && c2) h2.style.left = (c2.offsetLeft + c2.offsetWidth) + 'px';
+}
+
+function caws_rzSave(){
+	try{ sessionStorage.setItem(CAWS_RZ_KEY, JSON.stringify(caws.rz)); }catch(e){}
+}
+
+/* 더블클릭 : 기본 폭 복원 (인라인 변수를 지워 CSS 기본값으로 되돌린다) */
+function caws_rzReset(){
+	caws.rz = { c1:CAWS_RZ_DEF.c1, c2:CAWS_RZ_DEF.c2, c3:CAWS_RZ_DEF.c3 };
+	var g = caws_el('asGrid');
+	if(g){
+		g.style.removeProperty('--caws-c1');
+		g.style.removeProperty('--caws-c2');
+		g.style.removeProperty('--caws-c3');
+	}
+	try{ sessionStorage.removeItem(CAWS_RZ_KEY); }catch(e){}
+	caws_rzPos();
+}
+
+/* n=1 : 목록|문의내용 경계, n=2 : 문의내용|접수처리정보 경계.
+   드래그 시작 시점의 [fr값, px폭] 스냅샷으로 fr/px 환산계수를 구해,
+   경계 양옆 두 컬럼의 fr 만 주고받는다(반대쪽 컬럼 폭은 변하지 않는다). */
+function caws_rzDown(e, n){
+	e.preventDefault();
+	var g = caws_el('asGrid');
+	var a = caws_el(n === 1 ? 'col-c1' : 'col-c2');
+	var b = caws_el(n === 1 ? 'col-c2' : 'col-c3');
+	var h = caws_el('cawsRz' + n);
+	if(!g || !a || !b) return;
+	var ka = (n === 1 ? 'c1' : 'c2'), kb = (n === 1 ? 'c2' : 'c3');
+	var pxa = a.getBoundingClientRect().width;
+	var pxb = b.getBoundingClientRect().width;
+	if(pxa + pxb <= 0) return;
+	var fa = caws.rz[ka], fb = caws.rz[kb];
+	var fpp = (fa + fb) / (pxa + pxb);		/* px 1개당 fr */
+	var x0 = e.clientX;
+
+	g.classList.add('caws-rzing');			/* grid transition(.22s) 차단 */
+	if(h) h.classList.add('on');
+	document.body.style.cursor = 'col-resize';
+	document.body.style.userSelect = 'none';
+
+	function mv(ev){
+		var dx = ev.clientX - x0;
+		if(pxa + dx < CAWS_RZ_MIN[ka]) dx = CAWS_RZ_MIN[ka] - pxa;
+		if(pxb - dx < CAWS_RZ_MIN[kb]) dx = pxb - CAWS_RZ_MIN[kb];
+		caws.rz[ka] = fa + dx * fpp;
+		caws.rz[kb] = fb - dx * fpp;
+		caws_rzApply();
+		if(!window.ResizeObserver) caws_rzPos();
+	}
+	function up(){
+		document.removeEventListener('mousemove', mv);
+		document.removeEventListener('mouseup', up);
+		g.classList.remove('caws-rzing');
+		if(h) h.classList.remove('on');
+		document.body.style.cursor = '';
+		document.body.style.userSelect = '';
+		caws_rzSave();
+		caws_rzPos();
+	}
+	document.addEventListener('mousemove', mv);
+	document.addEventListener('mouseup', up);
+}
+
+function caws_rzInit(){
+	var g = caws_el('asGrid');
+	if(!g || caws_el('cawsRz1')) return;
+
+	/* 저장된 폭 복원 */
+	var st = null;
+	try{ st = JSON.parse(sessionStorage.getItem(CAWS_RZ_KEY) || 'null'); }catch(e){}
+	if(st && +st.c1 > 0 && +st.c2 > 0 && +st.c3 > 0){
+		caws.rz = { c1:+st.c1, c2:+st.c2, c3:+st.c3 };
+		caws_rzApply();
+	}
+
+	/* 핸들 2개 생성 (absolute 라 grid 트랙에 끼지 않는다) */
+	for(var n = 1; n <= 2; n++){
+		var h = document.createElement('div');
+		h.className = 'caws-rz rz' + n;
+		h.id = 'cawsRz' + n;
+		h.title = '드래그: 폭 조절 / 더블클릭: 기본 폭';
+		h.addEventListener('mousedown', (function(no){ return function(e){ caws_rzDown(e, no); }; })(n));
+		h.addEventListener('dblclick', caws_rzReset);
+		g.appendChild(h);
+	}
+	caws_rzPos();
+
+	/* 폭이 바뀌는 모든 경로(드래그/접기·넓게보기 transition/창 크기)에서 핸들 위치 동기화 */
+	if(window.ResizeObserver){
+		var ro = new ResizeObserver(caws_rzPos);
+		ro.observe(caws_el('col-c1'));
+		ro.observe(caws_el('col-c2'));
+		ro.observe(caws_el('col-c3'));
+	}else{
+		window.addEventListener('resize', caws_rzPos);
+	}
+}
+
+/* 이 스크립트는 #asGrid 마크업보다 먼저 로드되므로(list.jsp 참고) DOM ready 에 초기화 */
+$(function(){ caws_rzInit(); });
+/* [AX Lab] 수정 끝 */
+
 /* ESC 로 열려 있는 모달을 닫는다. */
 $(document).on('keydown', function(e){
 	if(e.keyCode !== 27) return;

@@ -541,3 +541,50 @@
 #asWorkspace .kv .v.caws-lnk{cursor:pointer;}
 #asWorkspace .kv .v.caws-lnk:hover{text-decoration:underline;}
 /* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * [AX Lab] 수정 시작 (2026-07-31 AX Lab): 3분할 기본 폭 조정 + 컬럼 경계 드래그 리사이즈
+ * -----------------------------------------------------------------------------
+ * ① 기본 폭 : 접수처리정보(COL3)는 kv 나열이라 좁아도 되므로 줄이고(1.2fr→0.9fr),
+ *    그만큼 AS목록(COL1, 1.35fr→1.45fr)과 문의내용(COL2, 1.9fr→2.1fr)을 넓혀 시작한다.
+ *    combine-as.css 의 grid-template-columns 를 같은 특정도로 재선언하되(나중 로드라 이김),
+ *    var 체인을 --c1(접기용, c1-collapsed 클래스가 지배) → --caws-c1(드래그용, JS 인라인)
+ *    → 기본값 순으로 두어 c1/c3-collapsed(46px) 모드와 충돌하지 않는다.
+ *    (list-wide / detail-wide 는 특정도가 더 높은 규칙이 grid-template-columns 를
+ *     직접 덮어쓰므로 그대로 이긴다)
+ * ② 드래그 핸들(.caws-rz) : combine-as-thread.js(caws_rzInit)가 컬럼 사이
+ *    gap(10px) 위치에 절대배치로 만들어 넣는다. position:absolute 라 그리드 트랙을
+ *    차지하지 않는다. 드래그로 폭 조절, 더블클릭으로 기본 폭 복원.
+ * ========================================================================== */
+#asWorkspace .grid{
+  position:relative;	/* .caws-rz 절대배치 기준 */
+  grid-template-columns:
+    var(--c1, var(--caws-c1, 1.45fr))
+    var(--c2, var(--caws-c2, 2.1fr))
+    var(--c3, var(--caws-c3, 0.9fr));
+}
+
+/* 컬럼 경계 핸들 : gap(10px)을 그대로 덮는 투명 띠. hover/드래그 중에만 가운데 2px 라인 표시 */
+#asWorkspace .grid > .caws-rz{position:absolute; top:0; bottom:0; width:10px; cursor:col-resize; z-index:30;}
+#asWorkspace .grid > .caws-rz:before{
+  content:''; position:absolute; left:4px; top:0; bottom:0; width:2px; border-radius:1px;
+  background:transparent; transition:background .12s;
+}
+#asWorkspace .grid > .caws-rz:hover:before,
+#asWorkspace .grid > .caws-rz.on:before{background:var(--accent);}
+/* 드래그 중에는 grid 의 폭 transition(.22s)을 끊어야 마우스를 따라온다 */
+#asWorkspace .grid.caws-rzing{transition:none;}
+/* 인접 컬럼이 rail(46px)로 접혀 있거나, 전체폭 모드에서는 해당 핸들을 숨긴다 */
+#asWorkspace .grid.c1-collapsed > .caws-rz.rz1{display:none;}
+#asWorkspace .grid.c3-collapsed > .caws-rz.rz2{display:none;}
+#asWorkspace .grid.list-wide > .caws-rz,
+#asWorkspace .grid.detail-wide > .caws-rz{display:none;}
+
+/* 좁은 화면(1열 전환) : 위의 grid-template-columns 재선언이 combine-as.css 의
+   미디어쿼리(1fr)를 "나중에 로드된 같은 특정도" 규칙으로 이겨버리므로,
+   여기서 1fr 을 다시 선언해 1열 모드를 지켜준다. */
+@media(max-width:1200px){
+  #asWorkspace .grid{grid-template-columns:1fr;}
+  #asWorkspace .grid > .caws-rz{display:none;}
+}
+/* [AX Lab] 수정 끝 */
