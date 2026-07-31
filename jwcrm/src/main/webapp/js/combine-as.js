@@ -98,12 +98,27 @@ function asws_openDetail(asNo, cnAsNo){
 	$('#asRecord').html('<div class="none" style="padding:14px">불러오는 중...</div>');
 
 	var pt = (asws.cnAsNo!=='') ? 'subUpdate' : 'update';
+	/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 - 조회 1회로 통합.
+	   기존에는 getAsInfo.do(상세+조치이력) 와 getAwsList.do(답변) 를 각각 호출했는데,
+	   통합 타임라인은 [문의 + 답변 + 조치이력 + 이관] 을 한 배열로 머지해야 해서 두 응답이 모두 필요하다.
+	   응답이 따로 도착하면 렌더 순서에 따라 타임라인이 두 번 그려지고 정렬이 어긋난다.
+	   그래서 AdAsController.getAsInfo 응답에 awsList 를 동봉하도록 확장하고 호출을 1회로 줄였다.
+	   ※ getAwsList.do 자체는 신규답변 팝업(makeAwsList)에서 계속 쓰이므로 그대로 남겨둔다. */
 	common.ajaxCall({ as_no:asNo, cn_as_no:asws.cnAsNo, pageType:pt }, '/ad/as/getAsInfo.do', 'asws_renderDetailRecord');
-	common.ajaxCall({ as_no:asNo, page:'1' }, '/ad/as/getAwsList.do', 'asws_renderThread');
+	/* [AX Lab] 수정 끝 */
 }
 
 /* ===== COL2 상세 + COL3 처리정보 ===== */
 function asws_renderDetailRecord(data){
+	/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 렌더를 combine-as-thread.js 로 위임.
+	   COL2 는 [문의/고객답변/직원답변/조치이력/이관] 통합 타임라인 + 하단 작성영역,
+	   COL3 는 아코디언 상세정보 + 과거 상담이력으로 재구성했다(요구사항).
+	   아래 기존 코드는 combine-as-thread.js 가 로드되지 않은 경우(캐시/배포 누락)의 안전망으로 남겨둔다.
+	   ※ 통합화면 로직을 이 파일에 직접 넣지 않은 이유: 이 파일은 목록/필터/정렬/KPI 를 담당하는
+	     기존 코드라 변경 범위를 넓히면 현업이 쓰는 목록 기능까지 회귀 위험이 생긴다. */
+	if(typeof caws_renderAll === 'function'){ caws_renderAll(data); return; }
+	/* [AX Lab] 수정 끝 */
+
 	var vo  = (typeof data.resultVO != 'undefined' && data.resultVO) ? data.resultVO : {};
 	var row = asws.curRow || {};
 	var hist = (typeof data.asHistList != 'undefined' && data.asHistList) ? data.asHistList : [];
@@ -718,6 +733,11 @@ function asws_toggleListWide(){
 	if(wide){
 		var c1 = document.getElementById('col-c1');
 		if(c1 && c1.classList.contains('is-collapsed')) asws_toggleCol('c1');
+		/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): '상세 넓게 보기'(combine-as-thread.js)와 상호배타 처리.
+		   두 모드는 같은 #asGrid 의 grid-template-columns 를 서로 덮어쓰기 때문에 동시에 켜지면
+		   나중에 로드된 CSS(detail-wide) 가 이겨서 목록이 전체폭이 되지 않는다. */
+		if(typeof caws_toggleDetailWide === 'function' && g.classList.contains('detail-wide')) caws_toggleDetailWide();
+		/* [AX Lab] 수정 끝 */
 	}
 
 	asws_syncListWideBtn(wide);

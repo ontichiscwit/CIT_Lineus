@@ -72,6 +72,11 @@
 		if (typeof asws_restoreListWide === 'function') asws_restoreListWide(ASWS_IS_FIRST_ENTRY);
 		if (typeof asws_tipBind === 'function') asws_tipBind();
 		/* [AX Lab] 수정 끝 */
+		/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): '상세 넓게 보기' 상태 복원.
+		   목록 넓게 보기(asws_restoreListWide) "뒤"에 호출해야 한다. 두 모드는 같은 #asGrid 의
+		   grid-template-columns 를 다투므로, 뒤에 실행되는 쪽이 최종 상태를 결정한다. */
+		if (typeof caws_restoreDetailWide === 'function') caws_restoreDetailWide();
+		/* [AX Lab] 수정 끝 */
 		makeListData();	/* [AX Lab] 상단 KPI(나에게 배정된 건 6종)는 getAsList.do 응답에 동봉되어 setAsList 에서 갱신됨 */
 		$("#search_text").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
 		/* [AX Lab] 삭제 (2026-07-24 AX Lab): emp_nm/search_type4/search_type6 필드는 고급필터 동적행으로 대체됨 */
@@ -538,8 +543,15 @@
 			$('#asList').html('<tr><td colspan="16" style="text-align:center;padding:30px;color:#8A979E;">조회된 데이터가 없습니다.</td></tr>');
 			$('#count').html('0');
 			$("#pagination").html('');
-			$('#asDetail').html('<div class="empty">조회된 접수건이 없습니다.</div>');
-			$('#asRecord').html('<div class="none" style="padding:14px">조회된 접수건이 없습니다.</div>');
+			/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 통합화면은 헤더/작성영역까지 3영역을 함께 비워야 한다.
+			   (조회 0건인데 직전 선택건의 헤더·작성영역이 남아 있으면 없는 건에 답변을 등록하게 된다) */
+			if(typeof caws_clear === 'function'){
+				caws_clear('조회된 접수건이 없습니다.');
+			}else{
+				$('#asDetail').html('<div class="empty">조회된 접수건이 없습니다.</div>');
+				$('#asRecord').html('<div class="none" style="padding:14px">조회된 접수건이 없습니다.</div>');
+			}
+			/* [AX Lab] 수정 끝 */
 		}
 	}
 	/* [AX Lab] 수정 끝 */
@@ -640,10 +652,16 @@
 			$('#asReplyText').val('') ;
 			/* 기존 신규답변 팝업이 열려있으면 팝업 목록 갱신 */
 			if(typeof v_as_no != 'undefined' && v_as_no) awsList(1 , v_as_no) ;
-			/* 인라인 상세가 열려있으면 스레드 갱신 */
-			if(typeof asws != 'undefined' && asws.asNo){
+			/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 통합 타임라인은 답변만 따로 갱신할 수 없다.
+			   문의·답변·조치이력·이관을 한 배열로 머지해 그리므로 getAsInfo.do 를 다시 호출해 전체를 재렌더한다.
+			   (caws_afterAnswer 가 작성영역 초기화 + 첨부 슬롯 정리까지 함께 처리한다) */
+			if(typeof caws_afterAnswer === 'function' && typeof caws != 'undefined' && caws.asNo){
+				caws_afterAnswer() ;
+			}else if(typeof asws != 'undefined' && asws.asNo){
+				/* 안전망: combine-as-thread.js 가 없으면 기존 스레드 갱신 방식 유지 */
 				common.ajaxCall({ as_no:asws.asNo, page:'1' }, '/ad/as/getAwsList.do', 'asws_renderThread') ;
 			}
+			/* [AX Lab] 수정 끝 */
 		}else{
 			alert('처리도중 오류가 발생했습니다.') ; return ;
 		}
@@ -1369,6 +1387,13 @@
 <%-- [AX Lab] 수정 시작 (2026-07-23 AX Lab): AS 통합 워크스페이스(3분할) 화면 리뉴얼 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as.css" />
 <script type="text/javascript" src="/js/combine-as.js"></script>
+<%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면(통합 타임라인 / 작성영역 / 모달 / 아코디언 / 과거이력).
+     combine-as.css / combine-as.js 를 고치지 않고 "뒤에 추가"하는 방식이라 로드 순서가 중요하다.
+     ① CSS 는 combine-as.css 다음에 와야 같은 특정도에서 나중 규칙이 이긴다.
+     ② JS 는 combine-as.js 다음에 와야 asws_renderDetailRecord 의 위임 대상(caws_renderAll)이 준비된다. --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css" />
+<script type="text/javascript" src="/js/combine-as-thread.js"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>
 
@@ -1786,15 +1811,29 @@
     <!-- COL2 : 문의 상세 + 답변 -->
     <section class="col" id="col-c2">
       <div class="chd">
-        <h2>문의 상세</h2>
+        <h2>통합 타임라인</h2>
         <div class="spacer"></div>
+        <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): 상세 넓게 보기 (목록 넓게 보기의 반대 모드).
+             첨부 미리보기·긴 답변 작성 시 가운데 열이 좁아 불편하므로 COL1 을 rail 로 접고 COL2 를 넓힌다. --%>
+        <button type="button" class="wide-btn" id="cawsDwBtn" onclick="caws_toggleDetailWide()" title="목록을 접고 타임라인을 넓게 봅니다">상세 넓게 보기</button>
+        <%-- [AX Lab] 수정 끝 --%>
         <span class="cnt" id="pinlabel"></span>
       </div>
+      <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): COL2 를 [고정헤더 / 스크롤 타임라인 / 고정 작성영역] 3단으로 구성.
+           .col-content 가 이미 flex-column + min-height:0 이므로 위/아래는 flex-shrink:0, 가운데만 flex:1 로 스크롤된다.
+           - #asDetailHead : 접수정보 1행 + 액션바(상태변경/이관/조치작성/전체상세) + 필터탭
+           - #asDetail     : 단일 스크롤 영역 (문의 → AI추천 → 조치/답변/이관 히스토리 순)
+           - #asCompose    : 2탭 작성영역 (고객 답변 / 내부 조치내용)
+           세 영역 모두 combine-as-thread.js 가 채운다. id 는 기존 #asDetail 을 그대로 유지해
+           setAsList / asws_openDetail 의 "불러오는 중" 처리와 호환된다. --%>
       <div class="col-content">
+        <div class="caws-fix" id="asDetailHead"></div>
         <div class="detail-scroll" id="asDetail">
           <div class="empty">왼쪽 목록에서 접수건을 선택하세요.</div>
         </div>
+        <div class="caws-comp" id="asCompose"></div>
       </div>
+      <%-- [AX Lab] 수정 끝 --%>
     </section>
 
     <!-- COL3 : 접수 · 처리 정보 -->
@@ -1816,6 +1855,15 @@
     </section>
 
   </div>
+
+  <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 모달 5종
+       (첨부 미리보기 라이트박스 / 처리상태 변경 / 담당자 이관 / AI 문장 다듬기 / 게시물 링크 삽입)
+       ★ 반드시 #asWorkspace 안쪽에 include 해야 한다. combine-as-thread.css 의 모든 셀렉터가
+         #asWorkspace 하위로 스코핑되어 있고 CSS 변수도 거기서 상속받기 때문이다.
+       ★ 모달 입력요소에는 name 을 주지 않는다. 여기는 <form name="listFrm"> 안이라
+         name 이 있으면 목록조회(listFrm.serialize())에 값이 섞여 검색결과가 바뀐다. --%>
+  <jsp:include page="/WEB-INF/jsp/ad/as/combine-as-modal.jsp" />
+  <%-- [AX Lab] 수정 끝 --%>
 </div>
 <%-- [AX Lab] 수정 끝 : #asWorkspace --%>
 

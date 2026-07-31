@@ -620,15 +620,165 @@ public class AdAsController {
 			FileVO fileVO = new FileVO();
 			if(!"0".equals(SsStringUtil.normalize(vo.getFile_seq(), "0"))) {
 				fileVO.setAttach_seq(Integer.parseInt(vo.getFile_seq()));
-				returnValue += commonFileService.deleteFileByAttachSeq(fileVO) ; 
+				returnValue += commonFileService.deleteFileByAttachSeq(fileVO) ;
 			}
+		// [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 인라인 처리(조치내용 작성 / 처리상태 변경 / 담당자 이관).
+		//   ★ 신규 URL 을 만들지 않고 기존 histProc.do 에 pageType 을 추가하는 이유는
+		//     MenuAuthFilter 가 acceptUrlList 와 완전일치 비교만 해서 신규 /ad/as/*.do 가 403 이 되기 때문이다.
+		//     (awsProc.do 의 insert/update/delete, histProc.do 의 updateHistActionContent 와 같은 기존 관례)
+		} else if("insertAction".equals(vo.getPageType())
+				|| "changeStatus".equals(vo.getPageType())
+				|| "transferAssign".equals(vo.getPageType())) {
+			returnValue = procAswsInline(vo, userInfo) ;
+		// [AX Lab] 수정 끝
 		}
-		
-		if(returnValue > 0) returnCode = "000" ;				
-		
-		returnMap.put("returnCode", returnCode) ; 
+
+		if(returnValue > 0) returnCode = "000" ;
+
+		returnMap.put("returnCode", returnCode) ;
 		CommonExecute.returnJson(response, returnMap);
 	}
+
+
+	// [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 인라인 처리 공통 로직.
+	/**
+	 * 이관 코멘트 식별 접두어.
+	 *
+	 * CRM_AS_MGT_HIST 에는 "이 행이 이관인지"를 구분하는 컬럼도, 이관 코멘트 전용 컬럼도 없다.
+	 * (컬럼: SEQ / AS_NO / PROC_DT / ACCEPTOR / PROC_STATUS / ACTION_CONTENT / FILE_SEQ /
+	 *        REG_DATE / REG_ID / INPORTANCE / REQUEST_TYPE / SERVICE_CATE / INQUIRY_TYPE)
+	 * 그래서 DDL 없이 ACTION_CONTENT 앞에 이 접두어를 붙여 저장하고, 화면(combine-as-thread.js)에서
+	 * 접두어를 떼어 이관 코멘트로 표시한다. "이관 전 담당자"는 직전 이력행의 ACCEPTOR 로 유추한다.
+	 * 추후 HIST_TYPE / FROM_ASSIGN_ID / TRANSFER_COMMENT 컬럼이 생기면 이 상수와
+	 * procAswsInline() 의 transferAssign 분기, JS 의 어댑터만 교체하면 된다.
+	 */
+	private static final String ASWS_TRANSFER_PREFIX = "[이관] " ;
+
+	/**
+	 * AS 통합화면(list.jsp) 의 인라인 처리.
+	 *
+	 * pageType
+	 *  - insertAction   : 조치내용만 단독 추가. CRM_AS_MGT 는 건드리지 않고 이력만 남긴다.
+	 *  - changeStatus   : 처리상태 / 처리예정일 변경 + 이력.
+	 *  - transferAssign : 배정담당자 변경(이관) + 이관 코멘트 이력.
+	 *
+	 * ★ changeStatus 가 현재 행을 먼저 읽어서 통째로 다시 넣는 이유:
+	 *   updateAsInfoAll 은 부분 UPDATE 가 아니라 20여 개 컬럼을 무조건 덮어쓴다.
+	 *   화면이 보낸 3~4개 값만 담아 호출하면 원인유형/조치유형/작업시간/처리완료 상세 등이
+	 *   전부 NULL 로 지워진다. 그래서 getAsInfo 로 현재 값을 읽어 복사한 뒤 바뀐 값만 덮어쓴다.
+	 *   (신규 쿼리를 만들지 않고 egov-as-query.xml 을 무수정으로 두기 위한 선택이다)
+	 *
+	 * @return 처리 건수 (0 이면 실패)
+	 */
+	private int procAswsInline(AsVO vo, UserVO userInfo) throws Exception {
+
+		String pageType = SsStringUtil.normalizeNull(vo.getPageType()) ;
+		String asNo     = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		String comment  = SsStringUtil.normalizeNull(vo.getAction_content()).trim() ;
+
+		if("".equals(asNo) || "".equals(comment) || userInfo == null) return 0 ;
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(asNo) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		String empNo = SsStringUtil.normalizeNull(userInfo.getEmp_no()) ;
+
+		/** 이력에 남길 값. 기본값은 "현재 상태 그대로" 이고 각 분기에서 바뀐 값만 덮어쓴다. */
+		AsVO hist = new AsVO() ;
+		hist.setAs_no(asNo) ;
+		hist.setProc_dt(SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+		hist.setProc_status(SsStringUtil.normalizeNull(cur.getProc_status())) ;
+		hist.setInportance(SsStringUtil.normalizeNull(cur.getInportance())) ;
+		hist.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type())) ;
+		hist.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate())) ;
+		hist.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type())) ;
+		hist.setAssign_id(SsStringUtil.normalizeNull(cur.getAssign_id())) ;	/* ACCEPTOR = 인수자 */
+		hist.setAttach_seq2(0) ;											/* FILE_SEQ  = 첨부 없음 */
+		hist.setReg_id(empNo) ;
+		hist.setAction_content(comment) ;
+
+		int returnValue = 0 ;
+
+		if("changeStatus".equals(pageType)) {
+
+			/* ※ 중요도(INPORTANCE)는 updateAsInfoAll 의 SET 절에 없어서 이 경로로는 바꿀 수 없다.
+			      그래서 상태변경 모달은 처리상태 / 처리예정일 / 조치의견만 다루고,
+			      중요도 변경은 기존 상세페이지(form.do)에 그대로 위임한다. */
+			String newStatus = SsStringUtil.normalizeNull(vo.getProc_status()).trim() ;
+			String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim() ;
+
+			if("".equals(newStatus)) return 0 ;
+
+			/* updateAsInfoAll 이 덮어쓰는 모든 컬럼을 현재 값으로 채운다.
+			   ※ BeanUtils.copyProperties 를 쓰지 않는 이유: PagingVO 에 getPaging():String 과
+			      setPaging(int) 가 공존해서 String→int 변환 예외가 발생한다. */
+			AsVO upd = new AsVO() ;
+			upd.setAs_no(asNo) ;
+			upd.setPageType("") ;					/* updateAsInfoAll 의 subUpdate 분기(CN_AS_NO 조건) 회피 */
+			upd.setReg_id(empNo) ;					/* UPT_ID */
+			upd.setTel_confirm(SsStringUtil.normalizeNull(cur.getTel_confirm())) ;
+			upd.setProc_dt(SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+			upd.setProc_time(SsStringUtil.normalizeNull(cur.getProc_time())) ;
+			upd.setCause_type(SsStringUtil.normalizeNull(cur.getCause_type())) ;
+			upd.setAction_type(SsStringUtil.normalizeNull(cur.getAction_type())) ;
+			upd.setAssign_id(SsStringUtil.normalizeNull(cur.getAssign_id())) ;
+			upd.setAttach_seq2(cur.getAttach_seq2()) ;
+			upd.setWork_time(SsStringUtil.normalizeNull(cur.getWork_time())) ;
+			upd.setComplete_dt(SsStringUtil.normalizeNull(cur.getComplete_dt())) ;
+			upd.setProc_gubun(SsStringUtil.normalizeNull(cur.getProc_gubun())) ;
+			upd.setProc_build_info(SsStringUtil.normalizeNull(cur.getProc_build_info())) ;
+			upd.setProc_test_info(SsStringUtil.normalizeNull(cur.getProc_test_info())) ;
+			upd.setProc_process_sp(SsStringUtil.normalizeNull(cur.getProc_process_sp())) ;
+			upd.setProc_screen_sp(SsStringUtil.normalizeNull(cur.getProc_screen_sp())) ;
+			upd.setProc_table_sp(SsStringUtil.normalizeNull(cur.getProc_table_sp())) ;
+			upd.setProc_function_sp(SsStringUtil.normalizeNull(cur.getProc_function_sp())) ;
+			upd.setProc_interface_sp(SsStringUtil.normalizeNull(cur.getProc_interface_sp())) ;
+			upd.setProc_status(newStatus) ;
+			upd.setAction_content(comment) ;
+			if(!"".equals(newProcDt)) upd.setProc_dt(newProcDt) ;
+
+			returnValue = commonDAO.update(upd, "asDAO.updateAsInfoAll") ;
+
+			if(returnValue > 0) {
+				hist.setProc_status(newStatus) ;
+				if(!"".equals(newProcDt)) hist.setProc_dt(newProcDt) ;
+			}
+
+		} else if("transferAssign".equals(pageType)) {
+
+			String newAssignId = SsStringUtil.normalizeNull(vo.getAssign_id()).trim() ;
+
+			if("".equals(newAssignId)) return 0 ;
+			if(newAssignId.equals(SsStringUtil.normalizeNull(cur.getAssign_id()).trim())) return 0 ;
+
+			AsVO assignVO = new AsVO() ;
+			assignVO.setAs_no(asNo) ;
+			assignVO.setAssign_id(newAssignId) ;
+
+			returnValue = commonDAO.update(assignVO, "asDAO.updateAssignIdSingle") ;
+
+			if(returnValue > 0) {
+				/* 이관은 담당자만 바꾼다. 처리상태까지 같이 바꾸면 이력행의 PROC_STATUS 와
+				   마스터의 PROC_STATUS 가 어긋나므로 상태 변경은 별도 동작으로 분리한다. */
+				hist.setAssign_id(newAssignId) ;								/* ACCEPTOR = 인수자 */
+				hist.setAction_content(ASWS_TRANSFER_PREFIX + comment) ;
+			}
+
+		} else {
+			/* insertAction : 이력만 추가한다. 마스터(CRM_AS_MGT)는 건드리지 않는다. */
+			returnValue = 1 ;
+		}
+
+		if(returnValue > 0) {
+			hist.setSeq(String.valueOf(commonDAO.selectOneInt(hist, "asDAO.getAsHistMaxSeq"))) ;
+			commonDAO.insert(hist, "asDAO.insertAsInfoHist") ;
+		}
+
+		return returnValue ;
+	}
+	// [AX Lab] 수정 끝
 
 	
 	/**
@@ -1143,14 +1293,49 @@ public class AdAsController {
 			
 			if(!"0".equals(SsStringUtil.normalize(resultVO.getAttach_seq2(), "0"))) {
 				fileVO.setAttach_seq(resultVO.getAttach_seq2());
-				returnMap.put("attachList2", commonFileService.getFileList(fileVO)) ; 
+				returnMap.put("attachList2", commonFileService.getFileList(fileVO)) ;
 			}
-			
-			returnMap.put("asHistList", asService.getList(vo, "asDAO.getAsHistList")) ; 
+
+			// [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 - 문의/답변/조치/이관을 한 줄기 타임라인으로
+			//   그리기 위해 답변목록과 각 조치이력의 첨부목록을 이 응답에 함께 실어 보낸다.
+			//   ★ 신규 URL 을 만들지 않는 이유: MenuAuthFilter.isAccept() 가 세션 acceptUrlList 와
+			//     "완전일치" 비교만 하므로 DB 메뉴권한에 없는 신규 /ad/as/*.do 는 무조건 403 이 된다.
+			//     (과거 getAswsKpi.do 가 이 이유로 제거되고 getAsList.do 응답에 합쳐졌다)
+			//     그래서 여기서도 기존 엔드포인트의 응답만 확장한다. 기존 호출자(form.jsp 등)는
+			//     추가된 키를 참조하지 않으므로 영향이 없다.
+			List<AsVO> awsList = asService.getList(vo, "asDAO.getAwsList") ;
+			if(awsList != null && awsList.size() > 0) {
+				for(AsVO awsVO : awsList) {
+					if(awsVO.getAttach_seq() > 0) {
+						FileVO awsFileVO = new FileVO() ;
+						awsFileVO.setAttach_seq(awsVO.getAttach_seq()) ;
+						Map<String , Object> awsMap = new HashMap<String , Object>() ;
+						awsMap.put("attachList", commonFileService.getFileList(awsFileVO)) ;
+						awsVO.setAmap(awsMap) ;
+					}
+				}
+			}
+			returnMap.put("awsList", awsList) ;
+
+			List<AsVO> asHistList = asService.getList(vo, "asDAO.getAsHistList") ;
+			if(asHistList != null && asHistList.size() > 0) {
+				for(AsVO histVO : asHistList) {
+					int histFileSeq = SsStringUtil.parseInt(SsStringUtil.normalizeNull(histVO.getFile_seq()), 0) ;
+					if(histFileSeq > 0) {
+						FileVO histFileVO = new FileVO() ;
+						histFileVO.setAttach_seq(histFileSeq) ;
+						Map<String , Object> histMap = new HashMap<String , Object>() ;
+						histMap.put("attachList", commonFileService.getFileList(histFileVO)) ;
+						histVO.setAmap(histMap) ;
+					}
+				}
+			}
+			returnMap.put("asHistList", asHistList) ;
+			// [AX Lab] 수정 끝
 		}
-		
+
 		CommonExecute.returnJson(response, returnMap);
-	}	
+	}
 	
 	
 	/**
