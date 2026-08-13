@@ -24,7 +24,7 @@ bin/
 *.iml
 *.ipr
 *.iws
-out/
+
 
 # VS Code
 .vscode/
@@ -110,3 +110,11 @@ $RECYCLE.BIN/
 .DS_Store
 .DS_Store?
 ._*
+
+.venv/
+__pycache__/
+.pyc
+
+# 분석 원천/결과 데이터 (로컬 보관, 커밋 제외)
+*.csv
+analysis/
