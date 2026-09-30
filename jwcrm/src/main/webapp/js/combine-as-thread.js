@@ -439,7 +439,7 @@ function caws_renderHead(){
 	+   '</div>'
 	+ '</div>'
 	+ '<div class="caws-acts">'
-	+   '<button type="button" class="btn-s primary" onclick="caws_focusAct();" title="조치내용(처리 이력)을 작성합니다. 처리상태를 함께 바꿀 수도 있습니다">처리 작성</button>'
+	/* [AX Lab] 삭제 (2026-09-30 AX Lab): 처리 작성은 우측 처리상태사항의 조치이력 입력란에서 수행하므로 중복 버튼 제거 */
 	+   '<div class="caws-sp"></div>'
 	+   '<button type="button" class="btn-s" onclick="asws_openFull();" title="접수처리정보의 값은 오른쪽 패널에서 클릭해 바로 수정할 수 있고, 그 외 항목은 전체 상세 페이지에서 수정합니다">전체 상세 페이지</button>'
 	+ '</div>'
@@ -509,6 +509,14 @@ function caws_renderTimeline(){
 		/* kind:'tr' — 렌더 생략 */
 	}
 
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 표는 최신 이력이 위에 오도록 SEQ 내림차순 정렬.
+	   caws_buildEvents 내부의 오름차순은 담당자 이관 전후 비교에 필요하므로 건드리지 않고 화면 배열만 정렬한다. */
+	actEvs.sort(function(x, y){
+		var sx = Number(caws_nvl(x.seq,0)), sy = Number(caws_nvl(y.seq,0));
+		return (sy - sx) || (y.ts - x.ts) || (y.ord - x.ord);
+	});
+	/* [AX Lab] 수정 끝 */
+
 	/* --- 문의 + 답변 버블 섹션 --- */
 	var s = '<div class="caws-tl">';
 	var aiDone = false;
@@ -532,9 +540,10 @@ function caws_renderTimeline(){
 	caws_html('asDetail', s);
 
 	caws_tab(caws.tab);
-	/* 최신 글이 보이도록 히스토리 영역을 맨 아래로 */
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 최신순에 맞춰 조회 후 상단부터 표시 */
 	var box = caws_el('asDetail');
-	if(box) box.scrollTop = box.scrollHeight;
+	if(box) box.scrollTop = 0;
+	/* [AX Lab] 수정 끝 */
 }
 /* [AX Lab] 수정 끝 */
 
@@ -953,6 +962,7 @@ function caws_actSelEmp(no){
 var CAWS_FLD_SEL = {
 	accept_route: { cg:'AS', pc:'CD02' },	/* 접수경로 */
 	request_type: { cg:'AS', pc:'CD07' },	/* 문의유형 */
+	proc_status:  { cg:'AS', pc:'CD01' },	/* [AX Lab] (2026-09-30) 처리상태도 중요도와 같은 인라인 select */
 	inportance:   { cg:'AS', pc:'CD04' },	/* 중요도   */
 	cause_type:   { cg:'AS', pc:'CD05' },	/* 원인유형 */
 	action_type:  { cg:'AS', pc:'CD06' },	/* 조치유형 */
@@ -1095,6 +1105,8 @@ function caws_fldCommit(key){
 }
 /* 현재 저장된 값 (미변경 비교용 — 날짜는 숫자만 남겨 비교) */
 function caws_fldCur(key){
+	/* [AX Lab] 수정 (2026-09-30 AX Lab): 담당자 편집키(assign)는 실제 저장 필드 assign_id 와 비교 */
+	if(key === 'assign') return String(caws_nvl((caws.vo||{}).assign_id,''));
 	var v = caws_nvl((caws.vo||{})[key],'');
 	if(CAWS_FLD_DATE[key]) v = String(v).replace(/[^0-9]/g,'');
 	return String(v);
@@ -1107,7 +1119,24 @@ function caws_fldSave(key, v){
 	var vo = caws.vo || {};
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 일괄 편집 중에는 서버 호출 없이 임시값만 갱신 */
 	if(caws.batch){
-		vo[key] = v;
+		/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리담당자는 화면키(assign)와 저장필드(assign_id)가 다르다.
+		   중요도와 같은 인라인 select에서 선택한 사번·이름을 일괄저장 대상 필드에 반영한다. */
+		if(key === 'assign'){
+			vo.assign_id = v;
+			for(var ei=0; ei<caws.act.empList.length; ei++){
+				if(caws_nvl(caws.act.empList[ei].emp_no,'') === v){
+					vo.assign_nm = caws_nvl(caws.act.empList[ei].emp_nm,'');
+					break;
+				}
+			}
+		}else{
+			vo[key] = v;
+		}
+		/* 처리완료가 아닌 상태로 바꾸면 기존 팝오버와 동일하게 처리완료 상세값을 비운다. */
+		if(key === 'proc_status' && v !== 'C005'){
+			for(var si=0; si<CAWS_DEV_FLDS.length; si++) vo[CAWS_DEV_FLDS[si]] = '';
+		}
+		/* [AX Lab] 수정 끝 */
 		if(key === 'action_type'
 		   && !(caws_stCode() === 'C005' && (v === 'C001' || v === 'C002'))){
 			for(var bi=0; bi<CAWS_DEV_FLDS.length; bi++) vo[CAWS_DEV_FLDS[bi]] = '';
@@ -1196,6 +1225,30 @@ function caws_fldSelHtml(key){
 	 + ' onchange="caws_fldCommit(\''+key+'\');" onblur="caws_fldBlurCancel(\''+key+'\');"'
 	 + ' onkeydown="caws_fldKey(event,\''+key+'\');"></select>';
 }
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리담당자도 중요도와 동일한 인라인 select로 편집 */
+function caws_fldAssignHtml(){
+	return '<select id="cawsFldIn" class="caws-fin"'
+	 + ' onchange="caws_fldCommit(\'assign\');" onblur="caws_fldBlurCancel(\'assign\');"'
+	 + ' onkeydown="caws_fldKey(event,\'assign\');"><option value="">불러오는 중...</option></select>';
+}
+function caws_inlineEmpOptions(){
+	var cur = caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''));
+	var s = '<option value="">선택</option>';
+	for(var i=0; i<caws.act.empList.length; i++){
+		var e = caws.act.empList[i], no = caws_nvl(e.emp_no,''), nm = caws_nvl(e.emp_nm,'');
+		s += '<option value="'+caws_esc(no)+'"'+(no === cur ? ' selected' : '')+'>'
+		  + caws_esc(nm+(no !== '' ? ' ('+no+')' : ''))+'</option>';
+	}
+	return s;
+}
+function caws_inlineEmpLoaded(data){
+	caws.act.empList = (data && data.resultList) ? data.resultList : [];
+	var el = caws_el('cawsFldIn');
+	if(caws.fld !== 'assign' || !el) return;
+	el.innerHTML = caws_inlineEmpOptions();
+	try{ el.focus(); }catch(e){}
+}
+/* [AX Lab] 수정 끝 */
 function caws_fldTxtHtml(key, val, ph){
 	return '<input type="text" id="cawsFldIn" class="caws-fin" value="'+caws_esc(caws_nvl(val,''))+'"'
 	 + (caws_nvl(ph,'') !== '' ? ' placeholder="'+caws_esc(ph)+'"' : '')
@@ -1231,8 +1284,21 @@ function caws_fldInit(){
 	var key = caws_nvl(caws.fld,'');
 	if(key === '') return;
 	if(key === 'systype'){ caws_pairInit(); return; }
-	if(key === 'proc_status'){ caws_popStatusInit(); return; }
-	if(key === 'assign'){ caws_popAssignInit(); return; }
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리상태·담당자를 중요도와 같은 인라인 select로 초기화 */
+	if(key === 'assign'){
+		var ae = caws_el('cawsFldIn');
+		if(caws.act.empList.length > 0){
+			if(ae) ae.innerHTML = caws_inlineEmpOptions();
+		}else{
+			common.ajaxCall({
+				as_no:caws.asNo,
+				assign_id:caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''))
+			}, '/ad/as/getAsEmpList.do', 'caws_inlineEmpLoaded');
+		}
+		if(ae) try{ ae.focus(); }catch(e){}
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	var el = caws_el('cawsFldIn');
 	if(!el) return;
 	var vo = caws.vo || {};
@@ -2232,20 +2298,18 @@ function caws_renderRecord(){
 	/* [AX Lab] 수정 (2026-07-31 AX Lab): '문의유형정보' 별도 그룹(b6) 제거 —
 	   문의유형/시스템유형/버전정보는 위 접수정보(b1)로 통합, 요청내용은 COL2 문의 버블로 이동. */
 
-	/* --- 처리상태사항 : 처리상태/담당자(이력 팝오버) + 중요도/전화확인/전화부재중(즉시 저장) --- */
-	var b3 = '<div class="kv"><span class="k">현재 처리상태</span>'
-	   +   '<span class="v caws-fv" onclick="caws_fldOpen(\'proc_status\');" title="클릭하여 처리상태 변경·조치내용 작성 (이력에 기록됩니다)">'
-	   +     '<span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span></span></div>'
-	   + (caws.fld === 'proc_status' ? caws_popStatusHtml() : '')
-	   + '<div class="kv"><span class="k">처리담당자</span>'
-	   +   '<span class="v caws-fv" onclick="caws_fldOpen(\'assign\');" title="클릭하여 담당자 변경">'+caws_esc(empNm)+'</span></div>'
-	   + (caws.fld === 'assign' ? caws_popAssignHtml() : '')
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리상태·처리담당자를 중요도와 동일한 인라인 select UI로 통일 */
+	var b3 = caws_ekv('proc_status', '현재 처리상태',
+	       '<span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span>',
+	       caws_fldSelHtml('proc_status'), '클릭하여 바로 수정')
+	   + caws_ekv('assign', '처리담당자', caws_esc(empNm), caws_fldAssignHtml(), '클릭하여 바로 수정')
 	   + (caws.fld === 'inportance'
 	     ? '<div class="kv caws-fe"><span class="k">중요도</span><span class="v caws-fev">'+caws_fldSelHtml('inportance')+'</span></div>'
 	     : '<div class="kv"><span class="k">중요도</span><span class="'+((caws_gradeCode() === 'C001') ? 'v grade-b' : 'v')+' caws-fv" onclick="caws_fldOpen(\'inportance\');" title="클릭하여 바로 수정">'+caws_esc(caws_gradeNm())+'</span></div>')
 	   + caws_telRowHtml(vo)
 	   /* [AX Lab] 수정 (2026-09-30 AX Lab): 처리상태·담당자 변경에 공통으로 사용하는 조치이력 입력란 */
 	   + caws_batchMemoHtml();
+	/* [AX Lab] 수정 끝 */
 
 	/* --- 처리완료사항 : 처리예정일자/시각·원인유형·조치유형·작업시간·처리완료일자 --- */
 	var procDtDisp = caws_date(caws_nvl(vo.proc_dt,''));
@@ -2299,11 +2363,6 @@ function caws_renderRecord(){
 
 	/* 편집 중인 필드가 있으면 컨트롤 초기화(옵션 채우기·datepicker 부착·포커스) */
 	caws_fldInit();
-	/* 처리상태/담당자 팝오버는 폼이 길어서 화면에 들어오도록 스크롤해준다 */
-	if(caws.fld === 'proc_status' || caws.fld === 'assign'){
-		var procEl = caws_el('cawsAcc_proc');
-		if(procEl) setTimeout(function(){ procEl.scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 50);
-	}
 }
 /* [AX Lab] 수정 끝 */
 
