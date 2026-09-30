@@ -267,6 +267,80 @@ public class AsVO extends PagingVO implements Serializable {
 	}
 	// [AX Lab] 수정 끝
 
+	// [AX Lab] 수정 시작 (2026-07-29 AX Lab): AS 목록 컬럼 개편(거래상태/첨부여부 표식 + 헤더클릭 정렬)
+	/** 거래상태 코드 (CRM_CUST_OPERATE_INFO.DEAL_CODE) C003:해지 C004:폐업 C005:중지 */
+	private String deal_code = "";
+	/** 거래상태 명칭 (공통코드 CUST/CD03) */
+	private String deal_code_nm = "";
+	/** 첨부파일 보유여부 'Y'/'N' (접수첨부 FILE_SEQ + 조치첨부 ATTACH_SEQ2 기준) */
+	private String has_file = "";
+
+	/** 화면이 보낸 정렬 컬럼 키 (예: accept_dt). 화면 복원용이며 SQL 에는 쓰지 않는다. */
+	private String sort_col = "";
+	/** 화면이 보낸 정렬 방향 (ASC/DESC). 화면 복원용. */
+	private String sort_dir = "";
+
+	/* 아래 두 값은 egov-as-query.xml 의 getAsList 에서 ${} 문자열 치환으로 SQL 에 직접 박힌다.
+	   반드시 AdAsController.applyAsSort() 의 화이트리스트를 통과한 값만 넣어야 한다.
+	   기본값(AS_NO / DESC / ASC)은 정렬 미지정 시 개편 전과 완전히 동일한 쿼리가 되도록 맞춘 것이며,
+	   applyAsSort() 를 호출하지 않는 경로가 생기더라도 쿼리가 깨지지 않게 하는 안전장치이기도 하다. */
+	/** 정렬 대상 컬럼명 (테이블 별칭 없는 순수 컬럼명) */
+	private String sort_expr = "AS_NO";
+	/** 최종 출력 정렬 방향 */
+	private String sort_dir_sql = "DESC";
+	/** ROW_NUMBER 채번용 역방향 (sort_dir_sql 의 반대). 역순 RNUM 페이징 구조상 필수 */
+	private String sort_dir_inv = "ASC";
+
+	public String getDeal_code() {
+		return deal_code;
+	}
+	public void setDeal_code(String deal_code) {
+		this.deal_code = deal_code;
+	}
+	public String getDeal_code_nm() {
+		return deal_code_nm;
+	}
+	public void setDeal_code_nm(String deal_code_nm) {
+		this.deal_code_nm = deal_code_nm;
+	}
+	public String getHas_file() {
+		return has_file;
+	}
+	public void setHas_file(String has_file) {
+		this.has_file = has_file;
+	}
+	public String getSort_col() {
+		return sort_col;
+	}
+	public void setSort_col(String sort_col) {
+		this.sort_col = sort_col;
+	}
+	public String getSort_dir() {
+		return sort_dir;
+	}
+	public void setSort_dir(String sort_dir) {
+		this.sort_dir = sort_dir;
+	}
+	public String getSort_expr() {
+		return sort_expr;
+	}
+	public void setSort_expr(String sort_expr) {
+		this.sort_expr = sort_expr;
+	}
+	public String getSort_dir_sql() {
+		return sort_dir_sql;
+	}
+	public void setSort_dir_sql(String sort_dir_sql) {
+		this.sort_dir_sql = sort_dir_sql;
+	}
+	public String getSort_dir_inv() {
+		return sort_dir_inv;
+	}
+	public void setSort_dir_inv(String sort_dir_inv) {
+		this.sort_dir_inv = sort_dir_inv;
+	}
+	// [AX Lab] 수정 끝
+
 	
 	public String getOnce_flag() {
 		return once_flag;

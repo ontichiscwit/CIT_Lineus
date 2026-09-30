@@ -380,12 +380,37 @@
 		CASE
 	        WHEN AS_NO_LINK IS NULL OR TRIM(AS_NO_LINK) = '' THEN 0
 	        ELSE LENGTH(AS_NO_LINK) - LENGTH(REPLACE(AS_NO_LINK, ',', '')) + 1
-	    END AS AS_NO_LINK_COUNT    
+	    END AS AS_NO_LINK_COUNT ,
+		/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록에서 거래상태/첨부여부를 별도 컬럼 없이 표식으로 노출하기 위한 값.
+		   이 최외곽 SELECT 는 아래 WHERE 의 RNUM 필터가 먼저 적용된 뒤 현재 페이지 행(10~50건)에 대해서만
+		   평가되므로, 스칼라 서브쿼리를 추가해도 전체 건수에 비례하는 비용이 발생하지 않는다.
+		   (기존 total_aws_cnt / aws_cnt 도 같은 위치에서 같은 방식으로 계산하고 있다) */
+		(SELECT z.code_name FROM crm_code_detail z WHERE z.code_group = 'CUST' AND z.p_code = 'CD03' AND z.code = out_tb.deal_code ) AS deal_code_nm, /* 거래상태 명칭 */
+		CASE WHEN EXISTS ( SELECT 1 FROM CRM_ATTACH_MGT f
+		                    WHERE f.attach_seq IN (out_tb.file_seq, out_tb.attach_seq2) )
+		     THEN 'Y' ELSE 'N' END AS has_file /* 첨부파일 보유여부 (접수첨부 FILE_SEQ + 조치첨부 ATTACH_SEQ2) */
+		/* [AX Lab] 수정 끝 */
 		FROM 
 		    ( 
 		        SELECT 
 		            in_tb.*, 
-		        ROW_NUMBER() OVER( ORDER BY in_tb.as_no  ASC) AS rnum             
+		        /* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록 헤더 클릭 정렬(오름/내림) 지원.
+		           ★ 반드시 "표시순서의 역방향"으로 번호를 매겨야 한다.
+		              PagingVO.setPaging() 이 startRow = rowCnt - page*pageSize + 1 로 "뒤에서부터" 창을 잡기 때문에
+		              1페이지 = RNUM 이 가장 큰 구간이다. 그래서 원본도 rnum 은 as_no ASC, 최종 출력은 AS_NO DESC 로
+		              서로 반대 방향을 물려 두었다. 이 관계가 깨지면 1페이지에 가장 오래된 건이 나온다.
+		           ★ as_no 를 동순위 보조키로 붙이는 이유: 처리상태처럼 같은 값이 많은 컬럼으로 정렬하면
+		              번호 매기기 순서와 출력 순서가 서로 달라져 페이지를 넘길 때 행이 중복/누락된다.
+		           ※ sort_expr / sort_dir_sql / sort_dir_inv 는 화면 입력값이 아니라 AdAsController.applyAsSort()
+		             의 화이트리스트를 통과한 값만 들어온다. 바인딩(#)이 아니라 문자열 치환이므로 화이트리스트가
+		             SQL Injection 방어의 전부다. 화면이 보낸 원본값(sort_col/sort_dir)은 화면 복원 전용이며
+		             절대 SQL 에 쓰지 않는다. 미지정 시 AS_NO / DESC / ASC 기본값.
+		           ※ sort_expr 은 "테이블 별칭 없는 순수 컬럼명"이며 사용하는 쪽에서 별칭을 붙인다.
+		             최외곽 ORDER BY 를 OUT_TB. 으로 한정해야 하기 때문이다. (예: star_state_date 는 SELECT 목록에
+		             out_tb.* 의 원본 컬럼과 TO_CHAR(...) 별칭이 같은 이름으로 둘 다 존재해서, 별칭 없이 쓰면
+		             ORA-00960 ambiguous column 오류가 난다) */
+		        ROW_NUMBER() OVER( ORDER BY in_tb.${sort_expr} ${sort_dir_inv}, in_tb.as_no ASC ) AS rnum             
+		        /* [AX Lab] 수정 끝 */
 		        FROM 
 		            ( 
 		                SELECT                 
@@ -412,6 +437,15 @@
 		a.call_content, /* 요청내용 */ 
 		b.erp_code, 
 		b.priority, /*우선처*/
+		/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 거래상태(C003:해지 C004:폐업 C005:중지) - 목록에서 육안 식별용.
+		   조인이 아니라 스칼라 서브쿼리로 가져온다. 조인으로 붙이면 CRM_CUST_OPERATE_INFO 가 만에 하나
+		   거래처당 2행 이상을 갖는 순간 AS 행이 조용히 중복되는데, 건수 쿼리(getAsListCnt)에는 이 조인이
+		   없으므로 "조회 N건"과 실제 목록 건수가 어긋나고 페이징까지 틀어진다. 스칼라 서브쿼리는 행 수를
+		   절대 늘리지 않으므로 그 위험 자체가 없다. (기존 emp_nm/DEPT_NM 등도 같은 방식이다) */
+		(SELECT z.deal_code FROM CRM_CUST_OPERATE_INFO z WHERE z.seq = b.seq) AS deal_code,
+		a.file_seq,    /* 접수 첨부 그룹ID - has_file 판정용 */
+		a.attach_seq2, /* 조치 첨부 그룹ID - has_file 판정용 */
+		/* [AX Lab] 수정 끝 */
 		a.del_yn, 
 		a.accept_dt, 
 		a.star_state_date, 
@@ -473,15 +507,19 @@
 		) OUT_TB
 		 WHERE 1=1
 	]]>
+		<!-- [AX Lab] 수정 시작 (2026-07-29 AX Lab): 아래 ORDER BY 는 위 ROW_NUMBER 와 정확히 반대 방향이어야 한다.
+		     (상세 사유는 ROW_NUMBER 쪽 주석 참고) 엑셀(exl)에도 같은 정렬을 적용해 화면에서 정렬한 순서 그대로
+		     다운로드되게 한다. 정렬 미지정 시 sort_expr=AS_NO / sort_dir_sql=DESC 라 기존 동작과 완전히 동일하다. -->
 		<if
 			test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) != 'exl'">
 			AND RNUM BETWEEN #{startRow} AND #{endRow}
-			ORDER BY AS_NO DESC
+			ORDER BY OUT_TB.${sort_expr} ${sort_dir_sql}, OUT_TB.AS_NO DESC
 		</if>
 		<if
 			test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(pageType) == 'exl'">
-			ORDER BY AS_NO DESC
+			ORDER BY OUT_TB.${sort_expr} ${sort_dir_sql}, OUT_TB.AS_NO DESC
 		</if>
+		<!-- [AX Lab] 수정 끝 -->
 	</select>
 
 	<select id="getAsInfo" parameterType="asVO" resultType="asVO">
