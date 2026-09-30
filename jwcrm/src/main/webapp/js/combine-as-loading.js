@@ -140,10 +140,11 @@ function asws_listTakeAfter(){
 }
 
 /* ---- 3) 조회 실패 -------------------------------------------------------- */
-function asws_listErr(xhr){
+function asws_listErr(xhr, textStatus){
 	var code = (xhr && xhr.status) ? xhr.status : 0;
 	var msg;
-	if(code === 403)      msg = '이 목록을 조회할 권한이 없습니다.';
+	if(textStatus === 'timeout') msg = '조회 시간이 너무 오래 걸려 중단했습니다. 접수일 범위를 좁혀서 다시 조회해 주세요.';
+	else if(code === 403) msg = '이 목록을 조회할 권한이 없습니다.';
 	else if(code === 401) msg = '로그인이 만료되었습니다. 다시 로그인해 주세요.';
 	else if(code === 0)   msg = '서버에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.';
 	else                  msg = '서버 오류가 발생했습니다. (HTTP ' + code + ')';
