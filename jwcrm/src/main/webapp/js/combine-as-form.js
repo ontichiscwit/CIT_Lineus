@@ -773,8 +773,21 @@ function cafm_procReturn(gubun, as_no, pageType, cn_as_no, save_gubun){
 
 	/* 목록 재조회 후 방금 등록한 건을 통합화면(COL2/COL3)에 바로 연다.
 	   (현재 검색조건에 걸리지 않아 목록에 없더라도 상세는 정상 조회된다) */
-	if(typeof makeListData === 'function') makeListData();
-	if(typeof asws_openDetail === 'function' && caws_nvl(as_no, '') !== ''){
-		asws_openDetail(as_no, (pageType === 'subInsert') ? caws_nvl(cn_as_no, '') : '');
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 목록조회 비동기 전환 대응.
+	   예전에는 makeListData() 가 동기라서 재조회가 끝난 뒤 아래 열기가 실행됐다.
+	   비동기가 되면 순서가 뒤집혀 방금 등록한 건이 아니라 목록 첫 행이 열리므로,
+	   콜백으로 넘겨 "조회 완료 후" 열리도록 한다. */
+	var openNo = caws_nvl(as_no, '');
+	var openCn = (pageType === 'subInsert') ? caws_nvl(cn_as_no, '') : '';
+	var openFn = function(){
+		if(typeof asws_openDetail === 'function' && openNo !== ''){
+			asws_openDetail(openNo, openCn);
+		}
+	};
+	if(typeof makeListData === 'function'){
+		makeListData(openFn);
+	}else{
+		openFn();
 	}
+	/* [AX Lab] 수정 끝 */
 }

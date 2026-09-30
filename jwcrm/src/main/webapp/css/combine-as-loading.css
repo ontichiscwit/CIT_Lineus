@@ -1,0 +1,88 @@
+@charset "UTF-8";
+/* =============================================================================
+ * [AX Lab] AS 통합화면 - 목록 로딩표시 / 빈 결과 안내  (2026-09-30 AX Lab)
+ *
+ * 왜 만들었나
+ *   ① 조회 중이라는 표시가 전혀 없어서, 목록이 비어 보이면 사용자가 "고장난 건지
+ *      아직 불러오는 중인지" 구분할 수 없었다.
+ *   ② 0건일 때 문구가 "조회된 데이터가 없습니다." 한 줄뿐이라, 실제 원인이
+ *      "처리구분이 '나의 A/S' 라서 나에게 배정된 건만 보고 있는 것" 이어도
+ *      사용자는 그 사실을 알 수 없었다. (AS 담당자가 아닌 계정은 항상 0건)
+ *
+ * 로드 순서
+ *   combine-as.css 다음에 와야 한다. 같은 특정도에서 나중 규칙이 이겨야 하고,
+ *   CSS 변수(--ink-2 / --line 등)를 combine-as.css 의 #asWorkspace 에서 상속받는다.
+ *   변수가 없는 환경(단독 로드)에서도 깨지지 않도록 모든 var() 에 폴백값을 둔다.
+ * ========================================================================== */
+
+@keyframes asws-spin{ to{ transform:rotate(360deg); } }
+
+/* ---- 로딩 오버레이 (목록 영역을 딤 처리 + 가운데 스피너) -------------------
+   기준점(position:relative)을 .col-content 에 준다.
+     · .tscroll 안에 넣으면 overflow:auto 라 오버레이가 스크롤을 따라 움직이고,
+       세로로 스크롤한 만큼 영역 밖으로 밀려나 목록 일부만 덮게 된다.
+     · .col-content 는 스크롤되지 않는 flex 컨테이너라 항상 목록칸 전체를 정확히 덮는다.
+   combine-as.css 를 고치지 않고 나중 로드되는 이 파일에서만 덧씌운다. */
+#asWorkspace #col-c1 .col-content{ position:relative; }
+
+#asWorkspace .asws-ovl{
+	/* inset 대신 4방향을 쓰는 이유 : 구형 브라우저 호환 (비용 0) */
+	position:absolute; top:0; left:0; right:0; bottom:0;
+	display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+	background:rgba(255,255,255,.62);
+	/* z-index 선정 : .basefilter(20) 위로 올라가야 검색필터까지 덮어 "비활성화"가 되고,
+	   GNB 서브메뉴(99)·모달 딤/레이어(1000·1001)보다는 낮아야 그 위로 튀어나오지 않는다. */
+	z-index:30;
+	cursor:progress;
+}
+#asWorkspace .asws-ovl-ring{
+	width:34px; height:34px;
+	border:3px solid rgba(28,124,160,.20); border-top-color:#1C7CA0;
+	border-radius:50%; animation:asws-spin .7s linear infinite;
+}
+#asWorkspace .asws-ovl-txt{
+	font-size:12px; font-weight:600; letter-spacing:-.02em; color:#1C7CA0;
+}
+
+/* ---- 로딩 행 (오버레이 기준점을 못 찾은 경우의 폴백) ---------------------- */
+#asWorkspace .asws-loading{
+	text-align:center; padding:26px 12px;
+	color:var(--ink-2, #8A979E); font-size:12.5px;
+}
+#asWorkspace .asws-spin{
+	display:inline-block; width:14px; height:14px; margin-right:7px; vertical-align:-2px;
+	border:2px solid rgba(28,124,160,.22); border-top-color:#1C7CA0;
+	border-radius:50%; animation:asws-spin .7s linear infinite;
+}
+
+/* 접근성 : 모션 최소화 설정에서는 회전 대신 깜빡임으로 대체 */
+@media (prefers-reduced-motion: reduce){
+	#asWorkspace .asws-spin,
+	#asWorkspace .asws-ovl-ring{ animation:asws-fade 1s ease-in-out infinite; }
+	@keyframes asws-fade{ 0%,100%{opacity:.25;} 50%{opacity:1;} }
+}
+
+/* ---- 빈 결과 안내 -------------------------------------------------------- */
+#asWorkspace .asws-empty{ text-align:center; padding:26px 12px; }
+#asWorkspace .asws-empty-tit{
+	font-size:13px; font-weight:600; margin-bottom:6px;
+	color:var(--ink, #4A5A63);
+}
+#asWorkspace .asws-empty-sub{
+	font-size:12px; line-height:1.65; margin-bottom:12px;
+	color:var(--ink-2, #8A979E);
+}
+#asWorkspace .asws-empty-sub b{ color:#1C7CA0; font-weight:600; }
+#asWorkspace .asws-empty-btn{
+	height:28px; padding:0 14px; font-size:12px; cursor:pointer;
+	border:1px solid #1C7CA0; border-radius:6px;
+	background:var(--surface, #fff); color:#1C7CA0;
+}
+#asWorkspace .asws-empty-btn:hover{ background:#1C7CA0; color:#fff; }
+
+/* ---- 조회 실패 ----------------------------------------------------------- */
+/* 기존에는 동기 ajax 라 실패해도 화면이 그대로여서 "조회가 안 된다" 로만 보였다.
+   비동기 전환 후에는 실패를 명시적으로 알리고 재시도 수단을 준다. */
+#asWorkspace .asws-loaderr{ text-align:center; padding:26px 12px; }
+#asWorkspace .asws-loaderr-tit{ font-size:13px; font-weight:600; color:#C0392B; margin-bottom:6px; }
+#asWorkspace .asws-loaderr-sub{ font-size:12px; color:var(--ink-2, #8A979E); margin-bottom:12px; }
