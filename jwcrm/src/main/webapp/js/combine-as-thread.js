@@ -427,7 +427,7 @@ function caws_renderHead(){
 	+   caws_tabBtn('all',  '전체',      c.all)
 	+   caws_tabBtn('talk', '문의·답변', c.talk)
 	+   caws_tabBtn('act',  '조치',      c.act)
-	+   caws_tabBtn('tr',   '이관',      c.tr)
+	/* [AX Lab] 수정 (2026-09-30 AX Lab): 이관 탭 제거 — 조치이력 테이블 통합으로 불필요 */
 	+ '</div>';
 
 	caws_html('asDetailHead', h);
@@ -439,11 +439,12 @@ function caws_tabBtn(key, label, cnt){
 }
 
 /* 탭 전환은 재조회 없이 CSS 클래스로 show/hide 만 한다. */
+/* [AX Lab] 수정 (2026-09-30 AX Lab): 이관 탭 제거로 배열을 3개로 줄임 */
 function caws_tab(key){
 	caws.tab = key;
 	var tabs = document.querySelectorAll('#asDetailHead .caws-tab');
 	for(var i=0; i<tabs.length; i++) tabs[i].classList.remove('on');
-	var idx = ['all','talk','act','tr'].indexOf(key);
+	var idx = ['all','talk','act'].indexOf(key);
 	if(idx >= 0 && tabs[idx]) tabs[idx].classList.add('on');
 
 	var evs = document.querySelectorAll('#asDetail .caws-ev');
@@ -466,24 +467,48 @@ function caws_syncEmpty(){
 /* =============================================================================
  * 3) COL2 통합 타임라인 렌더
  * ========================================================================== */
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 → 버블 카드에서 테이블로 전면 개편
+   - 문의(q)/답변(cust/staff) : 기존 버블 타임라인 유지
+   - 조치이력(act)           : form.jsp 조치이력 테이블과 동일한 형태로 버블 아래에 렌더
+   - 이관(tr)               : 별도 카드 표시 제거 — 인수자 컬럼 변화로 이관 여부 확인 가능 */
 function caws_renderTimeline(){
 	if(!caws.events.length){
 		caws_html('asDetail', '<div class="empty">표시할 내용이 없습니다.</div>');
 		return;
 	}
 
-	/* 문의(kind:'q') → AI 추천 → 나머지(조치/답변/이관) 순으로 단일 스크롤 영역에 표시.
-	   모두 같은 #asDetail 안에서 위에서 아래로 스크롤해 읽는다. */
+	/* 이벤트를 talk(문의·답변) / act(조치이력) 로 분리 — tr(이관)은 렌더 제외 */
+	var talkEvs = [], actEvs = [];
+	for(var i=0; i<caws.events.length; i++){
+		var tlEv = caws.events[i];
+		if(tlEv.kind === 'q' || tlEv.kind === 'cust' || tlEv.kind === 'staff'){
+			talkEvs.push({ ev:tlEv, idx:i });
+		} else if(tlEv.kind === 'act'){
+			actEvs.push(tlEv);
+		}
+		/* kind:'tr' — 렌더 생략 */
+	}
+
+	/* --- 문의 + 답변 버블 섹션 --- */
 	var s = '<div class="caws-tl">';
 	var aiDone = false;
-	for(var i=0; i<caws.events.length; i++){
-		s += caws_evHtml(caws.events[i], i);
-		if(!aiDone && caws.events[i].kind === 'q'){ s += caws_aiHintHtml(); aiDone = true; }
+	for(var j=0; j<talkEvs.length; j++){
+		s += caws_evHtml(talkEvs[j].ev, talkEvs[j].idx);
+		if(!aiDone && talkEvs[j].ev.kind === 'q'){ s += caws_aiHintHtml(); aiDone = true; }
 	}
 	/* CALL_CONTENT 가 비어 문의 이벤트가 없는 예외 데이터에도 AI 블록은 표시한다 */
 	if(!aiDone) s += caws_aiHintHtml();
-	s += '</div>'
-	  +  '<div class="caws-pempty" id="cawsTlEmpty" style="display:none;">이 탭에 해당하는 내용이 없습니다.</div>';
+	s += '</div>';
+
+	/* --- 조치이력 테이블 섹션 (필터탭 호환을 위해 .caws-ev[data-grp="act"] 래퍼 사용) --- */
+	if(actEvs.length > 0){
+		s += '<div class="caws-tl-sep"><span>조치이력</span></div>';
+		s += '<div class="caws-ev al-c" data-grp="act">';
+		s += caws_actTableHtml(actEvs);
+		s += '</div>';
+	}
+
+	s += '<div class="caws-pempty" id="cawsTlEmpty" style="display:none;">이 탭에 해당하는 내용이 없습니다.</div>';
 	caws_html('asDetail', s);
 
 	caws_tab(caws.tab);
@@ -491,6 +516,7 @@ function caws_renderTimeline(){
 	var box = caws_el('asDetail');
 	if(box) box.scrollTop = box.scrollHeight;
 }
+/* [AX Lab] 수정 끝 */
 
 /* 문의 고정 구간(#asDetailInq) 아래에 붙는 'AI 추천' 안내 블록.
    스타일은 combine-as.css 393~397행 .aiblock 그대로 쓴다.
@@ -552,13 +578,18 @@ function caws_evHtml(ev, idx){
 function caws_qEdit(){
 	var box = caws_el('cawsQBody');
 	if(!box || caws_el('cawsQTa')) return;		/* 이미 편집 중이면 무시 */
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 수정 모드에서 버블 레이아웃 유지
+	   기존 대형 앰버(act) 전송 버튼을 소형 btn-s primary 버튼으로 교체해
+	   [수정] 클릭 시 화면이 완전히 바뀌는 것처럼 보이는 문제를 해소한다. */
 	box.innerHTML = '<textarea id="cawsQTa" class="caws-ta caws-fta" oninput="caws_autoGrow(this);"'
 	 + ' onkeydown="if(event.keyCode===27)caws_qCancel();"></textarea>'
 	 + '<div class="caws-cbar" style="margin-top:6px;">'
-	 +   '<button type="button" class="btn-s" onclick="caws_qCancel();">취소</button>'
+	 +   '<span class="caws-mnote" style="margin:0;">Esc 키 또는 [취소]로 원래대로</span>'
 	 +   '<span class="caws-sp"></span>'
-	 +   '<button type="button" class="caws-send act" onclick="caws_qSave();">저장</button>'
+	 +   '<button type="button" class="btn-s" onclick="caws_qCancel();">취소</button>'
+	 +   '<button type="button" class="btn-s primary" onclick="caws_qSave();">저장</button>'
 	 + '</div>';
+	/* [AX Lab] 수정 끝 */
 	var ta = caws_el('cawsQTa');
 	if(ta){
 		/* innerHTML 주입 대신 value 로 넣어 따옴표/태그 escape 문제를 원천 차단한다 */
@@ -586,21 +617,127 @@ function caws_qSave(){
 }
 /* [AX Lab] 수정 끝 */
 
-/* 이관 : 버블이 아닌 얇은 시스템 라인 (홍길동 → 김철수 + 코멘트) */
-function caws_trHtml(ev, idx){
-	var s = '<div class="caws-ev t-tr al-c" data-grp="tr"><div class="caws-bub">'
-	      + '<div class="caws-trhd">'
-	      + '<span class="caws-trico">&#8644;</span>담당자 이관'
-	      + '<span class="caws-trwho">'+caws_esc(ev.from)+'</span>'
-	      + '<span class="caws-trar">&rarr;</span>'
-	      + '<span class="caws-trwho">'+caws_esc(ev.to)+'</span>'
-	      + (ev.by ? '<span class="caws-btime" style="margin-left:0;">처리 '+caws_esc(ev.by)+'</span>' : '')
-	      + '<span class="caws-btime">'+caws_esc(caws_nvl(ev.when,''))+'</span>'
-	      + '</div>';
-	if(caws_nvl(ev.text,'') !== '') s += '<div class="caws-trcm">'+caws_linkify(ev.text)+'</div>';
-	s += '</div></div>';
+/* [AX Lab] 수정 (2026-09-30 AX Lab): 이관 이벤트는 렌더 제거 — 조치이력 테이블의 인수자 컬럼으로 이관 여부 확인 가능 */
+function caws_trHtml(ev, idx){ return ''; }
+
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 테이블 렌더
+   form.jsp 의 asHistTbody 생성 로직을 combine-as 환경으로 이식.
+   열 구성: 처리일자 | 처리자 | 인수자 | 처리상태 | 중요도 | 작업처리 의견 | [수정] | 첨부파일 */
+function caws_actTableHtml(actEvs){
+	var s = '<div class="caws-hist-scroll"><table class="caws-hist-tbl">'
+	      + '<colgroup>'
+	      + '<col class="caws-hcol-date"><col class="caws-hcol-person"><col class="caws-hcol-person">'
+	      + '<col class="caws-hcol-status"><col class="caws-hcol-grade"><col class="caws-hcol-content">'
+	      + '<col class="caws-hcol-edit"><col class="caws-hcol-file">'
+	      + '</colgroup>'
+	      + '<thead><tr>'
+	      + '<th>조치이력 처리일자</th><th>처리자</th><th>인수자</th>'
+	      + '<th>처리상태</th><th>중요도</th><th>작업처리 의견</th>'
+	      + '<th></th><th>첨부파일</th>'
+	      + '</tr></thead><tbody>';
+	for(var i=0; i<actEvs.length; i++){
+		var ev  = actEvs[i];
+		var seq = caws_nvl(ev.seq,'');
+		var txt = caws_nvl(ev.text,'');
+		var files = ev.files || [];
+		var fileHtml = '';
+		for(var f=0; f<files.length; f++){
+			var fl = files[f];
+			fileHtml += '<button type="button" class="caws-hbtn" '
+			         +  'onclick="fileDown(\''+caws_fileSeq(fl)+'\',\''+caws_fileOrd(fl)+'\');">'
+			         +  '첨부파일</button> ';
+		}
+		s += '<tr>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.when,'-'))+'</td>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.who,'-'))+'</td>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.acceptor,'-'))+'</td>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.status,''))+'</td>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.grade,''))+'</td>'
+		  +  '<td class="caws-hcont" title="'+caws_esc(txt)+'">'+caws_esc(txt)+'</td>'
+		  +  '<td>'+(seq !== '' ? '<button type="button" class="caws-hbtn" onclick="caws_histEdit(\''+caws_esc(seq)+'\');">수정</button>' : '')+'</td>'
+		  +  '<td>'+fileHtml+'</td>'
+		  +  '</tr>';
+	}
+	s += '</tbody></table></div>';
 	return s;
 }
+/* [AX Lab] 수정 끝 */
+
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 [수정] 팝오버 — 작업처리의견 개별 수정
+   form.jsp 의 showHistContent + updateHisContent 를 combine-as 환경에 맞게 재구성.
+   저장은 기존 histProc.do + pageType=updateHistActionContent 경로를 그대로 재사용한다. */
+function caws_histEdit(seq){
+	/* 이미 열려 있으면 먼저 제거 */
+	var old = caws_el('cawsHistEditModal');
+	if(old && old.parentNode) old.parentNode.removeChild(old);
+
+	/* 현재 저장된 텍스트를 이벤트 목록에서 찾는다 */
+	var cur = '';
+	for(var i=0; i<caws.events.length; i++){
+		if(caws_nvl(caws.events[i].seq,'') === String(seq)){ cur = caws_nvl(caws.events[i].text,''); break; }
+	}
+
+	/* 모달을 #asWorkspace 에 동적으로 추가 (position:fixed 라 DOM 위치 무관, CSS 스코핑만 충족) */
+	var ws = caws_el('asWorkspace');
+	if(!ws){ alert('워크스페이스 요소를 찾을 수 없습니다.'); return; }
+	var m = document.createElement('div');
+	m.id   = 'cawsHistEditModal';
+	m.className = 'caws-modal';
+	m.style.display = 'flex';
+	m.innerHTML = '<div class="caws-mh">'
+	  + '<h3>작업처리 의견 수정</h3>'
+	  + '<button type="button" class="caws-mx" onclick="caws_histEditClose();" title="닫기 (ESC)">&times;</button>'
+	  + '</div>'
+	  + '<div class="caws-mb"><div class="caws-fld">'
+	  + '<label>작업처리 의견</label>'
+	  + '<textarea id="cawsHistEditTa" class="caws-ta caws-fta" oninput="caws_autoGrow(this);"></textarea>'
+	  + '</div></div>'
+	  + '<div class="caws-mf">'
+	  + '<div class="caws-sp"></div>'
+	  + '<button type="button" class="btn-s" onclick="caws_histEditClose();">취소</button>'
+	  + '<button type="button" class="btn-s primary" onclick="caws_histEditSave(\''+caws_esc(String(seq))+'\');">저장</button>'
+	  + '</div>';
+	ws.appendChild(m);
+
+	var dim = caws_el('cawsDim');
+	if(dim) dim.style.display = 'block';
+
+	var ta = caws_el('cawsHistEditTa');
+	if(ta){
+		ta.value = cur;
+		caws_autoGrow(ta);
+		try{ ta.focus(); }catch(e){}
+	}
+}
+function caws_histEditClose(){
+	var m = caws_el('cawsHistEditModal');
+	if(m && m.parentNode) m.parentNode.removeChild(m);
+	/* 다른 모달이 없으면 dim 도 내린다 */
+	var any = document.querySelectorAll('#asWorkspace .caws-modal[style*="flex"], #asWorkspace .caws-lb[style*="flex"]').length;
+	var dim = caws_el('cawsDim');
+	if(dim && !any) dim.style.display = 'none';
+}
+function caws_histEditSave(seq){
+	var ta = caws_el('cawsHistEditTa');
+	if(!ta) return;
+	var v = String(ta.value||'').trim();
+	if(v === ''){ alert('작업처리 의견을 입력해주세요.'); if(ta) ta.focus(); return; }
+	if(!confirm('저장하시겠습니까?')) return;
+	common.ajaxCall({
+		as_no:          caws.asNo,
+		seq:            seq,
+		action_content: v,
+		pageType:       'updateHistActionContent'
+	}, '/ad/as/histProc.do', 'caws_histEditReturn');
+}
+function caws_histEditReturn(data){
+	var code = (data && typeof data.returnCode !== 'undefined') ? data.returnCode : '';
+	caws_histEditClose();
+	if(code !== '000'){ alert('저장 중 오류가 발생했습니다.'); return; }
+	alert('정상처리 되었습니다.');
+	caws_reload(false);
+}
+/* [AX Lab] 수정 끝 */
 
 /* 본문의 게시물 토큰(예: 공지사항(12345))을 클릭 가능한 링크로 바꾼다.
    ※ 반드시 escape 를 먼저 해서 본문의 <,> 가 태그로 해석되지 않게 한 뒤 링크만 주입한다. */
