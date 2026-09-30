@@ -1383,7 +1383,10 @@
 	
 </div>
 
-<form name="listFrm" id="listFrm" method="get">
+<%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): GET 쿼리스트링을 Tomcat 7이 기본 문자셋으로 해석해
+     한글 검색어가 깨지는 문제를 방지한다. UTF-8 인코딩 필터가 적용되는 POST 본문으로 검색조건을 전송한다. --%>
+<form name="listFrm" id="listFrm" method="post" accept-charset="UTF-8">
+<%-- [AX Lab] 수정 끝 --%>
 <input type="hidden" name="pageType" id="pageType" value=""/>
 <input type="hidden" name="as_no" id="as_no" value=""/>
 <input type="hidden" name="as_no_link" id="as_no_link" value="">
