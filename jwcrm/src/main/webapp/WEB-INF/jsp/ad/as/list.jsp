@@ -374,9 +374,24 @@
 		f.submit();
 	}
 	
-	function makeListData() {
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 목록조회를 비동기로 전환 + 로딩표시.
+	   공통 common.ajaxCall 은 async:false(동기 XHR) 라 요청이 도는 동안 브라우저가 화면을
+	   다시 그리지 않는다. 그래서 로딩 표시를 DOM 에 넣어도 절대 보이지 않았다.
+	   → 목록 조회만 combine-as-loading.js 의 asws_listLoad() 로 위임한다.
+
+	   ★ afterFn : 조회 완료 후 "첫 행 자동선택 대신" 실행할 함수.
+	     기존 호출부(combine-as-form.js 등록후 / combine-as-thread.js 답변후)는
+	         makeListData(); asws_openDetail(원래보던건);
+	     처럼 동기 실행에 의존했다. 비동기로 바꾸면 순서가 뒤집혀 보던 건이 첫 행으로
+	     튕기므로, 그 호출부는 afterFn 형태로 넘기도록 함께 수정했다.
+	   ※ combine-as-loading.js 미로드 시에는 기존 동기 방식으로 자동 폴백한다(원복 안전망). */
+	function makeListData(afterFn) {
+		if (typeof asws_listLoad === 'function') { asws_listLoad(afterFn) ; return ; }
+		/* 동기 폴백 : ajaxCall 이 async:false 라 여기서 afterFn 을 바로 부르면 개편 전과 순서가 같다. */
 		common.ajaxCall($('form[name=listFrm]').serialize(), '/ad/as/getAsList.do', 'setAsList') ;
+		if (typeof afterFn === 'function') afterFn() ;
 	}
+	/* [AX Lab] 수정 끝 */
 		
 	/* [AX Lab] 수정 시작 (2026-07-23 AX Lab): 20컬럼 -> 4컬럼 축약 + 행클릭 상세연동(asws_openDetail).
 	   나머지 축약된 컬럼값은 rowMap 에 저장해 오른쪽 상세 패널(COL3)에서 사용한다. */
@@ -534,13 +549,33 @@
 			$('#count').html(numberWithCommas(vo.rowCnt));
 			$("#pagination").html(vo.json_paging);
 
-			/* 첫 행 자동 선택(상세 열기) */
-			var first = resultList[0];
-			asws_openDetail(common.nvl(first.as_no,''), common.nvl(first.cn_as_no,''));
+			/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 비동기 전환에 따른 "조회 후 열어둘 건" 처리.
+			   makeListData(afterFn) 로 콜백이 넘어온 경우(등록 직후 / 답변 직후)는 그 건을 열고,
+			   없으면 기존대로 첫 행을 연다. 기존처럼 "첫 행을 열었다가 즉시 다른 건으로 바꾸는"
+			   이중 렌더가 사라져 깜빡임도 함께 없어진다. */
+			var afterFn = (typeof asws_listTakeAfter === 'function') ? asws_listTakeAfter() : null;
+			if (afterFn) {
+				afterFn();
+			} else {
+				/* 첫 행 자동 선택(상세 열기) */
+				var first = resultList[0];
+				asws_openDetail(common.nvl(first.as_no,''), common.nvl(first.cn_as_no,''));
+			}
+			/* [AX Lab] 수정 끝 */
 
 		} else {
-			/* [AX Lab] 수정 (2026-07-30 AX Lab): 컬럼 구성 변경(좌측 6 + 우측 10)에 맞춰 colspan 보정 */
-			$('#asList').html('<tr><td colspan="16" style="text-align:center;padding:30px;color:#8A979E;">조회된 데이터가 없습니다.</td></tr>');
+			/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 0건 안내를 원인별로 구분해서 보여준다.
+			   기존 한 줄 문구로는 "처리구분이 '나의 A/S' 라 나에게 배정된 건만 조회 중" 이라는
+			   진짜 원인을 알 수 없어 장애로 오인됐다. (combine-as-loading.js / asws_emptyHtml)
+			   ※ 0건일 때도 대기 중인 afterFn 을 반드시 비워야 다음 조회로 새지 않는다.
+			   ※ 미로드 시에는 기존 문구로 폴백한다. */
+			if (typeof asws_listTakeAfter === 'function') asws_listTakeAfter();
+			if (typeof asws_emptyHtml === 'function') {
+				$('#asList').html(asws_emptyHtml());
+			} else {
+				$('#asList').html('<tr><td colspan="16" style="text-align:center;padding:30px;color:#8A979E;">조회된 데이터가 없습니다.</td></tr>');
+			}
+			/* [AX Lab] 수정 끝 */
 			$('#count').html('0');
 			$("#pagination").html('');
 			/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 통합화면은 헤더/작성영역까지 3영역을 함께 비워야 한다.
@@ -1399,6 +1434,13 @@
      통합화면의 모달에서 등록한다. 저장은 기존 /ad/as/proc.do 재사용(서버 무수정).
      combine-as-thread.js 뒤에 로드해야 한다(caws_* 모달/코드 헬퍼를 재사용하기 때문). --%>
 <script type="text/javascript" src="/js/combine-as-form.js"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): 목록 로딩표시 + 0건 원인별 안내.
+     0건일 때 "조회된 데이터가 없습니다." 한 줄뿐이라, 실제 원인이 처리구분 '나의 A/S'(=나에게
+     배정된 건만 조회) 인데도 사용자는 장애인지 필터인지 구분할 수 없었다.
+     combine-as.js 뒤에 로드해야 한다(asws_esc / asws_openDetail 재사용). --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-loading.css" />
+<script type="text/javascript" src="/js/combine-as-loading.js"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>

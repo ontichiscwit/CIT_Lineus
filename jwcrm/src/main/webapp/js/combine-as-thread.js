@@ -1578,8 +1578,13 @@ function caws_reload(withList){
 	if(withList && typeof makeListData === 'function'){
 		/* 목록 재조회는 setAsList 에서 첫 행을 자동 선택하므로, 현재 보고 있던 건을 다시 열어준다. */
 		var keepNo = caws.asNo, keepCn = caws.cnAsNo;
-		makeListData();
-		asws_openDetail(keepNo, keepCn);
+		/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 목록조회 비동기 전환 대응.
+		   예전에는 makeListData() 가 동기라서 "재조회 → 첫 행 자동선택" 이 끝난 뒤에
+		   아래 asws_openDetail 이 실행돼 원래 보던 건으로 되돌아갔다.
+		   비동기가 되면 순서가 뒤집혀 보던 건이 첫 행으로 튕기므로, 콜백으로 넘겨
+		   "조회 완료 후" 열리도록 한다. (setAsList 가 첫 행 자동선택 대신 이 콜백을 실행) */
+		makeListData(function(){ asws_openDetail(keepNo, keepCn); });
+		/* [AX Lab] 수정 끝 */
 		return;
 	}
 	asws_openDetail(caws.asNo, caws.cnAsNo);
