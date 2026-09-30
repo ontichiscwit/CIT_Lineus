@@ -350,16 +350,9 @@ function caws_buildEvents(){
 		prevAcc = acc; prevAccNm = accNm;
 	}
 
-	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 문의(kind:'q')를 항상 맨 앞에 고정
-	   기존에는 시간순 정렬만 하다 보니, accept_dt 보다 이른 조치이력이 존재하는 건에서
-	   조치이력이 문의보다 위에 표시되는 문제가 있었다.
-	   문의 버블은 타임스탬프와 무관하게 항상 첫 번째로 표시해야 한다. */
-	out.sort(function(x, y){
-		if(x.kind === 'q') return -1;
-		if(y.kind === 'q') return  1;
-		return (x.ts - y.ts) || (x.ord - y.ord);
-	});
-	/* [AX Lab] 수정 끝 */
+	/* 시간 오름차순. 같은 시각이면 만든 순서(ord)를 유지해 안정 정렬이 되게 한다.
+	   (Array.prototype.sort 는 구형 엔진에서 불안정 정렬이라 ord 비교가 필요하다) */
+	out.sort(function(x, y){ return (x.ts - y.ts) || (x.ord - y.ord); });
 	return out;
 }
 
