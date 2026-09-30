@@ -369,6 +369,14 @@
 #asWorkspace .caws-acc.off .caws-achev{transform:rotate(-90deg);}
 #asWorkspace .caws-acc.off .caws-acch{background:var(--surface);}
 
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 헤더 우측 일괄 편집 버튼 */
+#asWorkspace .caws-batchhead{display:flex; align-items:center; gap:5px; flex-shrink:0;}
+#asWorkspace .caws-batchhead .btn-s{height:24px; min-width:42px; padding:0 9px;}
+#asWorkspace .caws-batchmemo-wrap{margin-top:9px; padding-top:8px; border-top:1px solid var(--line);}
+#asWorkspace .caws-batchmemo-wrap .caws-req{margin-left:4px; font-size:10px; font-weight:500; color:var(--red);}
+#asWorkspace .caws-batchmemo{max-width:none; min-height:64px;}
+/* [AX Lab] 수정 끝 */
+
 /* =============================================================================
  * COL3 : 과거 상담이력
  * ========================================================================== */
@@ -531,9 +539,9 @@
 }
 
 /* =============================================================================
- * [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수처리정보 필드 단위 클릭 즉시 수정
+ * [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수처리정보 필드 단위 편집
  * 편집 가능한 값(.caws-fv)은 hover 없이도 항상 점선 밑줄 + 흐린 연필로 구분되고,
- * 클릭하면 그 자리가 입력 컨트롤로 바뀐다. hover 하면 강조색으로 진해진다.
+ * 클릭하면 그 자리가 입력 컨트롤로 바뀐다. 변경값은 헤더 우측 버튼에서 일괄 저장한다.
  * ========================================================================== */
 /* 클릭 가능한 값 — 항상 점선 밑줄과 연필 아이콘으로 "수정 가능"을 표시 */
 #asWorkspace .kv .v.caws-fv{cursor:pointer; border-bottom:1px dashed var(--line);}
