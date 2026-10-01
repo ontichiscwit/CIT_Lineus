@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- [AX Lab] 신규 파일 (2026-09-30 AX Lab): 통합화면 접수처리정보 일괄 저장 전용 쿼리.
+     화면에서 전체 편집값을 한 번에 전송하는 saveRecordBatch 경로에서만 사용한다. -->
+<mapper namespace="asDAO">
+
+	<update id="updateAsRecordBatch" parameterType="asVO">
+	<![CDATA[
+		UPDATE CRM_AS_MGT
+		SET
+			ACCEPT_ROUTE      = #{accept_route, jdbcType=VARCHAR},
+			RL_APPLY_NM       = #{rl_apply_nm, jdbcType=VARCHAR},
+			APPLY_TEL         = #{apply_tel, jdbcType=VARCHAR},
+			SEND_SMS          = #{send_sms, jdbcType=VARCHAR},
+			REQUEST_TYPE      = #{request_type, jdbcType=VARCHAR},
+			SERVICE_CATE      = #{service_cate, jdbcType=VARCHAR},
+			INQUIRY_TYPE      = #{inquiry_type, jdbcType=VARCHAR},
+			PROC_STATUS       = #{proc_status, jdbcType=VARCHAR},
+			ASSIGN_ID         = #{assign_id, jdbcType=VARCHAR},
+			INPORTANCE        = #{inportance, jdbcType=VARCHAR},
+			TEL_CONFIRM       = #{tel_confirm, jdbcType=VARCHAR},
+			TEL_ABSENCE       = #{tel_absence, jdbcType=VARCHAR},
+			TEL_ABSENCE_CNT   = #{tel_absence_cnt, jdbcType=VARCHAR},
+			PROC_DT           = #{proc_dt, jdbcType=VARCHAR},
+			PROC_TIME         = #{proc_time, jdbcType=VARCHAR},
+			CAUSE_TYPE        = #{cause_type, jdbcType=VARCHAR},
+			ACTION_TYPE       = #{action_type, jdbcType=VARCHAR},
+			WORK_TIME         = #{work_time, jdbcType=VARCHAR},
+			COMPLETE_DT       = #{complete_dt, jdbcType=VARCHAR},
+			PROC_GUBUN        = #{proc_gubun, jdbcType=VARCHAR},
+			PROC_BUILD_INFO   = #{proc_build_info, jdbcType=VARCHAR},
+			PROC_TEST_INFO    = #{proc_test_info, jdbcType=VARCHAR},
+			PROC_PROCESS_SP   = #{proc_process_sp, jdbcType=VARCHAR},
+			PROC_SCREEN_SP    = #{proc_screen_sp, jdbcType=VARCHAR},
+			PROC_TABLE_SP     = #{proc_table_sp, jdbcType=VARCHAR},
+			PROC_FUNCTION_SP  = #{proc_function_sp, jdbcType=VARCHAR},
+			PROC_INTERFACE_SP = #{proc_interface_sp, jdbcType=VARCHAR},
+			UPT_DATE          = SYSDATE,
+			UPT_ID            = #{reg_id, jdbcType=VARCHAR}
+		WHERE
+			AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</update>
+
+</mapper>

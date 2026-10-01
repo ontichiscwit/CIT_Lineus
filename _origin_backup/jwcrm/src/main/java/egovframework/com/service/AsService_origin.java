@@ -1,3 +1,4 @@
+// [AX Lab] 원본 경로: jwcrm/src/main/java/egovframework/com/service/AsService.java (백업 2026-09-30)
 /*
  * Copyright 2008-2009 the original author or authors.
  *
@@ -51,9 +52,6 @@ public interface AsService {
 	public int deleteAws(AsVO vo , HttpServletRequest request) throws Exception;
 	public int updateAsInfo(AsVO vo , HttpServletRequest request, List<FileVO> fileList, UserVO adUserInfo) throws Exception;
 	public int updateAsInfoAll(AsVO vo , HttpServletRequest request, List<FileVO> fileList, UserVO adUserInfo) throws Exception;
-	// [AX Lab] 수정 시작 (2026-09-30 AX Lab): 통합화면 접수처리정보 일괄 저장
-	public int updateAsRecordBatch(AsVO vo, UserVO adUserInfo) throws Exception;
-	// [AX Lab] 수정 끝
 	public int deleteAsProc(AsVO vo , HttpServletRequest request) throws Exception;
 	public int deleteAsProcAllLinked(AsVO vo , HttpServletRequest request) throws Exception;
 	public List<AsVO> getList(AsVO vo, String query) throws Exception;

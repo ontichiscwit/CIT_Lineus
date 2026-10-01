@@ -1,3 +1,4 @@
+// [AX Lab] 원본 경로: jwcrm/src/main/java/egovframework/com/service/impl/AsServiceImpl.java (백업 2026-09-30)
 /*
  * Copyright 2008-2009 the original author or authors.
  *
@@ -1064,72 +1065,6 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 
 	    return returnValue;
 	}
-
-	// [AX Lab] 수정 시작 (2026-09-30 AX Lab): 통합화면 접수처리정보 일괄 저장
-	/**
-	 * 접수처리정보 편집값을 한 번의 UPDATE로 반영하고, 처리상태/담당자가 바뀌면
-	 * 같은 트랜잭션에서 조치이력 한 건을 생성한다.
-	 */
-	@Override
-	public int updateAsRecordBatch(AsVO vo, UserVO adUserInfo) throws Exception {
-		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim();
-		if ("".equals(asNo) || adUserInfo == null) return 0;
-
-		AsVO key = new AsVO();
-		key.setAs_no(asNo);
-		key.setReg_id(adUserInfo.getEmp_no());
-		AsVO cur = (AsVO) commonDAO.selectOne(key, "asDAO.getAsInfo");
-		if (cur == null) return 0;
-
-		String curStatus = SsStringUtil.normalizeNull(cur.getProc_status()).trim();
-		String curAssign = SsStringUtil.normalizeNull(cur.getAssign_id()).trim();
-		String newStatus = SsStringUtil.normalize(vo.getProc_status(), curStatus).trim();
-		String newAssign = SsStringUtil.normalize(vo.getAssign_id(), curAssign).trim();
-		boolean statusChanged = !newStatus.equals(curStatus);
-		boolean assignChanged = !newAssign.equals(curAssign);
-		String comment = SsStringUtil.normalizeNull(vo.getAction_content()).trim();
-
-		if ((statusChanged || assignChanged) && "".equals(comment)) return 0;
-
-		/* 문의유형/시스템유형은 기존 화면과 동일하게 관리자만 변경할 수 있다. */
-		if (!"Y".equals(SsStringUtil.normalizeNull(cur.getAs_admin()))) {
-			vo.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type()));
-			vo.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate()));
-			vo.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type()));
-		}
-
-		vo.setAs_no(asNo);
-		vo.setReg_id(adUserInfo.getEmp_no());
-		vo.setProc_status(newStatus);
-		vo.setAssign_id(newAssign);
-		vo.setProc_dt(SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim());
-		vo.setComplete_dt(SsStringUtil.normalizeNull(vo.getComplete_dt()).replaceAll("/", "").trim());
-		vo.setAttach_seq2(0);
-
-		int returnValue = commonDAO.update(vo, "asDAO.updateAsRecordBatch");
-		if (returnValue <= 0) return returnValue;
-
-		/* 상태/담당자 변경 또는 명시적인 조치메모가 있을 때만 한 건으로 기록한다. */
-		if (statusChanged || assignChanged || !"".equals(comment)) {
-			AsVO hist = new AsVO();
-			hist.setSeq(String.valueOf(commonDAO.selectOneInt(vo, "asDAO.getAsHistMaxSeq")));
-			hist.setAs_no(asNo);
-			hist.setProc_dt(vo.getProc_dt());
-			hist.setAssign_id(newAssign);
-			hist.setProc_status(newStatus);
-			hist.setAction_content(assignChanged ? "[이관] " + comment : comment);
-			hist.setAttach_seq2(0);
-			hist.setReg_id(adUserInfo.getEmp_no());
-			hist.setInportance(SsStringUtil.normalizeNull(vo.getInportance()));
-			hist.setRequest_type(SsStringUtil.normalizeNull(vo.getRequest_type()));
-			hist.setService_cate(SsStringUtil.normalizeNull(vo.getService_cate()));
-			hist.setInquiry_type(SsStringUtil.normalizeNull(vo.getInquiry_type()));
-			commonDAO.insert(hist, "asDAO.insertAsInfoHist");
-		}
-
-		return returnValue;
-	}
-	// [AX Lab] 수정 끝
 	
 	@Override
 	public String getAlimTalkMessage(AsVO vo) {

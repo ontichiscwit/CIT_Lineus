@@ -637,6 +637,10 @@ public class AdAsController {
 		returnValue = procAswsSaveAction(vo, userInfo) ;
 		// [AX Lab] 수정 끝
 	// [AX Lab] 수정 끝
+	// [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 상·하단 버튼 일괄 저장
+	} else if("saveRecordBatch".equals(vo.getPageType())) {
+		returnValue = asService.updateAsRecordBatch(vo, userInfo) ;
+	// [AX Lab] 수정 끝
 	// [AX Lab] 수정 시작 (2026-07-31 AX Lab): AS 통합화면 아코디언 그룹별 인라인 편집(접수정보/고객사정보/
 	//   문의유형정보/처리완료사항/처리완료 상세사항). 기존 updateAsInfoAll 은 건드리지 않고
 	//   egov-combine-as-thread-query.xml 의 새 쿼리(그룹별 부분 UPDATE)만 사용한다.

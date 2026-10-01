@@ -569,7 +569,7 @@
 			   진짜 원인을 알 수 없어 장애로 오인됐다. (combine-as-loading.js / asws_emptyHtml)
 			   ※ 0건일 때도 대기 중인 afterFn 을 반드시 비워야 다음 조회로 새지 않는다.
 			   ※ 미로드 시에는 기존 문구로 폴백한다. */
-			if (typeof asws_listTakeAfter === 'function') asws_listTakeAfter();
+			var emptyAfterFn = (typeof asws_listTakeAfter === 'function') ? asws_listTakeAfter() : null;
 			if (typeof asws_emptyHtml === 'function') {
 				$('#asList').html(asws_emptyHtml());
 			} else {
@@ -580,12 +580,18 @@
 			$("#pagination").html('');
 			/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 통합화면은 헤더/작성영역까지 3영역을 함께 비워야 한다.
 			   (조회 0건인데 직전 선택건의 헤더·작성영역이 남아 있으면 없는 건에 답변을 등록하게 된다) */
-			if(typeof caws_clear === 'function'){
+			/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 저장 직후 현재 건이 검색조건에서 빠져도 상세는 유지.
+			   담당자 이관 후 '나의 A/S' 목록이 0건이 될 수 있으므로, 대기 중 콜백이 있으면
+			   빈 화면으로 초기화하지 않고 방금 저장한 접수번호를 다시 조회한다. */
+			if(emptyAfterFn){
+				emptyAfterFn();
+			}else if(typeof caws_clear === 'function'){
 				caws_clear('조회된 접수건이 없습니다.');
 			}else{
 				$('#asDetail').html('<div class="empty">조회된 접수건이 없습니다.</div>');
 				$('#asRecord').html('<div class="none" style="padding:14px">조회된 접수건이 없습니다.</div>');
 			}
+			/* [AX Lab] 수정 끝 */
 			/* [AX Lab] 수정 끝 */
 		}
 	}
@@ -1383,7 +1389,10 @@
 	
 </div>
 
-<form name="listFrm" id="listFrm" method="get">
+<%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): GET 쿼리스트링을 Tomcat 7이 기본 문자셋으로 해석해
+     한글 검색어가 깨지는 문제를 방지한다. UTF-8 인코딩 필터가 적용되는 POST 본문으로 검색조건을 전송한다. --%>
+<form name="listFrm" id="listFrm" method="post" accept-charset="UTF-8">
+<%-- [AX Lab] 수정 끝 --%>
 <input type="hidden" name="pageType" id="pageType" value=""/>
 <input type="hidden" name="as_no" id="as_no" value=""/>
 <input type="hidden" name="as_no_link" id="as_no_link" value="">
@@ -1904,6 +1913,9 @@
       <div class="chd">
         <h2>접수 · 처리 정보</h2>
         <div class="spacer"></div>
+        <%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 일괄 편집 버튼을 헤더 우측에 배치 --%>
+        <div id="cawsBatchHead" class="caws-batchhead"></div>
+        <%-- [AX Lab] 수정 끝 --%>
         <button type="button" class="collapse-btn" onclick="asws_toggleCol('c3')" title="정보 접기">&#9656;</button>
       </div>
       <div class="col-content">

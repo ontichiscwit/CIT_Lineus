@@ -31,6 +31,10 @@ var caws = {
 	past:{ quick:'1w', list:[] },
 	emp:{ list:[], sel:'', selNm:'' },	/* 구 이관모달용 - 하위호환 유지 */
 	act:{ empList:[], assignId:'', assignNm:'' },	/* 담당자 이관 팝오버 상태 */
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 일괄 편집 상태 */
+	batch:false, batchOriginal:null, batchRowOriginal:null, batchMemo:'',
+	restoreScroll:null,
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 필드 단위 클릭 즉시 수정(click-to-edit).
 	   그룹 [편집] 버튼 → 폼 방식 대신, 값을 클릭하면 그 자리에서 바로 입력 컨트롤로 바뀐다.
 	   fld = 현재 편집 중인 필드 키 (한 번에 한 필드만 편집).
@@ -170,6 +174,9 @@ function caws_renderAll(data){
 	caws.attach2 = data.attachList2 || [];
 	caws.act.empList = [];		/* 담당자 이관 팝오버 목록은 건마다 새로 로드 */
 	caws.fld = '';				/* [AX Lab] 수정 (2026-07-31 AX Lab): 필드 편집상태는 건이 바뀌면 항상 초기화 */
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조회 완료 시 일괄 편집 임시값 초기화 */
+	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = '';
+	/* [AX Lab] 수정 끝 */
 
 	caws.events = caws_buildEvents();
 
@@ -182,6 +189,15 @@ function caws_renderAll(data){
 	caws_renderCompose();
 	caws_renderRecord();
 	caws_pastReset();
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 저장 전 보던 위치 복원.
+	   타임라인 끝을 보고 있었다면 새 이력이 보이도록 갱신 후에도 끝을 유지한다. */
+	if(caws.restoreScroll){
+		var ds = caws_el('asDetail'), rs = caws_el('asRecord');
+		if(ds && !caws.restoreScroll.detailAtEnd) ds.scrollTop = caws.restoreScroll.detailTop;
+		if(rs) rs.scrollTop = caws.restoreScroll.recordTop;
+		caws.restoreScroll = null;
+	}
+	/* [AX Lab] 수정 끝 */
 }
 
 /* =============================================================================
@@ -248,6 +264,7 @@ function caws_clear(msg){
 	caws_html('asDetail','<div class="empty">'+caws_esc(msg)+'</div>');
 	caws_html('asCompose','');
 	caws_html('asRecord','<div class="none" style="padding:14px">'+caws_esc(msg)+'</div>');
+	caws_syncBatchHead();
 	caws_clearFiles();
 }
 
@@ -316,36 +333,28 @@ function caws_buildEvents(){
 		   첫 행은 비교대상이 없으므로 "최초 배정"으로 보고 이관으로 취급하지 않는다. */
 		var moved = (prevAcc !== null && acc !== prevAcc);
 
+		/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 이관 이력을 조치이력 표에서 숨기지 않는다.
+		   이전 코드는 moved+접두어 행을 act에서 제외한 뒤 tr 렌더도 생략해 저장된 행이 화면에서 사라졌다. */
+		var histText = comment;
 		if(moved){
-			out.push({
-				kind:'tr', grp:'tr', ord:ord++,
-				ts: ts,
-				from: prevAccNm || prevAcc || '(미지정)',
-				to:   accNm || acc || '(미지정)',
-				when: caws_stamp(hi.reg_date),
-				by:   caws_nvl(hi.reg_nm,''),
-				/* 접두어가 없는 과거 데이터는 코멘트를 이관 코멘트로 단정할 수 없으므로 담당자 변경 사실만 표시한다. */
-				text: hasPrefix ? comment : ''
-			});
+			histText = '담당자 변경 ('+(prevAccNm || prevAcc || '미지정')+' → '+(accNm || acc || '미지정')+')'
+			         + (comment !== '' ? ': '+comment : '');
 		}
-
-		/* 접두어가 붙은 이관 전용 행은 위 이관 라인으로 이미 표현했으므로 조치 카드를 중복 생성하지 않는다. */
-		if(!(moved && hasPrefix)){
-			out.push({
-				kind:'act', grp:'act', ord:ord++,
-				ts: ts,
-				who:  caws_nvl(hi.reg_nm,'-'),
-				when: caws_stamp(hi.reg_date),
-				procDt: caws_date(hi.proc_dt),
-				acceptor: accNm || acc,
-				status: caws_nvl(hi.proc_status_nm,''),
-				/* getAsHistList 의 INPORTANCE 는 코드가 아니라 CODE_NAME 이 담겨 온다(쿼리 서브쿼리 별칭) */
-				grade: caws_nvl(hi.inportance,''),
-				text: comment,
-				files: files,
-				seq: caws_nvl(hi.seq,'')
-			});
-		}
+		out.push({
+			kind:'act', grp:'act', ord:ord++,
+			ts: ts,
+			who:  caws_nvl(hi.reg_nm,'-'),
+			when: caws_stamp(hi.reg_date),
+			procDt: caws_date(hi.proc_dt),
+			acceptor: accNm || acc,
+			status: caws_nvl(hi.proc_status_nm,''),
+			/* getAsHistList 의 INPORTANCE 는 코드가 아니라 CODE_NAME 이 담겨 온다(쿼리 서브쿼리 별칭) */
+			grade: caws_nvl(hi.inportance,''),
+			text: histText,
+			files: files,
+			seq: caws_nvl(hi.seq,'')
+		});
+		/* [AX Lab] 수정 끝 */
 
 		prevAcc = acc; prevAccNm = accNm;
 	}
@@ -378,20 +387,31 @@ function caws_counts(){
 /* 목록행(row)이 없을 때도 헤더/상세가 '-' 로만 보이지 않도록 값을 단계적으로 찾는다.
    ★ row 가 비는 경우: 과거 상담이력에서 목록(COL1)에 없는 건을 클릭했을 때.
      이때는 getAsInfo 응답(vo)의 코드값을 공통코드 명칭으로 직접 변환해 쓴다. */
-function caws_stCode(){ return caws_nvl((caws.row||{}).proc_status, caws_nvl((caws.vo||{}).proc_status,'')); }
+function caws_stCode(){
+	if(caws.batch) return caws_nvl((caws.vo||{}).proc_status,'');
+	return caws_nvl((caws.row||{}).proc_status, caws_nvl((caws.vo||{}).proc_status,''));
+}
 function caws_stNm(){
 	var row = caws.row || {};
+	if(caws.batch) return caws_codeNm('AS','CD01', caws_stCode());
 	if(caws_nvl(row.proc_status_nm,'') !== '') return row.proc_status_nm;
 	return caws_codeNm('AS','CD01', caws_stCode());
 }
-function caws_gradeCode(){ return caws_nvl((caws.row||{}).inportance, caws_nvl((caws.vo||{}).inportance,'')); }
+function caws_gradeCode(){
+	if(caws.batch) return caws_nvl((caws.vo||{}).inportance,'');
+	return caws_nvl((caws.row||{}).inportance, caws_nvl((caws.vo||{}).inportance,''));
+}
 function caws_gradeNm(){
 	var row = caws.row || {};
+	if(caws.batch) return caws_codeNm('AS','CD04', caws_gradeCode());
 	if(caws_nvl(row.inportance_nm,'') !== '') return row.inportance_nm;
 	return caws_codeNm('AS','CD04', caws_gradeCode());
 }
 /* 담당자명 : 목록행에는 emp_nm, getAsInfo 에는 assign_nm 으로 온다. */
-function caws_empNm(){ return caws_nvl((caws.row||{}).emp_nm, caws_nvl((caws.vo||{}).assign_nm,'-')); }
+function caws_empNm(){
+	if(caws.batch) return caws_nvl((caws.vo||{}).assign_nm, caws_nvl((caws.vo||{}).assign_id,'-'));
+	return caws_nvl((caws.row||{}).emp_nm, caws_nvl((caws.vo||{}).assign_nm,'-'));
+}
 
 function caws_renderHead(){
 	var vo = caws.vo || {}, row = caws.row || {};
@@ -419,7 +439,7 @@ function caws_renderHead(){
 	+   '</div>'
 	+ '</div>'
 	+ '<div class="caws-acts">'
-	+   '<button type="button" class="btn-s primary" onclick="caws_focusAct();" title="조치내용(처리 이력)을 작성합니다. 처리상태를 함께 바꿀 수도 있습니다">처리 작성</button>'
+	/* [AX Lab] 삭제 (2026-09-30 AX Lab): 처리 작성은 우측 처리상태사항의 조치이력 입력란에서 수행하므로 중복 버튼 제거 */
 	+   '<div class="caws-sp"></div>'
 	+   '<button type="button" class="btn-s" onclick="asws_openFull();" title="접수처리정보의 값은 오른쪽 패널에서 클릭해 바로 수정할 수 있고, 그 외 항목은 전체 상세 페이지에서 수정합니다">전체 상세 페이지</button>'
 	+ '</div>'
@@ -427,7 +447,7 @@ function caws_renderHead(){
 	+   caws_tabBtn('all',  '전체',      c.all)
 	+   caws_tabBtn('talk', '문의·답변', c.talk)
 	+   caws_tabBtn('act',  '조치',      c.act)
-	+   caws_tabBtn('tr',   '이관',      c.tr)
+	/* [AX Lab] 수정 (2026-09-30 AX Lab): 이관 탭 제거 — 조치이력 테이블 통합으로 불필요 */
 	+ '</div>';
 
 	caws_html('asDetailHead', h);
@@ -439,11 +459,12 @@ function caws_tabBtn(key, label, cnt){
 }
 
 /* 탭 전환은 재조회 없이 CSS 클래스로 show/hide 만 한다. */
+/* [AX Lab] 수정 (2026-09-30 AX Lab): 이관 탭 제거로 배열을 3개로 줄임 */
 function caws_tab(key){
 	caws.tab = key;
 	var tabs = document.querySelectorAll('#asDetailHead .caws-tab');
 	for(var i=0; i<tabs.length; i++) tabs[i].classList.remove('on');
-	var idx = ['all','talk','act','tr'].indexOf(key);
+	var idx = ['all','talk','act'].indexOf(key);
 	if(idx >= 0 && tabs[idx]) tabs[idx].classList.add('on');
 
 	var evs = document.querySelectorAll('#asDetail .caws-ev');
@@ -466,31 +487,65 @@ function caws_syncEmpty(){
 /* =============================================================================
  * 3) COL2 통합 타임라인 렌더
  * ========================================================================== */
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 → 버블 카드에서 테이블로 전면 개편
+   - 문의(q)/답변(cust/staff) : 기존 버블 타임라인 유지
+   - 조치이력(act)           : form.jsp 조치이력 테이블과 동일한 형태로 버블 아래에 렌더
+   - 이관(tr)               : 별도 카드 표시 제거 — 인수자 컬럼 변화로 이관 여부 확인 가능 */
 function caws_renderTimeline(){
 	if(!caws.events.length){
 		caws_html('asDetail', '<div class="empty">표시할 내용이 없습니다.</div>');
 		return;
 	}
 
-	/* 문의(kind:'q') → AI 추천 → 나머지(조치/답변/이관) 순으로 단일 스크롤 영역에 표시.
-	   모두 같은 #asDetail 안에서 위에서 아래로 스크롤해 읽는다. */
+	/* 이벤트를 talk(문의·답변) / act(조치이력) 로 분리 — tr(이관)은 렌더 제외 */
+	var talkEvs = [], actEvs = [];
+	for(var i=0; i<caws.events.length; i++){
+		var tlEv = caws.events[i];
+		if(tlEv.kind === 'q' || tlEv.kind === 'cust' || tlEv.kind === 'staff'){
+			talkEvs.push({ ev:tlEv, idx:i });
+		} else if(tlEv.kind === 'act'){
+			actEvs.push(tlEv);
+		}
+		/* kind:'tr' — 렌더 생략 */
+	}
+
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 표는 최신 이력이 위에 오도록 SEQ 내림차순 정렬.
+	   caws_buildEvents 내부의 오름차순은 담당자 이관 전후 비교에 필요하므로 건드리지 않고 화면 배열만 정렬한다. */
+	actEvs.sort(function(x, y){
+		var sx = Number(caws_nvl(x.seq,0)), sy = Number(caws_nvl(y.seq,0));
+		return (sy - sx) || (y.ts - x.ts) || (y.ord - x.ord);
+	});
+	/* [AX Lab] 수정 끝 */
+
+	/* --- 문의 + 답변 버블 섹션 --- */
 	var s = '<div class="caws-tl">';
 	var aiDone = false;
-	for(var i=0; i<caws.events.length; i++){
-		s += caws_evHtml(caws.events[i], i);
-		if(!aiDone && caws.events[i].kind === 'q'){ s += caws_aiHintHtml(); aiDone = true; }
+	for(var j=0; j<talkEvs.length; j++){
+		s += caws_evHtml(talkEvs[j].ev, talkEvs[j].idx);
+		if(!aiDone && talkEvs[j].ev.kind === 'q'){ s += caws_aiHintHtml(); aiDone = true; }
 	}
 	/* CALL_CONTENT 가 비어 문의 이벤트가 없는 예외 데이터에도 AI 블록은 표시한다 */
 	if(!aiDone) s += caws_aiHintHtml();
-	s += '</div>'
-	  +  '<div class="caws-pempty" id="cawsTlEmpty" style="display:none;">이 탭에 해당하는 내용이 없습니다.</div>';
+	s += '</div>';
+
+	/* --- 조치이력 테이블 섹션 (필터탭 호환을 위해 .caws-ev[data-grp="act"] 래퍼 사용) --- */
+	if(actEvs.length > 0){
+		s += '<div class="caws-tl-sep"><span>조치이력</span></div>';
+		s += '<div class="caws-ev al-c" data-grp="act">';
+		s += caws_actTableHtml(actEvs);
+		s += '</div>';
+	}
+
+	s += '<div class="caws-pempty" id="cawsTlEmpty" style="display:none;">이 탭에 해당하는 내용이 없습니다.</div>';
 	caws_html('asDetail', s);
 
 	caws_tab(caws.tab);
-	/* 최신 글이 보이도록 히스토리 영역을 맨 아래로 */
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 최신순에 맞춰 조회 후 상단부터 표시 */
 	var box = caws_el('asDetail');
-	if(box) box.scrollTop = box.scrollHeight;
+	if(box) box.scrollTop = 0;
+	/* [AX Lab] 수정 끝 */
 }
+/* [AX Lab] 수정 끝 */
 
 /* 문의 고정 구간(#asDetailInq) 아래에 붙는 'AI 추천' 안내 블록.
    스타일은 combine-as.css 393~397행 .aiblock 그대로 쓴다.
@@ -552,13 +607,18 @@ function caws_evHtml(ev, idx){
 function caws_qEdit(){
 	var box = caws_el('cawsQBody');
 	if(!box || caws_el('cawsQTa')) return;		/* 이미 편집 중이면 무시 */
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 수정 모드에서 버블 레이아웃 유지
+	   기존 대형 앰버(act) 전송 버튼을 소형 btn-s primary 버튼으로 교체해
+	   [수정] 클릭 시 화면이 완전히 바뀌는 것처럼 보이는 문제를 해소한다. */
 	box.innerHTML = '<textarea id="cawsQTa" class="caws-ta caws-fta" oninput="caws_autoGrow(this);"'
 	 + ' onkeydown="if(event.keyCode===27)caws_qCancel();"></textarea>'
 	 + '<div class="caws-cbar" style="margin-top:6px;">'
-	 +   '<button type="button" class="btn-s" onclick="caws_qCancel();">취소</button>'
+	 +   '<span class="caws-mnote" style="margin:0;">Esc 키 또는 [취소]로 원래대로</span>'
 	 +   '<span class="caws-sp"></span>'
-	 +   '<button type="button" class="caws-send act" onclick="caws_qSave();">저장</button>'
+	 +   '<button type="button" class="btn-s" onclick="caws_qCancel();">취소</button>'
+	 +   '<button type="button" class="btn-s primary" onclick="caws_qSave();">저장</button>'
 	 + '</div>';
+	/* [AX Lab] 수정 끝 */
 	var ta = caws_el('cawsQTa');
 	if(ta){
 		/* innerHTML 주입 대신 value 로 넣어 따옴표/태그 escape 문제를 원천 차단한다 */
@@ -586,21 +646,127 @@ function caws_qSave(){
 }
 /* [AX Lab] 수정 끝 */
 
-/* 이관 : 버블이 아닌 얇은 시스템 라인 (홍길동 → 김철수 + 코멘트) */
-function caws_trHtml(ev, idx){
-	var s = '<div class="caws-ev t-tr al-c" data-grp="tr"><div class="caws-bub">'
-	      + '<div class="caws-trhd">'
-	      + '<span class="caws-trico">&#8644;</span>담당자 이관'
-	      + '<span class="caws-trwho">'+caws_esc(ev.from)+'</span>'
-	      + '<span class="caws-trar">&rarr;</span>'
-	      + '<span class="caws-trwho">'+caws_esc(ev.to)+'</span>'
-	      + (ev.by ? '<span class="caws-btime" style="margin-left:0;">처리 '+caws_esc(ev.by)+'</span>' : '')
-	      + '<span class="caws-btime">'+caws_esc(caws_nvl(ev.when,''))+'</span>'
-	      + '</div>';
-	if(caws_nvl(ev.text,'') !== '') s += '<div class="caws-trcm">'+caws_linkify(ev.text)+'</div>';
-	s += '</div></div>';
+/* [AX Lab] 수정 (2026-09-30 AX Lab): 이관 이벤트는 렌더 제거 — 조치이력 테이블의 인수자 컬럼으로 이관 여부 확인 가능 */
+function caws_trHtml(ev, idx){ return ''; }
+
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 테이블 렌더
+   form.jsp 의 asHistTbody 생성 로직을 combine-as 환경으로 이식.
+   열 구성: 처리일자 | 처리자 | 인수자 | 처리상태 | 중요도 | 작업처리 의견 | [수정] | 첨부파일 */
+function caws_actTableHtml(actEvs){
+	var s = '<div class="caws-hist-scroll"><table class="caws-hist-tbl">'
+	      + '<colgroup>'
+	      + '<col class="caws-hcol-date"><col class="caws-hcol-person"><col class="caws-hcol-person">'
+	      + '<col class="caws-hcol-status"><col class="caws-hcol-grade"><col class="caws-hcol-content">'
+	      + '<col class="caws-hcol-edit"><col class="caws-hcol-file">'
+	      + '</colgroup>'
+	      + '<thead><tr>'
+	      + '<th>조치이력 처리일자</th><th>처리자</th><th>인수자</th>'
+	      + '<th>처리상태</th><th>중요도</th><th>작업처리 의견</th>'
+	      + '<th></th><th>첨부파일</th>'
+	      + '</tr></thead><tbody>';
+	for(var i=0; i<actEvs.length; i++){
+		var ev  = actEvs[i];
+		var seq = caws_nvl(ev.seq,'');
+		var txt = caws_nvl(ev.text,'');
+		var files = ev.files || [];
+		var fileHtml = '';
+		for(var f=0; f<files.length; f++){
+			var fl = files[f];
+			fileHtml += '<button type="button" class="caws-hbtn" '
+			         +  'onclick="fileDown(\''+caws_fileSeq(fl)+'\',\''+caws_fileOrd(fl)+'\');">'
+			         +  '첨부파일</button> ';
+		}
+		s += '<tr>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.when,'-'))+'</td>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.who,'-'))+'</td>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.acceptor,'-'))+'</td>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.status,''))+'</td>'
+		  +  '<td>'+caws_esc(caws_nvl(ev.grade,''))+'</td>'
+		  +  '<td class="caws-hcont" title="'+caws_esc(txt)+'">'+caws_esc(txt)+'</td>'
+		  +  '<td>'+(seq !== '' ? '<button type="button" class="caws-hbtn" onclick="caws_histEdit(\''+caws_esc(seq)+'\');">수정</button>' : '')+'</td>'
+		  +  '<td>'+fileHtml+'</td>'
+		  +  '</tr>';
+	}
+	s += '</tbody></table></div>';
 	return s;
 }
+/* [AX Lab] 수정 끝 */
+
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 [수정] 팝오버 — 작업처리의견 개별 수정
+   form.jsp 의 showHistContent + updateHisContent 를 combine-as 환경에 맞게 재구성.
+   저장은 기존 histProc.do + pageType=updateHistActionContent 경로를 그대로 재사용한다. */
+function caws_histEdit(seq){
+	/* 이미 열려 있으면 먼저 제거 */
+	var old = caws_el('cawsHistEditModal');
+	if(old && old.parentNode) old.parentNode.removeChild(old);
+
+	/* 현재 저장된 텍스트를 이벤트 목록에서 찾는다 */
+	var cur = '';
+	for(var i=0; i<caws.events.length; i++){
+		if(caws_nvl(caws.events[i].seq,'') === String(seq)){ cur = caws_nvl(caws.events[i].text,''); break; }
+	}
+
+	/* 모달을 #asWorkspace 에 동적으로 추가 (position:fixed 라 DOM 위치 무관, CSS 스코핑만 충족) */
+	var ws = caws_el('asWorkspace');
+	if(!ws){ alert('워크스페이스 요소를 찾을 수 없습니다.'); return; }
+	var m = document.createElement('div');
+	m.id   = 'cawsHistEditModal';
+	m.className = 'caws-modal';
+	m.style.display = 'flex';
+	m.innerHTML = '<div class="caws-mh">'
+	  + '<h3>작업처리 의견 수정</h3>'
+	  + '<button type="button" class="caws-mx" onclick="caws_histEditClose();" title="닫기 (ESC)">&times;</button>'
+	  + '</div>'
+	  + '<div class="caws-mb"><div class="caws-fld">'
+	  + '<label>작업처리 의견</label>'
+	  + '<textarea id="cawsHistEditTa" class="caws-ta caws-fta" oninput="caws_autoGrow(this);"></textarea>'
+	  + '</div></div>'
+	  + '<div class="caws-mf">'
+	  + '<div class="caws-sp"></div>'
+	  + '<button type="button" class="btn-s" onclick="caws_histEditClose();">취소</button>'
+	  + '<button type="button" class="btn-s primary" onclick="caws_histEditSave(\''+caws_esc(String(seq))+'\');">저장</button>'
+	  + '</div>';
+	ws.appendChild(m);
+
+	var dim = caws_el('cawsDim');
+	if(dim) dim.style.display = 'block';
+
+	var ta = caws_el('cawsHistEditTa');
+	if(ta){
+		ta.value = cur;
+		caws_autoGrow(ta);
+		try{ ta.focus(); }catch(e){}
+	}
+}
+function caws_histEditClose(){
+	var m = caws_el('cawsHistEditModal');
+	if(m && m.parentNode) m.parentNode.removeChild(m);
+	/* 다른 모달이 없으면 dim 도 내린다 */
+	var any = document.querySelectorAll('#asWorkspace .caws-modal[style*="flex"], #asWorkspace .caws-lb[style*="flex"]').length;
+	var dim = caws_el('cawsDim');
+	if(dim && !any) dim.style.display = 'none';
+}
+function caws_histEditSave(seq){
+	var ta = caws_el('cawsHistEditTa');
+	if(!ta) return;
+	var v = String(ta.value||'').trim();
+	if(v === ''){ alert('작업처리 의견을 입력해주세요.'); if(ta) ta.focus(); return; }
+	if(!confirm('저장하시겠습니까?')) return;
+	common.ajaxCall({
+		as_no:          caws.asNo,
+		seq:            seq,
+		action_content: v,
+		pageType:       'updateHistActionContent'
+	}, '/ad/as/histProc.do', 'caws_histEditReturn');
+}
+function caws_histEditReturn(data){
+	var code = (data && typeof data.returnCode !== 'undefined') ? data.returnCode : '';
+	caws_histEditClose();
+	if(code !== '000'){ alert('저장 중 오류가 발생했습니다.'); return; }
+	alert('정상처리 되었습니다.');
+	caws_reload(false);
+}
+/* [AX Lab] 수정 끝 */
 
 /* 본문의 게시물 토큰(예: 공지사항(12345))을 클릭 가능한 링크로 바꾼다.
    ※ 반드시 escape 를 먼저 해서 본문의 <,> 가 태그로 해석되지 않게 한 뒤 링크만 주입한다. */
@@ -783,24 +949,20 @@ function caws_actSelEmp(no){
 }
 
 /* =============================================================================
- * 5.5) 접수처리정보 — 필드 단위 클릭 즉시 수정 (click-to-edit)
+ * 5.5) 접수처리정보 — 필드 단위 편집 후 헤더 버튼 일괄 저장
  * -----------------------------------------------------------------------------
  * [AX Lab] 신규 (2026-07-31 AX Lab)
- * 값을 클릭하면 그 자리가 입력 컨트롤로 바뀌고, 저장되면 다시 읽기모드로 돌아간다.
- *  · select / date  : 값을 고르는 순간 저장
- *  · text / textarea: Enter(입력창) 또는 포커스 아웃 시 저장, Esc 취소
- *  · checkbox       : 항상 활성화, 체크 토글 즉시 저장
- *  · 처리상태/담당자 : 팝오버(조치내용 메모 필수) — 이력 기록 규칙 유지 (pageType=saveAction)
- * 저장은 모두 histProc.do 의 새 pageType(saveAccept/saveCust/saveInquiry/saveDone/
- * saveDoneDt/saveProcExtra) 으로 나가며, 원본 화면(form.jsp)이 이력을 남기지 않는
- * 필드는 여기서도 이력 없이 마스터만 갱신한다.
- * 성공 시 별도 알림 없이 목록/상세를 재조회해 바뀐 값으로 확인시킨다.
+ * [AX Lab] 수정 (2026-09-30 AX Lab)
+ * 값을 클릭하면 입력 컨트롤로 바뀌지만 서버에는 즉시 저장하지 않는다.
+ * 여러 필드의 임시값을 모아 헤더 우측 [저장]에서 pageType=saveRecordBatch로 한 번에 반영한다.
+ * 처리상태/담당자 변경은 공통 변경 사유를 필수로 받고 조치이력 한 건으로 기록한다.
  * ========================================================================== */
 
 /* select 로 편집하는 필드의 공통코드 매핑 (vo 필드명 = 편집 키) */
 var CAWS_FLD_SEL = {
 	accept_route: { cg:'AS', pc:'CD02' },	/* 접수경로 */
 	request_type: { cg:'AS', pc:'CD07' },	/* 문의유형 */
+	proc_status:  { cg:'AS', pc:'CD01' },	/* [AX Lab] (2026-09-30) 처리상태도 중요도와 같은 인라인 select */
 	inportance:   { cg:'AS', pc:'CD04' },	/* 중요도   */
 	cause_type:   { cg:'AS', pc:'CD05' },	/* 원인유형 */
 	action_type:  { cg:'AS', pc:'CD06' },	/* 조치유형 */
@@ -808,6 +970,87 @@ var CAWS_FLD_SEL = {
 };
 /* datepicker 로 편집하는 필드 (yyyymmdd 보관) */
 var CAWS_FLD_DATE = { proc_dt:true, complete_dt:true };
+
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 일괄 편집/저장 */
+var CAWS_BATCH_FIELDS = [
+	'accept_route','rl_apply_nm','apply_tel','send_sms',
+	'request_type','service_cate','inquiry_type',
+	'proc_status','assign_id','inportance','tel_confirm','tel_absence','tel_absence_cnt',
+	'proc_dt','proc_time','cause_type','action_type','work_time','complete_dt',
+	'proc_gubun','proc_build_info','proc_test_info','proc_process_sp',
+	'proc_screen_sp','proc_table_sp','proc_function_sp','proc_interface_sp'
+];
+function caws_clone(o){ return JSON.parse(JSON.stringify(o || {})); }
+function caws_batchStart(){
+	if(caws.batch) return;
+	caws.batchOriginal = caws_clone(caws.vo);
+	caws.batchRowOriginal = caws_clone(caws.row);
+	caws.batchMemo = '';
+	caws.batch = true;
+}
+function caws_batchBegin(){ caws_batchStart(); caws.fld = ''; caws_renderRecord(); }
+function caws_batchValue(obj, key){
+	var v = caws_nvl((obj||{})[key],'');
+	if(CAWS_FLD_DATE[key]) v = String(v).replace(/[^0-9]/g,'');
+	return String(v);
+}
+function caws_batchChanged(key){
+	return caws_batchValue(caws.vo,key) !== caws_batchValue(caws.batchOriginal,key);
+}
+function caws_batchHasChanges(){
+	for(var i=0; i<CAWS_BATCH_FIELDS.length; i++) if(caws_batchChanged(CAWS_BATCH_FIELDS[i])) return true;
+	return caws_nvl(caws.batchMemo,'').trim() !== '';
+}
+function caws_batchHistoryChanged(){
+	return caws_batchChanged('proc_status') || caws_batchChanged('assign_id');
+}
+function caws_batchCancel(){
+	if(caws_batchHasChanges() && !confirm('저장하지 않은 변경내용을 취소하시겠습니까?')) return;
+	caws.vo = caws_clone(caws.batchOriginal);
+	caws.row = caws_clone(caws.batchRowOriginal);
+	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.fld = '';
+	caws_renderHead(); caws_renderRecord();
+}
+function caws_syncBatchHead(){
+	var box = caws_el('cawsBatchHead');
+	if(!box) return;
+	if(caws_nvl(caws.asNo,'') === ''){ box.innerHTML = ''; return; }
+	/* [AX Lab] 수정 (2026-09-30 AX Lab): 상태에 따라 수정/취소로 바꾸지 않고 저장 버튼 하나만 유지 */
+	box.innerHTML = '<button type="button" class="btn-s primary" onclick="caws_batchSave();">저장</button>';
+}
+function caws_batchSave(){
+	if(!caws.batch || !caws_batchHasChanges()){ alert('변경된 내용이 없습니다.'); return; }
+	var memo = caws_nvl(caws.batchMemo,'').trim();
+	if(caws_batchHistoryChanged() && memo === ''){
+		alert('처리상태 또는 담당자 변경 사유를 입력해주세요.');
+		var memoEl = caws_el('cawsBatchMemo');
+		if(memoEl) memoEl.focus();
+		return;
+	}
+	var d = { as_no:caws.asNo, pageType:'saveRecordBatch', action_content:memo };
+	for(var i=0; i<CAWS_BATCH_FIELDS.length; i++) d[CAWS_BATCH_FIELDS[i]] = caws_nvl((caws.vo||{})[CAWS_BATCH_FIELDS[i]],'');
+	common.ajaxCall(d, '/ad/as/histProc.do', 'caws_batchReturn');
+}
+function caws_batchReturn(data){
+	var code = (data && typeof data.returnCode != 'undefined') ? data.returnCode : '';
+	if(code !== '000'){ alert('변경사항 저장 중 오류가 발생했습니다.'); return; }
+	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.fld = '';
+	alert('변경사항을 저장했습니다.');
+	caws_reload(true);
+}
+function caws_batchMemoInput(el){
+	if(!caws.batch) caws_batchStart();
+	caws.batchMemo = el ? String(el.value||'') : '';
+}
+function caws_batchMemoHtml(){
+	return '<div class="caws-batchmemo-wrap">'
+	     + '<label class="caws-aclb">조치이력 <span class="caws-req">처리상태·담당자 변경 시 필수</span></label>'
+	     + '<textarea id="cawsBatchMemo" class="caws-ta caws-fta caws-batchmemo" '
+	     + 'oninput="caws_batchMemoInput(this);caws_autoGrow(this);" '
+	     + 'placeholder="처리상태·담당자 변경 사유 또는 함께 남길 조치내용을 입력하세요.">'
+	     + caws_esc(caws.batchMemo) + '</textarea></div>';
+}
+/* [AX Lab] 수정 끝 */
 
 /* ---- 편집 시작 / 취소 ---------------------------------------------------- */
 function caws_fldOpen(key){
@@ -817,6 +1060,8 @@ function caws_fldOpen(key){
 		alert('문의유형·시스템유형은 관리자 권한이 있는 담당자만 변경할 수 있습니다.');
 		return;
 	}
+	/* [AX Lab] 수정 (2026-09-30 AX Lab): 값 클릭 시 일괄 편집을 시작하고 저장은 헤더 버튼에서만 수행 */
+	caws_batchStart();
 	caws.fld = key;
 	caws_renderRecord();	/* 렌더 마지막에 caws_fldInit() 가 컨트롤을 초기화/포커스한다 */
 }
@@ -860,6 +1105,8 @@ function caws_fldCommit(key){
 }
 /* 현재 저장된 값 (미변경 비교용 — 날짜는 숫자만 남겨 비교) */
 function caws_fldCur(key){
+	/* [AX Lab] 수정 (2026-09-30 AX Lab): 담당자 편집키(assign)는 실제 저장 필드 assign_id 와 비교 */
+	if(key === 'assign') return String(caws_nvl((caws.vo||{}).assign_id,''));
 	var v = caws_nvl((caws.vo||{})[key],'');
 	if(CAWS_FLD_DATE[key]) v = String(v).replace(/[^0-9]/g,'');
 	return String(v);
@@ -870,6 +1117,35 @@ function caws_fldCur(key){
    현재 vo 값을 그대로 실어 다른 컬럼이 지워지지 않게 한다. */
 function caws_fldSave(key, v){
 	var vo = caws.vo || {};
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 일괄 편집 중에는 서버 호출 없이 임시값만 갱신 */
+	if(caws.batch){
+		/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리담당자는 화면키(assign)와 저장필드(assign_id)가 다르다.
+		   중요도와 같은 인라인 select에서 선택한 사번·이름을 일괄저장 대상 필드에 반영한다. */
+		if(key === 'assign'){
+			vo.assign_id = v;
+			for(var ei=0; ei<caws.act.empList.length; ei++){
+				if(caws_nvl(caws.act.empList[ei].emp_no,'') === v){
+					vo.assign_nm = caws_nvl(caws.act.empList[ei].emp_nm,'');
+					break;
+				}
+			}
+		}else{
+			vo[key] = v;
+		}
+		/* 처리완료가 아닌 상태로 바꾸면 기존 팝오버와 동일하게 처리완료 상세값을 비운다. */
+		if(key === 'proc_status' && v !== 'C005'){
+			for(var si=0; si<CAWS_DEV_FLDS.length; si++) vo[CAWS_DEV_FLDS[si]] = '';
+		}
+		/* [AX Lab] 수정 끝 */
+		if(key === 'action_type'
+		   && !(caws_stCode() === 'C005' && (v === 'C001' || v === 'C002'))){
+			for(var bi=0; bi<CAWS_DEV_FLDS.length; bi++) vo[CAWS_DEV_FLDS[bi]] = '';
+		}
+		caws.fld = '';
+		caws_renderRecord();
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	var d = { as_no: caws.asNo };
 	if(key === 'accept_route'){
 		d.pageType = 'saveAccept';
@@ -949,6 +1225,30 @@ function caws_fldSelHtml(key){
 	 + ' onchange="caws_fldCommit(\''+key+'\');" onblur="caws_fldBlurCancel(\''+key+'\');"'
 	 + ' onkeydown="caws_fldKey(event,\''+key+'\');"></select>';
 }
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리담당자도 중요도와 동일한 인라인 select로 편집 */
+function caws_fldAssignHtml(){
+	return '<select id="cawsFldIn" class="caws-fin"'
+	 + ' onchange="caws_fldCommit(\'assign\');" onblur="caws_fldBlurCancel(\'assign\');"'
+	 + ' onkeydown="caws_fldKey(event,\'assign\');"><option value="">불러오는 중...</option></select>';
+}
+function caws_inlineEmpOptions(){
+	var cur = caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''));
+	var s = '<option value="">선택</option>';
+	for(var i=0; i<caws.act.empList.length; i++){
+		var e = caws.act.empList[i], no = caws_nvl(e.emp_no,''), nm = caws_nvl(e.emp_nm,'');
+		s += '<option value="'+caws_esc(no)+'"'+(no === cur ? ' selected' : '')+'>'
+		  + caws_esc(nm+(no !== '' ? ' ('+no+')' : ''))+'</option>';
+	}
+	return s;
+}
+function caws_inlineEmpLoaded(data){
+	caws.act.empList = (data && data.resultList) ? data.resultList : [];
+	var el = caws_el('cawsFldIn');
+	if(caws.fld !== 'assign' || !el) return;
+	el.innerHTML = caws_inlineEmpOptions();
+	try{ el.focus(); }catch(e){}
+}
+/* [AX Lab] 수정 끝 */
 function caws_fldTxtHtml(key, val, ph){
 	return '<input type="text" id="cawsFldIn" class="caws-fin" value="'+caws_esc(caws_nvl(val,''))+'"'
 	 + (caws_nvl(ph,'') !== '' ? ' placeholder="'+caws_esc(ph)+'"' : '')
@@ -984,8 +1284,21 @@ function caws_fldInit(){
 	var key = caws_nvl(caws.fld,'');
 	if(key === '') return;
 	if(key === 'systype'){ caws_pairInit(); return; }
-	if(key === 'proc_status'){ caws_popStatusInit(); return; }
-	if(key === 'assign'){ caws_popAssignInit(); return; }
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리상태·담당자를 중요도와 같은 인라인 select로 초기화 */
+	if(key === 'assign'){
+		var ae = caws_el('cawsFldIn');
+		if(caws.act.empList.length > 0){
+			if(ae) ae.innerHTML = caws_inlineEmpOptions();
+		}else{
+			common.ajaxCall({
+				as_no:caws.asNo,
+				assign_id:caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''))
+			}, '/ad/as/getAsEmpList.do', 'caws_inlineEmpLoaded');
+		}
+		if(ae) try{ ae.focus(); }catch(e){}
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	var el = caws_el('cawsFldIn');
 	if(!el) return;
 	var vo = caws.vo || {};
@@ -1110,6 +1423,21 @@ function caws_inquiryCommit(reqType, cate, inq){
 		}
 	}
 
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 일괄 편집에서는 문의유형과 자동배정을 임시값으로만 반영 */
+	if(caws.batch){
+		vo.request_type = rt; vo.service_cate = sc; vo.inquiry_type = iq;
+		if(caws._autoAssign){
+			vo.assign_id = caws._autoAssign.id;
+			vo.assign_nm = caws._autoAssign.nm;
+			if(caws_nvl(caws.batchMemo,'') === '') caws.batchMemo = '문의유형/시스템유형 변경에 따른 처리담당자 자동배정';
+		}
+		caws._autoAssign = null;
+		caws.fld = '';
+		caws_renderRecord();
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
+
 	common.ajaxCall({
 		as_no: caws.asNo,
 		pageType: 'saveInquiry',
@@ -1202,33 +1530,26 @@ function caws_devClearReturn(data){
 /* [AX Lab] 수정 끝 */
 
 /* ---- 처리상태 팝오버 ('proc_status') ---------------------------------------
-   처리상태 변경은 CRM_AS_MGT_HIST 이력이 남는 업무 규칙이 있어(원본 form.jsp 동일)
-   조치내용 메모를 필수로 받는 팝오버로 처리한다. 상태를 바꾸지 않고 메모만 남겨도 된다. */
+   처리상태는 여기서 값만 임시 반영하고, 조치내용은 처리상태사항 하단 공통 입력란에서 작성한다. */
 function caws_popStatusHtml(){
 	return '<div class="caws-pop">'
 	 + '<label class="caws-aclb">처리상태 변경</label>'
 	 + '<select id="cawsPopStatus" class="caws-acsel"></select>'
-	 + '<label class="caws-aclb" style="margin-top:7px;">조치내용 / 인계메모 <span class="caws-req">*</span></label>'
-	 + '<textarea class="caws-ta caws-fta" id="cawsPopMemo" oninput="caws_autoGrow(this);"'
-	 +   ' onkeydown="if(event.keyCode===27)caws_fldCancel();"'
-	 +   ' placeholder="처리 이력에 남을 조치내용을 입력하세요. (상태를 바꾸지 않고 메모만 남겨도 됩니다)"></textarea>'
 	 + '<div class="caws-cbar" style="margin-top:7px;">'
 	 +   '<button type="button" class="btn-s" onclick="caws_fldCancel();">취소</button>'
 	 +   '<span class="caws-sp"></span>'
-	 +   '<button type="button" class="caws-send act" onclick="caws_popStatusSave();">저장</button>'
+	 +   '<button type="button" class="caws-send act" onclick="caws_popStatusSave();">적용</button>'
 	 + '</div>'
 	 + '</div>';
 }
 function caws_popStatusInit(){
 	var sel = caws_el('cawsPopStatus');
-	if(sel) sel.innerHTML = caws_codeOptions('AS','CD01', caws_stCode(), '');
-	var ta = caws_el('cawsPopMemo');
-	if(ta){ caws_autoGrow(ta); try{ ta.focus(); }catch(e){} }
+	if(sel){
+		sel.innerHTML = caws_codeOptions('AS','CD01', caws_stCode(), '');
+		try{ sel.focus(); }catch(e){}
+	}
 }
 function caws_popStatusSave(){
-	var ta = caws_el('cawsPopMemo');
-	var comment = ta ? String(ta.value||'').trim() : '';
-	if(comment === ''){ alert('조치내용을 입력해주세요.'); if(ta) ta.focus(); return; }
 	var sel = caws_el('cawsPopStatus');
 	/* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 처리완료(C005)가 아닌 상태로 바뀌면
 	   원본 setProcGrade 와 동일하게 처리완료 상세(개발 항목)를 비운다. (저장 성공 후 실행) */
@@ -1237,32 +1558,39 @@ function caws_popStatusSave(){
 	caws._devClear = (newSt !== '' && newSt !== 'C005'
 	                  && (at === 'C001' || at === 'C002') && caws_devHasData());
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 일괄 편집 임시값으로 반영 */
+	if(caws.batch){
+		caws.vo.proc_status = newSt;
+		if(newSt !== 'C005' && (at === 'C001' || at === 'C002')){
+			for(var si=0; si<CAWS_DEV_FLDS.length; si++) caws.vo[CAWS_DEV_FLDS[si]] = '';
+		}
+		caws.fld = '';
+		caws_renderRecord();
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	common.ajaxCall({
 		as_no: caws.asNo,
 		pageType: 'saveAction',
 		proc_status: sel ? String(sel.value||'') : '',
 		proc_dt: '',
 		assign_id: '',		/* 담당자는 여기서 바꾸지 않음(빈 값 = 유지) */
-		action_content: comment
+		action_content: caws_nvl(caws.batchMemo,'')
 	}, '/ad/as/histProc.do', 'caws_histReturn');
 }
 
 /* ---- 처리담당자 팝오버 ('assign') ------------------------------------------
-   담당자 이관도 이력이 남는 업무 규칙이 있어 인계메모를 필수로 받는다. */
+   담당자는 여기서 값만 임시 반영하고, 인계메모는 처리상태사항 하단 공통 입력란에서 작성한다. */
 function caws_popAssignHtml(){
 	return '<div class="caws-pop">'
 	 + '<label class="caws-aclb">배정담당자 <span class="caws-actselnm" id="cawsActSelNm"></span></label>'
 	 + '<input type="text" id="cawsActEmpKw" class="caws-fin caws-fwide" placeholder="이름/사번 검색"'
 	 +   ' onkeyup="caws_actEmpFilter();" onkeydown="if(event.keyCode===27)caws_fldCancel();" />'
 	 + '<div class="caws-emplist" id="cawsActEmpList" style="margin-top:5px;">불러오는 중...</div>'
-	 + '<label class="caws-aclb" style="margin-top:7px;">조치내용 / 인계메모 <span class="caws-req">*</span></label>'
-	 + '<textarea class="caws-ta caws-fta" id="cawsPopMemo" oninput="caws_autoGrow(this);"'
-	 +   ' onkeydown="if(event.keyCode===27)caws_fldCancel();"'
-	 +   ' placeholder="담당자 이관 사유 등 인계메모를 입력하세요."></textarea>'
 	 + '<div class="caws-cbar" style="margin-top:7px;">'
 	 +   '<button type="button" class="btn-s" onclick="caws_fldCancel();">취소</button>'
 	 +   '<span class="caws-sp"></span>'
-	 +   '<button type="button" class="caws-send act" onclick="caws_popAssignSave();">저장</button>'
+	 +   '<button type="button" class="caws-send act" onclick="caws_popAssignSave();">적용</button>'
 	 + '</div>'
 	 + '</div>';
 }
@@ -1281,17 +1609,23 @@ function caws_popAssignInit(){
 	if(kw) try{ kw.focus(); }catch(e){}
 }
 function caws_popAssignSave(){
-	var ta = caws_el('cawsPopMemo');
-	var comment = ta ? String(ta.value||'').trim() : '';
-	if(comment === ''){ alert('조치내용(인계메모)을 입력해주세요.'); if(ta) ta.focus(); return; }
 	if(caws_nvl(caws.act.assignId,'') === ''){ alert('배정할 담당자를 선택해주세요.'); return; }
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 일괄 편집 임시값으로 반영 */
+	if(caws.batch){
+		caws.vo.assign_id = caws_nvl(caws.act.assignId,'');
+		caws.vo.assign_nm = caws_nvl(caws.act.assignNm,'');
+		caws.fld = '';
+		caws_renderRecord();
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	common.ajaxCall({
 		as_no: caws.asNo,
 		pageType: 'saveAction',
 		proc_status: '',	/* 상태는 여기서 바꾸지 않음(빈 값 = 유지) */
 		proc_dt: '',
 		assign_id: caws_nvl(caws.act.assignId,''),
-		action_content: comment
+		action_content: caws_nvl(caws.batchMemo,'')
 	}, '/ad/as/histProc.do', 'caws_histReturn');
 }
 
@@ -1309,6 +1643,8 @@ function caws_telRowHtml(vo){
 	 + '</span></div>';
 }
 function caws_telSave(){
+	/* [AX Lab] 수정 (2026-09-30 AX Lab): 체크박스 변경도 자동으로 일괄 편집을 시작 */
+	if(!caws.batch) caws_batchStart();
 	var vo = caws.vo || {};
 	var tc = caws_el('cawsTelConfirm'), ta = caws_el('cawsTelAbsence'), cnt = caws_el('cawsTelAbsenceCnt');
 	var nv = {
@@ -1322,6 +1658,15 @@ function caws_telSave(){
 	var curTa = (caws_nvl(vo.tel_absence,'') === 'Y') ? 'Y' : 'N';
 	var curCnt = String(caws_nvl(vo.tel_absence_cnt,'0'));
 	if(nv.tel_confirm === curTc && nv.tel_absence === curTa && nv.tel_absence_cnt === curCnt) return;
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 체크값도 일괄 편집 임시값으로만 반영 */
+	if(caws.batch){
+		vo.tel_confirm = nv.tel_confirm;
+		vo.tel_absence = nv.tel_absence;
+		vo.tel_absence_cnt = nv.tel_absence_cnt;
+		caws_renderRecord();
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	common.ajaxCall({
 		as_no: caws.asNo,
 		pageType: 'saveProcExtra',
@@ -1582,6 +1927,14 @@ function caws_afterAnswer(){
    withList=true 면 목록도 다시 그린다(상태·담당자가 바뀌어 목록 표시가 달라지는 경우). */
 function caws_reload(withList){
 	if(caws_nvl(caws.asNo,'') === '') return;
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 저장 후 상세 재조회 시 탭/아코디언과 함께 스크롤 위치 유지 */
+	var detailBox = caws_el('asDetail'), recordBox = caws_el('asRecord');
+	caws.restoreScroll = {
+		detailTop: detailBox ? detailBox.scrollTop : 0,
+		detailAtEnd: detailBox ? (detailBox.scrollHeight - detailBox.scrollTop - detailBox.clientHeight < 24) : true,
+		recordTop: recordBox ? recordBox.scrollTop : 0
+	};
+	/* [AX Lab] 수정 끝 */
 	if(withList && typeof makeListData === 'function'){
 		/* 목록 재조회는 setAsList 에서 첫 행을 자동 선택하므로, 현재 보고 있던 건을 다시 열어준다. */
 		var keepNo = caws.asNo, keepCn = caws.cnAsNo;
@@ -1876,9 +2229,10 @@ function caws_renderRecord(){
 	var empNm  = caws_empNm();
 	/* 시스템유형(대/소)은 목록행에만 명칭이 있다. row 가 없으면 대분류만 공통코드로 변환한다.
 	   (소분류는 P_CODE 가 대분류 코드라 조회 파라미터가 건마다 달라 캐시 이점이 없어 생략) */
-	var sysType = (caws_nvl(row.service_cate_nm,'') !== '')
+	var sysType = (!caws.batch && caws_nvl(row.service_cate_nm,'') !== '')
 	            ? (row.service_cate_nm + (caws_nvl(row.inquiry_type_nm,'') !== '' ? ' / '+row.inquiry_type_nm : ''))
-	            : caws_codeNm('AS','CD03', caws_nvl(vo.service_cate,''));
+	            : (caws_codeNm('AS','CD03', caws_nvl(vo.service_cate,''))
+	              + (caws_nvl(vo.inquiry_type,'') !== '' ? ' / '+caws_codeNm('AS',caws_nvl(vo.service_cate,''),vo.inquiry_type) : ''));
 	/* 처리완료일 — 이제 클릭해서 직접 고칠 수 있는 필드라, 상태와 무관하게 저장된 값을 그대로 보여준다. */
 	var completeDt = (caws_nvl(vo.complete_dt,'') !== '')
 	               ? caws_date(vo.complete_dt)
@@ -1889,7 +2243,7 @@ function caws_renderRecord(){
 	var isAdmin = (caws_nvl(vo.as_admin,'') === 'Y');
 	var admTip = '문의유형·시스템유형은 관리자 권한 담당자만 변경할 수 있습니다';
 	var acceptRouteNm = caws_codeNm('AS','CD02', caws_nvl(vo.accept_route,''));
-	var reqTypeNm = (caws_nvl(row.request_type_nm,'') !== '') ? row.request_type_nm : caws_codeNm('AS','CD07', caws_nvl(vo.request_type,''));
+	var reqTypeNm = (!caws.batch && caws_nvl(row.request_type_nm,'') !== '') ? row.request_type_nm : caws_codeNm('AS','CD07', caws_nvl(vo.request_type,''));
 
 	/* --- 접수정보 : 접수경로만 편집 가능(나머지는 이력성 값이라 조회 전용)
 	   + 하위작업 생성 / 상위접수번호 / 연관접수번호 (원본 form.jsp 접수정보와 동일 구성) --- */
@@ -1944,26 +2298,26 @@ function caws_renderRecord(){
 	/* [AX Lab] 수정 (2026-07-31 AX Lab): '문의유형정보' 별도 그룹(b6) 제거 —
 	   문의유형/시스템유형/버전정보는 위 접수정보(b1)로 통합, 요청내용은 COL2 문의 버블로 이동. */
 
-	/* --- 처리상태사항 : 처리상태/담당자(이력 팝오버) + 중요도/전화확인/전화부재중(즉시 저장) --- */
-	var b3 = '<div class="kv"><span class="k">현재 처리상태</span>'
-	   +   '<span class="v caws-fv" onclick="caws_fldOpen(\'proc_status\');" title="클릭하여 처리상태 변경·조치내용 작성 (이력에 기록됩니다)">'
-	   +     '<span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span></span></div>'
-	   + (caws.fld === 'proc_status' ? caws_popStatusHtml() : '')
-	   + '<div class="kv"><span class="k">처리담당자</span>'
-	   +   '<span class="v caws-fv" onclick="caws_fldOpen(\'assign\');" title="클릭하여 담당자 이관 (인계메모 필수)">'+caws_esc(empNm)+'</span></div>'
-	   + (caws.fld === 'assign' ? caws_popAssignHtml() : '')
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리상태·처리담당자를 중요도와 동일한 인라인 select UI로 통일 */
+	var b3 = caws_ekv('proc_status', '현재 처리상태',
+	       '<span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span>',
+	       caws_fldSelHtml('proc_status'), '클릭하여 바로 수정')
+	   + caws_ekv('assign', '처리담당자', caws_esc(empNm), caws_fldAssignHtml(), '클릭하여 바로 수정')
 	   + (caws.fld === 'inportance'
 	     ? '<div class="kv caws-fe"><span class="k">중요도</span><span class="v caws-fev">'+caws_fldSelHtml('inportance')+'</span></div>'
 	     : '<div class="kv"><span class="k">중요도</span><span class="'+((caws_gradeCode() === 'C001') ? 'v grade-b' : 'v')+' caws-fv" onclick="caws_fldOpen(\'inportance\');" title="클릭하여 바로 수정">'+caws_esc(caws_gradeNm())+'</span></div>')
-	   + caws_telRowHtml(vo);
+	   + caws_telRowHtml(vo)
+	   /* [AX Lab] 수정 (2026-09-30 AX Lab): 처리상태·담당자 변경에 공통으로 사용하는 조치이력 입력란 */
+	   + caws_batchMemoHtml();
+	/* [AX Lab] 수정 끝 */
 
 	/* --- 처리완료사항 : 처리예정일자/시각·원인유형·조치유형·작업시간·처리완료일자 --- */
 	var procDtDisp = caws_date(caws_nvl(vo.proc_dt,''));
 	if(procDtDisp === '') procDtDisp = '-';
 	var procTimeDisp = caws_time(caws_nvl(vo.proc_time,''));
 	if(procTimeDisp === '') procTimeDisp = '-';
-	var causeNm  = (caws_nvl(row.cause_type_nm,'') !== '') ? row.cause_type_nm : caws_codeNm('AS','CD05', caws_nvl(vo.cause_type,''));
-	var actionNm = (caws_nvl(row.action_type_nm,'') !== '') ? row.action_type_nm : caws_codeNm('AS','CD06', caws_nvl(vo.action_type,''));
+	var causeNm  = (!caws.batch && caws_nvl(row.cause_type_nm,'') !== '') ? row.cause_type_nm : caws_codeNm('AS','CD05', caws_nvl(vo.cause_type,''));
+	var actionNm = (!caws.batch && caws_nvl(row.action_type_nm,'') !== '') ? row.action_type_nm : caws_codeNm('AS','CD06', caws_nvl(vo.action_type,''));
 	var b4 = caws_ekv('proc_dt', '처리예정일자', caws_esc(procDtDisp), caws_fldDateHtml('proc_dt'), '클릭하여 달력에서 선택')
 	   + caws_ekv('proc_time', '예정시각(HHmm)', caws_esc(procTimeDisp), caws_fldTxtHtml('proc_time', caws_nvl(vo.proc_time,''), '예: 1430'))
 	   + caws_ekv('cause_type', '원인유형', caws_esc(causeNm), caws_fldSelHtml('cause_type'))
@@ -1993,6 +2347,7 @@ function caws_renderRecord(){
 	}
 
 	/* 접수정보 헤더 요약은 통합된 문의유형·시스템유형을 우선 보여준다(없으면 접수경로) */
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보는 헤더 우측 버튼으로 일괄 저장 */
 	var rec = caws_accBox('accept',  '접수정보',
 	          (reqTypeNm !== '-' ? reqTypeNm + (sysType !== '-' ? ' · '+sysType : '')
 	                             : (acceptRouteNm !== '-' ? acceptRouteNm : '')), b1, st)
@@ -2004,14 +2359,10 @@ function caws_renderRecord(){
 	/* [AX Lab] 수정 끝 */
 
 	caws_html('asRecord', rec);
+	caws_syncBatchHead();
 
 	/* 편집 중인 필드가 있으면 컨트롤 초기화(옵션 채우기·datepicker 부착·포커스) */
 	caws_fldInit();
-	/* 처리상태/담당자 팝오버는 폼이 길어서 화면에 들어오도록 스크롤해준다 */
-	if(caws.fld === 'proc_status' || caws.fld === 'assign'){
-		var procEl = caws_el('cawsAcc_proc');
-		if(procEl) setTimeout(function(){ procEl.scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 50);
-	}
 }
 /* [AX Lab] 수정 끝 */
 
