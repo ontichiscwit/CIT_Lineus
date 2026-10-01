@@ -1442,6 +1442,16 @@
 <link rel="stylesheet" type="text/css" href="/css/combine-as-loading.css" />
 <script type="text/javascript" src="/js/combine-as-loading.js"></script>
 <%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): 문의 키워드 추출 + 연관 과거이력 우선노출.
+     COL2 문의 내용에서 접수번호/담당자/화면명 등을 뽑아 COL3 과거 상담이력 "위에"
+     관련도순 블록을 얹는다. 기존 기간(1주/1개월/3개월/전체) 목록은 그대로 남는다.
+     ★ 기존 파일은 한 줄도 고치지 않았다. combine-as-keyword.js 가 로드 시점에
+       caws_pastReset / caws_renderRecord 를 감싸는(wrapping) 방식이라,
+       원복이 필요하면 아래 두 줄만 지우면 완전히 되돌아간다.
+     ★ 로드 순서 : combine-as.js(asws_stClass) + combine-as-thread.js(caws_* 유틸) 뒤여야 한다. --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-keyword.css" />
+<script type="text/javascript" src="/js/combine-as-keyword.js"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>
 
