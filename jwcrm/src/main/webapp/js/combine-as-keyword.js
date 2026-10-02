@@ -10,9 +10,13 @@
  *     ① 어디서     프로그램 / 화면
  *     ② 무슨 문제  증상 (안됨·오류·안보임·중복 …)
  *     ③ 식별       접수번호 · 연락처 · 환자 · 버전 · 오류코드 · 담당자
- *     ④ 그 외      본문 키워드 (IDF 상위)
  *   ①②가 AS 접수에서 가장 먼저 필요한 정보인데, 예전에는 이 구분 없이 한 줄에
  *   평평하게 늘어놔서 "마약류통합정보조회" 와 "것처럼" 이 같은 무게로 보였다.
+ *
+ *   ④ "그 외 키워드"(본문 IDF 상위) 줄이 있었으나 2026-10-01 에 내렸다.
+ *      형태소 분석기 없이 뽑다 보니 "마취"·"수술실"(한 어절이 쪼개진 조각),
+ *      "업무"·"이유"(아무 데나 나오는 말) 가 올라와 ①② 를 흐리기만 했다.
+ *      ckw_rank() 의 주석 처리된 ckw_addTermChips() 참고.
  *
  * 전역 접두어는 ckw_ (Combine as KeyWord) 로 통일한다.
  *
@@ -208,7 +212,11 @@ var CKW_STOP = (''
 	/* 영문/숫자 뒤에 붙은 조사는 어절이 쪼개지면서 조사만 토큰으로 남는다.
 	   예) "IPC에서" -> [IPC, 에서] , "5대가" -> [5대, 가] */
 	+ '에서 으로 에게 부터 까지 라고 이나 하고 등도 등은 등을 등이 등에 것도 것은 것이 것을 것과 '
-	+ '심지어 도대체 대체 언제 지난주 이번주 다음주 제가 저희가 우리가 그래서 그러면 그런데'
+	+ '심지어 도대체 대체 언제 지난주 이번주 다음주 제가 저희가 우리가 그래서 그러면 그런데 '
+	/* 부사·용언에서 조사 모양의 끝글자가 잘려 나온 찌꺼기. 그대로/제대로/아무것도/
+	   상관없이/볼수있는/원래대로/순서대로/한꺼번에 … 가 이런 모양이 된다.
+	   어느 것도 단독으로는 뜻이 없어서 칩에 뜨면 고장난 것처럼 보인다. */
+	+ '그대 제대 아무것 상관없 볼수있 원래대 순서대 한꺼번 사진과같 알려주신대 꺼지 눌렀'
 ).split(/\s+/);
 
 var CKW_STOPMAP = (function(){
@@ -255,7 +263,10 @@ var CKW_TWO = (''
 	+ '되네 인가 인지 일까 할까 될까 한지 된지 하기 되기 오는 가는 주는 받는 보는 나는 드는 '
 	+ '쓰는 먹는 만든 나온 나와 나서 넣은 넣어 들어 들은 갈때 할때 될때 이후 이전 이때 그때 '
 	+ '이건 그건 이거 그거 여기 거기 지금 아직 이제 바로 또는 혹은 상태 경우 때문 정도 이상 '
-	+ '이하 미만 초과 이분 그분 저분'
+	+ '이하 미만 초과 이분 그분 저분 '
+	/* 칩에 떠서 말이 안 됐던 2글자들. 부사이거나, 조사가 2글자 가드에 걸려 남은 꼴이다.
+	   "건에"(건+에) "밑에"(밑+에) 처럼 조사만 남은 것도 여기서 막는다. */
+	+ '자꾸 늦어 그쯤 밑에 건에 어디 매우 아주 전혀 거의 그리 너무'
 ).split(/\s+/);
 
 var CKW_TWOMAP = (function(){
@@ -267,7 +278,23 @@ var CKW_TWOMAP = (function(){
 /* 3글자 이상 토큰의 어미. 업무 명사가 이 꼬리로 끝나는 경우가 없는 것만 골랐다.
    'ㅂ니다' 처럼 자모로 쓰면 절대 안 된다. 한글은 조합된 음절이라 "드립니다" 와
    매치되지 않는다. 그래서 음절 단위인 '니다' 로 쓴다. */
-var CKW_RX_ENDING = /(니다|십시오|하세요|세요|네요|는데|은데|던데|으나|하여|해서|어서|아서|으면|하면|되면|려고|려면|지만|는지|은지|을지|거나|든지|였는|았는|었는|하니|되니|보니|드림|드려|주세|주시|해주|해야|해도|아야|어야|한데|인데|라서|라고|면서|길래|더니|거든|잖아|니까|므로|토록|도록|어요|아요|에요|예요|가요|나요|까요|이다|한다|된다|였다|했다|하고|되고|이고|시고|었고|았고|였고|있고|리고|지고|가고|하지|되지|겠지|을때|를때|시기|히|할|하는|되는|가야|와야|봐야|져야|워야|르면|려요|다고)$/;
+var CKW_RX_ENDING = /(니다|십시오|하세요|세요|네요|는데|은데|던데|으나|하여|해서|어서|아서|으면|하면|되면|려고|려면|지만|는지|은지|을지|거나|든지|였는|았는|었는|하니|되니|보니|드림|드려|주세|주시|해주|해야|해도|아야|어야|한데|인데|라서|라고|면서|길래|더니|거든|잖아|니까|므로|토록|도록|어요|아요|에요|예요|가요|나요|까요|이다|한다|된다|였다|했다|하고|되고|이고|시고|었고|았고|였고|있고|리고|지고|가고|하지|되지|겠지|을때|를때|시기|히|할|하는|되는|가야|와야|봐야|져야|워야|르면|려요|다고|는게|은게|되게|하게|리게|지게|하기|되기|으니|리니|주니|찍고|오고|두고|놓고|싶어|하신|되신|주신)$/;
+
+/* 위 꼬리 중 뒷부분(는게 … 주신)은 나중에 보탠 것이다. 전사 25,963건에서 "이 꼬리로
+   끝나는 토큰"을 전부 뽑아 업무 명사가 섞였는지 눈으로 확인하고 넣었다. 전부 활용형만
+   나왔다.
+     는게/은게 : 나오는게·안되는게·연락받은게       되게/하게 : 출력되게·동일하게·가능하게
+     리게/지게 : 안풀리게·보여지게                  하기/되기 : 확인하기·변경되기
+     으니/리니/주니 : 첨부했으니·보내드리니         오고/두고/놓고/찍고 : 안나오고·설정해놓고
+     하신/되신/주신 : 퇴원하신·알려주신             싶어 : 알고싶어
+
+   ★ 반대로 아래는 재 보고 "넣으면 안 된다"고 판단한 것이다. 다시 넣지 말 것.
+     인 → 로그인(309) 외국인(67) 동명이인 산부인 가이드라인 장애인 온라인
+     선 → 방사선(83) 고객방문선(15) 갑상선 처우개선, 게다가 사람 이름(박창선·오경선)
+     운 → 드롭다운 서버다운 엑셀다운, 사람 이름(김고운·문기운)
+     난 → 처방난(7) 은 "처방 칸" 이라는 뜻의 명사다
+   한·된 도 뺐다. 이 필터는 꼬리를 자르는 게 아니라 토큰을 통째로 버리는 것이라,
+   "첨부한" 을 넣으면 "첨부" 로 합쳐지는 게 아니라 그냥 사라진다. */
 
 /* 영문 2글자를 허용하면서 같이 들어오는 영어 기능어. */
 var CKW_ENSTOP = (''
@@ -318,8 +345,29 @@ function ckw_strip(text){
 	return ckw_alias(s);
 }
 
-/* 띄어쓰기·구분기호를 모두 없앤 형태. "진료 업무" 와 "진료업무" 를 같게 보려고 쓴다. */
-function ckw_flat(text){ return String(ckw_nvl(text,'')).replace(/[\s\-_.·ㆍ]/g, ''); }
+/* 글자와 숫자만 남긴 형태. "진료 업무" / "진료-업무" / "진료/업무" 를 같게 보려고 쓴다.
+   비교용이고 화면에 쓰지 않으므로 영문 대소문자도 여기서 같이 눌러 준다.
+   ★ 지울 문자를 일일이 열거하면 안 된다. 실제 프로그램명/화면명 칸에 쓰인 구분자를
+     세어 보니 공백(6,839)·하이픈(610)·마침표(532) 다음에 쉼표(288)·슬래시(257)·
+     괄호(380)·꺾쇠(172) 가 줄줄이 나왔고, ★ ☎ → 전각문자까지 섞여 있었다.
+     열거 방식(공백·하이픈·밑줄·점만 제거)일 때 같은 이름인데 다르게 보는 쌍이 242개
+     남았다. 예) "ONTIC / HIS" vs "ONTIC-HIS", "청구/심사" vs "청구 심사"
+     그래서 "뭘 지울까"가 아니라 "뭘 남길까"로 뒤집는다.
+
+   사전(수십~수천 개)을 돌 때마다 이름을 다시 눌러 펴면 느려진다. 이름은 짧고 같은 값이
+   반복해서 들어오므로 결과를 기억해 둔다. 본문처럼 긴 문자열은 매번 달라서 제외한다. */
+var CKW_FLAT_RX = /[^가-힣A-Za-z0-9]/g;
+var CKW_FLAT_MEMO = {};
+function ckw_flat(text){
+	var s = String(ckw_nvl(text,''));
+	if(s.length > 40) return s.replace(CKW_FLAT_RX, '').toLowerCase();
+	var v = CKW_FLAT_MEMO['\u0001' + s];
+	if(v === undefined){
+		v = s.replace(CKW_FLAT_RX, '').toLowerCase();
+		CKW_FLAT_MEMO['\u0001' + s] = v;
+	}
+	return v;
+}
 
 /* 조사는 겹쳐서 붙는다. "재원중에서는" 은 '에서' + '는' 이라 한 번만 떼면
    "재원중에서" 가 남아 키워드 칩에 그대로 올라왔다. 그래서 더 못 뗄 때까지 반복한다.
@@ -342,8 +390,15 @@ function ckw_josa(t){
 }
 
 /* 보일러플레이트 제거 -> 토큰화 -> 조사 제거 -> 불용어/활용형 제거 -> 중복 제거 */
-function ckw_tok(text){
-	var s = ckw_strip(text), out = [], seen = {}, m;
+function ckw_tok(text){ return ckw_tokOf(ckw_strip(text)); }
+
+/* 이미 ckw_strip() 을 거친 텍스트용.
+   ★ 후보 200건을 처리할 때 본문 하나가 토큰화·증상판정·이름대조에 각각 들어가는데,
+     그때마다 ckw_strip 이 다시 돌면 보일러 7개 + 표기정규화 19개 = 26개 정규식을
+     본문 전체에 세 번씩 돌리게 된다. 실측으로 그 중복이 37ms 였다.
+     그래서 ckw_rank 는 한 번만 정규화해 두고 이 함수들에 넘긴다. */
+function ckw_tokOf(s){
+	var out = [], seen = {}, m;
 	CKW_TOK_RX.lastIndex = 0;
 	while((m = CKW_TOK_RX.exec(s)) !== null){
 		/* 조사를 떼기 "전에" 어미부터 본다.
@@ -391,40 +446,47 @@ function ckw_set(arr){
  *
  * ★ 그래서 "안 자르는" 대신 "자른 채로 맞춰 보고, 보여줄 때만 원문 표기를 되찾는다".
  *   과거 건과 현재 건이 똑같이 "검사결" 이 되므로 매칭은 그대로 맞고, 상담원 눈에는
- *   "검사결과" 로 보인다. 사전도 규칙도 필요 없다.
+ *   "검사결과" 로 보인다.
  *
- * 방법: 원문에서 이 토큰으로 시작하는 자리를 보고, 뒤에 한글이 안 붙는 형태가
- *       한 번이라도 있으면 그게 완성형이다. 없으면 한 글자씩 늘려 본다(최대 3글자).
+ * ★★ 한때 이걸 "그때그때 본문을 보고 알아서 늘리는" 방식으로 만들었다가 크게 데었다.
+ *    「뒤에 한글이 안 붙는 형태가 나올 때까지 늘린다」로 했더니, 멀쩡한 명사에 조사를
+ *    도로 붙여서 화면에 이렇게 나왔다.
+ *        보건소 → "보건소에서"      명부통계 → "명부통계에서"
+ *        전송여부 → "전송여부를"    과별수진자인원통계 → "과별수진자인원통계로"
+ *    "보건소" 가 그 병원 이력에서 늘 "보건소에서" 로만 나오면 그게 완성형으로 보인다.
+ *
+ *    「뒤에 오는 글자가 한 가지뿐이면 단어의 일부」라는 규칙으로 바꿔 보니 위 네 개는
+ *    잡혔지만, 후보가 200건뿐이라 근거가 모자라서 여전히 2.1% 가 샜다
+ *    ("업데이트"→"업데이트가", "승인"→"승인이", "복구"→"복구가").
+ *
+ *    => 추측을 그만두고 목록으로 못박는다. 전수 25,963건에서 "조사를 떼면 줄기가
+ *       단독으로는 한 번도 안 쓰이는 말" 38종을 뽑아 사람이 걸러낸 결과가 아래다.
+ *       목록에 없으면 예전처럼 잘린 채로 보일 뿐이고, 멀쩡한 말에 조사가 붙는 일은
+ *       구조적으로 일어나지 않는다. 손해의 크기가 다르기 때문에 이쪽이 맞다.
+ *         목록에 없어서 "검사결" 로 보임 → 드물고, 손대기 전과 같은 수준
+ *         멀쩡한 말이 "보건소에서" 로 보임 → 흔하고, 고장난 것처럼 보인다
  */
-var CKW_JOSA1 = (function(){
-	var m = {}, a = ['은','는','이','가','을','를','의','에','도','만','과','와','로','랑'], i;
-	for(i=0; i<a.length; i++) m[a[i]] = 1;
+var CKW_RESTORE = (function(){
+	var m = {}, a = (''
+		/* 진료과 — 줄기가 단독으로 쓰이는 일이 없어 안전하다 */
+		+ '정형외 정형외과 신경외 신경외과 산부인 산부인과 가정의학 가정의학과 '
+		+ '이비인후 이비인후과 소아청소년 소아청소년과 영상의학 영상의학과 '
+		+ '진단검사의학 진단검사의학과 마취통증의학 마취통증의학과 재활의학 재활의학과 '
+		+ '비뇨의학 비뇨의학과 흉부외 흉부외과 성형외 성형외과 '
+		/* 업무 용어 */
+		+ '검사결 검사결과 조회결 조회결과 진료결 진료결과 재문 재문의 주치 주치의 '
+		+ '일반수 일반수가 표준수 표준수가 표준단 표준단가 심전 심전도 만족 만족도 '
+		+ '간호필요 간호필요도 전달경 전달경로 엑스레 엑스레이 매크 매크로 '
+		+ '초기평 초기평가 적정성평 적정성평가 수혈적정성평 수혈적정성평가 '
+		+ '마취적정성평 마취적정성평가 전실전 전실전과'
+	).split(/\s+/), i;
+	for(i=0; i+1<a.length; i+=2) if(a[i] !== '') m[a[i]] = a[i+1];
 	return m;
 })();
 
-function ckw_surface(tok, text){
-	if(!/^[가-힣]+$/.test(tok)) return tok;					/* 영문·숫자·코드는 그대로 */
-	var s = String(ckw_nvl(text,'')), add, i, p, best = tok;
-	for(add=0; add<=3; add++){
-		var cand = null;
-		for(p = s.indexOf(tok); p >= 0; p = s.indexOf(tok, p + 1)){
-			var w = s.substr(p, tok.length + add);
-			if(w.length < tok.length + add) continue;		/* 문자열 끝이라 못 늘림 */
-			if(!/^[가-힣]+$/.test(w)) continue;
-			var nx = s.charAt(p + w.length);
-			if(nx !== '' && /[가-힣]/.test(nx)) continue;	/* 뒤에 한글이 더 붙는다 */
-			cand = w; break;
-		}
-		if(!cand) continue;
-		/* 두 글자 이상 늘려서야 겨우 찾았다면, 마지막 한 글자는 조사일 가능성이 높다.
-		   "조회결" 을 찾다가 "조회결과가" 밖에 없었던 경우가 그렇다. 한 글자만 늘렸을 때는
-		   그 글자가 단어의 일부이므로(검사결+과) 떼면 안 된다. */
-		if(add >= 2 && CKW_JOSA1[cand.charAt(cand.length - 1)]) cand = cand.substr(0, cand.length - 1);
-		best = cand;
-		break;
-	}
-	return best;
-}
+/* 2026-10-01 현재 호출부 없음. "그 외 키워드" 칩을 내리면서 같이 쉬게 됐다.
+   그 칩을 되살리면(ckw_rank 의 주석 참고) 다시 필요하므로 지우지 않았다. */
+function ckw_surface(tok){ return CKW_RESTORE[tok] || tok; }
 
 /* =============================================================================
  * 2) 키워드 추출
@@ -550,8 +612,11 @@ var CKW_SYMPTOM = [
 ];
 
 /* 증상 코드 배열을 돌려준다. 예) ['안됨','오류'] */
-function ckw_symps(text){
-	var s = ckw_strip(text), out = [], i;
+function ckw_symps(text){ return ckw_sympsOf(ckw_strip(text)); }
+
+/* 이미 ckw_strip() 을 거친 텍스트용 (ckw_tokOf 와 같은 이유) */
+function ckw_sympsOf(s){
+	var out = [], i;
 	for(i=0; i<CKW_SYMPTOM.length; i++) if(CKW_SYMPTOM[i][2].test(s)) out.push(CKW_SYMPTOM[i][0]);
 	return out;
 }
@@ -590,18 +655,39 @@ var CKW_PLACE_MAX = 4;		/* 한 문의에서 뽑을 프로그램/화면 칩 수 �
    사전 대조가 느려 보여도 그게 맞다. */
 
 /* 후보(같은 거래처 과거 이력)의 템플릿 칸에서 이 병원이 쓰는 이름을 모은다. */
+/* 같은 이름을 여러 표기로 적은 것을 한 덩어리로 모은다.
+   실측하면 한 이름이 여러 표기로 갈린다. 예를 들어 "외래접수수납" 은
+   「외래접수 및 수납 / 외래접수및수납 / 외래 접수, 수납 / 외래접수/수납 / …」 13가지였고,
+   칸에 쓰인 값 3,607종이 실제로는 3,027개 이름이었다(표기만 다른 것 580건).
+   표기별로 따로 두면 칩이 여러 개로 갈라져서 상담원 눈에 다른 프로그램처럼 보인다.
+   → 글자만 남긴 형태를 열쇠로 묶고, 표기 하나만 대표로 쓴다. */
 function ckw_dictBuild(list){
-	var m = {}, out = [], i, v, t;
+	var m = {}, out = [], i, t, key;
+
+	function put(val){
+		if(!val || val.length < 3 || val.length > 20) return;
+		var k = ckw_flat(val);
+		if(k.length < 2) return;
+		var e = m[k];
+		if(!e){ m[k] = { s:val }; return; }
+		/* 대표 표기는 군더더기 기호가 적은 쪽 ("병동업무、" 보다 "병동업무") */
+		if(val !== e.s && val.length - k.length < e.s.length - k.length) e.s = val;
+	}
+
 	for(i=0; i<list.length; i++){
 		/* 라벨("1. 프로그램명 :")이 살아 있어야 하므로 ckw_strip 이 아니라 ckw_alias 를 쓴다 */
 		t = ckw_alias(list[i].call_content);
-		v = ckw_field(t, '프로그램명'); if(v && v.length >= 3 && v.length <= 20) m[v] = 1;
-		v = ckw_field(t, '화면명');     if(v && v.length >= 3 && v.length <= 20) m[v] = 1;
+		put(ckw_field(t, '프로그램명'));
+		put(ckw_field(t, '화면명'));
 	}
-	for(v in m) out.push(v);
-	for(i=0; i<CKW_PLACE_SEED.length; i++) if(CKW_PLACE_SEED[i] !== '' && !m[CKW_PLACE_SEED[i]]) out.push(CKW_PLACE_SEED[i]);
-	/* 긴 이름을 먼저 봐야 "외래접수수납" 을 두고 "외래접수" 로 잡는 일이 없다 */
-	out.sort(function(a, b){ return b.length - a.length; });
+	for(i=0; i<CKW_PLACE_SEED.length; i++) put(CKW_PLACE_SEED[i]);
+
+	/* 긴 이름을 먼저 봐야 "외래접수수납" 을 두고 "외래접수" 로 잡는 일이 없다.
+	   기호를 뺀 실제 글자 수로 재야 "청구 / 심사" 가 "외래접수수납" 보다 길다고 나오지 않는다. */
+	var ord = [];
+	for(key in m) ord.push({ s:m[key].s, n:key.length });
+	ord.sort(function(a, b){ return b.n - a.n; });
+	for(i=0; i<ord.length; i++) out.push(ord[i].s);
 	return out;
 }
 
@@ -769,7 +855,10 @@ function ckw_extract(){
 	var prog = ckw_field(q, '프로그램명');
 	if(prog !== '') chips.push(ckw_chip('prog', '프로그램', prog, ckw_tok(prog)));
 	var scrn = ckw_field(q, '화면명');
-	if(scrn !== '') chips.push(ckw_chip('screen', '화면', scrn, ckw_tok(scrn)));
+	/* 두 칸에 같은 이름을 적는 사람이 많다. 기호·띄어쓰기만 다른 경우도 같은 것으로 본다
+	   ("진료-수술실업무" / "진료 수술실업무"). 칩 두 개로 보이면 다른 곳처럼 읽힌다. */
+	if(scrn !== '' && ckw_flat(scrn) !== ckw_flat(prog))
+		chips.push(ckw_chip('screen', '화면', scrn, ckw_tok(scrn)));
 
 	/* T4 환자 : 템플릿 환자등록번호 + 본문 "이름(번호)" 패턴 */
 	var pno = ckw_field(q, '환자등록번호');
@@ -809,9 +898,13 @@ function ckw_extract(){
    사전이 후보 조회 뒤에야 만들어지므로 ckw_extract() 와 분리되어 있다.
    템플릿 칸으로 이미 잡힌 이름과 겹치면 넣지 않는다. */
 function ckw_addPlaceChips(){
+	/* ★ 글자만 남긴 형태로 비교해야 한다. 예전에는 칩 라벨을 글자 그대로 맞춰 봐서,
+	     템플릿 칸이 "진료-수술실업무" 이고 본문에서 "진료 수술실업무" 를 찾으면
+	     같은 프로그램인데도 칩이 두 개로 갈라졌다. */
 	var have = '', i;
 	for(i=0; i<ckw.chips.length; i++)
-		if(ckw.chips[i].k === 'prog' || ckw.chips[i].k === 'screen') have += '\u0001' + ckw.chips[i].label;
+		if(ckw.chips[i].k === 'prog' || ckw.chips[i].k === 'screen')
+			have += '\u0001' + ckw_flat(ckw.chips[i].label);
 
 	var found = ckw_placeFind(ckw_scoreText(), ckw.dict || []);
 	ckw.place = [];
@@ -819,7 +912,8 @@ function ckw_addPlaceChips(){
 		if(ckw.chips[i].k === 'prog' || ckw.chips[i].k === 'screen') ckw.place.push(ckw.chips[i].label);
 
 	for(i=0; i<found.length; i++){
-		if(have.indexOf(found[i]) >= 0) continue;		/* 템플릿 칸 값에 포함된 이름 */
+		if(have.indexOf(ckw_flat(found[i])) >= 0) continue;	/* 템플릿 칸 값에 이미 들어 있는 이름 */
+		have += '\u0001' + ckw_flat(found[i]);
 		ckw.chips.push(ckw_chip('prog', '프로그램', found[i], ckw_tok(found[i])));
 		ckw.place.push(found[i]);
 	}
@@ -938,8 +1032,8 @@ function ckw_rank(list){
 		var no = ckw_nvl(it.as_no,'');
 		if(no === '' || no === me) continue;					/* 지금 보고 있는 건 제외 */
 		var body = ckw_nvl(it.call_content,'');
-		var norm = ckw_strip(body);							/* 표기 정규화까지 끝난 본문 */
-		var toks = ckw_tok(body);
+		var norm = ckw_strip(body);							/* 표기 정규화까지 끝난 본문 (한 번만) */
+		var toks = ckw_tokOf(norm);
 		ckw.docs.push({
 			it   : it,
 			no   : no,
@@ -948,7 +1042,7 @@ function ckw_rank(list){
 			nf   : ckw_flat(norm),						/* 띄어쓰기까지 지운 것 */
 			toks : toks,
 			set  : ckw_set(toks),
-			sym  : ckw_set(ckw_symps(body)),					/* 무슨 문제였나 */
+			sym  : ckw_set(ckw_sympsOf(norm)),					/* 무슨 문제였나 */
 			iq   : (myIq !== '' && ckw_nvl(it.inquiry_type,'') === myIq) ? 1 : 0,
 			sc   : (mySc !== '' && ckw_nvl(it.service_cate,'') === mySc) ? 1 : 0,
 			rec  : Math.exp(-ckw_gapDays(myDt, ckw_nvl(it.accept_dt,'')) / CKW_W.half),
@@ -983,19 +1077,23 @@ function ckw_rank(list){
 		for(j=0; j<mySym.length; j++)   if(d.sym[mySym[j]]){ d.sy = 1; break; }
 	}
 
-	/* 칩 글자를 원문 표기로 되돌릴 때 볼 텍스트.
-	   현재 문의에만 "검사결과가" 처럼 조사가 붙은 꼴만 있을 수 있어서, 과거 건 본문까지
-	   같이 본다. 그래야 "검사결과" 라는 완성형을 찾아낼 확률이 높다. */
-	var buf = [ckw_strip(ckw_scoreText())];
-	for(i=0; i<ckw.docs.length; i++) buf.push(ckw.docs[i].nb);
-	ckw.corpus = buf.join('\n');
-
-	/* 업무 키워드(T6) 칩 — 현재 문의 토큰 중 IDF 상위. 구조화 칩이 이미 잡은 토큰은 뺀다. */
+	/* [AX Lab] 삭제 (2026-10-01 AX Lab): "그 외 키워드" 칩 줄을 내리지 않는다.
+	   실제 화면에서 "칸이 1 · 이유 1 · 마취 1 · 수술실 2 · 업무 14" 처럼 떴다.
+	   IDF 상위를 뽑는 것까지는 맞는데, 형태소 분석기 없이 뽑다 보니 한 어절이 쪼개진
+	   조각("마취"/"수술실")이나 아무 데나 나오는 말("업무"/"이유")이 올라와서,
+	   상담원이 이걸 보고 판단할 게 없었다. 어디서·무슨 문제 두 줄이 하는 일을
+	   흐리기만 한다.
+	   ★ 되돌리려면 아래 한 줄의 주석만 풀면 된다. ckw_addTermChips() 와
+	     CKW_TERM_MAX, CKW_GROUP의 term:4 는 그대로 남겨 뒀다.
+	   ★ 연관 이력 랭킹에는 영향이 없다. 점수는 칩이 아니라 본문 토큰 전체(ckw.qset)로
+	     매기기 때문이다(ckw_rescore 참고). 바뀌는 건 "눌러서 거르는" 칩이 줄어드는 것뿐.
 	ckw_addTermChips();
+	*/
 	ckw_rescore();
 }
 
-/* 구조화 칩이 이미 쓰는 토큰 집합 */
+/* 구조화 칩이 이미 쓰는 토큰 집합.
+   ↓ 아래 둘도 2026-10-01 현재 호출부 없음 ("그 외 키워드" 칩 전용). 되살릴 때를 위해 남겨 둔다. */
 function ckw_structToks(){
 	var m = {}, i, j;
 	for(i=0; i<ckw.chips.length; i++){
@@ -1034,7 +1132,7 @@ function ckw_addTermChips(){
 		c.hit  = cand[n].hit;
 		/* 맞춰 보는 건 잘린 토큰 그대로 두고, 화면에 쓸 글자만 원문에서 되찾는다.
 		   (검사결 -> 검사결과, 정형외 -> 정형외과) key 는 label 로 만드니 건드리지 않는다. */
-		c.disp = ckw_surface(cand[n].t, ckw.corpus || '');
+		c.disp = ckw_surface(cand[n].t);
 		ckw.chips.push(c);
 	}
 }
@@ -1138,8 +1236,13 @@ function ckw_kindNm(k){
    예전에는 한 줄에 평평하게 늘어놔서, "마약류통합정보조회" 와 "것처럼" 이 같은
    무게로 보였다. 무엇을 먼저 봐야 하는지가 화면에 드러나야 한다. */
 function ckw_chipsHtml(){
+	/* "그 외 키워드" 줄을 걷어낸 뒤로는 칩이 하나도 없는 경우가 27.6% 다(표본 6,000건).
+	   드문 사고가 아니라 흔한 정상 상태라는 뜻이다. 고시·공지처럼 프로그램도 증상도
+	   없는 문의가 실제로 그만큼 있다. 그래서 "없습니다" 로 끝내면 안 된다.
+	   아래 연관 이력은 칩과 무관하게 본문 전체로 찾으므로, 그 점을 같이 적어 준다. */
 	if(!ckw.chips.length){
-		return '<div class="ckw-none">문의 내용에서 뽑을 만한 키워드가 없습니다.</div>';
+		return '<div class="ckw-none">문의 내용에서 프로그램·증상을 찾지 못했습니다.'
+		     + ' 아래 연관 이력은 본문 전체를 기준으로 찾았습니다.</div>';
 	}
 	var order = [], i;
 	for(i=0; i<ckw.chips.length; i++) order.push(i);
@@ -1226,7 +1329,7 @@ function ckw_listHtml(){
 		  +  '</button>';
 	}
 	if(ckw.ranked.length > n){
-		s += '<div class="ckw-more">관련도 하위 ' + (ckw.ranked.length - n) + '건은 아래 기간별 이력에서 확인할 수 있습니다.</div>';
+		s += '<div class="ckw-more">관련도 높은 순 상위 ' + n + '건입니다. 나머지는 아래 기간별 이력에서 확인할 수 있습니다.</div>';
 	}
 	return s;
 }
@@ -1235,7 +1338,21 @@ function ckw_render(){
 	var box = ckw_mount();
 	if(!box) return;
 
-	var cnt = (ckw.state === 'done') ? ckw.ranked.length : 0;
+	/* ★ 여기에 ckw.ranked.length 를 그대로 쓰면 안 된다.
+	     ranked 는 "점수를 매겨 줄 세운 후보 전체"라 과거 200건 중 122건이 들어가기도 한다.
+	     정작 화면에는 상위 5건만 나오는데 머리말만 "연관 이력 122건" 이라고 적히니,
+	     상담원 입장에서는 관련 건이 122개나 있다는 말로 읽힌다. 실제로 이게 "내용이
+	     이상하다" 로 보였다.
+	     분류코드(문의유형/서비스분류)만 같아서 들어온 건은 세지 않고, 본문에 실제 근거가
+	     있는 것만 센다. 컷 자체를 좁히는 것은 따로 재봤는데 정답을 놓쳐서(MRR 0.564 ->
+	     0.464, 누락 154 -> 247건) 쓰면 안 된다. 세는 기준만 바꾼다. */
+	var cnt = 0, ri;
+	if(ckw.state === 'done'){
+		for(ri=0; ri<ckw.ranked.length; ri++){
+			var rr = ckw.ranked[ri];
+			if(rr.d.ref || rr.hits.length || rr.d.pg || rr.d.sy) cnt++;
+		}
+	}
 	var selOn = false;
 	for(var k in ckw.sel){ if(ckw.sel[k]){ selOn = true; break; } }
 
