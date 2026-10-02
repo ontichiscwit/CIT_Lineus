@@ -418,9 +418,27 @@ function caws_renderHead(){
 	var stCode = caws_stCode();
 	var stNm   = caws_stNm();
 	var custNm = caws_nvl(row.cust_kor_name, caws_nvl(vo.cust_kor_name,'-'));
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 통합 타임라인 헤더를 접수 요약 카드 형태로 재구성 */
+	var custCode = caws_nvl(row.cust_code, caws_nvl(vo.cust_code,'-'));
 	var applyNm = caws_nvl(vo.apply_nm, caws_nvl(vo.rl_apply_nm,'-'));
-	var acceptDt = caws_nvl(vo.accept_dt, caws_nvl(row.accept_dt,''));
-	var acceptTm = caws_time(caws_nvl(vo.accept_time,''));
+	var applyTel = caws_nvl(vo.apply_tel,'-');
+	var smsYn = caws_nvl(vo.send_sms,'');
+	var smsTxt = (smsYn === 'Y') ? 'SMS 동의' : ((smsYn === 'N') ? 'SMS 미동의' : 'SMS 미지정');
+	var reqTypeNm = caws_nvl(row.request_type_nm, caws_codeNm('AS','CD07',caws_nvl(vo.request_type,'')));
+	if(reqTypeNm === '') reqTypeNm = '-';
+	var sysType = caws_nvl(row.service_cate_nm,'');
+	if(sysType !== '' && caws_nvl(row.inquiry_type_nm,'') !== '') sysType += ' / '+row.inquiry_type_nm;
+	if(sysType === ''){
+		sysType = caws_codeNm('AS','CD03',caws_nvl(vo.service_cate,''));
+		if(sysType !== '' && caws_nvl(vo.inquiry_type,'') !== ''){
+			sysType += ' / '+caws_codeNm('AS',caws_nvl(vo.service_cate,''),vo.inquiry_type);
+		}
+	}
+	if(sysType === '') sysType = '-';
+	var procDt = caws_date(caws_nvl(vo.proc_dt,''));
+	var procTm = caws_time(caws_nvl(vo.proc_time,''));
+	if(procDt === '') procDt = '-';
+	if(procTm !== '') procDt += ' '+procTm;
 	var gradeNm = caws_gradeNm();
 	if(gradeNm === '-') gradeNm = '';			/* 중요도 미지정이면 칩을 아예 그리지 않는다 */
 	var gradeCls = (caws_gradeCode() === 'C001') ? 'grade emc' : 'grade';
@@ -429,29 +447,43 @@ function caws_renderHead(){
 
 	var h = ''
 	+ '<div class="caws-h1">'
-	+   '<div class="caws-h1l">'
-	+     '<div class="caws-title" title="'+caws_esc(custNm)+'">'+caws_esc(caws.asNo)+' · '+caws_esc(custNm)+'</div>'
-	+     '<div class="caws-meta">신청자 '+caws_esc(applyNm)+' · 접수 '+caws_esc(caws_date(acceptDt))+(acceptTm ? ' '+caws_esc(acceptTm) : '')+' · 담당 '+caws_esc(empNm)+'</div>'
+	+   '<div class="caws-hmain">'
+	+     '<strong class="caws-hno">'+caws_esc(caws.asNo)+'</strong>'
+	+     '<span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span>'
+	+     '<strong class="caws-hcust" title="'+caws_esc(custNm)+'">'+caws_esc(custNm)+'</strong>'
+	+     '<span class="caws-hcode">'+caws_esc(custCode)+'</span>'
 	+   '</div>'
 	+   '<div class="caws-hbadge">'
 	+     (gradeNm ? '<span class="'+gradeCls+'" title="중요도">'+caws_esc(gradeNm)+'</span>' : '')
-	+     '<span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span>'
+	+     '<span class="caws-hemp">담당 <b>'+caws_esc(empNm)+'</b></span>'
 	+   '</div>'
 	+ '</div>'
-	+ '<div class="caws-acts">'
-	/* [AX Lab] 삭제 (2026-09-30 AX Lab): 처리 작성은 우측 처리상태사항의 조치이력 입력란에서 수행하므로 중복 버튼 제거 */
-	+   '<div class="caws-sp"></div>'
-	+   '<button type="button" class="btn-s" onclick="asws_openFull();" title="접수처리정보의 값은 오른쪽 패널에서 클릭해 바로 수정할 수 있고, 그 외 항목은 전체 상세 페이지에서 수정합니다">전체 상세 페이지</button>'
+	+ '<div class="caws-hinfo">'
+	+   caws_headInfo('신청자', applyNm)
+	+   '<div class="caws-hi caws-hi-contact"><span>신청자 연락처 · 수신동의</span><b>'+caws_esc(applyTel)
+	+     ' <em class="caws-sms '+(smsYn === 'Y' ? 'on' : '')+'">'+caws_esc(smsTxt)+'</em></b></div>'
+	+   caws_headInfo('문의유형', reqTypeNm)
+	+   caws_headInfo('시스템구분', sysType)
+	+   caws_headInfo('처리예정일', procDt)
 	+ '</div>'
-	+ '<div class="caws-tabs">'
-	+   caws_tabBtn('all',  '전체',      c.all)
-	+   caws_tabBtn('talk', '문의·답변', c.talk)
-	+   caws_tabBtn('act',  '조치',      c.act)
-	/* [AX Lab] 수정 (2026-09-30 AX Lab): 이관 탭 제거 — 조치이력 테이블 통합으로 불필요 */
+	+ '<div class="caws-headtools">'
+	+   '<div class="caws-tabs">'
+	+     caws_tabBtn('all',  '전체',      c.all)
+	+     caws_tabBtn('talk', '문의·답변', c.talk)
+	+     caws_tabBtn('act',  '조치',      c.act)
+	+   '</div>'
+	+   '<button type="button" class="btn-s" onclick="asws_openFull();" title="접수처리정보의 값은 오른쪽 패널에서 클릭해 바로 수정할 수 있고, 그 외 항목은 전체 상세 페이지에서 수정합니다">전체 상세 페이지</button>'
 	+ '</div>';
 
 	caws_html('asDetailHead', h);
+	/* [AX Lab] 수정 끝 */
 }
+
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 헤더 요약정보 셀 공통 렌더 */
+function caws_headInfo(label, value){
+	return '<div class="caws-hi"><span>'+caws_esc(label)+'</span><b title="'+caws_esc(value)+'">'+caws_esc(value)+'</b></div>';
+}
+/* [AX Lab] 수정 끝 */
 
 function caws_tabBtn(key, label, cnt){
 	return '<button type="button" class="caws-tab'+(caws.tab===key ? ' on' : '')+'" onclick="caws_tab(\''+key+'\');">'
@@ -519,13 +551,11 @@ function caws_renderTimeline(){
 
 	/* --- 문의 + 답변 버블 섹션 --- */
 	var s = '<div class="caws-tl">';
-	var aiDone = false;
 	for(var j=0; j<talkEvs.length; j++){
 		s += caws_evHtml(talkEvs[j].ev, talkEvs[j].idx);
-		if(!aiDone && talkEvs[j].ev.kind === 'q'){ s += caws_aiHintHtml(); aiDone = true; }
 	}
-	/* CALL_CONTENT 가 비어 문의 이벤트가 없는 예외 데이터에도 AI 블록은 표시한다 */
-	if(!aiDone) s += caws_aiHintHtml();
+	/* [AX Lab] 삭제 (2026-10-02 AX Lab): 문의 아래 파란 AI 안내 블록 제거.
+	   AI 추천 진입점은 문의 카드 우측 상단의 caws_aiRecommendHtml()로 이동했다. */
 	s += '</div>';
 
 	/* --- 조치이력 테이블 섹션 (필터탭 호환을 위해 .caws-ev[data-grp="act"] 래퍼 사용) --- */
@@ -547,7 +577,9 @@ function caws_renderTimeline(){
 }
 /* [AX Lab] 수정 끝 */
 
-/* 문의 고정 구간(#asDetailInq) 아래에 붙는 'AI 추천' 안내 블록.
+/* [AX Lab] 삭제 (2026-10-02 AX Lab): 아래 AI 안내 블록은 더 이상 호출하지 않으며,
+   문의 카드 우측 상단 팝오버(caws_aiRecommendHtml)로 대체한다.
+   문의 고정 구간(#asDetailInq) 아래에 붙던 'AI 추천' 안내 블록.
    스타일은 combine-as.css 393~397행 .aiblock 그대로 쓴다.
    ★ 필터탭(전체/문의·답변/조치/이관)의 show/hide 는 #asDetail 안의 .caws-ev 에만 적용되므로
      이 블록은 어떤 탭에서도 항상 보인다.
@@ -560,6 +592,49 @@ function caws_aiHintHtml(){
 	     +     '작성 중인 문장 다듬기는 아래 작성영역의 [AI 문장 다듬기] 버튼에서 미리 사용해볼 수 있습니다.</div>'
 	     + '</div>';
 }
+
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 카드 우측 상단 AI 추천 버튼/팝오버 */
+function caws_aiRecommendHtml(){
+	return '<span class="caws-aiwrap">'
+	     +   '<button type="button" class="caws-aibtn" aria-expanded="false" onclick="caws_aiToggle(this,event);" title="AI 추천 보기">'
+	     +     '<span class="caws-aiico" aria-hidden="true">✦</span> AI 추천 <b>3</b><span class="caws-aicaret">⌄</span>'
+	     +   '</button>'
+	     +   '<span class="caws-aipop" onclick="if(event)event.stopPropagation();">'
+	     +     '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em>추후 제공</em></span>'
+	     +     '<span class="caws-aipitem"><i>1</i><span><b>유사 상담사례</b><small>문의 내용과 유사한 해결 사례를 추천합니다.</small></span></span>'
+	     +     '<span class="caws-aipitem"><i>2</i><span><b>관련 공지사항</b><small>업무에 참고할 공지와 운영정보를 찾습니다.</small></span></span>'
+	     +     '<span class="caws-aipitem"><i>3</i><span><b>답변 초안</b><small>문의 내용을 바탕으로 답변 초안을 작성합니다.</small></span></span>'
+	     +   '</span>'
+	     + '</span>';
+}
+function caws_aiToggle(btn, evt){
+	if(evt && evt.stopPropagation) evt.stopPropagation();
+	var wrap = btn ? btn.parentNode : null;
+	if(!wrap) return;
+	var open = !wrap.classList.contains('open');
+	var all = document.querySelectorAll('#asWorkspace .caws-aiwrap.open');
+	for(var i=0; i<all.length; i++){
+		all[i].classList.remove('open');
+		var oldBtn = all[i].querySelector('.caws-aibtn');
+		if(oldBtn) oldBtn.setAttribute('aria-expanded','false');
+	}
+	if(open){
+		wrap.classList.add('open');
+		btn.setAttribute('aria-expanded','true');
+	}
+	if(!caws._aiCloseBound){
+		document.addEventListener('click', function(){
+			var opened = document.querySelectorAll('#asWorkspace .caws-aiwrap.open');
+			for(var j=0; j<opened.length; j++){
+				opened[j].classList.remove('open');
+				var b = opened[j].querySelector('.caws-aibtn');
+				if(b) b.setAttribute('aria-expanded','false');
+			}
+		});
+		caws._aiCloseBound = true;
+	}
+}
+/* [AX Lab] 수정 끝 */
 
 function caws_evHtml(ev, idx){
 	if(ev.kind === 'tr') return caws_trHtml(ev, idx);
@@ -579,6 +654,9 @@ function caws_evHtml(ev, idx){
 	         이 문의 버블로 이동. (접수처리정보 영역에서는 요청내용을 더 이상 표시하지 않는다) */
 	      + (ev.kind === 'q' && caws_nvl(caws.asNo,'') !== ''
 	          ? '<button type="button" class="caws-minib" onclick="caws_qEdit();" title="요청내용을 이 자리에서 바로 수정합니다">수정</button>' : '')
+	      /* [AX Lab] 수정 끝 */
+	      /* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 내용 우측 상단에 AI 추천 팝오버 배치 */
+	      + (ev.kind === 'q' ? caws_aiRecommendHtml() : '')
 	      /* [AX Lab] 수정 끝 */
 	      + '</div>';
 
