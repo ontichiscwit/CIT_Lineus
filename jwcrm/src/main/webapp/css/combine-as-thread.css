@@ -479,6 +479,25 @@
 #asWorkspace .caws-batchmemo-wrap{margin-top:9px; padding-top:8px; border-top:1px solid var(--line);}
 #asWorkspace .caws-batchmemo-wrap .caws-req{margin-left:4px; font-size:10px; font-weight:500; color:var(--red);}
 #asWorkspace .caws-batchmemo{max-width:none; min-height:64px;}
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부 */
+#asWorkspace .caws-batchfiles{margin-top:7px;}
+#asWorkspace .caws-batchfiles-head{display:flex; align-items:center; gap:6px;}
+#asWorkspace .caws-batchfiles-head > span{font-size:10.5px; font-weight:600; color:var(--ink-2);}
+#asWorkspace .caws-batchfiles-head .caws-minib{margin-left:auto;}
+#asWorkspace .caws-batchfiles-head input[type=file]{display:none;}
+#asWorkspace .caws-batchfiles-list{display:flex; flex-direction:column; gap:4px; margin-top:6px;}
+#asWorkspace .caws-batchfile{
+  display:flex; align-items:center; gap:5px; min-width:0; padding:4px 6px;
+  border:1px solid var(--line); border-radius:6px; background:var(--surface);
+  font-size:10.5px; color:var(--ink-2);
+}
+#asWorkspace .caws-batchfile > span{min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-batchfile > button{
+  flex:0 0 auto; width:17px; height:17px; border:1px solid var(--line); border-radius:50%;
+  background:var(--surface); color:var(--ink-3); font-size:11px; line-height:14px;
+}
+#asWorkspace .caws-batchfile > button:hover{border-color:var(--red); color:var(--red);}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 
 /* =============================================================================

@@ -639,6 +639,11 @@ public class AdAsController {
 	// [AX Lab] 수정 끝
 	// [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 상·하단 버튼 일괄 저장
 	} else if("saveRecordBatch".equals(vo.getPageType())) {
+		// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부 업로드 후 히스토리 FILE_SEQ로 전달
+		if(request instanceof MultipartHttpServletRequest) {
+			procAswsRecordFiles(vo, (MultipartHttpServletRequest)request) ;
+		}
+		// [AX Lab] 수정 끝
 		returnValue = asService.updateAsRecordBatch(vo, userInfo) ;
 	// [AX Lab] 수정 끝
 	// [AX Lab] 수정 시작 (2026-07-31 AX Lab): AS 통합화면 아코디언 그룹별 인라인 편집(접수정보/고객사정보/
@@ -1068,6 +1073,30 @@ public class AdAsController {
 		}
 
 		return returnValue ;
+	}
+	// [AX Lab] 수정 끝
+
+	// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 접수처리정보 조치이력 복수 첨부
+	/**
+	 * 일괄 저장 요청의 actionUpload_* 파일을 하나의 첨부 묶음으로 저장하고
+	 * 서비스가 생성할 CRM_AS_MGT_HIST 행에 연결할 ATTACH_SEQ2를 VO에 설정한다.
+	 */
+	private void procAswsRecordFiles(AsVO vo, MultipartHttpServletRequest multiRequest) throws Exception {
+		List<FileVO> fileList = commonFileService.uploadFormFile(multiRequest, "as") ;
+		if(fileList == null || fileList.size() == 0) {
+			vo.setAttach_seq2(0) ;
+			return ;
+		}
+
+		int attachSeq = 0 ;
+		for(FileVO file : fileList) {
+			if(!file.getAttach_tag_name().startsWith("actionUpload_")) continue ;
+			if(attachSeq == 0) attachSeq = commonFileService.getMaxFileSeq() ;
+			file.setAttach_seq(attachSeq) ;
+			file.setAttach_ord(commonFileService.getMaxFileOrd(file)) ;
+			commonFileService.insertFile(file) ;
+		}
+		vo.setAttach_seq2(attachSeq) ;
 	}
 	// [AX Lab] 수정 끝
 

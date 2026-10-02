@@ -1067,8 +1067,8 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 
 	// [AX Lab] 수정 시작 (2026-09-30 AX Lab): 통합화면 접수처리정보 일괄 저장
 	/**
-	 * 접수처리정보 편집값을 한 번의 UPDATE로 반영하고, 처리상태/담당자가 바뀌면
-	 * 같은 트랜잭션에서 조치이력 한 건을 생성한다.
+	 * 접수처리정보 편집값을 한 번의 UPDATE로 반영하고, 조치이력 컬럼·메모·첨부가 바뀌면
+	 * 같은 트랜잭션에서 현재 컬럼값을 담은 조치이력 한 건을 생성한다.
 	 */
 	@Override
 	public int updateAsRecordBatch(AsVO vo, UserVO adUserInfo) throws Exception {
@@ -1098,19 +1098,44 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 			vo.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type()));
 		}
 
+		// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 컬럼 변경 여부를 현재 DB값과 비교
+		String curProcDt = SsStringUtil.normalizeNull(cur.getProc_dt()).replaceAll("/", "").trim();
+		String curImportance = SsStringUtil.normalizeNull(cur.getInportance()).trim();
+		String curRequestType = SsStringUtil.normalizeNull(cur.getRequest_type()).trim();
+		String curServiceCate = SsStringUtil.normalizeNull(cur.getService_cate()).trim();
+		String curInquiryType = SsStringUtil.normalizeNull(cur.getInquiry_type()).trim();
+
+		String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim();
+		String newImportance = SsStringUtil.normalize(vo.getInportance(), curImportance).trim();
+		String newRequestType = SsStringUtil.normalize(vo.getRequest_type(), curRequestType).trim();
+		String newServiceCate = SsStringUtil.normalize(vo.getService_cate(), curServiceCate).trim();
+		String newInquiryType = SsStringUtil.normalize(vo.getInquiry_type(), curInquiryType).trim();
+
+		boolean procDtChanged = !newProcDt.equals(curProcDt);
+		boolean importanceChanged = !newImportance.equals(curImportance);
+		boolean requestTypeChanged = !newRequestType.equals(curRequestType);
+		boolean serviceCateChanged = !newServiceCate.equals(curServiceCate);
+		boolean inquiryTypeChanged = !newInquiryType.equals(curInquiryType);
+		boolean historyColumnChanged = statusChanged || assignChanged || procDtChanged
+				|| importanceChanged || requestTypeChanged || serviceCateChanged || inquiryTypeChanged;
+		// [AX Lab] 수정 끝
+
 		vo.setAs_no(asNo);
 		vo.setReg_id(adUserInfo.getEmp_no());
 		vo.setProc_status(newStatus);
 		vo.setAssign_id(newAssign);
-		vo.setProc_dt(SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim());
+		vo.setProc_dt(newProcDt);
+		vo.setInportance(newImportance);
+		vo.setRequest_type(newRequestType);
+		vo.setService_cate(newServiceCate);
+		vo.setInquiry_type(newInquiryType);
 		vo.setComplete_dt(SsStringUtil.normalizeNull(vo.getComplete_dt()).replaceAll("/", "").trim());
-		vo.setAttach_seq2(0);
 
 		int returnValue = commonDAO.update(vo, "asDAO.updateAsRecordBatch");
 		if (returnValue <= 0) return returnValue;
 
-		/* 상태/담당자 변경 또는 명시적인 조치메모가 있을 때만 한 건으로 기록한다. */
-		if (statusChanged || assignChanged || !"".equals(comment)) {
+		/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 컬럼/메모/첨부 중 하나라도 바뀌면 한 건으로 기록 */
+		if (historyColumnChanged || !"".equals(comment) || vo.getAttach_seq2() > 0) {
 			AsVO hist = new AsVO();
 			hist.setSeq(String.valueOf(commonDAO.selectOneInt(vo, "asDAO.getAsHistMaxSeq")));
 			hist.setAs_no(asNo);
@@ -1118,14 +1143,15 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 			hist.setAssign_id(newAssign);
 			hist.setProc_status(newStatus);
 			hist.setAction_content(assignChanged ? "[이관] " + comment : comment);
-			hist.setAttach_seq2(0);
+			hist.setAttach_seq2(vo.getAttach_seq2());
 			hist.setReg_id(adUserInfo.getEmp_no());
-			hist.setInportance(SsStringUtil.normalizeNull(vo.getInportance()));
-			hist.setRequest_type(SsStringUtil.normalizeNull(vo.getRequest_type()));
-			hist.setService_cate(SsStringUtil.normalizeNull(vo.getService_cate()));
-			hist.setInquiry_type(SsStringUtil.normalizeNull(vo.getInquiry_type()));
+			hist.setInportance(newImportance);
+			hist.setRequest_type(newRequestType);
+			hist.setService_cate(newServiceCate);
+			hist.setInquiry_type(newInquiryType);
 			commonDAO.insert(hist, "asDAO.insertAsInfoHist");
 		}
+		/* [AX Lab] 수정 끝 */
 
 		return returnValue;
 	}

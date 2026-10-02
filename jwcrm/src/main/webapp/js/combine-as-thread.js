@@ -36,6 +36,9 @@ var caws = {
 	act:{ empList:[], assignId:'', assignNm:'' },	/* 담당자 이관 팝오버 상태 */
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 일괄 편집 상태 */
 	batch:false, batchOriginal:null, batchRowOriginal:null, batchMemo:'',
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 저장 전 복수 첨부 보관 */
+	batchFiles:[],
+	/* [AX Lab] 수정 끝 */
 	restoreScroll:null,
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 필드 단위 클릭 즉시 수정(click-to-edit).
@@ -182,7 +185,7 @@ function caws_renderAll(data){
 	caws.act.empList = [];		/* 담당자 이관 팝오버 목록은 건마다 새로 로드 */
 	caws.fld = '';				/* [AX Lab] 수정 (2026-07-31 AX Lab): 필드 편집상태는 건이 바뀌면 항상 초기화 */
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조회 완료 시 일괄 편집 임시값 초기화 */
-	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = '';
+	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.batchFiles = [];
 	/* [AX Lab] 수정 끝 */
 
 	caws.events = caws_buildEvents();
@@ -1127,6 +1130,7 @@ function caws_batchStart(){
 	caws.batchOriginal = caws_clone(caws.vo);
 	caws.batchRowOriginal = caws_clone(caws.row);
 	caws.batchMemo = '';
+	caws.batchFiles = [];
 	caws.batch = true;
 }
 function caws_batchBegin(){ caws_batchStart(); caws.fld = ''; caws_renderRecord(); }
@@ -1140,7 +1144,7 @@ function caws_batchChanged(key){
 }
 function caws_batchHasChanges(){
 	for(var i=0; i<CAWS_BATCH_FIELDS.length; i++) if(caws_batchChanged(CAWS_BATCH_FIELDS[i])) return true;
-	return caws_nvl(caws.batchMemo,'').trim() !== '';
+	return caws_nvl(caws.batchMemo,'').trim() !== '' || caws.batchFiles.length > 0;
 }
 function caws_batchHistoryChanged(){
 	return caws_batchChanged('proc_status') || caws_batchChanged('assign_id');
@@ -1149,7 +1153,7 @@ function caws_batchCancel(){
 	if(caws_batchHasChanges() && !confirm('저장하지 않은 변경내용을 취소하시겠습니까?')) return;
 	caws.vo = caws_clone(caws.batchOriginal);
 	caws.row = caws_clone(caws.batchRowOriginal);
-	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.fld = '';
+	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.batchFiles = []; caws.fld = '';
 	caws_renderHead(); caws_renderRecord();
 }
 function caws_syncBatchHead(){
@@ -1172,14 +1176,28 @@ function caws_batchSave(){
 		if(memoEl) memoEl.focus();
 		return;
 	}
-	var d = { as_no:caws.asNo, pageType:'saveRecordBatch', action_content:memo };
-	for(var i=0; i<CAWS_BATCH_FIELDS.length; i++) d[CAWS_BATCH_FIELDS[i]] = caws_nvl((caws.vo||{})[CAWS_BATCH_FIELDS[i]],'');
-	common.ajaxCall(d, '/ad/as/histProc.do', 'caws_batchReturn');
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부를 포함해 multipart로 일괄 저장 */
+	var fd = new FormData();
+	fd.append('as_no', caws.asNo);
+	fd.append('pageType', 'saveRecordBatch');
+	fd.append('action_content', memo);
+	for(var i=0; i<CAWS_BATCH_FIELDS.length; i++){
+		fd.append(CAWS_BATCH_FIELDS[i], caws_nvl((caws.vo||{})[CAWS_BATCH_FIELDS[i]],''));
+	}
+	for(var fi=0; fi<caws.batchFiles.length; fi++){
+		fd.append('actionUpload_'+fi, caws.batchFiles[fi]);
+	}
+	$.ajax({
+		url:'/ad/as/histProc.do', type:'POST', data:fd, processData:false, contentType:false, dataType:'json',
+		success:caws_batchReturn,
+		error:function(){ alert('변경사항 또는 첨부파일 저장 중 오류가 발생했습니다.'); }
+	});
+	/* [AX Lab] 수정 끝 */
 }
 function caws_batchReturn(data){
 	var code = (data && typeof data.returnCode != 'undefined') ? data.returnCode : '';
 	if(code !== '000'){ alert('변경사항 저장 중 오류가 발생했습니다.'); return; }
-	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.fld = '';
+	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.batchFiles = []; caws.fld = '';
 	alert('변경사항을 저장했습니다.');
 	caws_reload(true);
 }
@@ -1187,13 +1205,48 @@ function caws_batchMemoInput(el){
 	if(!caws.batch) caws_batchStart();
 	caws.batchMemo = el ? String(el.value||'') : '';
 }
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부 선택/제거 */
+function caws_batchFilesPick(el){
+	if(!caws.batch) caws_batchStart();
+	var list = (el && el.files) ? el.files : [];
+	for(var i=0; i<list.length; i++){
+		if(caws.batchFiles.length >= CAWS_MAX_FILES){
+			alert('조치이력 첨부파일은 한 번에 최대 '+CAWS_MAX_FILES+'개까지 등록할 수 있습니다.');
+			break;
+		}
+		caws.batchFiles.push(list[i]);
+	}
+	if(el) el.value = '';
+	caws_renderRecord();
+}
+function caws_batchFileRemove(idx){
+	if(idx < 0 || idx >= caws.batchFiles.length) return;
+	caws.batchFiles.splice(idx, 1);
+	caws_renderRecord();
+}
+function caws_batchFilesHtml(){
+	var s = '<div class="caws-batchfiles"><div class="caws-batchfiles-head">'
+	      + '<span>첨부파일</span><button type="button" class="caws-minib" onclick="caws_el(\'cawsBatchFilePick\').click();">+ 파일 추가</button>'
+	      + '<input type="file" id="cawsBatchFilePick" multiple onchange="caws_batchFilesPick(this);" /></div>';
+	if(caws.batchFiles.length){
+		s += '<div class="caws-batchfiles-list">';
+		for(var i=0; i<caws.batchFiles.length; i++){
+			s += '<span class="caws-batchfile"><span title="'+caws_esc(caws.batchFiles[i].name)+'">'+caws_esc(caws.batchFiles[i].name)+'</span>'
+			  + '<button type="button" onclick="caws_batchFileRemove('+i+');" title="선택 파일 제거">×</button></span>';
+		}
+		s += '</div>';
+	}
+	return s + '</div>';
+}
+/* [AX Lab] 수정 끝 */
 function caws_batchMemoHtml(){
 	return '<div class="caws-batchmemo-wrap">'
 	     + '<label class="caws-aclb">조치이력 <span class="caws-req">처리상태·담당자 변경 시 필수</span></label>'
 	     + '<textarea id="cawsBatchMemo" class="caws-ta caws-fta caws-batchmemo" '
 	     + 'oninput="caws_batchMemoInput(this);caws_autoGrow(this);" '
 	     + 'placeholder="처리상태·담당자 변경 사유 또는 함께 남길 조치내용을 입력하세요.">'
-	     + caws_esc(caws.batchMemo) + '</textarea></div>';
+	     + caws_esc(caws.batchMemo) + '</textarea>'
+	     + caws_batchFilesHtml() + '</div>';
 }
 /* [AX Lab] 수정 끝 */
 
