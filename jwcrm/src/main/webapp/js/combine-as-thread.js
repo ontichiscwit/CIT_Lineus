@@ -1157,7 +1157,11 @@ function caws_syncBatchHead(){
 	if(!box) return;
 	if(caws_nvl(caws.asNo,'') === ''){ box.innerHTML = ''; return; }
 	/* [AX Lab] 수정 (2026-09-30 AX Lab): 상태에 따라 수정/취소로 바꾸지 않고 저장 버튼 하나만 유지 */
-	box.innerHTML = '<button type="button" class="btn-s primary" onclick="caws_batchSave();">저장</button>';
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 필드 blur 재렌더 중 버튼 DOM이 교체되어 click이 유실되지 않게 유지 */
+	if(!box.querySelector('button')){
+		box.innerHTML = '<button type="button" class="btn-s primary" onclick="caws_batchSave();">저장</button>';
+	}
+	/* [AX Lab] 수정 끝 */
 }
 function caws_batchSave(){
 	if(!caws.batch || !caws_batchHasChanges()){ alert('변경된 내용이 없습니다.'); return; }
@@ -1363,13 +1367,15 @@ function caws_fldReturn(data){
 /* ---- 인라인 컨트롤 빌더 --------------------------------------------------- */
 function caws_fldSelHtml(key){
 	return '<select id="cawsFldIn" class="caws-fin"'
-	 + ' onchange="caws_fldCommit(\''+key+'\');" onblur="caws_fldBlurCancel(\''+key+'\');"'
+	 /* [AX Lab] 수정 (2026-10-02 AX Lab): 저장 버튼 클릭 전 blur가 발생해도 선택값을 취소하지 않고 확정 */
+	 + ' onchange="caws_fldCommit(\''+key+'\');" onblur="caws_fldBlur(\''+key+'\');"'
 	 + ' onkeydown="caws_fldKey(event,\''+key+'\');"></select>';
 }
 /* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리담당자도 중요도와 동일한 인라인 select로 편집 */
 function caws_fldAssignHtml(){
 	return '<select id="cawsFldIn" class="caws-fin"'
-	 + ' onchange="caws_fldCommit(\'assign\');" onblur="caws_fldBlurCancel(\'assign\');"'
+	 /* [AX Lab] 수정 (2026-10-02 AX Lab): 저장 버튼 클릭 전 담당자 선택값도 확정 */
+	 + ' onchange="caws_fldCommit(\'assign\');" onblur="caws_fldBlur(\'assign\');"'
 	 + ' onkeydown="caws_fldKey(event,\'assign\');"><option value="">불러오는 중...</option></select>';
 }
 function caws_inlineEmpOptions(){
@@ -2337,25 +2343,35 @@ function caws_kv(k, v){
 }
 /* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 고객사/신청자 상세 페이지 이동 */
 function caws_detailKv(k, v, type){
-	var disabled = caws_nvl(v,'') === '' ? ' disabled' : '';
 	return '<div class="kv"><span class="k">'+caws_esc(k)+'</span><span class="v caws-telv">'
 	     + '<span>'+caws_esc(caws_nvl(v,'-'))+'</span>'
-	     + '<button type="button" class="caws-minib" onclick="caws_openInfoDetail(\''+type+'\');"'+disabled+'>상세보기</button>'
+	     + '<button type="button" class="caws-minib" onclick="caws_openInfoDetail(\''+type+'\');">상세보기</button>'
 	     + '</span></div>';
 }
 function caws_openInfoDetail(type){
-	var vo = caws.vo || {}, ci = caws.custInfo || {};
+	var vo = caws.vo || {}, row = caws.row || {}, ci = caws.custInfo || {};
+	var url = '';
 	if(type === 'cust'){
 		var seq = caws_nvl(ci.seq,'');
 		if(seq === ''){ alert('고객사 상세정보를 찾을 수 없습니다.'); return; }
-		location.href = '/ad/cust/form.do?pageType=update&seq='+encodeURIComponent(seq)
-			+ '&cust_kor_name='+encodeURIComponent(caws_nvl(ci.cust_kor_name, caws_nvl((caws.row||{}).cust_kor_name,'')))
+		url = '/ad/cust/form.do?pageType=update&seq='+encodeURIComponent(seq)
+			+ '&cust_kor_name='+encodeURIComponent(caws_nvl(ci.cust_kor_name, caws_nvl(row.cust_kor_name,'')))
 			+ '&crm_code='+encodeURIComponent(caws_nvl(vo.cust_code,''));
-		return;
+	}else{
+		/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 상세 응답에 ID가 없으면 목록행 값을 보조로 사용 */
+		var applyId = caws_nvl(vo.apply_id, caws_nvl(row.apply_id,''));
+		if(applyId === ''){ alert('A/S신청자 아이디가 없어 상세정보를 열 수 없습니다.'); return; }
+		url = '/ad/member/form.do?pageType=update&emp_id='+encodeURIComponent(applyId);
+		/* [AX Lab] 수정 끝 */
 	}
-	var applyId = caws_nvl(vo.apply_id,'');
-	if(applyId === ''){ alert('A/S신청자 아이디가 없습니다.'); return; }
-	location.href = '/ad/member/form.do?pageType=update&emp_id='+encodeURIComponent(applyId);
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 현재 통합화면을 유지하고 상세정보는 새 탭으로 표시 */
+	var detailWindow = window.open(url, '_blank');
+	if(detailWindow){
+		try{ detailWindow.opener = null; }catch(e){}
+	}else{
+		alert('새 탭을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인해주세요.');
+	}
+	/* [AX Lab] 수정 끝 */
 }
 /* [AX Lab] 수정 끝 */
 /* 코드값을 공통코드 명칭으로 바꾼다. 목록행(row)에 *_nm 이 없는 항목(접수경로/처리구분)에 쓴다. */
@@ -2457,7 +2473,7 @@ function caws_renderRecord(){
 	   + caws_kv('고객사주소', caws_nvl(ci.cust_address,'-'))
 	   + caws_kv('우편번호', caws_nvl(ci.zip_code,'-'))
 	   + caws_kv('고객사 연락처', caws_nvl(ci.tel_no,'-'))
-	   + caws_detailKv('A/S신청자 아이디', caws_nvl(vo.apply_id,''), 'member');
+	   + caws_detailKv('A/S신청자 아이디', caws_nvl(vo.apply_id, caws_nvl(row.apply_id,'')), 'member');
 
 	/* [AX Lab] 수정 (2026-07-31 AX Lab): '문의유형정보' 별도 그룹(b6) 제거 —
 	   문의유형/시스템유형/버전정보는 위 접수정보(b1)로 통합, 요청내용은 COL2 문의 버블로 이동. */
