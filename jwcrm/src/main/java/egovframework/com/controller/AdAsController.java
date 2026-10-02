@@ -649,7 +649,13 @@ public class AdAsController {
 	} else if("saveCust".equals(vo.getPageType())) {
 		returnValue = procAswsSaveCust(vo, userInfo) ;
 	} else if("saveInquiry".equals(vo.getPageType())) {
-		returnValue = procAswsSaveInquiry(vo, userInfo) ;
+		// [AX Lab] 수정 시작 (2026-10-02 AX Lab): multipart 요청이면 문의내용과 접수 첨부를 함께 저장
+		if(request instanceof MultipartHttpServletRequest) {
+			returnValue = procAswsSaveInquiryWithFiles(vo, userInfo, (MultipartHttpServletRequest)request) ;
+		} else {
+			returnValue = procAswsSaveInquiry(vo, userInfo) ;
+		}
+		// [AX Lab] 수정 끝
 	} else if("saveDone".equals(vo.getPageType())) {
 		returnValue = procAswsSaveDone(vo, userInfo) ;
 	} else if("saveDoneDt".equals(vo.getPageType())) {
@@ -1010,6 +1016,60 @@ public class AdAsController {
 
 		return commonDAO.update(upd, "asDAO.updateAsInquiry") ;
 	}
+
+	// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의내용 첨부 추가·삭제
+	/**
+	 * 문의내용과 접수 첨부를 함께 저장한다.
+	 * 기존 파일 수정은 해당 순번 삭제 후 새 파일을 추가하는 방식이며,
+	 * CRM_AS_MGT.FILE_SEQ가 없는 건은 새 첨부 묶음 번호를 발급해 좁은 쿼리로 연결한다.
+	 */
+	private int procAswsSaveInquiryWithFiles(AsVO vo, UserVO userInfo,
+			MultipartHttpServletRequest multiRequest) throws Exception {
+		int returnValue = procAswsSaveInquiry(vo, userInfo) ;
+		if(returnValue <= 0 || userInfo == null) return returnValue ;
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(SsStringUtil.normalizeNull(vo.getAs_no()).trim()) ;
+		curKey.setReg_id(userInfo.getEmp_no()) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		int fileSeq = SsStringUtil.parseInt(SsStringUtil.normalizeNull(cur.getFile_seq()), 0) ;
+		String delAttach1 = SsStringUtil.normalizeNull(vo.getDelAttach1()).trim() ;
+		if(fileSeq > 0 && !"".equals(delAttach1)) {
+			String[] delOrds = delAttach1.split("@") ;
+			for(String delOrd : delOrds) {
+				if(delOrd != null && delOrd.matches("\\d+")) {
+					FileVO delFile = new FileVO() ;
+					delFile.setAttach_seq(fileSeq) ;
+					delFile.setAttach_ord(Integer.parseInt(delOrd)) ;
+					commonFileService.deleteFileInfo(delFile) ;
+				}
+			}
+		}
+
+		List<FileVO> fileList = commonFileService.uploadFormFile(multiRequest, "as") ;
+		if(fileList != null && fileList.size() > 0) {
+			if(fileSeq == 0) fileSeq = commonFileService.getMaxFileSeq() ;
+			for(FileVO file : fileList) {
+				if(!file.getAttach_tag_name().startsWith("inquiryUpload_")) continue ;
+				file.setAttach_seq(fileSeq) ;
+				file.setAttach_ord(commonFileService.getMaxFileOrd(file)) ;
+				commonFileService.insertFile(file) ;
+			}
+
+			if(SsStringUtil.parseInt(SsStringUtil.normalizeNull(cur.getFile_seq()), 0) == 0) {
+				AsVO fileUpd = new AsVO() ;
+				fileUpd.setAs_no(curKey.getAs_no()) ;
+				fileUpd.setReg_id(userInfo.getEmp_no()) ;
+				fileUpd.setFile_seq(String.valueOf(fileSeq)) ;
+				commonDAO.update(fileUpd, "asDAO.updateAsInquiryFileSeq") ;
+			}
+		}
+
+		return returnValue ;
+	}
+	// [AX Lab] 수정 끝
 
 	/** 처리완료사항 — 처리예정일자/시각 / 원인유형 / 조치유형 / 작업시간 / 처리완료일자 */
 	private int procAswsSaveDone(AsVO vo, UserVO userInfo) throws Exception {

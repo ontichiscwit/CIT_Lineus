@@ -27,6 +27,9 @@ var caws = {
 	tab:'all',			/* 타임라인 필터탭 : all | talk | act | tr */
 	ctab:'ans',			/* 작성영역 (고객 답변만 남음 — act 탭은 COL3 처리 패널로 이동) */
 	fileSeq:0,			/* 첨부 슬롯 이름 채번용 (uploadFile{n}) */
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 첨부 편집용 신규 파일 input 채번 */
+	qFileSeq:0,
+	/* [AX Lab] 수정 끝 */
 	lb:{ list:[], idx:0 },
 	past:{ quick:'1w', list:[] },
 	emp:{ list:[], sel:'', selNm:'' },	/* 구 이관모달용 - 하위호환 유지 */
@@ -60,8 +63,9 @@ var CAWS_MAX_FILES = 5;
 var CAWS_IMG_EXT = ['jpg','jpeg','png','gif','bmp','webp','svg'];
 var CAWS_PDF_EXT = ['pdf'];
 
-/* COL3 아코디언 펼침상태 저장키 (asws_restoreListWide 와 동일한 sessionStorage 패턴) */
-var CAWS_ACC_KEY = 'caws_acc_open';
+/* COL3 아코디언 펼침상태 저장키 (asws_restoreListWide 와 동일한 sessionStorage 패턴)
+   [AX Lab] 수정 (2026-10-02 AX Lab): 고객사정보 기본 접힘을 기존 사용자에게도 최초 1회 적용하도록 키 버전 갱신 */
+var CAWS_ACC_KEY = 'caws_acc_open_v2';
 /* 상세 넓게 보기 저장키 */
 var CAWS_DW_KEY = 'caws_detail_wide';
 /* 하단 작성영역 펼침상태 저장키. 기본은 "접힘" 이다 (타임라인 높이 확보) */
@@ -172,6 +176,9 @@ function caws_renderAll(data){
 	caws.hist   = data.asHistList || [];
 	caws.attach1 = data.attachList  || [];
 	caws.attach2 = data.attachList2 || [];
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 접수건 변경 시 문의 첨부 input 채번 초기화 */
+	caws.qFileSeq = 0;
+	/* [AX Lab] 수정 끝 */
 	caws.act.empList = [];		/* 담당자 이관 팝오버 목록은 건마다 새로 로드 */
 	caws.fld = '';				/* [AX Lab] 수정 (2026-07-31 AX Lab): 필드 편집상태는 건이 바뀌면 항상 초기화 */
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조회 완료 시 일괄 편집 임시값 초기화 */
@@ -420,7 +427,9 @@ function caws_renderHead(){
 	var custNm = caws_nvl(row.cust_kor_name, caws_nvl(vo.cust_kor_name,'-'));
 	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 통합 타임라인 헤더를 접수 요약 카드 형태로 재구성 */
 	var custCode = caws_nvl(row.cust_code, caws_nvl(vo.cust_code,'-'));
-	var applyNm = caws_nvl(vo.apply_nm, caws_nvl(vo.rl_apply_nm,'-'));
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 로그인 회원명(apply_nm)이 아닌 실제 A/S 신청자명 표시 */
+	var applyNm = caws_nvl(vo.rl_apply_nm,'-');
+	/* [AX Lab] 수정 끝 */
 	var applyTel = caws_nvl(vo.apply_tel,'-');
 	var smsYn = caws_nvl(vo.send_sms,'');
 	var smsTxt = (smsYn === 'Y') ? 'SMS 동의' : ((smsYn === 'N') ? 'SMS 미동의' : 'SMS 미지정');
@@ -653,7 +662,7 @@ function caws_evHtml(ev, idx){
 	      /* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 요청내용(call_content) 수정을 COL3 접수처리정보에서
 	         이 문의 버블로 이동. (접수처리정보 영역에서는 요청내용을 더 이상 표시하지 않는다) */
 	      + (ev.kind === 'q' && caws_nvl(caws.asNo,'') !== ''
-	          ? '<button type="button" class="caws-minib" onclick="caws_qEdit();" title="요청내용을 이 자리에서 바로 수정합니다">수정</button>' : '')
+	          ? '<button type="button" class="caws-minib" onclick="caws_qEdit();" title="문의내용과 첨부파일을 수정합니다">내용·첨부 수정</button>' : '')
 	      /* [AX Lab] 수정 끝 */
 	      /* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 내용 우측 상단에 AI 추천 팝오버 배치 */
 	      + (ev.kind === 'q' ? caws_aiRecommendHtml() : '')
@@ -685,11 +694,14 @@ function caws_evHtml(ev, idx){
 function caws_qEdit(){
 	var box = caws_el('cawsQBody');
 	if(!box || caws_el('cawsQTa')) return;		/* 이미 편집 중이면 무시 */
-	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 수정 모드에서 버블 레이아웃 유지
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 수정 모드에서 문의내용과 기존/신규 첨부를 함께 관리
 	   기존 대형 앰버(act) 전송 버튼을 소형 btn-s primary 버튼으로 교체해
-	   [수정] 클릭 시 화면이 완전히 바뀌는 것처럼 보이는 문제를 해소한다. */
+	   [수정] 클릭 시 화면이 완전히 바뀌는 것처럼 보이는 문제를 해소한다.
+	   기존 파일은 삭제 선택, 새 파일은 추가 선택으로 받아 저장 시 한 번에 반영한다. */
+	caws.qFileSeq = 0;
 	box.innerHTML = '<textarea id="cawsQTa" class="caws-ta caws-fta" oninput="caws_autoGrow(this);"'
 	 + ' onkeydown="if(event.keyCode===27)caws_qCancel();"></textarea>'
+	 + caws_qFileEditorHtml()
 	 + '<div class="caws-cbar" style="margin-top:6px;">'
 	 +   '<span class="caws-mnote" style="margin:0;">Esc 키 또는 [취소]로 원래대로</span>'
 	 +   '<span class="caws-sp"></span>'
@@ -706,21 +718,72 @@ function caws_qEdit(){
 	}
 }
 function caws_qCancel(){ caws_renderTimeline(); }
+
+/* 문의 원본 첨부 삭제 선택 + 신규 첨부 추가 UI */
+function caws_qFileEditorHtml(){
+	var files = caws.attach1 || [];
+	var s = '<div class="caws-qfiles"><div class="caws-qfiles-h"><strong>문의 첨부파일</strong>'
+	      + '<button type="button" class="caws-minib" onclick="caws_qAddFile();">+ 파일 추가</button></div>';
+	if(files.length){
+		s += '<div class="caws-qfiles-old">';
+		for(var i=0; i<files.length; i++){
+			s += '<label><input type="checkbox" class="caws-qdel" value="'+caws_esc(caws_fileOrd(files[i]))+'" />'
+			  + '<span>'+caws_esc(caws_fileNm(files[i]))+'</span><em>삭제</em></label>';
+		}
+		s += '</div>';
+	}else{
+		s += '<div class="caws-mnote">등록된 첨부파일이 없습니다.</div>';
+	}
+	return s + '<div id="cawsQNewFiles" class="caws-qfiles-new"></div>'
+	     + '<div class="caws-mnote">파일 수정은 기존 파일을 삭제하고 새 파일을 추가하는 방식으로 처리됩니다.</div></div>';
+}
+function caws_qAddFile(){
+	var wrap = caws_el('cawsQNewFiles');
+	if(!wrap) return;
+	if(wrap.querySelectorAll('input[type=file]').length >= CAWS_MAX_FILES){
+		alert('새 첨부파일은 한 번에 최대 '+CAWS_MAX_FILES+'개까지 추가할 수 있습니다.');
+		return;
+	}
+	var n = caws.qFileSeq++;
+	var row = document.createElement('div');
+	row.className = 'caws-qfile-new';
+	row.innerHTML = '<input type="file" id="cawsQFile_'+n+'" />'
+		+ '<button type="button" class="caws-fx" onclick="this.parentNode.parentNode.removeChild(this.parentNode);" title="선택 파일 제거">×</button>';
+	wrap.appendChild(row);
+}
 function caws_qSave(){
 	var ta = caws_el('cawsQTa');
 	if(!ta) return;
 	var v = String(ta.value||'').trim();
 	if(v === ''){ alert('요청내용을 입력해주세요.'); ta.focus(); return; }
 	var vo = caws.vo || {};
-	if(v === caws_nvl(vo.call_content,'')){ caws_qCancel(); return; }	/* 미변경 = 조용히 닫기 */
-	common.ajaxCall({
-		as_no: caws.asNo,
-		pageType: 'saveInquiry',
-		request_type: caws_nvl(vo.request_type,''),
-		service_cate: caws_nvl(vo.service_cate,''),
-		inquiry_type: caws_nvl(vo.inquiry_type,''),
-		call_content: v
-	}, '/ad/as/histProc.do', 'caws_fldReturn');
+	var dels = [], delEls = document.querySelectorAll('#cawsQBody .caws-qdel:checked');
+	for(var i=0; i<delEls.length; i++) dels.push(delEls[i].value);
+	var inputs = document.querySelectorAll('#cawsQNewFiles input[type=file]');
+	var selected = [];
+	for(var j=0; j<inputs.length; j++){ if(inputs[j].files && inputs[j].files.length) selected.push(inputs[j].files[0]); }
+	if(v === caws_nvl(vo.call_content,'') && !dels.length && !selected.length){ caws_qCancel(); return; }
+
+	var fd = new FormData();
+	fd.append('as_no', caws.asNo);
+	fd.append('pageType', 'saveInquiry');
+	fd.append('request_type', caws_nvl(vo.request_type,''));
+	fd.append('service_cate', caws_nvl(vo.service_cate,''));
+	fd.append('inquiry_type', caws_nvl(vo.inquiry_type,''));
+	fd.append('call_content', v);
+	fd.append('delAttach1', dels.join('@'));
+	for(var k=0; k<selected.length; k++) fd.append('inquiryUpload_'+k, selected[k]);
+
+	$.ajax({
+		url:'/ad/as/histProc.do', type:'POST', data:fd, processData:false, contentType:false, dataType:'json',
+		success:caws_qSaveReturn,
+		error:function(){ alert('문의내용 또는 첨부파일 저장 중 오류가 발생했습니다.'); }
+	});
+}
+function caws_qSaveReturn(data){
+	var code = (data && typeof data.returnCode != 'undefined') ? data.returnCode : '';
+	if(code !== '000'){ alert('문의내용 또는 첨부파일 저장 중 오류가 발생했습니다.'); return; }
+	caws_reload(true);
 }
 /* [AX Lab] 수정 끝 */
 
@@ -2238,8 +2301,8 @@ function caws_goBoard(gbn, num){
  * ========================================================================== */
 function caws_accOpen(){
 	/* [AX Lab] 수정 (2026-07-31 AX Lab): 문의유형정보(inquiry) 그룹을 접수정보(accept)에 통합해 제거.
-	   기본값 : 접수정보 / 고객사정보 / 처리상태사항 펼침, 처리완료 관련 접힘 */
-	var def = { accept:1, cust:1, proc:1, done:0, donedt:0 };
+	   [AX Lab] 수정 (2026-10-02 AX Lab): 고객사정보는 최상단에서 기본 접힘 */
+	var def = { accept:1, cust:0, proc:1, done:0, donedt:0 };
 	try{
 		var raw = sessionStorage.getItem(CAWS_ACC_KEY);
 		if(raw){
@@ -2272,6 +2335,29 @@ function caws_accBox(key, title, summary, body, st){
 function caws_kv(k, v){
 	return '<div class="kv"><span class="k">'+caws_esc(k)+'</span><span class="v">'+caws_esc(caws_nvl(v,'-'))+'</span></div>';
 }
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 고객사/신청자 상세 페이지 이동 */
+function caws_detailKv(k, v, type){
+	var disabled = caws_nvl(v,'') === '' ? ' disabled' : '';
+	return '<div class="kv"><span class="k">'+caws_esc(k)+'</span><span class="v caws-telv">'
+	     + '<span>'+caws_esc(caws_nvl(v,'-'))+'</span>'
+	     + '<button type="button" class="caws-minib" onclick="caws_openInfoDetail(\''+type+'\');"'+disabled+'>상세보기</button>'
+	     + '</span></div>';
+}
+function caws_openInfoDetail(type){
+	var vo = caws.vo || {}, ci = caws.custInfo || {};
+	if(type === 'cust'){
+		var seq = caws_nvl(ci.seq,'');
+		if(seq === ''){ alert('고객사 상세정보를 찾을 수 없습니다.'); return; }
+		location.href = '/ad/cust/form.do?pageType=update&seq='+encodeURIComponent(seq)
+			+ '&cust_kor_name='+encodeURIComponent(caws_nvl(ci.cust_kor_name, caws_nvl((caws.row||{}).cust_kor_name,'')))
+			+ '&crm_code='+encodeURIComponent(caws_nvl(vo.cust_code,''));
+		return;
+	}
+	var applyId = caws_nvl(vo.apply_id,'');
+	if(applyId === ''){ alert('A/S신청자 아이디가 없습니다.'); return; }
+	location.href = '/ad/member/form.do?pageType=update&emp_id='+encodeURIComponent(applyId);
+}
+/* [AX Lab] 수정 끝 */
 /* 코드값을 공통코드 명칭으로 바꾼다. 목록행(row)에 *_nm 이 없는 항목(접수경로/처리구분)에 쓴다. */
 function caws_codeNm(cg, pc, code){
 	code = caws_nvl(code,'');
@@ -2323,7 +2409,7 @@ function caws_renderRecord(){
 	var acceptRouteNm = caws_codeNm('AS','CD02', caws_nvl(vo.accept_route,''));
 	var reqTypeNm = (!caws.batch && caws_nvl(row.request_type_nm,'') !== '') ? row.request_type_nm : caws_codeNm('AS','CD07', caws_nvl(vo.request_type,''));
 
-	/* --- 접수정보 : 접수경로만 편집 가능(나머지는 이력성 값이라 조회 전용)
+	/* --- 접수정보 : 접수경로와 A/S신청자 정보를 편집 가능
 	   + 하위작업 생성 / 상위접수번호 / 연관접수번호 (원본 form.jsp 접수정보와 동일 구성) --- */
 	var parentNo = caws_nvl(vo.cn_as_no, caws_nvl(caws.cnAsNo,''));
 	var b1 = '<div class="kv"><span class="k">접수번호</span><span class="v">'+caws_esc(caws.asNo)
@@ -2354,24 +2440,24 @@ function caws_renderRecord(){
 	   + caws_kv('버전정보', caws_nvl(vo.version_info,'-'));
 	/* [AX Lab] 수정 끝 */
 
-	/* --- 고객사정보 : 실신청자/연락처/SMS수신동의만 편집 가능
-	   (고객사명·코드/신청자ID·이름은 원본 화면에서도 조회 모달로만 바꿀 수 있어 조회 전용 유지)
-	   HIS 진료/주소/고객사 연락처는 CRM_CUST_MGT 쪽 값이라 caws.custInfo(getCustInfo2.do)에서 채운다 --- */
-	var ci = caws.custInfo || {};
-	var custAddr = caws_nvl(ci.cust_address,'');
-	if(custAddr !== '' && caws_nvl(ci.zip_code,'') !== '') custAddr += ' ('+ci.zip_code+')';
+	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): A/S신청자 이름/연락처/SMS는 접수정보로 이동 */
 	var smsDisp = (caws_nvl(vo.send_sms,'') === 'Y') ? '동의' : ((caws_nvl(vo.send_sms,'') === 'N') ? '미동의' : '-');
-	var b2 = caws_kv('고객사코드', caws_nvl(row.cust_code, caws_nvl(vo.cust_code,'-')))
-	   + caws_kv('거래처명', caws_nvl(row.cust_kor_name,'-'))
+	b1 += caws_ekv('rl_apply_nm', 'A/S신청자 이름', caws_esc(caws_nvl(vo.rl_apply_nm,'-')), caws_fldTxtHtml('rl_apply_nm', caws_nvl(vo.rl_apply_nm,''), ''))
+	   + caws_ekv('apply_tel', 'A/S신청자 연락처', caws_esc(caws_nvl(vo.apply_tel,'-')), caws_fldTxtHtml('apply_tel', caws_nvl(vo.apply_tel,''), '숫자만 입력'))
+	   + caws_ekv('send_sms', 'SMS수신동의여부', caws_esc(smsDisp), caws_fldSelHtml('send_sms'));
+	/* [AX Lab] 수정 끝 */
+
+	/* --- 고객사정보 : 고객사 마스터 정보와 신청자 아이디만 표시
+	   HIS 진료/주소/우편번호/연락처는 CRM_CUST_MGT 쪽 값이라 caws.custInfo(getCustInfo2.do)에서 채운다 --- */
+	var ci = caws.custInfo || {};
+	var custNm = caws_nvl(ci.cust_kor_name, caws_nvl(row.cust_kor_name,'-'));
+	var b2 = caws_detailKv('고객사명', custNm, 'cust')
+	   + caws_kv('고객사코드', caws_nvl(row.cust_code, caws_nvl(vo.cust_code,'-')))
 	   + caws_kv('HIS 진료', caws_nvl(ci.his_treat_name,'-'))
-	   + caws_kv('고객사 주소', (custAddr !== '') ? custAddr : '-')
+	   + caws_kv('고객사주소', caws_nvl(ci.cust_address,'-'))
+	   + caws_kv('우편번호', caws_nvl(ci.zip_code,'-'))
 	   + caws_kv('고객사 연락처', caws_nvl(ci.tel_no,'-'))
-	   + caws_kv('신청자', caws_nvl(vo.apply_nm,'-'))
-	   + caws_kv('신청자 아이디', caws_nvl(vo.apply_id,'-'))
-	   + caws_ekv('rl_apply_nm', '실신청자', caws_esc(caws_nvl(vo.rl_apply_nm,'-')), caws_fldTxtHtml('rl_apply_nm', caws_nvl(vo.rl_apply_nm,''), ''))
-	   + caws_ekv('apply_tel', '연락처', caws_esc(caws_nvl(vo.apply_tel,'-')), caws_fldTxtHtml('apply_tel', caws_nvl(vo.apply_tel,''), '숫자만 입력'))
-	   + caws_ekv('send_sms', 'SMS수신동의', caws_esc(smsDisp), caws_fldSelHtml('send_sms'))
-	   + caws_kv('거래상태', caws_nvl(row.deal_code_nm,'-'));
+	   + caws_detailKv('A/S신청자 아이디', caws_nvl(vo.apply_id,''), 'member');
 
 	/* [AX Lab] 수정 (2026-07-31 AX Lab): '문의유형정보' 별도 그룹(b6) 제거 —
 	   문의유형/시스템유형/버전정보는 위 접수정보(b1)로 통합, 요청내용은 COL2 문의 버블로 이동. */
@@ -2426,10 +2512,10 @@ function caws_renderRecord(){
 
 	/* 접수정보 헤더 요약은 통합된 문의유형·시스템유형을 우선 보여준다(없으면 접수경로) */
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보는 헤더 우측 버튼으로 일괄 저장 */
-	var rec = caws_accBox('accept',  '접수정보',
+	var rec = caws_accBox('cust',    '고객사정보',     caws_nvl(row.cust_kor_name,''),   b2, st)
+	        + caws_accBox('accept',  '접수정보',
 	          (reqTypeNm !== '-' ? reqTypeNm + (sysType !== '-' ? ' · '+sysType : '')
 	                             : (acceptRouteNm !== '-' ? acceptRouteNm : '')), b1, st)
-	        + caws_accBox('cust',    '고객사정보',     caws_nvl(row.cust_kor_name,''),   b2, st)
 	        + caws_accBox('proc',    '처리상태사항',   stNm + ' · ' + empNm,             b3, st)
 	        + caws_accBox('done',    '처리완료사항',   (completeDt !== '-' ? completeDt : '미완료'), b4, st)
 	        + (devOn ? caws_accBox('donedt', '처리완료 상세', caws_nvl(vo.proc_build_info,''), b5, st) : '')
