@@ -809,8 +809,9 @@ function caws_actTableHtml(actEvs){
 		var fileHtml = '';
 		/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 상세화면과 동일하게 첨부 그룹당 버튼 하나만 표시 */
 		if(files.length){
-			fileHtml = '<button type="button" class="caws-hbtn" '
-			         + 'onclick="caws_histFiles(\''+caws_esc(seq)+'\');">첨부파일</button>';
+			fileHtml = '<button type="button" class="caws-hattach" title="첨부파일 '+files.length+'개" '
+			         + 'onclick="caws_histFiles(\''+caws_esc(seq)+'\');">'
+			         + '<span class="caws-clip" aria-hidden="true">&#128206;</span><span>'+files.length+'</span></button>';
 		}
 		/* [AX Lab] 수정 끝 */
 		s += '<tr>'
@@ -841,24 +842,38 @@ function caws_histFiles(seq){
 	if(!files.length){ alert('등록된 첨부파일이 없습니다.'); return; }
 
 	caws.lb.list = [];
-	var s = '<div style="display:flex;flex-direction:column;gap:8px;padding:14px;">';
+	var s = '<div class="caws-hflist">';
 	for(var j=0; j<files.length; j++){
 		var f = files[j];
 		caws.lb.list.push({
 			nm:caws_fileNm(f), seq:caws_fileSeq(f), ord:caws_fileOrd(f)
 		});
-		s += '<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:5px;">'
-		  +    '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+caws_esc(caws_fileNm(f))+'">'
-		  +      caws_esc(caws_fileNm(f))+'</span>'
-		  +    '<button type="button" class="btn-s primary" onclick="caws_histFileDown('+j+');">다운로드</button>'
+		s += '<div class="caws-hfrow">'
+		  +    '<span class="caws-hfname" title="'+caws_esc(caws_fileNm(f))+'">'+caws_esc(caws_fileNm(f))+'</span>'
+		  +    '<button type="button" class="btn-s caws-hfdown" onclick="caws_histFileDown('+j+');">'
+		  +      '<span aria-hidden="true">&#8595;</span> 다운로드</button>'
 		  +  '</div>';
 	}
 	s += '</div>';
 
+	var modal = caws_el('cawsLb');
+	if(modal) modal.classList.add('caws-files-mode');
 	var title = document.querySelector('#cawsLb .caws-mh h3');
 	if(title) title.innerHTML = '첨부파일';
 	caws_html('cawsLbNm', files.length+'개');
 	caws_html('cawsLbBody', s);
+	var head = document.querySelector('#cawsLb .caws-mh');
+	var allBtn = caws_el('cawsHistDownAll');
+	if(!allBtn && head){
+		allBtn = document.createElement('button');
+		allBtn.type = 'button';
+		allBtn.id = 'cawsHistDownAll';
+		allBtn.className = 'btn-s caws-hfall';
+		allBtn.onclick = caws_histFileDownAll;
+		allBtn.innerHTML = '<span aria-hidden="true">&#8595;</span> 전체 다운로드';
+		head.insertBefore(allBtn, head.querySelector('.caws-mx'));
+	}
+	if(allBtn) allBtn.style.display = '';
 	var nav = document.querySelector('#cawsLb .caws-lbnav');
 	if(nav) nav.style.display = 'none';
 	caws_openModal('cawsLb');
@@ -866,6 +881,35 @@ function caws_histFiles(seq){
 function caws_histFileDown(idx){
 	var f = caws.lb.list[idx];
 	if(f) fileDown(f.seq, f.ord);
+}
+function caws_histFileDownAll(){
+	for(var i=0; i<caws.lb.list.length; i++){
+		(function(f, idx){
+			setTimeout(function(){
+				var suffix = String(new Date().getTime())+'_'+idx;
+				var frame = document.createElement('iframe');
+				frame.name = 'cawsHistDownFrame_'+suffix;
+				frame.style.display = 'none';
+				document.body.appendChild(frame);
+				var form = document.createElement('form');
+				form.method = 'post';
+				form.action = '/comm/fileDown.do';
+				form.target = frame.name;
+				form.style.display = 'none';
+				var seq = document.createElement('input');
+				seq.type = 'hidden'; seq.name = 'attach_seq'; seq.value = f.seq;
+				var ord = document.createElement('input');
+				ord.type = 'hidden'; ord.name = 'attach_ord'; ord.value = f.ord;
+				form.appendChild(seq); form.appendChild(ord);
+				document.body.appendChild(form);
+				form.submit();
+				setTimeout(function(){
+					if(form.parentNode) form.parentNode.removeChild(form);
+					if(frame.parentNode) frame.parentNode.removeChild(frame);
+				}, 30000);
+			}, idx * 300);
+		})(caws.lb.list[i], i);
+	}
 }
 /* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
@@ -1015,8 +1059,12 @@ function caws_preview(evIdx, fileIdx){
 	if(!ev || !ev.files) return;
 
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부목록 팝업 사용 후 미리보기 모달 상태 복원 */
+	var modal = caws_el('cawsLb');
+	if(modal) modal.classList.remove('caws-files-mode');
 	var title = document.querySelector('#cawsLb .caws-mh h3');
 	if(title) title.innerHTML = '첨부 미리보기';
+	var allBtn = caws_el('cawsHistDownAll');
+	if(allBtn) allBtn.style.display = 'none';
 	var nav = document.querySelector('#cawsLb .caws-lbnav');
 	if(nav) nav.style.display = '';
 	/* [AX Lab] 수정 끝 */
