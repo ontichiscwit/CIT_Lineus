@@ -59,9 +59,8 @@ var cafm = {
 
 /* 거래처/신청자 검색 목록의 페이지당 행수 (서버 PagingVO 기본값과 동일) */
 var CAFM_PAGE_ROWS = 10;
-/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 신규/복사/하위작업 첨부파일 개수 제한 제거 */
-/* 서버의 기존 무제한 파일 저장 방식과 동일하게 처리한다. */
-/* [AX Lab] 수정 끝 */
+/* 첨부 최대 개수 (화면 제한. 통합화면 답변 첨부와 동일 정책) */
+var CAFM_MAX_FILES = 5;
 
 /* ===== 유틸 ===== */
 function cafm_el(id){ return document.getElementById(id); }
@@ -601,14 +600,16 @@ function cafm_slots(){
 	return cafm_slotBox().querySelectorAll('input[type=file]');
 }
 function cafm_pickFile(){
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부 input을 개수 제한 없이 추가 */
+	if(cafm_slots().length >= CAFM_MAX_FILES){
+		alert('첨부는 최대 ' + CAFM_MAX_FILES + '개까지 가능합니다.');
+		return;
+	}
 	var inp = document.createElement('input');
 	inp.type = 'file';
 	inp.name = 'uploadFile_' + (cafm.fileSeq++);
 	inp.onchange = cafm_thumbs;
 	cafm_slotBox().appendChild(inp);
 	inp.click();
-	/* [AX Lab] 수정 끝 */
 }
 function cafm_delFile(name){
 	var s = cafm_slots();

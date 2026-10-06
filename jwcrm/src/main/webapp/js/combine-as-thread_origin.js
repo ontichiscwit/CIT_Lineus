@@ -59,9 +59,9 @@ var caws = {
 /* 이관 코멘트 식별 접두어. AdAsController.ASWS_TRANSFER_PREFIX 와 반드시 같아야 한다. */
 var CAWS_TR_PREFIX = '[이관] ';
 
-/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 서버 정책과 동일하게 AS 첨부파일 개수 제한 제거 */
-/* 파일별/요청 전체 용량 제한은 기존 multipart 설정을 그대로 적용한다. */
-/* [AX Lab] 수정 끝 */
+/* 첨부 최대 개수. awsProc.do 는 uploadFile* 로 시작하는 파라미터를 모두 처리하므로 서버 제약은 아니고,
+   화면에서 한 번에 올릴 수 있는 개수를 제한하는 값이다. */
+var CAWS_MAX_FILES = 5;
 
 var CAWS_IMG_EXT = ['jpg','jpeg','png','gif','bmp','webp','svg'];
 var CAWS_PDF_EXT = ['pdf'];
@@ -326,6 +326,7 @@ function caws_buildEvents(){
 		return Number(caws_nvl(x.seq,0)) - Number(caws_nvl(y.seq,0));
 	});
 
+	var prevAcc = null, prevAccNm = '';
 	for(var h=0; h<hist.length; h++){
 		var hi   = hist[h];
 		var acc  = caws_nvl(hi.acceptor,'');
@@ -338,9 +339,17 @@ function caws_buildEvents(){
 		var hasPrefix = (raw.indexOf(CAWS_TR_PREFIX) === 0);
 		var comment   = hasPrefix ? raw.substr(CAWS_TR_PREFIX.length) : raw;
 
-		/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 담당자 변경 설명을 덧붙이지 않고 입력 메모만 표시 */
+		/* 인수자(ACCEPTOR)가 직전 이력행과 달라졌으면 그 사이에 이관이 있었다는 뜻.
+		   첫 행은 비교대상이 없으므로 "최초 배정"으로 보고 이관으로 취급하지 않는다. */
+		var moved = (prevAcc !== null && acc !== prevAcc);
+
+		/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 이관 이력을 조치이력 표에서 숨기지 않는다.
+		   이전 코드는 moved+접두어 행을 act에서 제외한 뒤 tr 렌더도 생략해 저장된 행이 화면에서 사라졌다. */
 		var histText = comment;
-		/* [AX Lab] 수정 끝 */
+		if(moved){
+			histText = '담당자 변경 ('+(prevAccNm || prevAcc || '미지정')+' → '+(accNm || acc || '미지정')+')'
+			         + (comment !== '' ? ': '+comment : '');
+		}
 		out.push({
 			kind:'act', grp:'act', ord:ord++,
 			ts: ts,
@@ -353,12 +362,11 @@ function caws_buildEvents(){
 			grade: caws_nvl(hi.inportance,''),
 			text: histText,
 			files: files,
-			/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 응답에 첨부목록이 없을 때 파일 그룹 재조회용 */
-			fileSeq: caws_nvl(hi.file_seq, caws_nvl(hi.attach_seq2,'0')),
-			/* [AX Lab] 수정 끝 */
 			seq: caws_nvl(hi.seq,'')
 		});
 		/* [AX Lab] 수정 끝 */
+
+		prevAcc = acc; prevAccNm = accNm;
 	}
 
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 문의(kind:'q')를 항상 맨 앞에 고정
@@ -574,9 +582,6 @@ function caws_renderTimeline(){
 	caws_html('asDetail', s);
 
 	caws_tab(caws.tab);
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 누락된 조치이력 첨부목록 보강 조회 */
-	caws_loadMissingHistFiles(actEvs);
-	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 최신순에 맞춰 조회 후 상단부터 표시 */
 	var box = caws_el('asDetail');
 	if(box) box.scrollTop = 0;
@@ -738,14 +743,16 @@ function caws_qFileEditorHtml(){
 function caws_qAddFile(){
 	var wrap = caws_el('cawsQNewFiles');
 	if(!wrap) return;
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의 첨부파일 개수 제한 제거 */
+	if(wrap.querySelectorAll('input[type=file]').length >= CAWS_MAX_FILES){
+		alert('새 첨부파일은 한 번에 최대 '+CAWS_MAX_FILES+'개까지 추가할 수 있습니다.');
+		return;
+	}
 	var n = caws.qFileSeq++;
 	var row = document.createElement('div');
 	row.className = 'caws-qfile-new';
 	row.innerHTML = '<input type="file" id="cawsQFile_'+n+'" />'
 		+ '<button type="button" class="caws-fx" onclick="this.parentNode.parentNode.removeChild(this.parentNode);" title="선택 파일 제거">×</button>';
 	wrap.appendChild(row);
-	/* [AX Lab] 수정 끝 */
 }
 function caws_qSave(){
 	var ta = caws_el('cawsQTa');
@@ -807,12 +814,12 @@ function caws_actTableHtml(actEvs){
 		var txt = caws_nvl(ev.text,'');
 		var files = ev.files || [];
 		var fileHtml = '';
-		/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 상세화면과 동일하게 첨부 그룹당 버튼 하나만 표시 */
-		if(files.length){
-			fileHtml = '<button type="button" class="caws-hbtn" '
-			         + 'onclick="caws_histFiles(\''+caws_esc(seq)+'\');">첨부파일</button>';
+		for(var f=0; f<files.length; f++){
+			var fl = files[f];
+			fileHtml += '<button type="button" class="caws-hbtn" '
+			         +  'onclick="fileDown(\''+caws_fileSeq(fl)+'\',\''+caws_fileOrd(fl)+'\');">'
+			         +  '첨부파일</button> ';
 		}
-		/* [AX Lab] 수정 끝 */
 		s += '<tr>'
 		  +  '<td>'+caws_esc(caws_nvl(ev.when,'-'))+'</td>'
 		  +  '<td>'+caws_esc(caws_nvl(ev.who,'-'))+'</td>'
@@ -826,72 +833,6 @@ function caws_actTableHtml(actEvs){
 	}
 	s += '</tbody></table></div>';
 	return s;
-}
-
-/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 조치이력 첨부 그룹의 전체 파일을 한 팝업에서 제공 */
-function caws_histFiles(seq){
-	var files = [];
-	for(var i=0; i<caws.events.length; i++){
-		var ev = caws.events[i];
-		if(ev.kind === 'act' && String(caws_nvl(ev.seq,'')) === String(seq)){
-			files = ev.files || [];
-			break;
-		}
-	}
-	if(!files.length){ alert('등록된 첨부파일이 없습니다.'); return; }
-
-	caws.lb.list = [];
-	var s = '<div style="display:flex;flex-direction:column;gap:8px;padding:14px;">';
-	for(var j=0; j<files.length; j++){
-		var f = files[j];
-		caws.lb.list.push({
-			nm:caws_fileNm(f), seq:caws_fileSeq(f), ord:caws_fileOrd(f)
-		});
-		s += '<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:5px;">'
-		  +    '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+caws_esc(caws_fileNm(f))+'">'
-		  +      caws_esc(caws_fileNm(f))+'</span>'
-		  +    '<button type="button" class="btn-s primary" onclick="caws_histFileDown('+j+');">다운로드</button>'
-		  +  '</div>';
-	}
-	s += '</div>';
-
-	var title = document.querySelector('#cawsLb .caws-mh h3');
-	if(title) title.innerHTML = '첨부파일';
-	caws_html('cawsLbNm', files.length+'개');
-	caws_html('cawsLbBody', s);
-	var nav = document.querySelector('#cawsLb .caws-lbnav');
-	if(nav) nav.style.display = 'none';
-	caws_openModal('cawsLb');
-}
-function caws_histFileDown(idx){
-	var f = caws.lb.list[idx];
-	if(f) fileDown(f.seq, f.ord);
-}
-/* [AX Lab] 수정 끝 */
-/* [AX Lab] 수정 끝 */
-
-/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 조치이력 첨부목록 누락 시 기존 파일조회 URL로 보강 */
-function caws_loadMissingHistFiles(actEvs){
-	for(var i=0; i<actEvs.length; i++){
-		(function(ev){
-			var fileSeq = Number(caws_nvl(ev.fileSeq,0));
-			if(fileSeq <= 0 || (ev.files && ev.files.length) || ev._fileRequested) return;
-			ev._fileRequested = true;
-			$.ajax({
-				url:'/ad/as/getAsHistFileInfo.do',
-				type:'POST',
-				data:{ attach_seq2:fileSeq },
-				dataType:'json',
-				success:function(data){
-					var files = (data && data.attach2FileList) ? data.attach2FileList : [];
-					if(files.length){
-						ev.files = files;
-						caws_renderTimeline();
-					}
-				}
-			});
-		})(actEvs[i]);
-	}
 }
 /* [AX Lab] 수정 끝 */
 
@@ -994,18 +935,20 @@ function caws_linkify(text){
 function caws_filesHtml(files, evIdx){
 	if(!files || !files.length) return '';
 	var s = '<div class="caws-files">';
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부 미리보기 UI를 완전히 제거하고 다운로드만 제공 */
 	for(var i=0; i<files.length; i++){
 		var f = files[i];
 		var nm = caws_fileNm(f);
 		var ext = caws_ext(nm) || 'file';
+		var can = (caws_isImg(nm) || caws_isPdf(nm)) && caws_fileUrl(f) !== '';
 		s += '<span class="caws-file">'
 		  +    '<span class="caws-fext">'+caws_esc(ext)+'</span>'
 		  +    '<span class="caws-fnm" title="'+caws_esc(nm)+'">'+caws_esc(nm)+'</span>'
+		  +    (can
+		        ? '<button type="button" class="caws-fbtn" onclick="caws_preview('+evIdx+','+i+');">미리보기</button>'
+		        : '<button type="button" class="caws-fbtn" disabled title="이 확장자는 브라우저에서 미리볼 수 없습니다">미리보기</button>')
 		  +    '<button type="button" class="caws-fbtn dl" onclick="fileDown(\''+caws_fileSeq(f)+'\',\''+caws_fileOrd(f)+'\');">다운로드</button>'
 		  +  '</span>';
 	}
-	/* [AX Lab] 수정 끝 */
 	return s + '</div>';
 }
 
@@ -1013,13 +956,6 @@ function caws_filesHtml(files, evIdx){
 function caws_preview(evIdx, fileIdx){
 	var ev = caws.events[evIdx];
 	if(!ev || !ev.files) return;
-
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부목록 팝업 사용 후 미리보기 모달 상태 복원 */
-	var title = document.querySelector('#cawsLb .caws-mh h3');
-	if(title) title.innerHTML = '첨부 미리보기';
-	var nav = document.querySelector('#cawsLb .caws-lbnav');
-	if(nav) nav.style.display = '';
-	/* [AX Lab] 수정 끝 */
 
 	var list = [], start = 0;
 	for(var i=0; i<ev.files.length; i++){
@@ -1095,8 +1031,7 @@ function caws_renderCompose(){
 	+   '<div class="caws-tools">'
 	+     '<button type="button" class="btn-s" onclick="caws_openAi();" title="작성 중인 문장을 다듬습니다">AI 문장 다듬기</button>'
 	+     '<button type="button" class="btn-s" onclick="caws_openLink();" title="본문에 게시물 링크를 삽입합니다">게시물 링크</button>'
-	/* [AX Lab] 수정 (2026-10-06 AX Lab): 고객 답변 첨부파일 개수 제한 안내 제거 */
-	+     '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다">파일 첨부</button>'
+	+     '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다 (최대 '+CAWS_MAX_FILES+'개)">파일 첨부</button>'
 	+     '<div class="caws-sp"></div>'
 	+   '</div>'
 	+   '<div class="caws-drop" id="cawsDrop">'
@@ -1274,11 +1209,13 @@ function caws_batchMemoInput(el){
 function caws_batchFilesPick(el){
 	if(!caws.batch) caws_batchStart();
 	var list = (el && el.files) ? el.files : [];
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 조치이력 첨부파일 개수 제한 제거 */
 	for(var i=0; i<list.length; i++){
+		if(caws.batchFiles.length >= CAWS_MAX_FILES){
+			alert('조치이력 첨부파일은 한 번에 최대 '+CAWS_MAX_FILES+'개까지 등록할 수 있습니다.');
+			break;
+		}
 		caws.batchFiles.push(list[i]);
 	}
-	/* [AX Lab] 수정 끝 */
 	if(el) el.value = '';
 	caws_renderRecord();
 }
@@ -2061,19 +1998,18 @@ function caws_slots(){
 function caws_newSlot(){
 	var box = caws_slotBox();
 	if(!box) return null;
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 고객 답변 첨부파일 개수 제한 제거 */
+	if(caws_slots().length >= CAWS_MAX_FILES) return null;
 	caws.fileSeq++;
 	var inp = document.createElement('input');
 	inp.type = 'file';
 	inp.name = 'uploadFile' + caws.fileSeq;
 	inp.onchange = caws_renderThumbs;
 	box.appendChild(inp);
-	/* [AX Lab] 수정 끝 */
 	return inp;
 }
 function caws_pickFile(){
 	var inp = caws_newSlot();
-	if(!inp) return;
+	if(!inp){ alert('첨부는 최대 ' + CAWS_MAX_FILES + '개까지 가능합니다.'); return; }
 	inp.click();
 }
 function caws_addDropFiles(list){
@@ -2085,7 +2021,7 @@ function caws_addDropFiles(list){
 	}
 	for(var i=0; i<list.length; i++){
 		var slot = caws_newSlot();
-		if(!slot) break;
+		if(!slot){ alert('첨부는 최대 ' + CAWS_MAX_FILES + '개까지 가능합니다.'); break; }
 		try{
 			var dt = new DataTransfer();
 			dt.items.add(list[i]);
