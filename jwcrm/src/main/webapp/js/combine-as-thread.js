@@ -607,19 +607,29 @@ function caws_aiHintHtml(){
 }
 
 /* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 카드 우측 상단 AI 추천 버튼/팝오버 */
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 실제 AI 추천 연동 — combine-as-ai.js 로 위임.
+   combine-as-ai.js(cai_buttonHtml)가 로드돼 있으면 추천 결과 목록 버튼/팝오버를 그리고,
+   없으면(캐시/배포 누락) 아래 기존 플레이스홀더를 그대로 그린다 → 원복은 list.jsp 의 include 두 줄만 지우면 된다.
+   팝오버 "내용"만 caws_aiPlaceholderHtml() 로 분리한 이유: 추천 API 실패 시 combine-as-ai.js 가
+   같은 플레이스홀더 내용으로 조용히 되돌리기 위해서다 (설계서 §6 실패 처리). */
 function caws_aiRecommendHtml(){
+	if(typeof cai_buttonHtml === 'function') return cai_buttonHtml();
 	return '<span class="caws-aiwrap">'
 	     +   '<button type="button" class="caws-aibtn" aria-expanded="false" onclick="caws_aiToggle(this,event);" title="AI 추천 보기">'
 	     +     '<span class="caws-aiico" aria-hidden="true">✦</span> AI 추천 <b>3</b><span class="caws-aicaret">⌄</span>'
 	     +   '</button>'
 	     +   '<span class="caws-aipop" onclick="if(event)event.stopPropagation();">'
-	     +     '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em>추후 제공</em></span>'
-	     +     '<span class="caws-aipitem"><i>1</i><span><b>유사 상담사례</b><small>문의 내용과 유사한 해결 사례를 추천합니다.</small></span></span>'
-	     +     '<span class="caws-aipitem"><i>2</i><span><b>관련 공지사항</b><small>업무에 참고할 공지와 운영정보를 찾습니다.</small></span></span>'
-	     +     '<span class="caws-aipitem"><i>3</i><span><b>답변 초안</b><small>문의 내용을 바탕으로 답변 초안을 작성합니다.</small></span></span>'
+	     +     caws_aiPlaceholderHtml()
 	     +   '</span>'
 	     + '</span>';
 }
+function caws_aiPlaceholderHtml(){
+	return '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em>추후 제공</em></span>'
+	     + '<span class="caws-aipitem"><i>1</i><span><b>유사 상담사례</b><small>문의 내용과 유사한 해결 사례를 추천합니다.</small></span></span>'
+	     + '<span class="caws-aipitem"><i>2</i><span><b>관련 공지사항</b><small>업무에 참고할 공지와 운영정보를 찾습니다.</small></span></span>'
+	     + '<span class="caws-aipitem"><i>3</i><span><b>답변 초안</b><small>문의 내용을 바탕으로 답변 초안을 작성합니다.</small></span></span>';
+}
+/* [AX Lab] 수정 끝 */
 function caws_aiToggle(btn, evt){
 	if(evt && evt.stopPropagation) evt.stopPropagation();
 	var wrap = btn ? btn.parentNode : null;

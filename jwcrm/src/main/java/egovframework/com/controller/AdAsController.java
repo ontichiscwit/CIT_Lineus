@@ -41,6 +41,9 @@ import egovframework.com.model.OperateVO;
 import egovframework.com.service.AsService;
 import egovframework.com.service.LoginService;
 import egovframework.com.comm.dao.CommonDao;
+// [AX Lab] 수정 시작 (2026-10-06 AX Lab): AS 통합화면 AI 추천 서비스
+import egovframework.com.service.CombineAsAiService;
+// [AX Lab] 수정 끝
 /**
  * @Class Name : AdAsController.java
  * @
@@ -65,6 +68,9 @@ public class AdAsController {
 	@Autowired LoginService loginService ; 
 	@Autowired AsService asService ; 
 	@Autowired CommonDao commonDAO ;
+	// [AX Lab] 수정 시작 (2026-10-06 AX Lab): AS 통합화면 AI 추천 — getAsInfo(pageType=aiRecommend) 에서 사용
+	@Autowired CombineAsAiService combineAsAiService ;
+	// [AX Lab] 수정 끝
 	
 	// [AX Lab] 수정 시작 (2026-07-29 AX Lab): AS 목록 헤더클릭 정렬(오름/내림) 지원.
 	/**
@@ -1660,6 +1666,19 @@ public class AdAsController {
 		
 		UserVO userInfo = session.getAttribute("adUserInfo") != null ? (UserVO) session.getAttribute("adUserInfo") : null ;
 		vo.setReg_id(userInfo.getEmp_no());
+		
+		// [AX Lab] 수정 시작 (2026-10-06 AX Lab): AS 통합화면 AI 추천 (설계서 mdfile/AS통합화면_AI추천_통합설계.md §5·§6).
+		//   pageType=aiRecommend 이면 상세 응답 대신 추천 API 결과만 돌려주고 끝낸다.
+		//   ★ 신규 URL(/ad/as/aiRecommend.do 등)을 만들지 않는 이유: MenuAuthFilter.isAccept() 가 세션 acceptUrlList 와
+		//     "완전일치" 비교만 하므로 DB 메뉴권한에 없는 신규 /ad/as/*.do 는 무조건 403 이다. (위 2026-07-30 블록과 같은 제약)
+		//   ★ 기존 호출자(form.jsp / combine-as.js 의 pageType=update|subUpdate)는 이 분기를 타지 않으므로 영향이 없다.
+		//   ★ 추천 API 호출 실패(타임아웃·장애)는 CombineAsAiClient 가 result 코드로만 돌려주므로 여기서 예외가 나지 않는다.
+		//     문의 원문·유형·제외 접수번호는 브라우저 값이 아니라 서버가 DB(combineAsAiDAO.getAiContext)에서 직접 읽는다.
+		if("aiRecommend".equals(SsStringUtil.normalizeNull(vo.getPageType()).trim())) {
+			CommonExecute.returnJson(response, combineAsAiService.recommend(vo));
+			return;
+		}
+		// [AX Lab] 수정 끝
 		
 		AsVO resultVO = asService.getSelectInfo(vo, "asDAO.getAsInfo") ;
 		

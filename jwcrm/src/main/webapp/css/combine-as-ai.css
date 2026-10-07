@@ -1,0 +1,135 @@
+/* =============================================================================
+ * [AX Lab] 신규 파일 (2026-10-06): AS 통합화면 - AI 추천 (팝오버 목록 / COL3 상세 / 마크다운 본문)
+ * -----------------------------------------------------------------------------
+ * combine-as-ai.js 가 그리는 요소만 담당한다. 접두어는 cai- 로 통일.
+ *  - 팝오버 껍데기(.caws-aiwrap/.caws-aibtn/.caws-aipop/.caws-aiphd)는 combine-as-thread.css 의 기존 규칙을
+ *    그대로 쓰고, 그 안의 "항목"만 .cai-item 으로 새로 그린다 (§8-3 1단: 285px 유지).
+ *  - COL3 상세(#caiBox)는 combine-as-keyword.css 의 .ckw-box 와 같은 톤(테두리/헤더 배경)을 맞춘다.
+ *  - .caws-aimd 는 설계서 §8-5 의 마크다운 본문 스코프. 기존 .caws-btxt(white-space:pre-line + break-all)를
+ *    건드리지 않고 별도 클래스로 둔다 — 메뉴 경로("기초코드관리 > [전산관리자용코드관리] > …")가 글자 단위로 끊기지 않게.
+ * ★ CSS 변수는 combine-as.css 의 #asWorkspace 스코프에서 오므로 모든 선택자를 #asWorkspace 하위로 한정한다.
+ * ★ 로드 순서는 combine-as-thread.css / combine-as-loading.css 뒤 (asws-spin 재사용).
+ * ========================================================================== */
+
+/* ---- 버튼 건수 뱃지 상태 ------------------------------------------------- */
+#asWorkspace .caws-aibtn > b.cai-na{color:#A79BCF;}
+#asWorkspace .caws-aibtn > b.cai-ld{display:inline-flex; align-items:center; justify-content:center; padding:0 3px;}
+#asWorkspace .cai-spin{width:9px; height:9px; margin:0; border-width:2px; border-color:rgba(101,71,199,.25); border-top-color:#6547C7; vertical-align:0;}
+
+/* ---- 팝오버 : 헤더 배지 -------------------------------------------------- */
+#asWorkspace .caws-aiphd em.cai-tag{background:#EEE8FF; color:#6547C7;}
+#asWorkspace .caws-aiphd em.cai-tag.on{background:#6547C7; color:#fff;}
+
+/* ---- 팝오버 : 추천 항목 (1줄 제목 + 메타) --------------------------------- */
+#asWorkspace .cai-item{
+  display:flex; align-items:flex-start; gap:8px; width:100%; padding:8px 11px;
+  border:0; border-bottom:1px solid #F0EDF7; background:#fff; text-align:left; cursor:pointer;
+}
+#asWorkspace .cai-item:last-of-type{border-bottom:0;}
+#asWorkspace .cai-item:hover{background:#F8F5FF;}
+#asWorkspace .cai-item.on{background:#EEE8FF;}
+#asWorkspace .cai-item > span{display:block; min-width:0; flex:1;}
+#asWorkspace .cai-item b{
+  display:block; font-size:10.5px; color:var(--ink); line-height:1.35;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#asWorkspace .cai-item small{display:block; margin-top:2px; color:var(--ink-3); font-size:9.5px; font-weight:400; line-height:1.3;}
+#asWorkspace .cai-clip{color:var(--ink-3);}
+#asWorkspace .cai-empty{display:block; padding:14px 11px; font-size:10.5px; color:var(--ink-3); text-align:center;}
+#asWorkspace .cai-retry{margin-left:6px; height:20px; padding:0 8px; border:1px solid #D9D2F5; border-radius:6px; background:#fff; color:#5B3FD6; font-size:10px; cursor:pointer; vertical-align:middle;}
+#asWorkspace .cai-retry:hover{background:#F3EFFF;}
+#asWorkspace .cai-foot{display:block; padding:6px 11px; background:#FAF8FF; border-top:1px solid #EAE4FB; font-size:9px; color:var(--ink-3); text-align:center;}
+
+/* Tier 배지 : 표준답변(보라) / 과거사례(청록) / 공지(주황) */
+#asWorkspace .cai-tier{
+  display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
+  height:17px; padding:0 6px; border-radius:9px; font-size:9px; font-style:normal; font-weight:700; white-space:nowrap;
+}
+#asWorkspace .cai-tier.t1{background:#EEE8FF; color:#6547C7;}
+#asWorkspace .cai-tier.t2{background:#E3F4F1; color:#1E8A75;}
+#asWorkspace .cai-tier.t3{background:#FFF0E0; color:#C06A12;}
+#asWorkspace .cai-tier.t0{background:var(--surface-1); color:var(--ink-3);}
+
+/* 로딩 스켈레톤 (팝오버) */
+@keyframes cai-shimmer{ 0%{background-position:-200px 0;} 100%{background-position:200px 0;} }
+#asWorkspace .cai-skel{display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-bottom:1px solid #F0EDF7;}
+#asWorkspace .cai-skel > i, #asWorkspace .cai-skel b, #asWorkspace .cai-skel small{
+  display:block; border-radius:6px;
+  background:linear-gradient(90deg, #F1EDF9 25%, #E6E0F5 50%, #F1EDF9 75%); background-size:400px 100%;
+  animation:cai-shimmer 1.1s linear infinite;
+}
+#asWorkspace .cai-skel > i{flex:0 0 46px; height:17px; border-radius:9px;}
+#asWorkspace .cai-skel > span{flex:1; min-width:0;}
+#asWorkspace .cai-skel b{height:11px; width:85%;}
+#asWorkspace .cai-skel small{height:9px; width:45%; margin-top:5px;}
+@media (prefers-reduced-motion: reduce){ #asWorkspace .cai-skel > i, #asWorkspace .cai-skel b, #asWorkspace .cai-skel small{animation:none;} }
+
+/* ---- COL3 상세 패널 ------------------------------------------------------ */
+#asWorkspace .cai-box{
+  border:1px solid #D7CBFF; border-radius:10px; overflow:hidden; background:var(--surface);
+  margin-bottom:8px;
+}
+#asWorkspace .cai-box.flash{box-shadow:0 0 0 3px rgba(101,71,199,.18); transition:box-shadow .5s ease;}
+#asWorkspace .cai-hd{
+  display:flex; align-items:center; gap:6px; padding:7px 10px;
+  background:#F8F5FF; border-bottom:1px solid #EAE4FB;
+}
+#asWorkspace .cai-hd strong{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--ink);}
+#asWorkspace .cai-nav{display:inline-flex; align-items:center; gap:3px; margin-left:4px;}
+#asWorkspace .cai-nav em{font-size:10px; font-style:normal; color:var(--ink-3); min-width:34px; text-align:center;}
+#asWorkspace .cai-nav .caws-minib[disabled]{opacity:.35; cursor:default;}
+#asWorkspace .cai-x{font-size:14px; line-height:1; padding:0 7px;}
+
+#asWorkspace .cai-ttl{display:flex; align-items:flex-start; gap:7px; padding:9px 10px 2px;}
+#asWorkspace .cai-ttl b{font-size:12.5px; line-height:1.4; color:var(--ink); word-break:break-word;}
+#asWorkspace .cai-meta{padding:0 10px 8px; font-size:10px; color:var(--ink-3); line-height:1.5;}
+#asWorkspace .cai-docid{font-family:Consolas, 'Courier New', monospace; font-size:9.5px; color:#A79BCF;}
+
+/* 접힘 블록(원 문의 / 내부 메모)은 combine-as-thread.css 의 .caws-acc 를 재사용하고 여백만 맞춘다 */
+#asWorkspace .cai-box .caws-acc{margin:0 10px 8px;}
+#asWorkspace .cai-q{font-size:11.5px; line-height:1.6; color:var(--ink-2); white-space:pre-line; word-break:break-word;}
+#asWorkspace .cai-note{color:#8A5A00; background:#FFF8E6; padding:6px 8px; border-radius:6px;}
+
+/* ---- 마크다운 본문 (§8-5) ------------------------------------------------- */
+#asWorkspace .caws-aimd{
+  padding:4px 12px 10px; font-size:12.5px; line-height:1.65; color:var(--ink);
+  word-break:break-word; overflow-wrap:anywhere;
+}
+#asWorkspace .caws-aimd p{margin:0 0 8px;}
+#asWorkspace .caws-aimd p:last-child{margin-bottom:0;}
+#asWorkspace .caws-aimd ul, #asWorkspace .caws-aimd ol{margin:4px 0 8px; padding-left:22px;}
+#asWorkspace .caws-aimd ul{list-style:disc;}
+#asWorkspace .caws-aimd ol{list-style:decimal;}
+#asWorkspace .caws-aimd li{margin:2px 0;}
+#asWorkspace .caws-aimd li > ul, #asWorkspace .caws-aimd li > ol{margin:2px 0 2px;}
+#asWorkspace .caws-aimd strong{font-weight:700; color:#2B2550;}
+#asWorkspace .caws-aimd em{font-style:italic;}
+#asWorkspace .caws-aimd code{
+  font-family:Consolas, 'Courier New', monospace; font-size:11px;
+  background:var(--surface-1); border:1px solid var(--line); border-radius:4px; padding:0 4px;
+}
+/* 넓게 보기(c1-collapsed)에서는 줄당 글자수가 늘어나니 폰트를 살짝 키운다 (§8-2 표) */
+#asWorkspace .grid.c1-collapsed .caws-aimd{font-size:13px;}
+
+/* ---- 첨부 --------------------------------------------------------------- */
+#asWorkspace .cai-files{display:flex; flex-wrap:wrap; align-items:center; gap:5px; padding:6px 10px 8px; border-top:1px dashed var(--line);}
+#asWorkspace .cai-fl{font-size:10px; font-weight:700; color:var(--ink-3); margin-right:2px;}
+#asWorkspace .cai-file{
+  display:inline-flex; align-items:center; max-width:100%; height:22px; border:1px solid var(--line); border-radius:11px;
+  background:var(--surface); overflow:hidden; white-space:nowrap; text-decoration:none; color:var(--ink);
+}
+#asWorkspace .cai-file:hover{border-color:#B9A6F5; background:#F8F5FF;}
+#asWorkspace .cai-file i{
+  display:inline-flex; align-items:center; height:100%; padding:0 6px; font-size:9px; font-style:normal; font-weight:700;
+  color:#6547C7; background:#EEE8FF; border-right:1px solid var(--line);
+}
+#asWorkspace .cai-file span{padding:0 7px; font-size:10.5px; max-width:220px; overflow:hidden; text-overflow:ellipsis;}
+#asWorkspace .cai-thumbs{display:flex; flex-wrap:wrap; gap:6px; width:100%; margin-top:4px;}
+#asWorkspace .cai-thumbs a{display:block; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:#fff;}
+#asWorkspace .cai-thumbs img{display:block; max-width:300px; max-height:200px; object-fit:contain;}
+
+/* ---- 액션 --------------------------------------------------------------- */
+#asWorkspace .cai-act{display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:8px 10px; border-top:1px solid var(--line); background:var(--surface-1);}
+#asWorkspace .cai-act .cai-primary{height:26px; padding:0 12px; font-size:11.5px;}
+#asWorkspace .cai-act .btn-s{height:26px; line-height:24px; padding:0 10px; font-size:11px;}
+#asWorkspace .cai-act a.cai-pub{display:inline-flex; align-items:center; text-decoration:none;}
