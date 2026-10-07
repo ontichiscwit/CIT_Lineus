@@ -1435,11 +1435,11 @@
      combine-as.css / combine-as.js 를 고치지 않고 "뒤에 추가"하는 방식이라 로드 순서가 중요하다.
      ① CSS 는 combine-as.css 다음에 와야 같은 특정도에서 나중 규칙이 이긴다.
      ② JS 는 combine-as.js 다음에 와야 asws_renderDetailRecord 의 위임 대상(caws_renderAll)이 준비된다. --%>
-<%-- [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부파일 목록 모달 스타일 캐시 갱신 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261006-4" />
+<%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 접수처리정보 필수값 UX 수정 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261007-5" />
 <%-- [AX Lab] 수정 끝 --%>
-<%-- [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기능 수정 후 브라우저가 이전 JS를 재사용하지 않도록 버전 고정 --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261006-4"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 기능 수정 후 브라우저가 이전 JS를 재사용하지 않도록 버전 고정 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261007-5"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수 등록 모달(신규작업/복사/하위작업).

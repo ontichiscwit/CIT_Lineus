@@ -1083,8 +1083,10 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 
 		String curStatus = SsStringUtil.normalizeNull(cur.getProc_status()).trim();
 		String curAssign = SsStringUtil.normalizeNull(cur.getAssign_id()).trim();
-		String newStatus = SsStringUtil.normalize(vo.getProc_status(), curStatus).trim();
-		String newAssign = SsStringUtil.normalize(vo.getAssign_id(), curAssign).trim();
+		// [AX Lab] 수정 시작 (2026-10-07 AX Lab): 빈 선택을 기존값으로 치환하지 않고 필수 검증에서 차단
+		String newStatus = SsStringUtil.normalizeNull(vo.getProc_status()).trim();
+		String newAssign = SsStringUtil.normalizeNull(vo.getAssign_id()).trim();
+		// [AX Lab] 수정 끝
 		boolean statusChanged = !newStatus.equals(curStatus);
 		boolean assignChanged = !newAssign.equals(curAssign);
 		String comment = SsStringUtil.normalizeNull(vo.getAction_content()).trim();
@@ -1106,10 +1108,12 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		String curInquiryType = SsStringUtil.normalizeNull(cur.getInquiry_type()).trim();
 
 		String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim();
-		String newImportance = SsStringUtil.normalize(vo.getInportance(), curImportance).trim();
-		String newRequestType = SsStringUtil.normalize(vo.getRequest_type(), curRequestType).trim();
-		String newServiceCate = SsStringUtil.normalize(vo.getService_cate(), curServiceCate).trim();
-		String newInquiryType = SsStringUtil.normalize(vo.getInquiry_type(), curInquiryType).trim();
+		// [AX Lab] 수정 시작 (2026-10-07 AX Lab): 화면에서 선택한 공백도 그대로 받아 서버 필수 검증 수행
+		String newImportance = SsStringUtil.normalizeNull(vo.getInportance()).trim();
+		String newRequestType = SsStringUtil.normalizeNull(vo.getRequest_type()).trim();
+		String newServiceCate = SsStringUtil.normalizeNull(vo.getService_cate()).trim();
+		String newInquiryType = SsStringUtil.normalizeNull(vo.getInquiry_type()).trim();
+		// [AX Lab] 수정 끝
 
 		// [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp goSave의 필수값·상태별 조건을 서버에서도 검증
 		String acceptRoute = SsStringUtil.normalizeNull(vo.getAccept_route()).trim();

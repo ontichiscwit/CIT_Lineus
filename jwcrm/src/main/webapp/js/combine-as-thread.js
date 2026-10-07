@@ -39,6 +39,9 @@ var caws = {
 	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 저장 전 복수 첨부 보관 */
 	batchFiles:[],
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 답변 등록 후 미저장 접수처리정보 복원용 */
+	answerBatchDraft:null,
+	/* [AX Lab] 수정 끝 */
 	restoreScroll:null,
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 필드 단위 클릭 즉시 수정(click-to-edit).
@@ -182,6 +185,12 @@ function caws_renderAll(data){
 	caws.hist   = data.asHistList || [];
 	caws.attach1 = data.attachList  || [];
 	caws.attach2 = data.attachList2 || [];
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 답변 등록 재조회 시 서버 응답 위에 미저장 편집값을 복원 */
+	var answerDraft = (caws.answerBatchDraft && caws.answerBatchDraft.asNo === caws.asNo)
+	                ? caws.answerBatchDraft : null;
+	if(answerDraft) caws.vo = caws_clone(answerDraft.vo);
+	caws.answerBatchDraft = null;
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp의 VAL2=Y 조건부 필수 규칙을 상세에도 적용 */
 	caws.reqVal2 = caws_nvl(caws.vo.request_type,'') !== '' ? caws_taskVal2(caws.vo.request_type) : '';
 	/* [AX Lab] 수정 끝 */
@@ -191,7 +200,15 @@ function caws_renderAll(data){
 	caws.act.empList = [];		/* 담당자 이관 팝오버 목록은 건마다 새로 로드 */
 	caws.fld = '';				/* [AX Lab] 수정 (2026-07-31 AX Lab): 필드 편집상태는 건이 바뀌면 항상 초기화 */
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조회 완료 시 일괄 편집 임시값 초기화 */
-	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.batchFiles = [];
+	if(answerDraft){
+		caws.batch = true;
+		caws.batchOriginal = caws_clone(answerDraft.original);
+		caws.batchRowOriginal = caws_clone(answerDraft.rowOriginal);
+		caws.batchMemo = answerDraft.memo;
+		caws.batchFiles = answerDraft.files.slice(0);
+	}else{
+		caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.batchFiles = [];
+	}
 	/* [AX Lab] 수정 끝 */
 
 	caws.events = caws_buildEvents();
@@ -1359,7 +1376,23 @@ function caws_syncBatchHead(){
 	/* [AX Lab] 수정 끝 */
 }
 function caws_batchSave(){
-	if(!caws.batch || !caws_batchHasChanges()){ alert('변경된 내용이 없습니다.'); return; }
+	if(!caws.batch){ alert('변경된 내용이 없습니다.'); return; }
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 열린 시스템유형 선택값을 최종 저장 전에 임시값으로 확정 */
+	if(caws.fld === 'systype') caws_pairCommit();
+	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 키보드로 입력 중인 날짜 형식을 최종 저장 전에 확인 */
+	if(CAWS_FLD_DATE[caws.fld]){
+		var dateEl = caws_el('cawsFldIn');
+		var dateVal = dateEl ? String(dateEl.value||'').replace(/[^0-9]/g,'') : '';
+		if(dateVal !== '' && dateVal.length !== 8){
+			alert('날짜를 YYYY/MM/DD 형식으로 입력하거나 전체 삭제해 주세요.');
+			try{ dateEl.focus(); dateEl.select(); }catch(e){}
+			return;
+		}
+		(caws.vo||{})[caws.fld] = dateVal;
+	}
+	/* [AX Lab] 수정 끝 */
+	if(!caws_batchHasChanges()){ alert('변경된 내용이 없습니다.'); return; }
 	var memo = caws_nvl(caws.batchMemo,'').trim();
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 상태별·조건별 필수값을 저장 전에 일괄 검증 */
 	var validationMsg = caws_batchValidate();
@@ -1436,15 +1469,18 @@ function caws_batchMemoHtml(){
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 처리완료/철회 및 상태·담당자 변경 시 필수 표시 */
 	var st = caws_stCode();
 	var required = (caws.batch && caws_batchHistoryChanged()) || st === 'C005' || st === 'C006';
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 실제 필수 조건일 때만 별표 표시 */
+	var req = required ? ' <span class="caws-req" title="필수값">*</span>' : '';
 	return '<div class="caws-batchmemo-wrap">'
 	     + '<label class="caws-aclb">조치이력'
-	     + (required ? ' <span class="caws-req">필수</span>' : ' <span class="caws-req">처리상태·담당자 변경 시 필수</span>')
+	     + req
 	     + '</label>'
 	     + '<textarea id="cawsBatchMemo" class="caws-ta caws-fta caws-batchmemo" '
 	     + 'oninput="caws_batchMemoInput(this);caws_autoGrow(this);" '
 	     + 'placeholder="처리상태·담당자 변경 사유 또는 함께 남길 조치내용을 입력하세요.">'
 	     + caws_esc(caws.batchMemo) + '</textarea>'
 	     + caws_batchFilesHtml() + '</div>';
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
 }
 /* [AX Lab] 수정 끝 */
@@ -1501,12 +1537,23 @@ function caws_fldCommit(key){
 	var el = caws_el('cawsFldIn');
 	if(!el) return;
 	var v = String(el.value||'').trim();
-	var isSel = (el.tagName === 'SELECT');
+	if(CAWS_FLD_DATE[key]){
+		v = v.replace(/[^0-9]/g,'');
+		/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 직접 입력한 날짜는 공백 또는 YYYYMMDD만 허용 */
+		if(v !== '' && v.length !== 8){
+			alert('날짜를 YYYY/MM/DD 형식으로 입력하거나 전체 삭제해 주세요.');
+			try{ el.focus(); el.select(); }catch(e){}
+			return;
+		}
+		/* [AX Lab] 수정 끝 */
+	}else if(key === 'proc_time'){
+		v = v.replace(/[^0-9]/g,'');
+	}
 	caws.fld = '';
-	if(CAWS_FLD_DATE[key] || key === 'proc_time') v = v.replace(/[^0-9]/g,'');
-	if(isSel && v === ''){ caws_renderRecord(); return; }		/* '선택' 그대로 = 취소 */
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): '선택'도 임시값으로 반영하고 최종 저장 시 필수 검증 */
 	if(v === caws_fldCur(key)){ caws_renderRecord(); return; }	/* 미변경 = 조용히 닫기 */
 	caws_fldSave(key, v);
+	/* [AX Lab] 수정 끝 */
 }
 /* 현재 저장된 값 (미변경 비교용 — 날짜는 숫자만 남겨 비교) */
 function caws_fldCur(key){
@@ -1524,10 +1571,19 @@ function caws_fldSave(key, v){
 	var vo = caws.vo || {};
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 일괄 편집 중에는 서버 호출 없이 임시값만 갱신 */
 	if(caws.batch){
+		/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 문의유형 변경 즉시 VAL2와 시스템유형 필수 조건 갱신 */
+		if(key === 'request_type'){
+			caws_inquiryCommit(v, '', '');
+			return;
+		}
+		/* [AX Lab] 수정 끝 */
 		/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리담당자는 화면키(assign)와 저장필드(assign_id)가 다르다.
 		   중요도와 같은 인라인 select에서 선택한 사번·이름을 일괄저장 대상 필드에 반영한다. */
 		if(key === 'assign'){
 			vo.assign_id = v;
+			/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): '선택'으로 비우면 이전 담당자명이 남지 않게 초기화 */
+			vo.assign_nm = '';
+			/* [AX Lab] 수정 끝 */
 			for(var ei=0; ei<caws.act.empList.length; ei++){
 				if(caws_nvl(caws.act.empList[ei].emp_no,'') === v){
 					vo.assign_nm = caws_nvl(caws.act.empList[ei].emp_nm,'');
@@ -1662,9 +1718,25 @@ function caws_fldTxtHtml(key, val, ph){
 	 + ' onblur="caws_fldBlur(\''+key+'\');" onkeydown="caws_fldKey(event,\''+key+'\');" />';
 }
 function caws_fldDateHtml(key){
-	/* 값 세팅·datepicker 부착은 caws_fldInit 에서. 날짜는 달력에서 고르는 순간 저장된다. */
-	return '<input type="text" id="cawsFldIn" class="caws-fin" readonly placeholder="YYYY/MM/DD"'
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 달력 입력도 직접 선택 후 Backspace/Delete로 삭제 허용 */
+	return '<input type="text" id="cawsFldIn" class="caws-fin" placeholder="YYYY/MM/DD"'
+	 /* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 키보드 삭제 중 재렌더하지 않고 임시값만 반영 */
+	 + ' oninput="caws_fldDateDraft(\''+key+'\',this);"'
 	 + ' onkeydown="caws_fldKey(event,\''+key+'\');" />';
+	 /* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 끝 */
+}
+function caws_fldDateDraft(key, el){
+	if(!caws.batch || caws.fld !== key || !el) return;
+	var v = String(el.value||'').replace(/[^0-9]/g,'');
+	/* 빈 값 또는 완성된 날짜만 임시 저장한다. 입력 중에는 현재 편집창을 유지한다. */
+	if(v === '' || v.length === 8) (caws.vo||{})[key] = v;
+}
+function caws_fldClear(key){
+	if(caws.fld !== key) return;
+	var el = caws_el('cawsFldIn');
+	if(el) el.value = '';
+	caws_fldCommit(key);
 }
 function caws_fldTaHtml(key, val){
 	return '<textarea id="cawsFldIn" class="caws-ta caws-fta" oninput="caws_autoGrow(this);"'
@@ -1678,7 +1750,15 @@ function caws_fldTaHtml(key, val){
    disp 는 이미 escape 된 HTML 문자열을 받는다. */
 /* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 조건부 필수 마커 지원 */
 function caws_ekv(key, label, disp, ctrlHtml, tip, requiredText){
-	var req = requiredText ? ' <span class="caws-req">'+caws_esc(requiredText === true ? '필수' : requiredText)+'</span>' : '';
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 필수 표시는 문구 대신 별표로 통일 */
+	var isGroupRequired = requiredText === 'group';
+	var reqTitle = isGroupRequired ? '정의서 중 1개 이상 필수' : (requiredText === true ? '필수값' : requiredText);
+	var reqClass = isGroupRequired ? 'caws-req caws-req-group' : 'caws-req';
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 묶음 필수 별표는 테마와 무관하게 명확한 검은색으로 표시 */
+	var reqStyle = isGroupRequired ? ' style="color:#111 !important;font-size:12px;font-weight:700;"' : '';
+	var req = requiredText ? ' <span class="'+reqClass+'"'+reqStyle+' title="'+caws_esc(reqTitle)+'">&#42;</span>' : '';
+	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 끝 */
 	if(caws.fld === key){
 		return '<div class="kv caws-fe"><span class="k">'+caws_esc(label)+req+'</span>'
 		 + '<span class="v caws-fev">'+ctrlHtml+'</span></div>';
@@ -1767,6 +1847,9 @@ function caws_pairFillSub(serviceCate, sel){
 function caws_pairCateChange(){
 	var cate = caws_el('cawsFldCate');
 	caws_pairFillSub(cate ? cate.value : '', '');
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 시스템(대)의 '선택'도 임시 반영 */
+	if(!cate || String(cate.value||'') === '') caws_pairCommit();
+	/* [AX Lab] 수정 끝 */
 }
 function caws_pairCommit(){
 	if(caws.fld !== 'systype') return;
@@ -1774,7 +1857,7 @@ function caws_pairCommit(){
 	var cate = caws_el('cawsFldCate'), sub = caws_el('cawsFldSub');
 	var cv = cate ? String(cate.value||'') : '';
 	var sv = sub ? String(sub.value||'') : '';
-	if(cv === '' || sv === '') return;	/* 둘 다 골라야 저장 */
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 빈 선택을 허용하고 저장 버튼에서 필수 여부 검증 */
 	caws.fld = '';
 	if(cv === caws_nvl(vo.service_cate,'') && sv === caws_nvl(vo.inquiry_type,'')){
 		caws_renderRecord();	/* 미변경 = 조용히 닫기 */
@@ -1783,6 +1866,7 @@ function caws_pairCommit(){
 	/* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 시스템유형 변경도 원본(getInquiry_type)과 동일하게
 	   처리담당자 자동배정으로 이어지도록 전용 커밋 함수로 위임한다. */
 	caws_inquiryCommit(null, cv, sv);
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
 }
 
@@ -1900,7 +1984,9 @@ function caws_taskVal2(reqType){
 }
 function caws_taskTypeReturn(data){
 	var r = (data && data.resultList) ? data.resultList : null;
-	caws._tmpVal2 = r ? caws_nvl(r.val2,'') : '';
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 공백·대소문자 차이에도 시스템유형 필수 조건을 정확히 판정 */
+	caws._tmpVal2 = r ? String(caws_nvl(r.val2,'')).replace(/\s/g,'').toUpperCase() : '';
+	/* [AX Lab] 수정 끝 */
 }
 /* getWorker.do : 최소부하 담당자 1명. 동기 호출 후 {wk_emp_no, wk_emp_nm} 를 반환한다 */
 function caws_worker(params){
@@ -2334,6 +2420,18 @@ function caws_afterAnswer(){
 	var ta = caws_el('cawsText');
 	if(ta) ta.value = '';
 	caws_clearFiles();
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 답변 필수 경고 후 작성한 경우 접수처리정보 임시값 유지 */
+	if(caws.batch){
+		caws.answerBatchDraft = {
+			asNo:caws.asNo,
+			vo:caws_clone(caws.vo),
+			original:caws_clone(caws.batchOriginal),
+			rowOriginal:caws_clone(caws.batchRowOriginal),
+			memo:caws.batchMemo,
+			files:caws.batchFiles.slice(0)
+		};
+	}
+	/* [AX Lab] 수정 끝 */
 	caws_reload(false);
 }
 
@@ -2681,9 +2779,13 @@ function caws_renderRecord(){
 	            : (caws_codeNm('AS','CD03', caws_nvl(vo.service_cate,''))
 	              + (caws_nvl(vo.inquiry_type,'') !== '' ? ' / '+caws_codeNm('AS',caws_nvl(vo.service_cate,''),vo.inquiry_type) : ''));
 	/* 처리완료일 — 이제 클릭해서 직접 고칠 수 있는 필드라, 상태와 무관하게 저장된 값을 그대로 보여준다. */
-	var completeDt = (caws_nvl(vo.complete_dt,'') !== '')
-	               ? caws_date(vo.complete_dt)
-	               : caws_nvl(row.as_complete_dt,'-');
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 일괄 편집에서 지운 완료일을 목록의 기존값으로 다시 표시하지 않음 */
+	var completeDt = caws.batch
+	               ? caws_date(caws_nvl(vo.complete_dt,''))
+	               : ((caws_nvl(vo.complete_dt,'') !== '')
+	                  ? caws_date(vo.complete_dt)
+	                  : caws_nvl(row.as_complete_dt,'-'));
+	/* [AX Lab] 수정 끝 */
 	if(completeDt === '') completeDt = '-';
 	var stateDate = caws_nvl(row.star_state_date,'-');
 	if(stateDate.length > 10) stateDate = stateDate.substr(0,10);
@@ -2715,16 +2817,18 @@ function caws_renderRecord(){
 	   ※ 버전정보는 원본화면에서 시스템(대) 선택에 연동해 자동 계산되는 파생값이라 조회 전용.
 	   ※ 일반 담당자(as_admin != 'Y')는 원본 화면과 동일하게 문의유형/시스템유형을 바꿀 수 없다. */
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의유형 VAL2에 따른 시스템유형 조건부 필수 표시 */
-	var sysReq = (caws.reqVal2 === 'Y') ? ' <span class="caws-req">필수</span>' : '';
+	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 필수 표기를 별표로 통일 */
+	var sysReq = (caws.reqVal2 === 'Y') ? ' <span class="caws-req" title="필수값">*</span>' : '';
 	b1 += (isAdmin
 	     ? caws_ekv('request_type', '문의유형', caws_esc(reqTypeNm), caws_fldSelHtml('request_type'), '', true)
-	     : '<div class="kv"><span class="k">문의유형 <span class="caws-req">필수</span></span><span class="v" title="'+admTip+'">'+caws_esc(reqTypeNm)+'</span></div>')
+	     : '<div class="kv"><span class="k">문의유형 <span class="caws-req" title="필수값">*</span></span><span class="v" title="'+admTip+'">'+caws_esc(reqTypeNm)+'</span></div>')
 	   + (!isAdmin
 	     ? '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v" title="'+admTip+'">'+caws_esc(sysType)+'</span></div>'
 	     : (caws.fld === 'systype'
 	       ? '<div class="kv caws-fe" style="display:block;"><span class="k">시스템유형'+sysReq+'</span><div class="caws-feb">'+caws_pairHtml()+'</div></div>'
 	       : '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v caws-fv" onclick="caws_fldOpen(\'systype\');" title="클릭하여 바로 수정">'+caws_esc(sysType)+'</span></div>'))
 	   + caws_kv('버전정보', caws_nvl(vo.version_info,'-'));
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
 
@@ -2758,8 +2862,8 @@ function caws_renderRecord(){
 	       caws_fldSelHtml('proc_status'), '클릭하여 바로 수정', true)
 	   + caws_ekv('assign', '처리담당자', caws_esc(empNm), caws_fldAssignHtml(), '클릭하여 바로 수정', true)
 	   + (caws.fld === 'inportance'
-	     ? '<div class="kv caws-fe"><span class="k">중요도 <span class="caws-req">필수</span></span><span class="v caws-fev">'+caws_fldSelHtml('inportance')+'</span></div>'
-	     : '<div class="kv"><span class="k">중요도 <span class="caws-req">필수</span></span><span class="'+((caws_gradeCode() === 'C001') ? 'v grade-b' : 'v')+' caws-fv" onclick="caws_fldOpen(\'inportance\');" title="클릭하여 바로 수정">'+caws_esc(caws_gradeNm())+'</span></div>')
+	     ? '<div class="kv caws-fe"><span class="k">중요도 <span class="caws-req" title="필수값">*</span></span><span class="v caws-fev">'+caws_fldSelHtml('inportance')+'</span></div>'
+	     : '<div class="kv"><span class="k">중요도 <span class="caws-req" title="필수값">*</span></span><span class="'+((caws_gradeCode() === 'C001') ? 'v grade-b' : 'v')+' caws-fv" onclick="caws_fldOpen(\'inportance\');" title="클릭하여 바로 수정">'+caws_esc(caws_gradeNm())+'</span></div>')
 	   + caws_telRowHtml(vo)
 	   /* [AX Lab] 수정 (2026-09-30 AX Lab): 처리상태·담당자 변경에 공통으로 사용하는 조치이력 입력란 */
 	   + caws_batchMemoHtml();
@@ -2794,7 +2898,9 @@ function caws_renderRecord(){
 	var b5 = '';
 	if(devOn){
 		/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 개발/프로그램수정 및 형상변경 상세 필수 표시 */
-		var shapeReq = (caws_nvl(vo.proc_gubun,'') === 'C001') ? '1개 이상' : '';
+		/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 정의서 5종은 검은 별표로 묶음 필수(중 1개 이상) 표시 */
+		var shapeReq = (caws_nvl(vo.proc_gubun,'') === 'C001') ? 'group' : '';
+		/* [AX Lab] 수정 끝 */
 		b5 = caws_ekv('proc_gubun', '처리구분', caws_esc(caws_codeNm('AS','CD09', caws_nvl(vo.proc_gubun,''))), caws_fldSelHtml('proc_gubun'), '', true)
 		   + caws_ekv('proc_build_info', '빌드순번', caws_esc(caws_nvl(vo.proc_build_info,'-')), caws_fldTxtHtml('proc_build_info', caws_nvl(vo.proc_build_info,''), ''), '', true)
 		   + caws_ekv('proc_test_info', '개발처리서(테스트케이스)', caws_esc(caws_nvl(vo.proc_test_info,'-')), caws_fldTxtHtml('proc_test_info', caws_nvl(vo.proc_test_info,''), ''), '', true)
