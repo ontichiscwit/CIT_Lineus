@@ -53,6 +53,9 @@ var caws = {
 	cnAsList: [],
 	custInfo: null,
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의유형별 시스템유형 필수 표시/검증용 VAL2 */
+	reqVal2: '',
+	/* [AX Lab] 수정 끝 */
 	ai:{ target:'', src:'', out:'', tone:'polite' }
 };
 
@@ -179,6 +182,9 @@ function caws_renderAll(data){
 	caws.hist   = data.asHistList || [];
 	caws.attach1 = data.attachList  || [];
 	caws.attach2 = data.attachList2 || [];
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp의 VAL2=Y 조건부 필수 규칙을 상세에도 적용 */
+	caws.reqVal2 = caws_nvl(caws.vo.request_type,'') !== '' ? caws_taskVal2(caws.vo.request_type) : '';
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 접수건 변경 시 문의 첨부 input 채번 초기화 */
 	caws.qFileSeq = 0;
 	/* [AX Lab] 수정 끝 */
@@ -1262,6 +1268,68 @@ function caws_batchHasChanges(){
 function caws_batchHistoryChanged(){
 	return caws_batchChanged('proc_status') || caws_batchChanged('assign_id');
 }
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp goSave의 필수값 규칙을 통합화면 일괄저장에 적용 */
+function caws_blank(v){ return String(caws_nvl(v,'')).replace(/\s/g,'') === ''; }
+function caws_adminAnswerCount(){
+	var n = 0;
+	for(var i=0; i<caws.aws.length; i++){
+		if(caws_nvl(caws.aws[i].w_gubun,'') === 'A') n++;
+	}
+	return n;
+}
+function caws_batchValidate(){
+	var vo = caws.vo || {};
+	var st = caws_nvl(vo.proc_status,'');
+	var memo = caws_nvl(caws.batchMemo,'').trim();
+
+	if(caws_blank(vo.accept_route)) return '접수 경로를 선택하세요.';
+	if(caws_blank(vo.rl_apply_nm)) return 'A/S 신청자 이름을 입력하세요.';
+	if(caws_blank(vo.send_sms)) return 'SMS수신동의여부를 선택하세요.';
+	if(vo.send_sms === 'Y' && caws_blank(vo.apply_tel)) return 'SMS 수신 전화번호를 입력해 주세요.';
+	if(caws_blank(vo.request_type)) return '문의유형을 선택하세요.';
+	if(caws.reqVal2 === 'Y'){
+		if(caws_blank(vo.service_cate)) return '시스템(대)를 선택하세요.';
+		if(caws_blank(vo.inquiry_type)) return '시스템(소)를 선택하세요.';
+	}
+	if(caws_blank(st)) return '처리상태를 선택하세요.';
+	if(caws_blank(vo.inportance)) return '중요도를 선택하세요.';
+	if(caws_blank(vo.assign_id)) return '담당자 선택은 필수입니다.';
+
+	if(caws_batchChanged('proc_status')){
+		var oldSt = caws_batchValue(caws.batchOriginal,'proc_status');
+		if(oldSt === 'C006') return '철회된 A/S건은 처리상태 변경이 불가합니다.';
+		if(caws.cnAsList.length > 0) return '하위작업이 있는 A/S건은 처리상태 변경이 불가합니다.';
+	}
+	if(caws_batchHistoryChanged() && memo === '') return '처리상태 또는 담당자 변경 사유를 입력해주세요.';
+
+	if(st === 'C004' && caws_blank(vo.proc_dt)) return '처리예정일을 입력하세요.';
+	if(st === 'C005'){
+		/* 원본 goSave와 동일: 완료 시 처리예정일이 비어 있으면 처리완료일로 자동 보정 */
+		if(caws_blank(vo.proc_dt) && !caws_blank(vo.complete_dt)) vo.proc_dt = vo.complete_dt;
+		if(caws_blank(vo.cause_type)) return '원인유형을 선택하세요.';
+		if(caws_blank(vo.action_type)) return '조치유형을 선택하세요.';
+		if(caws_blank(vo.work_time)) return '작업시간을 입력하세요.';
+		if(caws_blank(vo.complete_dt)) return '처리 완료 일자를 입력하세요.';
+		if(memo === '') return '조치이력을 남겨주세요. 처리이력을 파악하는 데 꼭 필요합니다.';
+		if(caws_adminAnswerCount() < 1) return '처리상태가 "처리완료"인 경우 답변내역을 1건 이상 남겨주세요.';
+
+		if(vo.action_type === 'C001' || vo.action_type === 'C002'){
+			if(caws_blank(vo.proc_gubun)) return '처리구분을 선택하세요.';
+			if(caws_blank(vo.proc_build_info)) return '빌드순번을 입력하세요.';
+			if(caws_blank(vo.proc_test_info)) return '개발처리서(테스트케이스)를 입력하세요.';
+			if(vo.proc_gubun === 'C001'
+			   && caws_blank(vo.proc_process_sp) && caws_blank(vo.proc_screen_sp)
+			   && caws_blank(vo.proc_table_sp) && caws_blank(vo.proc_function_sp)
+			   && caws_blank(vo.proc_interface_sp)){
+				return '처리구분이 "형상변경"인 경우 아래 목록 중\n한가지 이상의 정의서가 필수입니다.\n-프로세스정의서\n-화면정의서\n-테이블정의서\n-기능분해도\n-인터페이스정의서';
+			}
+		}
+	}else if(st === 'C006' && memo === ''){
+		return '조치이력을 남겨주세요. 처리이력을 파악하는 데 꼭 필요합니다.';
+	}
+	return '';
+}
+/* [AX Lab] 수정 끝 */
 function caws_batchCancel(){
 	if(caws_batchHasChanges() && !confirm('저장하지 않은 변경내용을 취소하시겠습니까?')) return;
 	caws.vo = caws_clone(caws.batchOriginal);
@@ -1283,12 +1351,16 @@ function caws_syncBatchHead(){
 function caws_batchSave(){
 	if(!caws.batch || !caws_batchHasChanges()){ alert('변경된 내용이 없습니다.'); return; }
 	var memo = caws_nvl(caws.batchMemo,'').trim();
-	if(caws_batchHistoryChanged() && memo === ''){
-		alert('처리상태 또는 담당자 변경 사유를 입력해주세요.');
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 상태별·조건별 필수값을 저장 전에 일괄 검증 */
+	var validationMsg = caws_batchValidate();
+	if(validationMsg !== ''){
+		alert(validationMsg);
 		var memoEl = caws_el('cawsBatchMemo');
-		if(memoEl) memoEl.focus();
+		if(memoEl && validationMsg.indexOf('조치이력') >= 0) memoEl.focus();
 		return;
 	}
+	memo = caws_nvl(caws.batchMemo,'').trim();
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부를 포함해 multipart로 일괄 저장 */
 	var fd = new FormData();
 	fd.append('as_no', caws.asNo);
@@ -1351,19 +1423,33 @@ function caws_batchFilesHtml(){
 }
 /* [AX Lab] 수정 끝 */
 function caws_batchMemoHtml(){
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 처리완료/철회 및 상태·담당자 변경 시 필수 표시 */
+	var st = caws_stCode();
+	var required = (caws.batch && caws_batchHistoryChanged()) || st === 'C005' || st === 'C006';
 	return '<div class="caws-batchmemo-wrap">'
-	     + '<label class="caws-aclb">조치이력 <span class="caws-req">처리상태·담당자 변경 시 필수</span></label>'
+	     + '<label class="caws-aclb">조치이력'
+	     + (required ? ' <span class="caws-req">필수</span>' : ' <span class="caws-req">처리상태·담당자 변경 시 필수</span>')
+	     + '</label>'
 	     + '<textarea id="cawsBatchMemo" class="caws-ta caws-fta caws-batchmemo" '
 	     + 'oninput="caws_batchMemoInput(this);caws_autoGrow(this);" '
 	     + 'placeholder="처리상태·담당자 변경 사유 또는 함께 남길 조치내용을 입력하세요.">'
 	     + caws_esc(caws.batchMemo) + '</textarea>'
 	     + caws_batchFilesHtml() + '</div>';
+	/* [AX Lab] 수정 끝 */
 }
 /* [AX Lab] 수정 끝 */
 
 /* ---- 편집 시작 / 취소 ---------------------------------------------------- */
 function caws_fldOpen(key){
 	if(caws_nvl(caws.asNo,'') === '') return;
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 원본 상세화면과 동일한 처리상태 변경 제한 */
+	if(key === 'proc_status'){
+		/* 저장 전 임시로 철회를 골랐다가 되돌리는 것은 허용하고, DB에 이미 철회된 건만 잠근다. */
+		var persistedSt = caws.batch ? caws_batchValue(caws.batchOriginal,'proc_status') : caws_stCode();
+		if(persistedSt === 'C006'){ alert('철회된 A/S건은 처리상태 변경이 불가합니다.'); return; }
+		if(caws.cnAsList.length > 0){ alert('하위작업이 있는 A/S건은 처리상태 변경이 불가합니다.'); return; }
+	}
+	/* [AX Lab] 수정 끝 */
 	/* 문의유형·시스템유형은 원본 화면과 동일하게 관리자 권한 담당자만 변경 가능 */
 	if((key === 'request_type' || key === 'systype') && caws_nvl((caws.vo||{}).as_admin,'') !== 'Y'){
 		alert('문의유형·시스템유형은 관리자 권한이 있는 담당자만 변경할 수 있습니다.');
@@ -1580,15 +1666,18 @@ function caws_fldTaHtml(key, val){
 /* ---- 편집 가능 kv 행 ------------------------------------------------------
    caws.fld === key 이면 인라인 컨트롤을, 아니면 클릭 가능한 값을 그린다.
    disp 는 이미 escape 된 HTML 문자열을 받는다. */
-function caws_ekv(key, label, disp, ctrlHtml, tip){
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 조건부 필수 마커 지원 */
+function caws_ekv(key, label, disp, ctrlHtml, tip, requiredText){
+	var req = requiredText ? ' <span class="caws-req">'+caws_esc(requiredText === true ? '필수' : requiredText)+'</span>' : '';
 	if(caws.fld === key){
-		return '<div class="kv caws-fe"><span class="k">'+caws_esc(label)+'</span>'
+		return '<div class="kv caws-fe"><span class="k">'+caws_esc(label)+req+'</span>'
 		 + '<span class="v caws-fev">'+ctrlHtml+'</span></div>';
 	}
-	return '<div class="kv"><span class="k">'+caws_esc(label)+'</span>'
+	return '<div class="kv"><span class="k">'+caws_esc(label)+req+'</span>'
 	 + '<span class="v caws-fv" onclick="caws_fldOpen(\''+key+'\');" title="'+caws_esc(caws_nvl(tip,'클릭하여 바로 수정'))+'">'
 	 + disp + '</span></div>';
 }
+/* [AX Lab] 수정 끝 */
 
 /* ---- 렌더 직후 컨트롤 초기화 (renderRecord 마지막에서 호출) ---------------- */
 function caws_fldInit(){
@@ -1714,6 +1803,9 @@ function caws_inquiryCommit(reqType, cate, inq){
 	/* 문의유형이 비어 있는 과거 데이터는 VAL2 판정이 불가하므로
 	   시스템유형을 건드리지 않고 값 그대로 저장만 한다(자동배정도 생략) */
 	var val2 = caws_taskVal2(rt);
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의유형 변경 즉시 조건부 필수 표시와 저장검증에 반영 */
+	caws.reqVal2 = val2;
+	/* [AX Lab] 수정 끝 */
 	if(rt !== '' && val2 !== 'Y'){
 		sc = ''; iq = '';		/* 원본은 시스템유형을 비활성화하고 비운다 */
 	} else if(rt === 'C011' && sc !== 'P010'){
@@ -2603,29 +2695,36 @@ function caws_renderRecord(){
 	   + caws_kv('연결된 AS', caws_nvl(row.as_no_link_count,'0')+'건')
 	   + caws_kv('우선처', (caws_nvl(row.priority,'') === 'Y') ? '★ 우선' : '-')
 	   + caws_kv('챗봇ID', caws_nvl(vo.chatbot_id,'-'))
-	   + caws_ekv('accept_route', '접수경로', caws_esc(acceptRouteNm), caws_fldSelHtml('accept_route'))
+	   /* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 상세화면의 공통 필수값 표시 */
+	   + caws_ekv('accept_route', '접수경로', caws_esc(acceptRouteNm), caws_fldSelHtml('accept_route'), '', true)
+	   /* [AX Lab] 수정 끝 */
 	   + caws_kv('접수일시', caws_date(caws_nvl(vo.accept_dt, caws_nvl(row.accept_dt,''))) + (caws_time(caws_nvl(vo.accept_time,'')) ? ' '+caws_time(vo.accept_time) : ''));
 	/* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 문의유형정보 그룹을 접수정보에 통합.
 	   문의유형/시스템유형/버전정보를 이 박스로 옮기고, 요청내용은 가운데(COL2) 문의 버블에서
 	   보여주고 수정(caws_qEdit)하므로 접수처리정보 영역에서는 제거한다.
 	   ※ 버전정보는 원본화면에서 시스템(대) 선택에 연동해 자동 계산되는 파생값이라 조회 전용.
 	   ※ 일반 담당자(as_admin != 'Y')는 원본 화면과 동일하게 문의유형/시스템유형을 바꿀 수 없다. */
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의유형 VAL2에 따른 시스템유형 조건부 필수 표시 */
+	var sysReq = (caws.reqVal2 === 'Y') ? ' <span class="caws-req">필수</span>' : '';
 	b1 += (isAdmin
-	     ? caws_ekv('request_type', '문의유형', caws_esc(reqTypeNm), caws_fldSelHtml('request_type'))
-	     : '<div class="kv"><span class="k">문의유형</span><span class="v" title="'+admTip+'">'+caws_esc(reqTypeNm)+'</span></div>')
+	     ? caws_ekv('request_type', '문의유형', caws_esc(reqTypeNm), caws_fldSelHtml('request_type'), '', true)
+	     : '<div class="kv"><span class="k">문의유형 <span class="caws-req">필수</span></span><span class="v" title="'+admTip+'">'+caws_esc(reqTypeNm)+'</span></div>')
 	   + (!isAdmin
-	     ? '<div class="kv"><span class="k">시스템유형</span><span class="v" title="'+admTip+'">'+caws_esc(sysType)+'</span></div>'
+	     ? '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v" title="'+admTip+'">'+caws_esc(sysType)+'</span></div>'
 	     : (caws.fld === 'systype'
-	       ? '<div class="kv caws-fe" style="display:block;"><span class="k">시스템유형</span><div class="caws-feb">'+caws_pairHtml()+'</div></div>'
-	       : '<div class="kv"><span class="k">시스템유형</span><span class="v caws-fv" onclick="caws_fldOpen(\'systype\');" title="클릭하여 바로 수정">'+caws_esc(sysType)+'</span></div>'))
+	       ? '<div class="kv caws-fe" style="display:block;"><span class="k">시스템유형'+sysReq+'</span><div class="caws-feb">'+caws_pairHtml()+'</div></div>'
+	       : '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v caws-fv" onclick="caws_fldOpen(\'systype\');" title="클릭하여 바로 수정">'+caws_esc(sysType)+'</span></div>'))
 	   + caws_kv('버전정보', caws_nvl(vo.version_info,'-'));
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
 
 	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): A/S신청자 이름/연락처/SMS는 접수정보로 이동 */
 	var smsDisp = (caws_nvl(vo.send_sms,'') === 'Y') ? '동의' : ((caws_nvl(vo.send_sms,'') === 'N') ? '미동의' : '-');
-	b1 += caws_ekv('rl_apply_nm', 'A/S신청자 이름', caws_esc(caws_nvl(vo.rl_apply_nm,'-')), caws_fldTxtHtml('rl_apply_nm', caws_nvl(vo.rl_apply_nm,''), ''))
-	   + caws_ekv('apply_tel', 'A/S신청자 연락처', caws_esc(caws_nvl(vo.apply_tel,'-')), caws_fldTxtHtml('apply_tel', caws_nvl(vo.apply_tel,''), '숫자만 입력'))
-	   + caws_ekv('send_sms', 'SMS수신동의여부', caws_esc(smsDisp), caws_fldSelHtml('send_sms'));
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 신청자/SMS 필수 및 SMS 동의 시 연락처 조건부 필수 표시 */
+	b1 += caws_ekv('rl_apply_nm', 'A/S신청자 이름', caws_esc(caws_nvl(vo.rl_apply_nm,'-')), caws_fldTxtHtml('rl_apply_nm', caws_nvl(vo.rl_apply_nm,''), ''), '', true)
+	   + caws_ekv('apply_tel', 'A/S신청자 연락처', caws_esc(caws_nvl(vo.apply_tel,'-')), caws_fldTxtHtml('apply_tel', caws_nvl(vo.apply_tel,''), '숫자만 입력'), '', caws_nvl(vo.send_sms,'') === 'Y')
+	   + caws_ekv('send_sms', 'SMS수신동의여부', caws_esc(smsDisp), caws_fldSelHtml('send_sms'), '', true);
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
 
 	/* --- 고객사정보 : 고객사 마스터 정보와 신청자 아이디만 표시
@@ -2646,11 +2745,11 @@ function caws_renderRecord(){
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 처리상태·처리담당자를 중요도와 동일한 인라인 select UI로 통일 */
 	var b3 = caws_ekv('proc_status', '현재 처리상태',
 	       '<span class="st '+asws_stClass(stCode)+'">'+caws_esc(stNm)+'</span>',
-	       caws_fldSelHtml('proc_status'), '클릭하여 바로 수정')
-	   + caws_ekv('assign', '처리담당자', caws_esc(empNm), caws_fldAssignHtml(), '클릭하여 바로 수정')
+	       caws_fldSelHtml('proc_status'), '클릭하여 바로 수정', true)
+	   + caws_ekv('assign', '처리담당자', caws_esc(empNm), caws_fldAssignHtml(), '클릭하여 바로 수정', true)
 	   + (caws.fld === 'inportance'
-	     ? '<div class="kv caws-fe"><span class="k">중요도</span><span class="v caws-fev">'+caws_fldSelHtml('inportance')+'</span></div>'
-	     : '<div class="kv"><span class="k">중요도</span><span class="'+((caws_gradeCode() === 'C001') ? 'v grade-b' : 'v')+' caws-fv" onclick="caws_fldOpen(\'inportance\');" title="클릭하여 바로 수정">'+caws_esc(caws_gradeNm())+'</span></div>')
+	     ? '<div class="kv caws-fe"><span class="k">중요도 <span class="caws-req">필수</span></span><span class="v caws-fev">'+caws_fldSelHtml('inportance')+'</span></div>'
+	     : '<div class="kv"><span class="k">중요도 <span class="caws-req">필수</span></span><span class="'+((caws_gradeCode() === 'C001') ? 'v grade-b' : 'v')+' caws-fv" onclick="caws_fldOpen(\'inportance\');" title="클릭하여 바로 수정">'+caws_esc(caws_gradeNm())+'</span></div>')
 	   + caws_telRowHtml(vo)
 	   /* [AX Lab] 수정 (2026-09-30 AX Lab): 처리상태·담당자 변경에 공통으로 사용하는 조치이력 입력란 */
 	   + caws_batchMemoHtml();
@@ -2663,17 +2762,20 @@ function caws_renderRecord(){
 	if(procTimeDisp === '') procTimeDisp = '-';
 	var causeNm  = (!caws.batch && caws_nvl(row.cause_type_nm,'') !== '') ? row.cause_type_nm : caws_codeNm('AS','CD05', caws_nvl(vo.cause_type,''));
 	var actionNm = (!caws.batch && caws_nvl(row.action_type_nm,'') !== '') ? row.action_type_nm : caws_codeNm('AS','CD06', caws_nvl(vo.action_type,''));
-	var b4 = caws_ekv('proc_dt', '처리예정일자', caws_esc(procDtDisp), caws_fldDateHtml('proc_dt'), '클릭하여 달력에서 선택')
+	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 처리상태별 처리완료사항 필수 표시 */
+	var doneReq = (stCode === 'C005');
+	var b4 = caws_ekv('proc_dt', '처리예정일자', caws_esc(procDtDisp), caws_fldDateHtml('proc_dt'), '클릭하여 달력에서 선택', stCode === 'C004' || doneReq)
 	   + caws_ekv('proc_time', '예정시각(HHmm)', caws_esc(procTimeDisp), caws_fldTxtHtml('proc_time', caws_nvl(vo.proc_time,''), '예: 1430'))
-	   + caws_ekv('cause_type', '원인유형', caws_esc(causeNm), caws_fldSelHtml('cause_type'))
-	   + caws_ekv('action_type', '조치유형', caws_esc(actionNm), caws_fldSelHtml('action_type'))
-	   + caws_ekv('work_time', '작업시간(Hour)', caws_esc(caws_nvl(vo.work_time,'-')), caws_fldTxtHtml('work_time', caws_nvl(vo.work_time,''), '예: 2.5'))
-	   + caws_ekv('complete_dt', '처리완료일', caws_esc(completeDt), caws_fldDateHtml('complete_dt'), '클릭하여 달력에서 선택')
+	   + caws_ekv('cause_type', '원인유형', caws_esc(causeNm), caws_fldSelHtml('cause_type'), '', doneReq)
+	   + caws_ekv('action_type', '조치유형', caws_esc(actionNm), caws_fldSelHtml('action_type'), '', doneReq)
+	   + caws_ekv('work_time', '작업시간(Hour)', caws_esc(caws_nvl(vo.work_time,'-')), caws_fldTxtHtml('work_time', caws_nvl(vo.work_time,''), '예: 2.5'), '', doneReq)
+	   + caws_ekv('complete_dt', '처리완료일', caws_esc(completeDt), caws_fldDateHtml('complete_dt'), '클릭하여 달력에서 선택', doneReq)
 	   + caws_kv('검수일', stateDate)
 	   + caws_kv('고객평가', asws_stars(caws_nvl(row.star_state, caws_nvl(vo.star_state,''))))
 	   + (caws_nvl(vo.star_content,'') !== ''
 	      ? '<div class="caws-btxt" style="font-size:12px;margin-top:5px;">'+caws_esc(vo.star_content)+'</div>' : '')
 	   + caws_filesHtml(caws.attach2, -1);
+	/* [AX Lab] 수정 끝 */
 
 	/* --- 처리완료 상세 : 처리구분/빌드순번/각종 정의서(개발팀 참고용) ---
 	   [AX Lab] 수정 시작 (2026-07-31 AX Lab): 원본 setProcGrade 노출 로직 반영 —
@@ -2681,14 +2783,17 @@ function caws_renderRecord(){
 	var devOn = caws_devOn();
 	var b5 = '';
 	if(devOn){
-		b5 = caws_ekv('proc_gubun', '처리구분', caws_esc(caws_codeNm('AS','CD09', caws_nvl(vo.proc_gubun,''))), caws_fldSelHtml('proc_gubun'))
-		   + caws_ekv('proc_build_info',   '빌드순번',          caws_esc(caws_nvl(vo.proc_build_info,'-')),   caws_fldTxtHtml('proc_build_info',   caws_nvl(vo.proc_build_info,''), ''))
-		   + caws_ekv('proc_test_info',    '테스트 정보',       caws_esc(caws_nvl(vo.proc_test_info,'-')),    caws_fldTxtHtml('proc_test_info',    caws_nvl(vo.proc_test_info,''), ''))
-		   + caws_ekv('proc_process_sp',   '프로세스 정의서',   caws_esc(caws_nvl(vo.proc_process_sp,'-')),   caws_fldTxtHtml('proc_process_sp',   caws_nvl(vo.proc_process_sp,''), ''))
-		   + caws_ekv('proc_screen_sp',    '화면 정의서',       caws_esc(caws_nvl(vo.proc_screen_sp,'-')),    caws_fldTxtHtml('proc_screen_sp',    caws_nvl(vo.proc_screen_sp,''), ''))
-		   + caws_ekv('proc_table_sp',     '테이블 정의서',     caws_esc(caws_nvl(vo.proc_table_sp,'-')),     caws_fldTxtHtml('proc_table_sp',     caws_nvl(vo.proc_table_sp,''), ''))
-		   + caws_ekv('proc_function_sp',  '기능 정의서',       caws_esc(caws_nvl(vo.proc_function_sp,'-')),  caws_fldTxtHtml('proc_function_sp',  caws_nvl(vo.proc_function_sp,''), ''))
-		   + caws_ekv('proc_interface_sp', '인터페이스 정의서', caws_esc(caws_nvl(vo.proc_interface_sp,'-')), caws_fldTxtHtml('proc_interface_sp', caws_nvl(vo.proc_interface_sp,''), ''));
+		/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 개발/프로그램수정 및 형상변경 상세 필수 표시 */
+		var shapeReq = (caws_nvl(vo.proc_gubun,'') === 'C001') ? '1개 이상' : '';
+		b5 = caws_ekv('proc_gubun', '처리구분', caws_esc(caws_codeNm('AS','CD09', caws_nvl(vo.proc_gubun,''))), caws_fldSelHtml('proc_gubun'), '', true)
+		   + caws_ekv('proc_build_info', '빌드순번', caws_esc(caws_nvl(vo.proc_build_info,'-')), caws_fldTxtHtml('proc_build_info', caws_nvl(vo.proc_build_info,''), ''), '', true)
+		   + caws_ekv('proc_test_info', '개발처리서(테스트케이스)', caws_esc(caws_nvl(vo.proc_test_info,'-')), caws_fldTxtHtml('proc_test_info', caws_nvl(vo.proc_test_info,''), ''), '', true)
+		   + caws_ekv('proc_process_sp', '프로세스 정의서', caws_esc(caws_nvl(vo.proc_process_sp,'-')), caws_fldTxtHtml('proc_process_sp', caws_nvl(vo.proc_process_sp,''), ''), '', shapeReq)
+		   + caws_ekv('proc_screen_sp', '화면 정의서', caws_esc(caws_nvl(vo.proc_screen_sp,'-')), caws_fldTxtHtml('proc_screen_sp', caws_nvl(vo.proc_screen_sp,''), ''), '', shapeReq)
+		   + caws_ekv('proc_table_sp', '테이블 정의서', caws_esc(caws_nvl(vo.proc_table_sp,'-')), caws_fldTxtHtml('proc_table_sp', caws_nvl(vo.proc_table_sp,''), ''), '', shapeReq)
+		   + caws_ekv('proc_function_sp', '기능분해도', caws_esc(caws_nvl(vo.proc_function_sp,'-')), caws_fldTxtHtml('proc_function_sp', caws_nvl(vo.proc_function_sp,''), ''), '', shapeReq)
+		   + caws_ekv('proc_interface_sp', '인터페이스 정의서', caws_esc(caws_nvl(vo.proc_interface_sp,'-')), caws_fldTxtHtml('proc_interface_sp', caws_nvl(vo.proc_interface_sp,''), ''), '', shapeReq);
+		/* [AX Lab] 수정 끝 */
 	}
 
 	/* 접수정보 헤더 요약은 통합된 문의유형·시스템유형을 우선 보여준다(없으면 접수경로) */

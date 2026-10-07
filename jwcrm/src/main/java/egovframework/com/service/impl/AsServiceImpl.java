@@ -1111,6 +1111,58 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		String newServiceCate = SsStringUtil.normalize(vo.getService_cate(), curServiceCate).trim();
 		String newInquiryType = SsStringUtil.normalize(vo.getInquiry_type(), curInquiryType).trim();
 
+		// [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp goSave의 필수값·상태별 조건을 서버에서도 검증
+		String acceptRoute = SsStringUtil.normalizeNull(vo.getAccept_route()).trim();
+		String realApplyName = SsStringUtil.normalizeNull(vo.getRl_apply_nm()).trim();
+		String sendSms = SsStringUtil.normalizeNull(vo.getSend_sms()).trim();
+		String applyTel = SsStringUtil.normalizeNull(vo.getApply_tel()).trim();
+		String causeType = SsStringUtil.normalizeNull(vo.getCause_type()).trim();
+		String actionType = SsStringUtil.normalizeNull(vo.getAction_type()).trim();
+		String workTime = SsStringUtil.normalizeNull(vo.getWork_time()).trim();
+		String completeDt = SsStringUtil.normalizeNull(vo.getComplete_dt()).replaceAll("/", "").trim();
+
+		if ("".equals(acceptRoute) || "".equals(realApplyName) || "".equals(sendSms)
+				|| "".equals(newRequestType) || "".equals(newStatus)
+				|| "".equals(newImportance) || "".equals(newAssign)) return 0;
+		if ("Y".equals(sendSms) && "".equals(applyTel)) return 0;
+
+		AsVO taskKey = new AsVO();
+		taskKey.setRequest_type(newRequestType);
+		AsVO taskType = (AsVO) commonDAO.selectOne(taskKey, "asDAO.getTaskType");
+		if (taskType != null && "Y".equals(SsStringUtil.normalizeNull(taskType.getVal2()))
+				&& ("".equals(newServiceCate) || "".equals(newInquiryType))) return 0;
+
+		if (statusChanged) {
+			if ("C006".equals(curStatus)) return 0;
+			if (commonDAO.selectOneInt(key, "asDAO.getAsChildCount") > 0) return 0;
+		}
+		if ((statusChanged || assignChanged) && "".equals(comment)) return 0;
+
+		if ("C004".equals(newStatus) && "".equals(newProcDt)) return 0;
+		if ("C005".equals(newStatus)) {
+			/* 원본과 동일하게 처리예정일이 없으면 처리완료일로 자동 보정 */
+			if ("".equals(newProcDt) && !"".equals(completeDt)) newProcDt = completeDt;
+			if ("".equals(causeType) || "".equals(actionType) || "".equals(workTime)
+					|| "".equals(completeDt) || "".equals(comment)) return 0;
+			if (commonDAO.selectOneInt(key, "asDAO.getAsAdminAnswerCount") < 1) return 0;
+
+			if ("C001".equals(actionType) || "C002".equals(actionType)) {
+				String procGubun = SsStringUtil.normalizeNull(vo.getProc_gubun()).trim();
+				if ("".equals(procGubun)
+						|| "".equals(SsStringUtil.normalizeNull(vo.getProc_build_info()).trim())
+						|| "".equals(SsStringUtil.normalizeNull(vo.getProc_test_info()).trim())) return 0;
+				if ("C001".equals(procGubun)
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_process_sp()).trim())
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_screen_sp()).trim())
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_table_sp()).trim())
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_function_sp()).trim())
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_interface_sp()).trim())) return 0;
+			}
+		} else if ("C006".equals(newStatus) && "".equals(comment)) {
+			return 0;
+		}
+		// [AX Lab] 수정 끝
+
 		boolean procDtChanged = !newProcDt.equals(curProcDt);
 		boolean importanceChanged = !newImportance.equals(curImportance);
 		boolean requestTypeChanged = !newRequestType.equals(curRequestType);
@@ -1129,7 +1181,7 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		vo.setRequest_type(newRequestType);
 		vo.setService_cate(newServiceCate);
 		vo.setInquiry_type(newInquiryType);
-		vo.setComplete_dt(SsStringUtil.normalizeNull(vo.getComplete_dt()).replaceAll("/", "").trim());
+		vo.setComplete_dt(completeDt);
 
 		int returnValue = commonDAO.update(vo, "asDAO.updateAsRecordBatch");
 		if (returnValue <= 0) return returnValue;

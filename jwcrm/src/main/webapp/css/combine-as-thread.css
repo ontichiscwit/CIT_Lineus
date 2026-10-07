@@ -715,6 +715,9 @@
 #asWorkspace .kv .v.caws-fv:after{content:'\270E'; margin-left:4px; font-size:10px; color:var(--ink-3); opacity:.55;}
 #asWorkspace .kv .v.caws-fv:hover{color:var(--accent); border-bottom-color:var(--accent);}
 #asWorkspace .kv .v.caws-fv:hover:after{color:var(--accent); opacity:1;}
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 접수처리정보 조건부 필수 마커 */
+#asWorkspace .kv .k .caws-req{margin-left:3px; font-size:10px; font-weight:600; color:var(--red);}
+/* [AX Lab] 수정 끝 */
 /* 요청내용(블록형 본문)도 항상 점선 테두리로 클릭 가능 표시 */
 #asWorkspace .caws-btxt.caws-fv{cursor:pointer; border:1px dashed var(--line); border-radius:6px; padding:2px 4px; margin-left:-4px;}
 #asWorkspace .caws-btxt.caws-fv:hover{border-color:var(--accent); background:var(--accent-bg);}
