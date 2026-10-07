@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<!-- [AX Lab] 원본 경로: jwcrm/src/main/resources/query/egov-combine-as-thread-query.xml (백업 2026-10-02) -->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <!-- [AX Lab] 신규 파일 (2026-07-31 AX Lab): AS 통합 상담 스레드(combine-as-thread.js) 인라인 편집 전용 쿼리.
@@ -59,20 +59,6 @@
 			AS_NO = #{as_no, jdbcType=VARCHAR}
 	]]>
 	</update>
-
-	<!-- [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 첨부 최초 등록 시 파일 묶음 번호만 갱신 -->
-	<update id="updateAsInquiryFileSeq" parameterType="asVO">
-	<![CDATA[
-		UPDATE CRM_AS_MGT
-		SET
-			FILE_SEQ = #{file_seq, jdbcType=INTEGER},
-			UPT_DATE = SYSDATE,
-			UPT_ID   = #{reg_id, jdbcType=VARCHAR}
-		WHERE
-			AS_NO = #{as_no, jdbcType=VARCHAR}
-	]]>
-	</update>
-	<!-- [AX Lab] 수정 끝 -->
 
 	<!-- 처리상태사항 추가필드 — 중요도 / 전화확인 / 전화부재중
 	     (처리상태·담당자·조치메모는 기존 asDAO.updateAsInfoAll 로 처리하므로 겹치지 않는 컬럼만 둔다) -->

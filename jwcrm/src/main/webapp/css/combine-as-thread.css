@@ -244,6 +244,16 @@
   font-size:11px; font-weight:700; line-height:22px; text-align:center;
 }
 #asWorkspace .caws-hbtn:hover{background:#DDF0F6; border-color:#91C5D5;}
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부파일은 아이콘과 파일 개수로 간결하게 표시 */
+#asWorkspace .caws-hattach{
+  display:inline-flex; align-items:center; justify-content:center; gap:4px;
+  min-width:43px; height:25px; padding:0 8px;
+  border:1px solid #D7E0E4; border-radius:6px;
+  background:#fff; color:#6B7B84; font-size:11px; font-weight:700;
+}
+#asWorkspace .caws-hattach:hover{border-color:#91C5D5; background:#F3FAFC; color:#1783A7;}
+#asWorkspace .caws-hattach .caws-clip{font-size:12px; line-height:1;}
+/* [AX Lab] 수정 끝 */
 /* 조치이력 테이블 감싸는 .caws-ev 에서 기본 버블 여백 없애고 테이블을 전체 폭으로 */
 #asWorkspace .caws-ev.al-c > .caws-hist-scroll{width:100%;}
 /* [AX Lab] 수정 끝 */
@@ -291,6 +301,24 @@
 #asWorkspace .caws-file .caws-fbtn:hover{text-decoration:underline;}
 #asWorkspace .caws-file .caws-fbtn.dl{color:var(--ink-2);}
 #asWorkspace .caws-file .caws-fbtn[disabled]{color:var(--ink-3); cursor:default; text-decoration:none;}
+
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 첨부 추가·삭제 편집 영역 */
+#asWorkspace .caws-qfiles{
+  margin-top:8px; padding:8px 9px; border:1px solid var(--line); border-radius:8px;
+  background:var(--surface-1);
+}
+#asWorkspace .caws-qfiles-h{display:flex; align-items:center; gap:8px; margin-bottom:6px;}
+#asWorkspace .caws-qfiles-h strong{font-size:11px; color:var(--ink-2);}
+#asWorkspace .caws-qfiles-h .caws-minib{margin-left:auto;}
+#asWorkspace .caws-qfiles-old{display:flex; flex-direction:column; gap:4px; margin-bottom:6px;}
+#asWorkspace .caws-qfiles-old label{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-2); cursor:pointer;}
+#asWorkspace .caws-qfiles-old label span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-qfiles-old label em{margin-left:auto; color:var(--red); font-size:10px; font-style:normal;}
+#asWorkspace .caws-qfiles-new{display:flex; flex-direction:column; gap:4px;}
+#asWorkspace .caws-qfile-new{display:flex; align-items:center; gap:5px;}
+#asWorkspace .caws-qfile-new input[type=file]{min-width:0; flex:1; font-size:11px;}
+#asWorkspace .caws-qfiles > .caws-mnote{margin-top:6px;}
+/* [AX Lab] 수정 끝 */
 
 /* =============================================================================
  * COL2 : 하단 고정 작성영역
@@ -461,6 +489,25 @@
 #asWorkspace .caws-batchmemo-wrap{margin-top:9px; padding-top:8px; border-top:1px solid var(--line);}
 #asWorkspace .caws-batchmemo-wrap .caws-req{margin-left:4px; font-size:10px; font-weight:500; color:var(--red);}
 #asWorkspace .caws-batchmemo{max-width:none; min-height:64px;}
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부 */
+#asWorkspace .caws-batchfiles{margin-top:7px;}
+#asWorkspace .caws-batchfiles-head{display:flex; align-items:center; gap:6px;}
+#asWorkspace .caws-batchfiles-head > span{font-size:10.5px; font-weight:600; color:var(--ink-2);}
+#asWorkspace .caws-batchfiles-head .caws-minib{margin-left:auto;}
+#asWorkspace .caws-batchfiles-head input[type=file]{display:none;}
+#asWorkspace .caws-batchfiles-list{display:flex; flex-direction:column; gap:4px; margin-top:6px;}
+#asWorkspace .caws-batchfile{
+  display:flex; align-items:center; gap:5px; min-width:0; padding:4px 6px;
+  border:1px solid var(--line); border-radius:6px; background:var(--surface);
+  font-size:10.5px; color:var(--ink-2);
+}
+#asWorkspace .caws-batchfile > span{min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-batchfile > button{
+  flex:0 0 auto; width:17px; height:17px; border:1px solid var(--line); border-radius:50%;
+  background:var(--surface); color:var(--ink-3); font-size:11px; line-height:14px;
+}
+#asWorkspace .caws-batchfile > button:hover{border-color:var(--red); color:var(--red);}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 
 /* =============================================================================
@@ -602,6 +649,40 @@
 #asWorkspace .caws-lbnav .caws-lbpos{font-size:11px; color:var(--ink-3);}
 #asWorkspace .caws-lbnav .caws-sp{flex:1;}
 
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 조치이력 첨부 목록 전용 소형 모달 */
+#asWorkspace .caws-lb.caws-files-mode{
+  width:520px; max-width:calc(100vw - 32px); height:auto;
+  max-height:calc(100vh - 80px); border:1px solid var(--line);
+  background:var(--surface); color:var(--ink);
+}
+#asWorkspace .caws-files-mode .caws-mh{padding:10px 14px;}
+#asWorkspace .caws-files-mode .caws-mh h3{font-size:13px;}
+#asWorkspace .caws-files-mode .caws-mh .caws-msub{font-size:11px;}
+#asWorkspace .caws-files-mode .caws-hfall{
+  margin-left:auto; height:27px; color:#657781; background:#fff; border-color:#DCE4E8;
+}
+#asWorkspace .caws-files-mode .caws-mx{margin-left:0;}
+#asWorkspace .caws-files-mode .caws-lbb{
+  display:block; flex:none; min-height:176px; max-height:420px;
+  overflow-y:auto; padding:12px 18px 18px; background:#fff;
+}
+#asWorkspace .caws-hflist{display:flex; flex-direction:column;}
+#asWorkspace .caws-hfrow{
+  display:flex; align-items:center; gap:14px; min-height:48px; padding:0 4px;
+}
+#asWorkspace .caws-hfname{
+  flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:#26343A; font-size:12px; font-weight:700;
+}
+#asWorkspace .caws-hfdown{
+  flex-shrink:0; height:27px; color:#657781; background:#fff; border-color:#DCE4E8;
+}
+#asWorkspace .caws-files-mode .caws-hfall:hover,
+#asWorkspace .caws-files-mode .caws-hfdown:hover{
+  color:#1783A7; border-color:#91C5D5; background:#F3FAFC;
+}
+/* [AX Lab] 수정 끝 */
+
 /* =============================================================================
  * 상세 넓게 보기 (COL1 을 rail 로 접고 COL2 를 넓힌다)
  * -----------------------------------------------------------------------------
@@ -634,6 +715,12 @@
 #asWorkspace .kv .v.caws-fv:after{content:'\270E'; margin-left:4px; font-size:10px; color:var(--ink-3); opacity:.55;}
 #asWorkspace .kv .v.caws-fv:hover{color:var(--accent); border-bottom-color:var(--accent);}
 #asWorkspace .kv .v.caws-fv:hover:after{color:var(--accent); opacity:1;}
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 접수처리정보 조건부 필수 마커 */
+#asWorkspace .kv .k .caws-req{margin-left:3px; font-size:10px; font-weight:600; color:var(--red);}
+/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 정의서 중 1개 이상을 뜻하는 묶음 필수는 검은 별표로 구분 */
+#asWorkspace .kv .k .caws-req.caws-req-group{color:var(--ink);}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 끝 */
 /* 요청내용(블록형 본문)도 항상 점선 테두리로 클릭 가능 표시 */
 #asWorkspace .caws-btxt.caws-fv{cursor:pointer; border:1px dashed var(--line); border-radius:6px; padding:2px 4px; margin-left:-4px;}
 #asWorkspace .caws-btxt.caws-fv:hover{border-color:var(--accent); background:var(--accent-bg);}

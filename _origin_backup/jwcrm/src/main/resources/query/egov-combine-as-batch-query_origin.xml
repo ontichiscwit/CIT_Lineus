@@ -1,3 +1,4 @@
+<!-- [AX Lab] 원본 경로: jwcrm/src/main/resources/query/egov-combine-as-batch-query.xml (백업 2026-10-06) -->
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
@@ -42,21 +43,5 @@
 			AS_NO = #{as_no, jdbcType=VARCHAR}
 	]]>
 	</update>
-
-	<!-- [AX Lab] 수정 시작 (2026-10-06 AX Lab): 통합화면 상태별 필수값 서버 검증용 조회 -->
-	<select id="getAsAdminAnswerCount" parameterType="asVO" resultType="java.lang.Integer">
-		SELECT COUNT(*)
-		FROM CRM_AS_MGT_ANSWER
-		WHERE AS_NO = #{as_no, jdbcType=VARCHAR}
-		  AND W_GUBUN = 'A'
-	</select>
-
-	<select id="getAsChildCount" parameterType="asVO" resultType="java.lang.Integer">
-		SELECT COUNT(*)
-		FROM CRM_AS_MGT
-		WHERE CN_AS_NO = #{as_no, jdbcType=VARCHAR}
-		  AND DEL_YN IS NULL
-	</select>
-	<!-- [AX Lab] 수정 끝 -->
 
 </mapper>
