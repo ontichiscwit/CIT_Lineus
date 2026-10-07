@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- [AX Lab] 신규 파일 (2026-10-06 AX Lab): AS 통합화면 AI 추천 전용 조회 쿼리.
+     설계서 mdfile/AS통합화면_AI추천_통합설계.md §6 요청 필드를 CRM DB 에서 한 번에 채우기 위한 읽기 전용 SELECT 1건.
+
+     ★ 왜 기존 asDAO.getAsInfo + asDAO.getCnAsList 를 재사용하지 않는가
+       - getAsInfo 는 SERVICE_CATE / INQUIRY_TYPE / REQUEST_TYPE 을 "코드값"으로만 내려준다.
+         추천 API 는 코드가 아니라 명칭(예: 진료 / 진료 업무 / 프로그램 기능개선)으로 product_match 를 계산하므로
+         CRM_CODE_DETAIL 조인이 필요하다. (JS 쪽은 목록행(row)의 *_NM 을 쓰지만 서버에는 그 값이 없다)
+       - 제외 대상 접수번호(자신/부모/자식/연결건, §6 exclude_as_no)를 한 행에서 모두 얻기 위해 자식은 LISTAGG 로 모은다.
+       - 두 쿼리를 호출하면 왕복 2회 + 자식 목록은 부모 번호를 먼저 알아야 해서 3회가 된다. 1회로 줄였다.
+     ★ 이 네임스페이스(combineAsAiDAO)는 CombineAsAiServiceImpl 에서만 쓴다. 기존 asDAO 는 건드리지 않는다.
+     ★ UPDATE/DELETE 없음. 읽기 전용. -->
+<mapper namespace="combineAsAiDAO">
+
+	<!-- 추천 요청 컨텍스트: 문의 원문 + 유형 명칭 + 제외 대상 접수번호 -->
+	<select id="getAiContext" parameterType="asVO" resultType="combineAsAiVO">
+	<![CDATA[
+		SELECT A.AS_NO
+		      ,A.CALL_CONTENT
+		      ,A.CN_AS_NO
+		      ,A.AS_NO_LINK
+		      ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z
+		         WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = A.SERVICE_CATE)  AS SERVICE_CATE_NM
+		      ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z
+		         WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = A.SERVICE_CATE AND Z.CODE = A.INQUIRY_TYPE) AS INQUIRY_TYPE_NM
+		      ,(SELECT CODE_NAME FROM CRM_CODE_DETAIL Z
+		         WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD07' AND Z.CODE = A.REQUEST_TYPE)  AS REQUEST_TYPE_NM
+		      ,(SELECT LISTAGG(C.AS_NO, ',') WITHIN GROUP (ORDER BY C.AS_NO)
+		          FROM CRM_AS_MGT C
+		         WHERE C.CN_AS_NO = A.AS_NO)                                                   AS CHILD_AS_NOS
+		  FROM CRM_AS_MGT A
+		 WHERE A.AS_NO = #{as_no, jdbcType=VARCHAR}
+	]]>
+	</select>
+
+</mapper>

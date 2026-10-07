@@ -1461,6 +1461,16 @@
 <link rel="stylesheet" type="text/css" href="/css/combine-as-keyword.css" />
 <script type="text/javascript" src="/js/combine-as-keyword.js"></script>
 <%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-06 AX Lab): AI 추천 (유사 상담사례 / 과거사례 / 공지) 실제 연동.
+     설계서 mdfile/AS통합화면_AI추천_통합설계.md §8. 문의 카드의 [✦ AI 추천] 팝오버가 추천 "목록"을,
+     항목 클릭 시 COL3(접수·처리 정보) 상단 패널이 본문을 보여준다.
+     서버 호출은 기존 /ad/as/getAsInfo.do 에 pageType=aiRecommend 를 얹어 쓴다(신규 URL 금지 제약).
+     ★ 로드 순서 : combine-as-thread.js(caws_renderAll/caws_renderRecord 를 감싼다) 와
+       combine-as-loading.css(.asws-spin 재사용) 뒤여야 한다.
+     ★ 원복 : 아래 두 줄만 지우면 combine-as-thread.js 의 caws_aiRecommendHtml() 이 기존 플레이스홀더로 돌아간다. --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-ai.css" />
+<script type="text/javascript" src="/js/combine-as-ai.js"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>
 
