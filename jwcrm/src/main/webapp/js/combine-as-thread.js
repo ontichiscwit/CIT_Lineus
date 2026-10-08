@@ -1514,6 +1514,12 @@ function caws_fldOpen(key){
 		alert('문의유형·시스템유형은 관리자 권한이 있는 담당자만 변경할 수 있습니다.');
 		return;
 	}
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN처럼 VAL2!='Y' 문의유형은 시스템유형 편집 차단 */
+	if(key === 'systype' && caws.reqVal2 !== 'Y'){
+		alert('선택한 문의유형은 시스템유형을 사용하지 않습니다.');
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 (2026-09-30 AX Lab): 값 클릭 시 일괄 편집을 시작하고 저장은 헤더 버튼에서만 수행 */
 	caws_batchStart();
 	caws.fld = key;
@@ -1858,10 +1864,33 @@ function caws_pairHtml(){
 function caws_pairInit(){
 	var vo = caws.vo || {};
 	var cate = caws_el('cawsFldCate');
-	if(cate) cate.innerHTML = caws_codeOptions('AS','CD03', caws_nvl(vo.service_cate,''), '선택');
-	caws_pairFillSub(caws_nvl(vo.service_cate,''), caws_nvl(vo.inquiry_type,''));
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN의 VAL2/C011별 시스템유형 활성화 규칙 적용 */
+	if(caws.reqVal2 !== 'Y'){
+		caws.fld = '';
+		caws_renderRecord();
+		return;
+	}
+	var requestType = caws_nvl(vo.request_type,'');
+	var serviceCate = caws_nvl(vo.service_cate,'');
+	if(requestType === 'C011') serviceCate = 'P010';
+	if(cate){
+		cate.innerHTML = caws_codeOptions('AS','CD03', serviceCate, '선택');
+		if(requestType === 'C011'){
+			cate.value = 'P010';
+			cate.disabled = true;
+			cate.className += ' write_gray';
+		}else{
+			for(var oi=cate.options.length-1; oi>=0; oi--){
+				if(cate.options[oi].value === 'P010') cate.remove(oi);
+			}
+			cate.disabled = false;
+			cate.className = cate.className.replace(/\s*write_gray/g,'');
+		}
+	}
+	caws_pairFillSub(serviceCate, caws_nvl(vo.inquiry_type,''));
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템유형도 첫 클릭에서 대분류 목록 즉시 열기 */
-	caws_selectOpen(cate);
+	if(requestType !== 'C011') caws_selectOpen(cate);
 	/* [AX Lab] 수정 끝 */
 }
 function caws_pairFillSub(serviceCate, sel){
@@ -1870,9 +1899,17 @@ function caws_pairFillSub(serviceCate, sel){
 	serviceCate = caws_nvl(serviceCate,'');
 	if(serviceCate === ''){
 		sub.innerHTML = '<option value="">시스템(대) 먼저</option>';
+		/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN처럼 시스템(대) 선택 전 시스템(소) 비활성화 */
+		sub.disabled = true;
+		sub.className += ' write_gray';
+		/* [AX Lab] 수정 끝 */
 		return;
 	}
 	sub.innerHTML = caws_codeOptions('AS', serviceCate, caws_nvl(sel,''), '선택');
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템(대) 선택 후 시스템(소) 활성화 */
+	sub.disabled = false;
+	sub.className = sub.className.replace(/\s*write_gray/g,'');
+	/* [AX Lab] 수정 끝 */
 }
 function caws_pairCateChange(){
 	var cate = caws_el('cawsFldCate');
@@ -2853,15 +2890,20 @@ function caws_renderRecord(){
 	   ※ 일반 담당자(as_admin != 'Y')는 원본 화면과 동일하게 문의유형/시스템유형을 바꿀 수 없다. */
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의유형 VAL2에 따른 시스템유형 조건부 필수 표시 */
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 필수 표기를 별표로 통일 */
-	var sysReq = (caws.reqVal2 === 'Y') ? ' <span class="caws-req" title="필수값">*</span>' : '';
+	var sysEnabled = (caws.reqVal2 === 'Y');
+	var sysReq = sysEnabled ? ' <span class="caws-req" title="필수값">*</span>' : '';
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN처럼 VAL2!='Y' 시스템유형은 값 없이 비활성 표시 */
+	var sysDisp = sysEnabled ? sysType : '-';
+	var sysDisabledTip = '선택한 문의유형은 시스템유형을 사용하지 않습니다';
+	/* [AX Lab] 수정 끝 */
 	b1 += (isAdmin
 	     ? caws_ekv('request_type', '문의유형', caws_esc(reqTypeNm), caws_fldSelHtml('request_type'), '', true)
 	     : '<div class="kv"><span class="k">문의유형 <span class="caws-req" title="필수값">*</span></span><span class="v" title="'+admTip+'">'+caws_esc(reqTypeNm)+'</span></div>')
-	   + (!isAdmin
-	     ? '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v" title="'+admTip+'">'+caws_esc(sysType)+'</span></div>'
+	   + (!isAdmin || !sysEnabled
+	     ? '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v" title="'+(!isAdmin ? admTip : sysDisabledTip)+'">'+caws_esc(sysDisp)+'</span></div>'
 	     : (caws.fld === 'systype'
 	       ? '<div class="kv caws-fe" style="display:block;"><span class="k">시스템유형'+sysReq+'</span><div class="caws-feb">'+caws_pairHtml()+'</div></div>'
-	       : '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v caws-fv" onclick="caws_fldOpen(\'systype\');" title="클릭하여 바로 수정">'+caws_esc(sysType)+'</span></div>'))
+	       : '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v caws-fv" onclick="caws_fldOpen(\'systype\');" title="클릭하여 바로 수정">'+caws_esc(sysDisp)+'</span></div>'))
 	   + caws_kv('버전정보', caws_nvl(vo.version_info,'-'));
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
