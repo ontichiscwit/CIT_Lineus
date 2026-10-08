@@ -1198,6 +1198,19 @@ function caws_renderCompose(){
 }
 
 /* ---- 담당자 검색 (담당자 이관 팝오버에서 사용) ---------------------------- */
+/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN과 동일한 계정별·문의유형별 이관 후보 조회조건 구성 */
+function caws_empListParams(){
+	var vo = caws.vo || {}, row = caws.row || {};
+	return {
+		as_no: caws.asNo,
+		request_type: caws_nvl(vo.request_type, caws_nvl(row.request_type,'')),
+		service_cate: caws_nvl(vo.service_cate, caws_nvl(row.service_cate,'')),
+		inquiry_type: caws_nvl(vo.inquiry_type, caws_nvl(row.inquiry_type,'')),
+		val2: caws_nvl(caws.reqVal2,''),
+		assign_id: caws_nvl(vo.assign_id, caws_nvl(row.assign_id,''))
+	};
+}
+/* [AX Lab] 수정 끝 */
 function caws_actEmpLoaded(data){
 	caws.act.empList = (data && data.resultList) ? data.resultList : [];
 	caws_actEmpFilter();
@@ -1793,10 +1806,9 @@ function caws_fldInit(){
 		if(caws.act.empList.length > 0){
 			if(ae) ae.innerHTML = caws_inlineEmpOptions();
 		}else{
-			common.ajaxCall({
-				as_no:caws.asNo,
-				assign_id:caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''))
-			}, '/ad/as/getAsEmpList.do', 'caws_inlineEmpLoaded');
+			/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN의 계정별 이관 권한과 문의/시스템유형 조건 전달 */
+			common.ajaxCall(caws_empListParams(), '/ad/as/getAsEmpList.do', 'caws_inlineEmpLoaded');
+			/* [AX Lab] 수정 끝 */
 		}
 		caws_selectOpen(ae);
 		return;
@@ -1923,6 +1935,10 @@ function caws_inquiryCommit(reqType, cate, inq){
 	} else if(rt === 'C011' && sc !== 'P010'){
 		sc = 'P010'; iq = '';	/* C011 은 시스템(대) P010 고정. 소분류는 다시 골라야 한다 */
 	}
+
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 유형 변경 전 후보목록이 계정별 이관 선택에 재사용되지 않도록 초기화 */
+	caws.act.empList = [];
+	/* [AX Lab] 수정 끝 */
 
 	/* 자동배정 대상 조회 — 처리완료 건은 배정하지 않는다(원본 setWorker 동일) */
 	caws._autoAssign = null;
@@ -2120,7 +2136,9 @@ function caws_popAssignInit(){
 	if(caws.act.empList.length > 0){
 		caws_actEmpFilter();
 	} else {
-		common.ajaxCall({ as_no:caws.asNo, assign_id:caws.act.assignId }, '/ad/as/getAsEmpList.do', 'caws_actEmpLoaded');
+		/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN의 계정별 이관 권한과 문의/시스템유형 조건 전달 */
+		common.ajaxCall(caws_empListParams(), '/ad/as/getAsEmpList.do', 'caws_actEmpLoaded');
+		/* [AX Lab] 수정 끝 */
 	}
 	var kw = caws_el('cawsActEmpKw');
 	if(kw) try{ kw.focus(); }catch(e){}
