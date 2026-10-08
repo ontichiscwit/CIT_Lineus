@@ -1770,6 +1770,19 @@ function caws_ekv(key, label, disp, ctrlHtml, tip, requiredText){
 /* [AX Lab] 수정 끝 */
 
 /* ---- 렌더 직후 컨트롤 초기화 (renderRecord 마지막에서 호출) ---------------- */
+/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 선택형 필드는 값 클릭 한 번으로 목록까지 바로 표시 */
+function caws_selectOpen(el){
+	if(!el) return;
+	try{
+		el.focus();
+		/* Chromium/Edge 네이티브 select 목록을 현재 사용자 클릭 이벤트 안에서 연다. */
+		if(el.tagName === 'SELECT' && typeof el.showPicker === 'function') el.showPicker();
+	}catch(e){
+		/* showPicker 미지원 또는 브라우저 보안 제한 시 포커스 동작은 유지한다. */
+		try{ el.focus(); }catch(ignore){}
+	}
+}
+/* [AX Lab] 수정 끝 */
 function caws_fldInit(){
 	var key = caws_nvl(caws.fld,'');
 	if(key === '') return;
@@ -1785,7 +1798,7 @@ function caws_fldInit(){
 				assign_id:caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''))
 			}, '/ad/as/getAsEmpList.do', 'caws_inlineEmpLoaded');
 		}
-		if(ae) try{ ae.focus(); }catch(e){}
+		caws_selectOpen(ae);
 		return;
 	}
 	/* [AX Lab] 수정 끝 */
@@ -1815,6 +1828,9 @@ function caws_fldInit(){
 		el.focus();
 		if(el.tagName === 'INPUT' && !el.readOnly && el.select) el.select();
 	}catch(e){}
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 첫 클릭에서 select 목록 즉시 열기 */
+	if(el.tagName === 'SELECT') caws_selectOpen(el);
+	/* [AX Lab] 수정 끝 */
 }
 
 /* ---- 시스템(대)/(소) 쌍 편집 ('systype') -----------------------------------
@@ -1832,7 +1848,9 @@ function caws_pairInit(){
 	var cate = caws_el('cawsFldCate');
 	if(cate) cate.innerHTML = caws_codeOptions('AS','CD03', caws_nvl(vo.service_cate,''), '선택');
 	caws_pairFillSub(caws_nvl(vo.service_cate,''), caws_nvl(vo.inquiry_type,''));
-	if(cate) try{ cate.focus(); }catch(e){}
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템유형도 첫 클릭에서 대분류 목록 즉시 열기 */
+	caws_selectOpen(cate);
+	/* [AX Lab] 수정 끝 */
 }
 function caws_pairFillSub(serviceCate, sel){
 	var sub = caws_el('cawsFldSub');
@@ -2805,7 +2823,6 @@ function caws_renderRecord(){
 	       ? '<div class="kv"><span class="k">상위접수번호</span><span class="v link caws-lnk" onclick="caws_pastOpen(\''+caws_esc(parentNo)+'\',\'\');" title="상위 접수건을 이 화면에서 엽니다">'+caws_esc(parentNo)+'</span></div>' : '')
 	   + caws_cnAsRowHtml()
 	   + caws_kv('연결된 AS', caws_nvl(row.as_no_link_count,'0')+'건')
-	   + caws_kv('우선처', (caws_nvl(row.priority,'') === 'Y') ? '★ 우선' : '-')
 	   + caws_kv('챗봇ID', caws_nvl(vo.chatbot_id,'-'))
 	   /* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 상세화면의 공통 필수값 표시 */
 	   + caws_ekv('accept_route', '접수경로', caws_esc(acceptRouteNm), caws_fldSelHtml('accept_route'), '', true)
@@ -2847,6 +2864,9 @@ function caws_renderRecord(){
 	var custNm = caws_nvl(ci.cust_kor_name, caws_nvl(row.cust_kor_name,'-'));
 	var b2 = caws_detailKv('고객사명', custNm, 'cust')
 	   + caws_kv('고객사코드', caws_nvl(row.cust_code, caws_nvl(vo.cust_code,'-')))
+	   /* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 우선처를 접수정보에서 고객사코드 아래로 이동 */
+	   + caws_kv('우선처', (caws_nvl(row.priority,'') === 'Y') ? '★ 우선' : '-')
+	   /* [AX Lab] 수정 끝 */
 	   + caws_kv('HIS 진료', caws_nvl(ci.his_treat_name,'-'))
 	   + caws_kv('고객사주소', caws_nvl(ci.cust_address,'-'))
 	   + caws_kv('우편번호', caws_nvl(ci.zip_code,'-'))
