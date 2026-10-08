@@ -1,3 +1,4 @@
+// [AX Lab] 원본 경로: jwcrm/src/main/java/egovframework/com/comm/controller/CommonFileController.java (백업 2026-10-08)
 package egovframework.com.comm.controller;
 
 import java.io.BufferedInputStream;
@@ -24,9 +25,6 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 import egovframework.com.comm.model.FileVO;
 import egovframework.com.comm.model.UserVO;
 import egovframework.com.comm.service.CommonFileService;
-// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 첨부 원격 폴백 유틸
-import egovframework.com.comm.util.CombineAttachFallback;
-// [AX Lab] 수정 끝
 import egovframework.com.comm.util.SsStringUtil;
 import egovframework.com.model.DownHistVO;
 import egovframework.com.service.BoardService;
@@ -99,13 +97,6 @@ public class CommonFileController {
 					
 				}else{
 					logger.info("File DOWN Fail :: is not exist");
-					// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 복제 DB(NEWCIT) 를 쓰는 로컬 PC 에는 첨부 물리파일이 없어
-					//   기존 첨부 다운로드가 빈 응답으로 조용히 실패한다. 로컬에 파일이 없으면 운영 웹서버의 /upload/** 에서
-					//   받아 그대로 전달한다(classpath:combine-attach.properties). 폴백 미설정/실패 시 기존 동작(빈 응답) 그대로.
-					if (!CombineAttachFallback.stream(fileDetail, request, response, false)) {
-						logger.info("File DOWN Fail :: fallback not available ({}{})", fileDetail.getAttach_path_dtl(), fileDetail.getAttach_save_nm());
-					}
-					// [AX Lab] 수정 끝
 				}
 				
 				// fr 사용자만 로그남기기
