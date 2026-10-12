@@ -595,6 +595,10 @@
 	                    <path>/</path>
 	                    <systemProperties>
 	                        <JAVA_OPTS>-Xms256m -Xmx768m -XX:MaxPermSize=256m</JAVA_OPTS>
+	                        <!-- [AX Lab] 수정 시작 (2026-10-08 AX Lab): 첨부 원격 폴백(CombineAttachFallback)을 로컬 tomcat7:run 에서만 켠다.
+	                             combine-attach.properties 기본값은 N 이라 운영 WAR 에서는 비활성. -->
+	                        <combine.attach.fallback.enabled>Y</combine.attach.fallback.enabled>
+	                        <!-- [AX Lab] 수정 끝 -->
 	                    </systemProperties>
 	                </configuration>
 	            </plugin>
