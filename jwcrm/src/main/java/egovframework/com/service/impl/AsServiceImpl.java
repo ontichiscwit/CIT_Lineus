@@ -1089,9 +1089,14 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		// [AX Lab] 수정 끝
 		boolean statusChanged = !newStatus.equals(curStatus);
 		boolean assignChanged = !newAssign.equals(curAssign);
-		String comment = SsStringUtil.normalizeNull(vo.getAction_content()).trim();
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 공백 제거 전 조치의견 길이 및 ORIGIN 담당자 기준 검증
+		String rawComment = SsStringUtil.normalizeNull(vo.getAction_content());
+		String comment = rawComment.trim();
 
-		if ((statusChanged || assignChanged) && "".equals(comment)) return 0;
+		if (rawComment.length() > 1300) return 0;
+		if (!newAssign.equals(SsStringUtil.normalizeNull(adUserInfo.getEmp_no()).trim())
+				&& "".equals(comment)) return 0;
+		// [AX Lab] 수정 끝
 
 		/* 문의유형/시스템유형은 기존 화면과 동일하게 관리자만 변경할 수 있다. */
 		if (!"Y".equals(SsStringUtil.normalizeNull(cur.getAs_admin()))) {
@@ -1113,6 +1118,9 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim();
 		// [AX Lab] 수정 시작 (2026-10-07 AX Lab): 화면에서 선택한 공백도 그대로 받아 서버 필수 검증 수행
 		String newImportance = SsStringUtil.normalizeNull(vo.getInportance()).trim();
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN 초기화 규칙 — 중요도 공백은 일반(C002)
+		if ("".equals(newImportance)) newImportance = "C002";
+		// [AX Lab] 수정 끝
 		String newRequestType = SsStringUtil.normalizeNull(vo.getRequest_type()).trim();
 		String newServiceCate = SsStringUtil.normalizeNull(vo.getService_cate()).trim();
 		String newInquiryType = SsStringUtil.normalizeNull(vo.getInquiry_type()).trim();
@@ -1130,6 +1138,13 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		String actionType = SsStringUtil.normalizeNull(vo.getAction_type()).trim();
 		String workTime = SsStringUtil.normalizeNull(vo.getWork_time()).trim();
 		String completeDt = SsStringUtil.normalizeNull(vo.getComplete_dt()).replaceAll("/", "").trim();
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 부재중 미체크 시 횟수 저장값 초기화
+		String telAbsence = SsStringUtil.normalizeNull(vo.getTel_absence()).trim();
+		String telAbsenceCnt = SsStringUtil.normalizeNull(vo.getTel_absence_cnt()).trim();
+		if (!"Y".equals(telAbsence)) telAbsenceCnt = "";
+		vo.setTel_absence(telAbsence);
+		vo.setTel_absence_cnt(telAbsenceCnt);
+		// [AX Lab] 수정 끝
 
 		if ("".equals(acceptRoute) || "".equals(realApplyName) || "".equals(sendSms)
 				|| "".equals(newRequestType) || "".equals(newStatus)
@@ -1157,7 +1172,9 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 			if ("C006".equals(curStatus)) return 0;
 			if (commonDAO.selectOneInt(key, "asDAO.getAsChildCount") > 0) return 0;
 		}
-		if ((statusChanged || assignChanged) && "".equals(comment)) return 0;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 접수(C001)/처리중(C004) 외 담당자 변경 서버 차단
+		if (assignChanged && !("C001".equals(newStatus) || "C004".equals(newStatus))) return 0;
+		// [AX Lab] 수정 끝
 
 		if ("C004".equals(newStatus) && "".equals(newProcDt)) return 0;
 		if ("C005".equals(newStatus)) {
@@ -1842,6 +1859,9 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 
 	@Override
 	public int updateAsHistAction(AsVO vo) throws Exception {
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 우회 요청에서도 조치의견 최대 1,300자 제한
+		if (SsStringUtil.normalizeNull(vo.getAction_content()).length() > 1300) return 0;
+		// [AX Lab] 수정 끝
 		return commonDAO.update(vo, "asDAO.updateAsHistAction");
 	}
 

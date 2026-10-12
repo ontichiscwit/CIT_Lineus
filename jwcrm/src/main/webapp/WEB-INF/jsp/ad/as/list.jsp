@@ -1242,6 +1242,13 @@
 					$('#action_content_pop').focus(); 
 					return;
 				}
+			  /* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 일괄 처리 조치의견 최대 1,300자 검증 */
+			  if(String($('#action_content_pop').val() || '').length > 1300){
+					alert('조치의견은 최대 1,300자까지 입력할 수 있습니다.');
+					$('#action_content_pop').focus();
+					return;
+			  }
+			  /* [AX Lab] 수정 끝 */
 			  
 			  if (($('#action_type_pop').val() == 'C001' || $('#action_type_pop').val() == 'C002')) {
 					
@@ -1457,11 +1464,12 @@
      ① CSS 는 combine-as.css 다음에 와야 같은 특정도에서 나중 규칙이 이긴다.
      ② JS 는 combine-as.js 다음에 와야 asws_renderDetailRecord 의 위임 대상(caws_renderAll)이 준비된다. --%>
 <%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 접수처리정보 필수값 UX 수정 캐시 갱신 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261007-5" />
+<%-- [AX Lab] 수정 (2026-10-12 AX Lab): 전화부재중 횟수 비활성 음영 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261012-1" />
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 기능 수정 후 브라우저가 이전 JS를 재사용하지 않도록 버전 고정 --%>
-<%-- [AX Lab] 수정 (2026-10-12 AX Lab): 과거 상담이력 항목 클릭 동작 변경(caws_setPast) + 재렌더 시 과거 상담이력 복원(caws_pastHtml) 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261012-2"></script>
+<%-- [AX Lab] 수정 (2026-10-12 AX Lab): 처리상태별 담당자/조치의견/전화부재중 규칙 반영 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261012-3"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수 등록 모달(신규작업/복사/하위작업).
@@ -1514,6 +1522,9 @@
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN 담당자 변경 사유 검증용 로그인 사번 --%>
+<script type="text/javascript">var CAWS_LOGIN_EMP_NO = '<c:out value="${adUserInfo.emp_no}" />';</script>
+<%-- [AX Lab] 수정 끝 --%>
 
 <div id="asWorkspace">
 
@@ -2268,8 +2279,10 @@
           <span style="color:red;">(외부에는 노출되지 않습니다)</span>
         </th>
         <td colspan="3">
-          <textarea name="action_content_pop" id="action_content_pop"
+          <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 일괄 처리 조치의견 최대 1,300자 --%>
+          <textarea name="action_content_pop" id="action_content_pop" maxlength="1300"
                     style="width:98%;height:120px; box-sizing:border-box;"></textarea>
+          <%-- [AX Lab] 수정 끝 --%>
           <div class="txt_byte" id="action_content_text_pop">0 / 1300자</div>
         </td>
       </tr>

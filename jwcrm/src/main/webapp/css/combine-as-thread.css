@@ -739,6 +739,11 @@
 #asWorkspace .caws-fin.caws-fgrow{max-width:none; flex:1; min-width:0;}
 #asWorkspace .caws-fin.caws-fwide{max-width:none;}
 #asWorkspace .caws-fin.caws-fcnt{width:46px; max-width:46px; text-align:center;}
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 전화부재중 미체크 시 부재 횟수 음영·비활성 상태 명확화 */
+#asWorkspace .caws-fin.caws-fcnt.write_gray{
+  color:#999; background:#f3f3f3; border-color:#dcdcdc; cursor:not-allowed;
+}
+/* [AX Lab] 수정 끝 */
 
 /* 인라인 textarea (요청내용 / 팝오버 메모) — 기본 .caws-ta 는 border 가 없어 테두리를 되살린다 */
 #asWorkspace .caws-fta{
