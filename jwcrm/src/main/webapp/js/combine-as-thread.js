@@ -1198,6 +1198,19 @@ function caws_renderCompose(){
 }
 
 /* ---- 담당자 검색 (담당자 이관 팝오버에서 사용) ---------------------------- */
+/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN과 동일한 계정별·문의유형별 이관 후보 조회조건 구성 */
+function caws_empListParams(){
+	var vo = caws.vo || {}, row = caws.row || {};
+	return {
+		as_no: caws.asNo,
+		request_type: caws_nvl(vo.request_type, caws_nvl(row.request_type,'')),
+		service_cate: caws_nvl(vo.service_cate, caws_nvl(row.service_cate,'')),
+		inquiry_type: caws_nvl(vo.inquiry_type, caws_nvl(row.inquiry_type,'')),
+		val2: caws_nvl(caws.reqVal2,''),
+		assign_id: caws_nvl(vo.assign_id, caws_nvl(row.assign_id,''))
+	};
+}
+/* [AX Lab] 수정 끝 */
 function caws_actEmpLoaded(data){
 	caws.act.empList = (data && data.resultList) ? data.resultList : [];
 	caws_actEmpFilter();
@@ -1501,6 +1514,12 @@ function caws_fldOpen(key){
 		alert('문의유형·시스템유형은 관리자 권한이 있는 담당자만 변경할 수 있습니다.');
 		return;
 	}
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN처럼 VAL2!='Y' 문의유형은 시스템유형 편집 차단 */
+	if(key === 'systype' && caws.reqVal2 !== 'Y'){
+		alert('선택한 문의유형은 시스템유형을 사용하지 않습니다.');
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 (2026-09-30 AX Lab): 값 클릭 시 일괄 편집을 시작하고 저장은 헤더 버튼에서만 수행 */
 	caws_batchStart();
 	caws.fld = key;
@@ -1770,6 +1789,19 @@ function caws_ekv(key, label, disp, ctrlHtml, tip, requiredText){
 /* [AX Lab] 수정 끝 */
 
 /* ---- 렌더 직후 컨트롤 초기화 (renderRecord 마지막에서 호출) ---------------- */
+/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 선택형 필드는 값 클릭 한 번으로 목록까지 바로 표시 */
+function caws_selectOpen(el){
+	if(!el) return;
+	try{
+		el.focus();
+		/* Chromium/Edge 네이티브 select 목록을 현재 사용자 클릭 이벤트 안에서 연다. */
+		if(el.tagName === 'SELECT' && typeof el.showPicker === 'function') el.showPicker();
+	}catch(e){
+		/* showPicker 미지원 또는 브라우저 보안 제한 시 포커스 동작은 유지한다. */
+		try{ el.focus(); }catch(ignore){}
+	}
+}
+/* [AX Lab] 수정 끝 */
 function caws_fldInit(){
 	var key = caws_nvl(caws.fld,'');
 	if(key === '') return;
@@ -1780,12 +1812,11 @@ function caws_fldInit(){
 		if(caws.act.empList.length > 0){
 			if(ae) ae.innerHTML = caws_inlineEmpOptions();
 		}else{
-			common.ajaxCall({
-				as_no:caws.asNo,
-				assign_id:caws_nvl((caws.vo||{}).assign_id, caws_nvl((caws.row||{}).assign_id,''))
-			}, '/ad/as/getAsEmpList.do', 'caws_inlineEmpLoaded');
+			/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN의 계정별 이관 권한과 문의/시스템유형 조건 전달 */
+			common.ajaxCall(caws_empListParams(), '/ad/as/getAsEmpList.do', 'caws_inlineEmpLoaded');
+			/* [AX Lab] 수정 끝 */
 		}
-		if(ae) try{ ae.focus(); }catch(e){}
+		caws_selectOpen(ae);
 		return;
 	}
 	/* [AX Lab] 수정 끝 */
@@ -1815,6 +1846,9 @@ function caws_fldInit(){
 		el.focus();
 		if(el.tagName === 'INPUT' && !el.readOnly && el.select) el.select();
 	}catch(e){}
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 첫 클릭에서 select 목록 즉시 열기 */
+	if(el.tagName === 'SELECT') caws_selectOpen(el);
+	/* [AX Lab] 수정 끝 */
 }
 
 /* ---- 시스템(대)/(소) 쌍 편집 ('systype') -----------------------------------
@@ -1830,9 +1864,34 @@ function caws_pairHtml(){
 function caws_pairInit(){
 	var vo = caws.vo || {};
 	var cate = caws_el('cawsFldCate');
-	if(cate) cate.innerHTML = caws_codeOptions('AS','CD03', caws_nvl(vo.service_cate,''), '선택');
-	caws_pairFillSub(caws_nvl(vo.service_cate,''), caws_nvl(vo.inquiry_type,''));
-	if(cate) try{ cate.focus(); }catch(e){}
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN의 VAL2/C011별 시스템유형 활성화 규칙 적용 */
+	if(caws.reqVal2 !== 'Y'){
+		caws.fld = '';
+		caws_renderRecord();
+		return;
+	}
+	var requestType = caws_nvl(vo.request_type,'');
+	var serviceCate = caws_nvl(vo.service_cate,'');
+	if(requestType === 'C011') serviceCate = 'P010';
+	if(cate){
+		cate.innerHTML = caws_codeOptions('AS','CD03', serviceCate, '선택');
+		if(requestType === 'C011'){
+			cate.value = 'P010';
+			cate.disabled = true;
+			cate.className += ' write_gray';
+		}else{
+			for(var oi=cate.options.length-1; oi>=0; oi--){
+				if(cate.options[oi].value === 'P010') cate.remove(oi);
+			}
+			cate.disabled = false;
+			cate.className = cate.className.replace(/\s*write_gray/g,'');
+		}
+	}
+	caws_pairFillSub(serviceCate, caws_nvl(vo.inquiry_type,''));
+	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템유형도 첫 클릭에서 대분류 목록 즉시 열기 */
+	if(requestType !== 'C011') caws_selectOpen(cate);
+	/* [AX Lab] 수정 끝 */
 }
 function caws_pairFillSub(serviceCate, sel){
 	var sub = caws_el('cawsFldSub');
@@ -1840,9 +1899,17 @@ function caws_pairFillSub(serviceCate, sel){
 	serviceCate = caws_nvl(serviceCate,'');
 	if(serviceCate === ''){
 		sub.innerHTML = '<option value="">시스템(대) 먼저</option>';
+		/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN처럼 시스템(대) 선택 전 시스템(소) 비활성화 */
+		sub.disabled = true;
+		sub.className += ' write_gray';
+		/* [AX Lab] 수정 끝 */
 		return;
 	}
 	sub.innerHTML = caws_codeOptions('AS', serviceCate, caws_nvl(sel,''), '선택');
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템(대) 선택 후 시스템(소) 활성화 */
+	sub.disabled = false;
+	sub.className = sub.className.replace(/\s*write_gray/g,'');
+	/* [AX Lab] 수정 끝 */
 }
 function caws_pairCateChange(){
 	var cate = caws_el('cawsFldCate');
@@ -1905,6 +1972,10 @@ function caws_inquiryCommit(reqType, cate, inq){
 	} else if(rt === 'C011' && sc !== 'P010'){
 		sc = 'P010'; iq = '';	/* C011 은 시스템(대) P010 고정. 소분류는 다시 골라야 한다 */
 	}
+
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 유형 변경 전 후보목록이 계정별 이관 선택에 재사용되지 않도록 초기화 */
+	caws.act.empList = [];
+	/* [AX Lab] 수정 끝 */
 
 	/* 자동배정 대상 조회 — 처리완료 건은 배정하지 않는다(원본 setWorker 동일) */
 	caws._autoAssign = null;
@@ -2102,7 +2173,9 @@ function caws_popAssignInit(){
 	if(caws.act.empList.length > 0){
 		caws_actEmpFilter();
 	} else {
-		common.ajaxCall({ as_no:caws.asNo, assign_id:caws.act.assignId }, '/ad/as/getAsEmpList.do', 'caws_actEmpLoaded');
+		/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN의 계정별 이관 권한과 문의/시스템유형 조건 전달 */
+		common.ajaxCall(caws_empListParams(), '/ad/as/getAsEmpList.do', 'caws_actEmpLoaded');
+		/* [AX Lab] 수정 끝 */
 	}
 	var kw = caws_el('cawsActEmpKw');
 	if(kw) try{ kw.focus(); }catch(e){}
@@ -2805,7 +2878,6 @@ function caws_renderRecord(){
 	       ? '<div class="kv"><span class="k">상위접수번호</span><span class="v link caws-lnk" onclick="caws_pastOpen(\''+caws_esc(parentNo)+'\',\'\');" title="상위 접수건을 이 화면에서 엽니다">'+caws_esc(parentNo)+'</span></div>' : '')
 	   + caws_cnAsRowHtml()
 	   + caws_kv('연결된 AS', caws_nvl(row.as_no_link_count,'0')+'건')
-	   + caws_kv('우선처', (caws_nvl(row.priority,'') === 'Y') ? '★ 우선' : '-')
 	   + caws_kv('챗봇ID', caws_nvl(vo.chatbot_id,'-'))
 	   /* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 상세화면의 공통 필수값 표시 */
 	   + caws_ekv('accept_route', '접수경로', caws_esc(acceptRouteNm), caws_fldSelHtml('accept_route'), '', true)
@@ -2818,15 +2890,20 @@ function caws_renderRecord(){
 	   ※ 일반 담당자(as_admin != 'Y')는 원본 화면과 동일하게 문의유형/시스템유형을 바꿀 수 없다. */
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의유형 VAL2에 따른 시스템유형 조건부 필수 표시 */
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 필수 표기를 별표로 통일 */
-	var sysReq = (caws.reqVal2 === 'Y') ? ' <span class="caws-req" title="필수값">*</span>' : '';
+	var sysEnabled = (caws.reqVal2 === 'Y');
+	var sysReq = sysEnabled ? ' <span class="caws-req" title="필수값">*</span>' : '';
+	/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN처럼 VAL2!='Y' 시스템유형은 값 없이 비활성 표시 */
+	var sysDisp = sysEnabled ? sysType : '-';
+	var sysDisabledTip = '선택한 문의유형은 시스템유형을 사용하지 않습니다';
+	/* [AX Lab] 수정 끝 */
 	b1 += (isAdmin
 	     ? caws_ekv('request_type', '문의유형', caws_esc(reqTypeNm), caws_fldSelHtml('request_type'), '', true)
 	     : '<div class="kv"><span class="k">문의유형 <span class="caws-req" title="필수값">*</span></span><span class="v" title="'+admTip+'">'+caws_esc(reqTypeNm)+'</span></div>')
-	   + (!isAdmin
-	     ? '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v" title="'+admTip+'">'+caws_esc(sysType)+'</span></div>'
+	   + (!isAdmin || !sysEnabled
+	     ? '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v" title="'+(!isAdmin ? admTip : sysDisabledTip)+'">'+caws_esc(sysDisp)+'</span></div>'
 	     : (caws.fld === 'systype'
 	       ? '<div class="kv caws-fe" style="display:block;"><span class="k">시스템유형'+sysReq+'</span><div class="caws-feb">'+caws_pairHtml()+'</div></div>'
-	       : '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v caws-fv" onclick="caws_fldOpen(\'systype\');" title="클릭하여 바로 수정">'+caws_esc(sysType)+'</span></div>'))
+	       : '<div class="kv"><span class="k">시스템유형'+sysReq+'</span><span class="v caws-fv" onclick="caws_fldOpen(\'systype\');" title="클릭하여 바로 수정">'+caws_esc(sysDisp)+'</span></div>'))
 	   + caws_kv('버전정보', caws_nvl(vo.version_info,'-'));
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
@@ -2847,6 +2924,9 @@ function caws_renderRecord(){
 	var custNm = caws_nvl(ci.cust_kor_name, caws_nvl(row.cust_kor_name,'-'));
 	var b2 = caws_detailKv('고객사명', custNm, 'cust')
 	   + caws_kv('고객사코드', caws_nvl(row.cust_code, caws_nvl(vo.cust_code,'-')))
+	   /* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 우선처를 접수정보에서 고객사코드 아래로 이동 */
+	   + caws_kv('우선처', (caws_nvl(row.priority,'') === 'Y') ? '★ 우선' : '-')
+	   /* [AX Lab] 수정 끝 */
 	   + caws_kv('HIS 진료', caws_nvl(ci.his_treat_name,'-'))
 	   + caws_kv('고객사주소', caws_nvl(ci.cust_address,'-'))
 	   + caws_kv('우편번호', caws_nvl(ci.zip_code,'-'))

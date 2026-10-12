@@ -727,9 +727,11 @@
 
 /* 인라인 입력 컨트롤 (한 번에 한 필드만 열린다) */
 #asWorkspace .caws-fin{
-  width:100%; max-width:180px; height:26px; padding:0 7px; box-sizing:border-box;
+  /* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 선택목록 글자가 상하로 잘리지 않도록 높이와 줄높이 확보 */
+  width:100%; max-width:180px; height:28px; padding:0 7px; box-sizing:border-box;
   border:1px solid var(--accent); border-radius:6px; outline:none;
-  background:var(--surface); color:var(--ink); font-size:12px;
+  background:var(--surface); color:var(--ink); font-size:12px; line-height:26px;
+  /* [AX Lab] 수정 끝 */
 }
 #asWorkspace .kv.caws-fe .v.caws-fev{flex:1; display:flex; justify-content:flex-end;}
 #asWorkspace .caws-feb{margin-top:5px;}
