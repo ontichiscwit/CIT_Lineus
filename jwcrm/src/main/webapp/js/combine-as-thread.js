@@ -31,7 +31,12 @@ var caws = {
 	qFileSeq:0,
 	/* [AX Lab] 수정 끝 */
 	lb:{ list:[], idx:0 },
-	past:{ quick:'1w', list:[] },
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 과거 상담이력 조회 조건·결과를 상태로 보관.
+	   caws_renderRecord() 가 #asRecord 를 다시 그릴 때(필드 편집 열기/닫기 등) 이 값으로 블록을 복원한다.
+	   asNo = 결과(list)가 어느 접수건 기준인지. 다른 건의 결과를 잠깐 보여주는 일을 막는다.
+	   start/end/kw = 마지막 조회 조건(입력칸이 다시 그려져도 유지). */
+	past:{ quick:'1w', list:[], asNo:'', start:'', end:'', kw:'' },
+	/* [AX Lab] 수정 끝 */
 	emp:{ list:[], sel:'', selNm:'' },	/* 구 이관모달용 - 하위호환 유지 */
 	act:{ empList:[], assignId:'', assignNm:'' },	/* 담당자 이관 팝오버 상태 */
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 일괄 편집 상태 */
@@ -3007,6 +3012,11 @@ function caws_renderRecord(){
 	caws_html('asRecord', rec);
 	caws_syncBatchHead();
 
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 과거 상담이력 기간 input 이 새로 만들어졌으므로 날짜 선택기를 다시 붙인다.
+	   (목록·입력값 복원은 caws_pastHtml() 이 caws.past 상태로 이미 끝냈다) */
+	caws_pastInitPicker();
+	/* [AX Lab] 수정 끝 */
+
 	/* 편집 중인 필드가 있으면 컨트롤 초기화(옵션 채우기·datepicker 부착·포커스) */
 	caws_fldInit();
 }
@@ -3021,28 +3031,58 @@ function caws_renderRecord(){
  *   반대로 값을 잘못 채우면 IN ('') 이 되어 0건이 나오므로 빈 값을 유지해야 한다.
  * ========================================================================== */
 function caws_pastHtml(){
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 블록을 "상태(caws.past)" 로부터 그린다.
+	   예전에는 입력칸이 빈 값, 목록이 "불러오는 중..." 고정이었다. 그래서 caws_renderRecord() 만 다시 도는
+	   경로(필드 클릭 편집 열기/취소, 일괄편집 시작 등)에서는 기간·검색어가 지워지고 목록은 "불러오는 중..." 인 채
+	   아무도 재조회하지 않아 비어 보였다. 지금은 마지막 조회 조건과 결과(같은 접수건 것일 때만)로 바로 복원한다.
+	   datepicker 는 input 이 새로 만들어지므로 caws_renderRecord() 끝에서 caws_pastInitPicker() 로 다시 붙인다. */
+	var ready = (caws.past.asNo !== '' && caws.past.asNo === caws_nvl(caws.asNo,''));
+	var r = ready ? caws_pastListHtml() : null;
 	return '<div class="caws-past" style="margin-top:8px;">'
 	+ '<div class="caws-pasth">'
 	+   '<span class="caws-ptitle">과거 상담이력</span>'
-	+   '<span class="caws-pcnt" id="cawsPastCnt"></span>'
+	+   '<span class="caws-pcnt" id="cawsPastCnt">'+(r ? r.n + '건' : '')+'</span>'
 	+ '</div>'
 	+ '<div class="caws-pastf">'
 	+   '<div class="caws-prow">'
-	+     '<input type="text" id="cawsPastS" class="caws-pdt" readonly placeholder="시작일" />'
+	+     '<input type="text" id="cawsPastS" class="caws-pdt" readonly placeholder="시작일" value="'+caws_esc(caws.past.start)+'" />'
 	+     '<span class="caws-pwave">~</span>'
-	+     '<input type="text" id="cawsPastE" class="caws-pdt" readonly placeholder="종료일" />'
+	+     '<input type="text" id="cawsPastE" class="caws-pdt" readonly placeholder="종료일" value="'+caws_esc(caws.past.end)+'" />'
 	+   '</div>'
 	+   '<div class="caws-prow">'
 	+     caws_pastChip('1w','1주') + caws_pastChip('1m','1개월') + caws_pastChip('3m','3개월') + caws_pastChip('all','전체')
 	+   '</div>'
 	+   '<div class="caws-prow">'
-	+     '<input type="text" id="cawsPastKw" class="caws-pkw" placeholder="요청내용 검색" onkeydown="if(event.keyCode==13){caws_pastSearch();return false;}" />'
+	/* 검색 버튼을 누르기 전에 입력칸이 다시 그려져도 타이핑하던 검색어가 날아가지 않도록 입력 즉시 상태에 적는다 */
+	+     '<input type="text" id="cawsPastKw" class="caws-pkw" placeholder="요청내용 검색" value="'+caws_esc(caws.past.kw)+'" '
+	+       'oninput="caws.past.kw=this.value;" onkeydown="if(event.keyCode==13){caws_pastSearch();return false;}" />'
 	+     '<button type="button" class="caws-pchip" onclick="caws_pastSearch();">검색</button>'
 	+   '</div>'
 	+ '</div>'
-	+ '<div class="caws-pastlist" id="cawsPastList"><div class="caws-pempty">불러오는 중...</div></div>'
+	+ '<div class="caws-pastlist" id="cawsPastList">'
+	+   (r ? (r.n ? r.html : '<div class="caws-pempty">해당 기간에 다른 상담이력이 없습니다.</div>')
+	       : '<div class="caws-pempty">불러오는 중...</div>')
+	+ '</div>'
 	+ '</div>';
+	/* [AX Lab] 수정 끝 */
 }
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 날짜 선택기 부착. caws_pastReset() 과 caws_renderRecord() 양쪽에서 쓴다.
+   달력에서 고른 날짜도 상태에 적어 두어야 다시 그려질 때 살아남는다(onSelect). */
+function caws_pastInitPicker(){
+	try{
+		$('#cawsPastS, #cawsPastE').datepicker({
+			dateFormat:'yy/mm/dd', changeMonth:true, changeYear:true,
+			onSelect:function(v){ caws.past[(this.id === 'cawsPastS') ? 'start' : 'end'] = v; }
+		});
+	}catch(e){}
+}
+/* 상태의 기간 값을 입력칸에 반영 */
+function caws_pastSyncInputs(){
+	var s = caws_el('cawsPastS'), e = caws_el('cawsPastE');
+	if(s) s.value = caws.past.start;
+	if(e) e.value = caws.past.end;
+}
+/* [AX Lab] 수정 끝 */
 function caws_pastChip(key, label){
 	return '<button type="button" class="caws-pchip'+(caws.past.quick===key ? ' on' : '')+'" '
 	     + 'data-q="'+key+'" onclick="caws_pastQuick(\''+key+'\');">'+label+'</button>';
@@ -3051,20 +3091,27 @@ function caws_pastChip(key, label){
 /* 상세를 새로 그린 직후 호출. 기본 기간(오늘-7일 ~ 오늘)으로 초기화하고 조회한다. */
 function caws_pastReset(){
 	caws.past.quick = '1w';
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 건이 바뀌면 이전 건의 결과·검색어는 버린다 (상태 기반 렌더 도입) */
+	caws.past.asNo = '';
+	caws.past.list = [];
+	caws.past.kw   = '';
 	caws_pastApplyRange('1w');
-	try{
-		$('#cawsPastS, #cawsPastE').datepicker({ dateFormat:'yy/mm/dd', changeMonth:true, changeYear:true });
-	}catch(e){}
+	caws_pastInitPicker();
+	/* [AX Lab] 수정 끝 */
 	caws_pastSearch();
 }
 function caws_pastApplyRange(key){
-	var s = caws_el('cawsPastS'), e = caws_el('cawsPastE');
-	if(!s || !e) return;
-	e.value = caws_dayOffset(0);
-	if(key === '1w')      s.value = caws_dayOffset(-7);
-	else if(key === '1m') s.value = caws_dayOffset(-30);
-	else if(key === '3m') s.value = caws_dayOffset(-90);
-	else { s.value = ''; e.value = ''; }		/* 전체 : 기간조건 미적용 */
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 입력칸이 아니라 상태(caws.past.start/end)에 먼저 적고 입력칸에 반영한다.
+	   입력칸이 없어도(아직 안 그려짐) 상태는 남아, 다음 렌더에서 그대로 복원된다. */
+	var e = caws_dayOffset(0), s = '';
+	if(key === '1w')      s = caws_dayOffset(-7);
+	else if(key === '1m') s = caws_dayOffset(-30);
+	else if(key === '3m') s = caws_dayOffset(-90);
+	else { s = ''; e = ''; }					/* 전체 : 기간조건 미적용 */
+	caws.past.start = s;
+	caws.past.end   = e;
+	caws_pastSyncInputs();
+	/* [AX Lab] 수정 끝 */
 }
 function caws_pastQuick(key){
 	caws.past.quick = key;
@@ -3080,7 +3127,13 @@ function caws_pastSearch(){
 		return;
 	}
 	var s = caws_el('cawsPastS'), e = caws_el('cawsPastE'), kw = caws_el('cawsPastKw');
-	var sv = s ? String(s.value||'') : '', ev = e ? String(e.value||'') : '';
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 입력칸이 있으면 그 값을 상태에 적고, 없으면 상태값으로 조회한다.
+	   (사용자가 달력/타이핑으로 바꾼 값이 조회 조건이자 다음 렌더의 복원값이 된다) */
+	if(s)  caws.past.start = String(s.value||'');
+	if(e)  caws.past.end   = String(e.value||'');
+	if(kw) caws.past.kw    = String(kw.value||'');
+	var sv = caws.past.start, ev = caws.past.end, kv = caws.past.kw;
+	/* [AX Lab] 수정 끝 */
 
 	caws_html('cawsPastList', '<div class="caws-pempty">불러오는 중...</div>');
 	common.ajaxCall({
@@ -3088,7 +3141,7 @@ function caws_pastSearch(){
 		search_type10: (sv !== '' && ev !== '') ? 'Y' : '',	/* 기간조건 사용여부 */
 		search_start: sv,
 		search_end: ev,
-		search_text: kw ? String(kw.value||'') : '',
+		search_text: kv,
 		procSelect: '',					/* 빈 값 = 처리상태 전체 (위 주석 참고) */
 		asGubunFlag: '1',				/* 1 = 전체 (2 는 나의 A/S 로 담당자 필터가 붙는다) */
 		page: '1',
@@ -3098,7 +3151,17 @@ function caws_pastSearch(){
 function caws_setPast(data){
 	var list = (data && data.resultList) ? data.resultList : [];
 	caws.past.list = list;
-
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 결과가 어느 접수건 기준인지 기록하고, 목록 마크업 생성은
+	   caws_pastListHtml() 로 분리해 caws_pastHtml()(재렌더 복원)과 같은 마크업을 쓰게 한다. */
+	caws.past.asNo = caws_nvl(caws.asNo,'');
+	var r = caws_pastListHtml();
+	caws_html('cawsPastCnt', r.n + '건');
+	caws_html('cawsPastList', r.n ? r.html : '<div class="caws-pempty">해당 기간에 다른 상담이력이 없습니다.</div>');
+}
+/* caws.past.list 로 항목 버튼 마크업을 만든다. { html, n } 을 돌려준다 (n = 현재 건을 뺀 표시 건수). */
+function caws_pastListHtml(){
+	var list = caws.past.list || [];
+	/* [AX Lab] 수정 끝 */
 	var s = '', n = 0;
 	for(var i=0; i<list.length; i++){
 		var it = list[i];
@@ -3106,7 +3169,16 @@ function caws_setPast(data){
 		if(no === caws.asNo) continue;					/* 지금 보고 있는 건은 제외 */
 		n++;
 		var txt = caws_nvl(it.call_content,'');
-		s += '<button type="button" class="caws-pit" onclick="caws_pastOpen(\''+caws_esc(no)+'\',\''+caws_esc(caws_nvl(it.cn_as_no,''))+'\');">'
+		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 항목 클릭 시 현재 접수건을 갈아끼우지 않고(caws_pastOpen)
+		   그 항목 바로 아래에 과거 건 내용을 펼친다(combine-as-past-inline.js / cpi_toggle).
+		   보던 문의가 사라지는 문제 해결. 그 건으로 완전히 넘어가는 것은 펼친 패널의 [이 건으로 이동].
+		   data-cpi 는 목록이 다시 그려졌을 때 패널을 도로 꽂기 위한 식별자(cpi_remount).
+		   combine-as-past-inline.js 미로드 시에는 기존 caws_pastOpen 으로 폴백한다. */
+		s += '<button type="button" class="caws-pit" data-cpi="'+caws_esc(no)+'" '
+		  +  'title="클릭하면 이 자리에서 내용을 펼쳐 봅니다 (지금 보는 접수건은 유지)" '
+		  +  'onclick="(typeof cpi_toggle===\'function\') ? cpi_toggle(this,\''+caws_esc(no)+'\',\''+caws_esc(caws_nvl(it.cn_as_no,''))+'\')'
+		  +  ' : caws_pastOpen(\''+caws_esc(no)+'\',\''+caws_esc(caws_nvl(it.cn_as_no,''))+'\');">'
+		/* [AX Lab] 수정 끝 */
 		  +    '<div class="caws-pith">'
 		  +      '<span class="caws-pdate">'+caws_esc(caws_date(it.accept_dt))+'</span>'
 		  +      '<span class="st '+asws_stClass(caws_nvl(it.proc_status,''))+'">'+caws_esc(caws_nvl(it.proc_status_nm,'-'))+'</span>'
@@ -3115,11 +3187,15 @@ function caws_setPast(data){
 		  +    '<div class="caws-ptxt">'+(txt ? caws_esc(txt) : '<span class="none">요청내용 없음</span>')+'</div>'
 		  +  '</button>';
 	}
-	caws_html('cawsPastCnt', n + '건');
-	caws_html('cawsPastList', n ? s : '<div class="caws-pempty">해당 기간에 다른 상담이력이 없습니다.</div>');
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): DOM 에 쓰지 않고 돌려준다 (호출부 caws_setPast / caws_pastHtml 가 쓴다) */
+	return { html:s, n:n };
+	/* [AX Lab] 수정 끝 */
 }
 /* 과거이력 클릭 : 페이지 이동 없이 COL2/COL3 를 그 건으로 갈아끼운다.
-   목록(COL1)에 없는 건일 수도 있어 asws.curRow 가 비게 되는데, 그때는 getAsInfo 응답값만으로 그린다. */
+   목록(COL1)에 없는 건일 수도 있어 asws.curRow 가 비게 되는데, 그때는 getAsInfo 응답값만으로 그린다.
+   [AX Lab] 수정 (2026-10-12 AX Lab): 과거 상담이력/연관 이력 "항목 클릭"은 더 이상 이 함수를 직접 타지 않는다
+   (combine-as-past-inline.js 가 그 자리에서 펼쳐 보여 준다). 이 함수는 상위접수번호 링크와
+   펼친 패널의 [이 건으로 이동](cpi_go), 그리고 inline 파일 미로드 시 폴백으로만 쓰인다. 동작은 그대로다. */
 function caws_pastOpen(asNo, cnAsNo){
 	if(caws_nvl(asNo,'') === '') return;
 	asws_openDetail(asNo, cnAsNo);

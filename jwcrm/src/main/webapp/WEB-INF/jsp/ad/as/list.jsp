@@ -1439,7 +1439,8 @@
 <link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261007-5" />
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 기능 수정 후 브라우저가 이전 JS를 재사용하지 않도록 버전 고정 --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261007-5"></script>
+<%-- [AX Lab] 수정 (2026-10-12 AX Lab): 과거 상담이력 항목 클릭 동작 변경(caws_setPast) + 재렌더 시 과거 상담이력 복원(caws_pastHtml) 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261012-2"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수 등록 모달(신규작업/복사/하위작업).
@@ -1463,7 +1464,8 @@
        원복이 필요하면 아래 두 줄만 지우면 완전히 되돌아간다.
      ★ 로드 순서 : combine-as.js(asws_stClass) + combine-as-thread.js(caws_* 유틸) 뒤여야 한다. --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-keyword.css" />
-<script type="text/javascript" src="/js/combine-as-keyword.js"></script>
+<%-- [AX Lab] 수정 (2026-10-12 AX Lab): 연관 이력 항목 클릭 동작 변경(ckw_listHtml) 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-keyword.js?v=20261012-1"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-06 AX Lab): AI 추천 (유사 상담사례 / 과거사례 / 공지) 실제 연동.
      설계서 mdfile/AS통합화면_AI추천_통합설계.md §8. 문의 카드의 [✦ AI 추천] 팝오버가 추천 "목록"을,
@@ -1474,6 +1476,16 @@
      ★ 원복 : 아래 두 줄만 지우면 combine-as-thread.js 의 caws_aiRecommendHtml() 이 기존 플레이스홀더로 돌아간다. --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-ai.css" />
 <script type="text/javascript" src="/js/combine-as-ai.js"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 연관 이력 / 과거 상담이력 항목을 "그 자리에서" 펼쳐 보기.
+     기존에는 항목 클릭 = caws_pastOpen → asws_openDetail 이라 지금 보던 접수건이 그 과거 건으로 통째로
+     바뀌었다. 이제는 항목 바로 아래에 과거 건 내용(문의 전문·첨부·답변·조치이력)을 펼치고,
+     현재 접수건(COL2/COL3)은 그대로 둔다. 완전히 넘어가려면 패널의 [이 건으로 이동].
+     서버 호출은 기존 /ad/as/getAsInfo.do 재사용(신규 URL 금지 제약, 순수 SELECT).
+     ★ 로드 순서 : combine-as-thread.js(caws_* 유틸) + combine-as-keyword.js(ckw_render 를 감싼다) 뒤여야 한다.
+     ★ 원복 : 아래 두 줄만 지우면 두 목록의 onclick 이 typeof cpi_toggle 폴백을 타서 기존 caws_pastOpen 으로 돌아간다. --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-past-inline.css" />
+<script type="text/javascript" src="/js/combine-as-past-inline.js"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>

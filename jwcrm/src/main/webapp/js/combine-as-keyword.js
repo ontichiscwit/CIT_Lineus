@@ -1314,8 +1314,17 @@ function ckw_listHtml(){
 		/* 막대는 1위 대비 상대값이다. 절대 점수를 %로 보여주면 근거 없는 확신을 준다. */
 		var pct = r.d.ref ? 100 : Math.max(8, Math.round((r.raw / (top || 1)) * 100));
 
+		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 항목 클릭 시 현재 접수건을 갈아끼우지 않고(caws_pastOpen)
+		   그 항목 바로 아래에 과거 건 내용을 펼친다(combine-as-past-inline.js / cpi_toggle).
+		   보던 문의가 사라지는 문제 해결. 그 건으로 완전히 넘어가는 것은 펼친 패널의 [이 건으로 이동].
+		   data-cpi 는 블록이 다시 그려졌을 때 패널을 도로 꽂기 위한 식별자(cpi_remount).
+		   combine-as-past-inline.js 미로드 시에는 기존 caws_pastOpen 으로 폴백한다. */
 		s += '<button type="button" class="ckw-it' + (r.d.ref ? ' ref' : '') + '" '
-		  +  'onclick="caws_pastOpen(\'' + ckw_esc(no) + '\',\'' + ckw_esc(ckw_nvl(it.cn_as_no,'')) + '\');">'
+		  +  'data-cpi="' + ckw_esc(no) + '" '
+		  +  'title="클릭하면 이 자리에서 내용을 펼쳐 봅니다 (지금 보는 접수건은 유지)" '
+		  +  'onclick="(typeof cpi_toggle===\'function\') ? cpi_toggle(this,\'' + ckw_esc(no) + '\',\'' + ckw_esc(ckw_nvl(it.cn_as_no,'')) + '\')'
+		  +  ' : caws_pastOpen(\'' + ckw_esc(no) + '\',\'' + ckw_esc(ckw_nvl(it.cn_as_no,'')) + '\');">'
+		/* [AX Lab] 수정 끝 */
 		  +    '<div class="ckw-ith">'
 		  +      (r.d.ref ? '<span class="ckw-badge">직접 참조</span>' : '')
 		  +      '<span class="ckw-idate">' + ckw_esc(caws_date(it.accept_dt)) + '</span>'
