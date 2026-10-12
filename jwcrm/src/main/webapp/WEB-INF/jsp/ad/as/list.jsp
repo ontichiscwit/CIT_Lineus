@@ -52,6 +52,17 @@
 		}
 	}
 	/* [AX Lab] 수정 끝 */
+
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 새 탭 진입 시 선택할 접수번호 쿼리값을 안전하게 읽는다.
+	   /ad/as/list.do?as_no=...&cn_as_no=... 로 들어온 경우에만 사용하며 숫자 11자리 외 값은 버린다. */
+	function asws_initialAsNo(name){
+		var m = new RegExp('(?:^|[?&])' + name + '=([^&]*)').exec(window.location.search || '');
+		if(!m) return '';
+		var v = '';
+		try{ v = decodeURIComponent(String(m[1]).replace(/\+/g, ' ')); }catch(e){ return ''; }
+		return /^20\d{9}$/.test(v) ? v : '';
+	}
+	/* [AX Lab] 수정 끝 */
 	
 	$(document).ready(function(){
 		
@@ -77,7 +88,14 @@
 		   grid-template-columns 를 다투므로, 뒤에 실행되는 쪽이 최종 상태를 결정한다. */
 		if (typeof caws_restoreDetailWide === 'function') caws_restoreDetailWide();
 		/* [AX Lab] 수정 끝 */
-		makeListData();	/* [AX Lab] 상단 KPI(나에게 배정된 건 6종)는 getAsList.do 응답에 동봉되어 setAsList 에서 갱신됨 */
+		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 새 탭에서 목록 첫 행 대신 URL의 접수건을 상세영역에 연다.
+		   makeListData 콜백은 목록이 0건이어도 실행되므로 현재 검색조건/담당자 여부와 무관하게 대상 건을 볼 수 있다. */
+		var initialAsNo = asws_initialAsNo('as_no');
+		var initialCnAsNo = asws_initialAsNo('cn_as_no');
+		makeListData(initialAsNo !== '' ? function(){
+			asws_openDetail(initialAsNo, initialCnAsNo);
+		} : null);	/* 상단 KPI(나에게 배정된 건 6종)는 getAsList.do 응답에 동봉되어 setAsList 에서 갱신됨 */
+		/* [AX Lab] 수정 끝 */
 		$("#search_text").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
 		/* [AX Lab] 삭제 (2026-07-24 AX Lab): emp_nm/search_type4/search_type6 필드는 고급필터 동적행으로 대체됨 */
 		
@@ -1478,7 +1496,9 @@
        combine-as-loading.css(.asws-spin 재사용) 뒤여야 한다.
      ★ 원복 : 아래 두 줄만 지우면 combine-as-thread.js 의 caws_aiRecommendHtml() 이 기존 플레이스홀더로 돌아간다. --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-ai.css" />
-<script type="text/javascript" src="/js/combine-as-ai.js"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 통합 AS 화면 새 탭에서 원본 접수건 선택 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-ai.js?v=20261012-3"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 연관 이력 / 과거 상담이력 항목을 "그 자리에서" 펼쳐 보기.
      기존에는 항목 클릭 = caws_pastOpen → asws_openDetail 이라 지금 보던 접수건이 그 과거 건으로 통째로
@@ -1488,7 +1508,9 @@
      ★ 로드 순서 : combine-as-thread.js(caws_* 유틸) + combine-as-keyword.js(ckw_render 를 감싼다) 뒤여야 한다.
      ★ 원복 : 아래 두 줄만 지우면 두 목록의 onclick 이 typeof cpi_toggle 폴백을 타서 기존 caws_pastOpen 으로 돌아간다. --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-past-inline.css" />
-<script type="text/javascript" src="/js/combine-as-past-inline.js"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 통합 AS 화면 새 탭에서 이 건으로 이동 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-past-inline.js?v=20261012-3"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>

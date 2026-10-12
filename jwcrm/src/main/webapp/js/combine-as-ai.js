@@ -349,7 +349,9 @@ function cai_detailHtml(it, idx){
 		if(it.deep_link) h += '<button type="button" class="btn-s" onclick="cai_openLink(' + idx + ');">게시물 열기</button>';
 	}else if(tier === 2){
 		var asNo = cai_nvl(it.as_no, (String(it.doc_id || '').indexOf('AS-') === 0 ? String(it.doc_id).substring(3) : ''));
-		if(asNo) h += '<button type="button" class="caws-send cai-primary" onclick="cai_openCase(\'' + cai_esc(asNo) + '\');" title="이 화면에서 해당 접수건을 엽니다 (지금 보는 건은 목록에서 다시 선택)">원본 접수건 열기</button>';
+		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 원본 접수건은 현재 AS를 유지하고 통합 AS 화면 새 탭으로 열기 */
+		if(asNo) h += '<button type="button" class="caws-send cai-primary" onclick="cai_openCase(\'' + cai_esc(asNo) + '\');" title="통합 AS 화면을 새 탭으로 열어 이 접수건을 선택합니다">원본 접수건 열기</button>';
+		/* [AX Lab] 수정 끝 */
 		h += '<button type="button" class="btn-s" onclick="cai_insertDraft(' + idx + ');" title="답변 내용을 작성영역에 붙여 넣습니다 (단편 기록일 수 있어 확인 후 사용)">초안에 넣기</button>';
 	}else{
 		if(it.deep_link) h += '<button type="button" class="caws-send cai-primary" onclick="cai_openLink(' + idx + ');">게시물 열기</button>';
@@ -376,12 +378,14 @@ function cai_insertDraft(idx){
 	if(typeof caws_syncDraftTag === 'function') caws_syncDraftTag();
 	try{ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }catch(e){}
 }
-/* 과거사례 → 같은 화면에서 그 접수건을 연다 (목록에 없는 건이어도 getAsInfo 로 열린다) */
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 과거사례 원본을 통합 AS 화면 새 탭에서 선택해 연다 */
 function cai_openCase(asNo){
 	if(!asNo) return;
-	if(typeof asws_openDetail === 'function'){ asws_openDetail(asNo, ''); return; }
-	window.open('/ad/as/list.do?as_no=' + encodeURIComponent(asNo), '_blank');
+	var url = '/ad/as/list.do?as_no=' + encodeURIComponent(asNo);
+	var opened = window.open(url, '_blank', 'noopener');
+	if(opened) opened.opener = null;
 }
+/* [AX Lab] 수정 끝 */
 /* 게시물 열기 : deep_link(/ad/{faq|notice|down|videofaq}/form.do?seq=N) 를 기존 게시판 상세 열기 방식(POST 새 창)으로 연다.
    caws_goBoard 와 달리 번호 변환이 필요 없다 — 추천 API 의 deep_link 는 이미 SEQ 기준이다. */
 function cai_openLink(idx){
