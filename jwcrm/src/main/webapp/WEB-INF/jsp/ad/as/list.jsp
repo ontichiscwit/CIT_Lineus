@@ -1430,6 +1430,9 @@
 
 <%-- [AX Lab] 수정 시작 (2026-07-23 AX Lab): AS 통합 워크스페이스(3분할) 화면 리뉴얼 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as.css" />
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): AS 목록의 현재 페이지를 굵게 강조 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-pagination.css" />
+<%-- [AX Lab] 수정 끝 --%>
 <script type="text/javascript" src="/js/combine-as.js"></script>
 <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면(통합 타임라인 / 작성영역 / 모달 / 아코디언 / 과거이력).
      combine-as.css / combine-as.js 를 고치지 않고 "뒤에 추가"하는 방식이라 로드 순서가 중요하다.

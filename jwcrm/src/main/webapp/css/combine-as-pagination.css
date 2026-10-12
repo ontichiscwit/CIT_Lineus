@@ -1,0 +1,7 @@
+/* [AX Lab] 추가 시작 (2026-10-12 AX Lab): AS 목록의 현재 페이지를 굵게 강조 */
+#asWorkspace #pagination a.active {
+  font-weight: 800;
+  color: var(--blue);
+  background-color: var(--blue-bg);
+}
+/* [AX Lab] 추가 끝 */
