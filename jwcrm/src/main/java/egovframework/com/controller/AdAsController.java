@@ -1017,11 +1017,17 @@ public class AdAsController {
 			upd.setRequest_type(SsStringUtil.normalizeNull(vo.getRequest_type()).trim()) ;
 			upd.setService_cate(SsStringUtil.normalizeNull(vo.getService_cate()).trim()) ;
 			upd.setInquiry_type(SsStringUtil.normalizeNull(vo.getInquiry_type()).trim()) ;
+			// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템(대)에 연동해 화면에서 계산한 고객사 HIS 버전 저장
+			upd.setVersion_info(SsStringUtil.normalizeNull(vo.getVersion_info()).trim()) ;
+			// [AX Lab] 수정 끝
 		} else {
-			/* 권한이 없으면 3개 필드는 현재 값을 그대로 유지하고, 요청내용만 반영한다 */
+			/* 권한이 없으면 문의/시스템/버전 필드는 현재 값을 그대로 유지하고, 요청내용만 반영한다 */
 			upd.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type())) ;
 			upd.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate())) ;
 			upd.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type())) ;
+			// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 비관리자의 우회 요청으로 버전정보가 변경되지 않게 보호
+			upd.setVersion_info(SsStringUtil.normalizeNull(cur.getVersion_info())) ;
+			// [AX Lab] 수정 끝
 		}
 		upd.setCall_content(SsStringUtil.normalizeNull(vo.getCall_content()).trim()) ;
 

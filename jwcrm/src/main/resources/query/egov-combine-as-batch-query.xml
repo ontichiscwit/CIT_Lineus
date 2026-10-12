@@ -16,6 +16,9 @@
 			REQUEST_TYPE      = #{request_type, jdbcType=VARCHAR},
 			SERVICE_CATE      = #{service_cate, jdbcType=VARCHAR},
 			INQUIRY_TYPE      = #{inquiry_type, jdbcType=VARCHAR},
+			/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템(대)에 연동해 계산한 고객사 HIS 버전 저장 */
+			VERSION_INFO      = #{version_info, jdbcType=VARCHAR},
+			/* [AX Lab] 수정 끝 */
 			PROC_STATUS       = #{proc_status, jdbcType=VARCHAR},
 			ASSIGN_ID         = #{assign_id, jdbcType=VARCHAR},
 			INPORTANCE        = #{inportance, jdbcType=VARCHAR},

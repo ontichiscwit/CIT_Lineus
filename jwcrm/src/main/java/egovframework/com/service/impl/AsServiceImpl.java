@@ -1098,6 +1098,9 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 			vo.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type()));
 			vo.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate()));
 			vo.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type()));
+			// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 비관리자는 문의/시스템과 함께 버전정보도 기존값 유지
+			vo.setVersion_info(SsStringUtil.normalizeNull(cur.getVersion_info()));
+			// [AX Lab] 수정 끝
 		}
 
 		// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 컬럼 변경 여부를 현재 DB값과 비교
@@ -1113,6 +1116,9 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		String newRequestType = SsStringUtil.normalizeNull(vo.getRequest_type()).trim();
 		String newServiceCate = SsStringUtil.normalizeNull(vo.getService_cate()).trim();
 		String newInquiryType = SsStringUtil.normalizeNull(vo.getInquiry_type()).trim();
+		// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템(대)에 연동해 화면에서 계산한 버전정보
+		String newVersionInfo = SsStringUtil.normalizeNull(vo.getVersion_info()).trim();
+		// [AX Lab] 수정 끝
 		// [AX Lab] 수정 끝
 
 		// [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp goSave의 필수값·상태별 조건을 서버에서도 검증
@@ -1133,8 +1139,19 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		AsVO taskKey = new AsVO();
 		taskKey.setRequest_type(newRequestType);
 		AsVO taskType = (AsVO) commonDAO.selectOne(taskKey, "asDAO.getTaskType");
-		if (taskType != null && "Y".equals(SsStringUtil.normalizeNull(taskType.getVal2()))
-				&& ("".equals(newServiceCate) || "".equals(newInquiryType))) return 0;
+		// [AX Lab] 수정 시작 (2026-10-08 AX Lab): VAL2/시스템(대) 규칙을 서버에서도 강제해 이전 버전 잔존 방지
+		boolean systemRequired = taskType != null
+				&& "Y".equals(SsStringUtil.normalizeNull(taskType.getVal2()).trim());
+		if (systemRequired && ("".equals(newServiceCate) || "".equals(newInquiryType))) return 0;
+		if (!systemRequired) {
+			newServiceCate = "";
+			newInquiryType = "";
+			newVersionInfo = "";
+		} else if (!("P002".equals(newServiceCate) || "P004".equals(newServiceCate)
+				|| "P003".equals(newServiceCate) || "P006".equals(newServiceCate))) {
+			newVersionInfo = "";
+		}
+		// [AX Lab] 수정 끝
 
 		if (statusChanged) {
 			if ("C006".equals(curStatus)) return 0;
@@ -1185,6 +1202,9 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		vo.setRequest_type(newRequestType);
 		vo.setService_cate(newServiceCate);
 		vo.setInquiry_type(newInquiryType);
+		// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 정규화된 버전정보를 일괄 UPDATE에 전달
+		vo.setVersion_info(newVersionInfo);
+		// [AX Lab] 수정 끝
 		vo.setComplete_dt(completeDt);
 
 		int returnValue = commonDAO.update(vo, "asDAO.updateAsRecordBatch");
