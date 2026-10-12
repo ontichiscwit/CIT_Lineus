@@ -1,0 +1,115 @@
+/* =============================================================================
+ * [AX Lab] 신규 파일 (2026-10-12): AS 통합화면 - 연관 이력 / 과거 상담이력 "그 자리에서 펼쳐 보기"
+ * -----------------------------------------------------------------------------
+ * combine-as-past-inline.js 가 항목 버튼(.ckw-it / .caws-pit) 바로 아래에 꽂는 #cpiPanel 과
+ * 그 안의 요소만 담당한다. 접두어는 cpi- 로 통일.
+ *
+ * ★ CSS 변수(--line/--surface/--ink/--accent …)는 combine-as.css 의 #asWorkspace 스코프에서
+ *   정의된다. 모든 선택자를 #asWorkspace 하위로 한정해야 변수가 상속된다.
+ * ★ 로드 순서는 combine-as-thread.css / combine-as-keyword.css 뒤여야 한다
+ *   (.ckw-list / .caws-pastlist 의 max-height 를 같은 특정도로 덮어쓰기 때문).
+ * ★ .st(처리상태 뱃지)·.caws-files(첨부 칩)·.caws-minib(미니 버튼)는 기존 공통 클래스를 그대로 쓴다.
+ * ========================================================================== */
+
+/* ---- 펼친 동안 목록 상자의 높이 제한을 푼다 --------------------------------
+   260~300px 상자 안에서 과거 건 전문을 읽게 하면 (상자 스크롤 + COL3 스크롤) 이중 스크롤이 된다.
+   패널이 열려 있는 동안만 풀어서 스크롤이 COL3(#asRecord) 하나로 모이게 한다. */
+#asWorkspace .ckw-list.cpi-expanded,
+#asWorkspace .caws-pastlist.cpi-expanded{max-height:none;}
+
+/* ---- 지금 펼쳐 둔 항목 ---------------------------------------------------- */
+#asWorkspace .ckw-it.cpi-on,
+#asWorkspace .caws-pit.cpi-on{
+  background:var(--accent-bg);
+  border-bottom-color:transparent;
+}
+#asWorkspace .ckw-it.cpi-on:hover,
+#asWorkspace .caws-pit.cpi-on:hover{background:var(--accent-bg);}
+
+/* ---- 패널 껍데기 ---------------------------------------------------------- */
+#asWorkspace .cpi-panel{
+  border-top:1px solid var(--accent-line);
+  border-bottom:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  background:var(--surface);
+}
+
+/* 헤더 : 제목 · 접수번호 · [이 건으로 이동] · [×] */
+#asWorkspace .cpi-hd{
+  display:flex; align-items:center; gap:6px;
+  padding:6px 8px 6px 9px;
+  background:var(--accent-bg);
+  border-bottom:1px solid var(--accent-line);
+}
+#asWorkspace .cpi-hd .cpi-tit{font-size:11px; font-weight:700; color:var(--accent); white-space:nowrap;}
+#asWorkspace .cpi-hd .cpi-no{font-size:10.5px; color:var(--ink-2); white-space:nowrap;}
+#asWorkspace .cpi-hd .cpi-sp{flex:1;}
+#asWorkspace .cpi-hd .cpi-x{font-size:14px; line-height:1; padding:0 7px;}
+
+/* 요약 줄 */
+#asWorkspace .cpi-meta{
+  display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px;
+  padding:7px 9px 5px;
+  font-size:10.5px; color:var(--ink-2);
+}
+#asWorkspace .cpi-meta .cpi-when{font-weight:600; color:var(--ink);}
+#asWorkspace .cpi-meta .cpi-mi em{font-style:normal; color:var(--ink-3); margin-right:3px;}
+
+/* 섹션 : 문의 내용 / 답변·조치 / 처리 첨부 */
+#asWorkspace .cpi-sec{padding:5px 9px 8px; border-top:1px dashed var(--line);}
+#asWorkspace .cpi-sl{
+  display:flex; align-items:center; gap:5px;
+  margin-bottom:4px;
+  font-size:10.5px; font-weight:700; color:var(--ink-3);
+}
+#asWorkspace .cpi-sl em{font-style:normal; font-weight:500; color:var(--ink-3);}
+
+/* 본문 : 줄바꿈 유지. 2줄 클램프였던 목록 요약과 달리 여기서는 전문을 다 보여 준다 */
+#asWorkspace .cpi-txt{
+  font-size:11.5px; line-height:1.55; color:var(--ink);
+  white-space:pre-line; word-break:break-word; overflow-wrap:anywhere;
+}
+#asWorkspace .cpi-txt .none{color:var(--ink-3);}
+#asWorkspace .cpi-sec .caws-files{margin-top:6px;}
+
+/* 답변·조치 한 건 — 타임라인(.caws-ev) 과 같은 색 체계 (고객=파랑 / 담당자=기본색 / 조치=주황) */
+#asWorkspace .cpi-ev{
+  margin-top:5px; padding:6px 8px;
+  border:1px solid var(--line); border-radius:8px;
+  background:var(--surface-1);
+}
+#asWorkspace .cpi-ev.k-cust {background:var(--blue-bg);   border-color:#C8DBEF;}
+#asWorkspace .cpi-ev.k-staff{background:var(--accent-bg); border-color:var(--accent-line);}
+#asWorkspace .cpi-ev.k-act  {background:var(--warn-bg);   border-color:#EBDCC0;}
+#asWorkspace .cpi-evh{display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-bottom:3px;}
+#asWorkspace .cpi-evh b{font-size:11px; color:var(--ink);}
+#asWorkspace .cpi-evh .cpi-evw{font-size:10px; color:var(--ink-3); white-space:nowrap;}
+#asWorkspace .cpi-evh .st{margin-left:auto;}
+#asWorkspace .cpi-lb{
+  display:inline-flex; align-items:center; height:16px; padding:0 6px; border-radius:8px;
+  font-size:9.5px; font-style:normal; font-weight:700; white-space:nowrap;
+  background:var(--surface); color:var(--ink-2); border:1px solid var(--line);
+}
+#asWorkspace .cpi-ev.k-cust  .cpi-lb{color:var(--blue);   border-color:#C8DBEF;}
+#asWorkspace .cpi-ev.k-staff .cpi-lb{color:var(--accent); border-color:var(--accent-line);}
+#asWorkspace .cpi-ev.k-act   .cpi-lb{color:var(--warn);   border-color:#EBDCC0;}
+#asWorkspace .cpi-evs{font-size:10px; color:var(--ink-2); margin-bottom:2px;}
+
+/* ---- 빈 상태 / 로딩 / 오류 ----------------------------------------------- */
+#asWorkspace .cpi-none{
+  padding:12px 9px; text-align:center;
+  font-size:11px; color:var(--ink-3); line-height:1.5;
+}
+#asWorkspace .cpi-sec .cpi-none{padding:6px 0 2px; text-align:left;}
+#asWorkspace .cpi-none.err{color:var(--warn);}
+#asWorkspace .cpi-none .caws-minib{margin-left:4px; vertical-align:middle;}
+
+/* 로딩 스피너 (combine-as-keyword.css 의 .ckw-spin 과 같은 기법) */
+#asWorkspace .cpi-spin{
+  display:inline-block; width:11px; height:11px; margin-right:5px;
+  vertical-align:-1px; border-radius:50%;
+  border:2px solid var(--line); border-top-color:var(--accent);
+  animation:cpi-spin .7s linear infinite;
+}
+@keyframes cpi-spin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion: reduce){ #asWorkspace .cpi-spin{animation:none;} }
