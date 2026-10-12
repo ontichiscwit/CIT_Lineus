@@ -42,9 +42,7 @@
 	]]>
 	</update>
 
-	<!-- 문의유형정보 — 문의유형 / 시스템(대) / 시스템(소) / 요청내용
-	     ※ VERSION_INFO 는 원본화면(form.jsp)에서 시스템(대) 선택에 연동해 자동 계산되는 파생값이라
-	       여기서는 손대지 않는다(표시만 하고 편집 대상에서 제외). -->
+	<!-- 문의유형정보 — 문의유형 / 시스템(대) / 시스템(소) / 버전정보 / 요청내용 -->
 	<update id="updateAsInquiry" parameterType="asVO">
 	<![CDATA[
 		UPDATE CRM_AS_MGT
@@ -52,6 +50,9 @@
 			REQUEST_TYPE = #{request_type, jdbcType=VARCHAR},
 			SERVICE_CATE = #{service_cate, jdbcType=VARCHAR},
 			INQUIRY_TYPE = #{inquiry_type, jdbcType=VARCHAR},
+			/* [AX Lab] 수정 시작 (2026-10-08 AX Lab): ORIGIN처럼 시스템(대)에 연동한 버전정보 저장 */
+			VERSION_INFO = #{version_info, jdbcType=VARCHAR},
+			/* [AX Lab] 수정 끝 */
 			CALL_CONTENT = #{call_content, jdbcType=VARCHAR},
 			UPT_DATE     = SYSDATE,
 			UPT_ID       = #{reg_id, jdbcType=VARCHAR}
