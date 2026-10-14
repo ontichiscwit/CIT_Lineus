@@ -154,8 +154,10 @@ function cafm_open(mode, srcNo){
 	/* 입력값 초기화 */
 	cafm_sv('cafmVer', '');
 	cafm_sv('cafmApplyNm', ''); cafm_sv('cafmApplyId', '');
+	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 신청자 이름 미선택 시 안내문 없이 공란 표시 */
 	var an = cafm_el('cafmApplyNm');
-	if(an){ an.readOnly = true; an.placeholder = '이름'; }
+	if(an){ an.readOnly = true; an.placeholder = ''; }
+	/* [AX Lab] 수정 끝 */
 	cafm_sv('cafmRlNm', '');
 	cafm_sv('cafmTel1', ''); cafm_sv('cafmTel2', ''); cafm_sv('cafmTel3', '');
 	cafm_sv('cafmContent', ''); cafm_cntUpd();
@@ -295,20 +297,17 @@ function cafm_custListReturn(data){
 	cafm_pager('cafmCustPager', cafm.custPage, list.length, 'cafm_custSearch');
 }
 function cafm_custPick(seq){
-	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): origin과 동일하게 대표계정(C001)의 이름/ID만 자동 연동 */
+	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객사 선택 시 대표계정(C001)은 ID만 자동 연동 */
 	var beforeCust = cafm.cust;
 	cafm.cust = null;	/* 동기 조회 성공 여부 판별용이며, 실패 시 기존 고객사 상태로 복원한다. */
 	common.ajaxCall({ seq: seq }, '/ad/member/getCustInfo.do', 'cafm_custInfoReturn');	/* 동기 */
 
 	var c = cafm.cust;
 	if(!c) cafm.cust = beforeCust;
-	if(c && c.repId !== ''){
-		cafm_sv('cafmApplyNm', c.repNm);
-		cafm_sv('cafmApplyId', c.repId);
-	}else{
-		/* 대표계정이 없으면 origin처럼 기존 신청자 이름은 유지하고 ID만 초기화 */
-		cafm_sv('cafmApplyId', '');
-	}
+	var an = cafm_el('cafmApplyNm');
+	if(an){ an.readOnly = true; an.placeholder = ''; }
+	cafm_sv('cafmApplyNm', '');
+	cafm_sv('cafmApplyId', (c && c.repId !== '') ? c.repId : '');
 	/* origin은 거래처 선택 시 A/S 신청자 연락처를 자동 입력하지 않는다. */
 	cafm_sv('cafmTel1', ''); cafm_sv('cafmTel2', ''); cafm_sv('cafmTel3', '');
 
@@ -413,8 +412,10 @@ function cafm_empPick(empId){
 function cafm_empInfoReturn(data){
 	var r = (data && data.resultVO) ? data.resultVO : null;
 	if(!r) return;
+	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 신청자 조회 결과의 이름 안내문도 공란으로 유지 */
 	var an = cafm_el('cafmApplyNm');
-	if(an){ an.readOnly = true; an.placeholder = '이름'; }
+	if(an){ an.readOnly = true; an.placeholder = ''; }
+	/* [AX Lab] 수정 끝 */
 	cafm_sv('cafmApplyNm', caws_nvl(r.emp_name, ''));
 	cafm_sv('cafmApplyId', caws_nvl(r.emp_id, ''));
 	cafm_setTel(caws_nvl(r.tel_no, ''));
