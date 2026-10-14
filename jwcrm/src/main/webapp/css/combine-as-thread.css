@@ -603,6 +603,14 @@
 }
 #asWorkspace .caws-modal textarea:focus{border-color:var(--accent);}
 #asWorkspace .caws-modal .caws-ro{background:var(--surface-1); color:var(--ink-2);}
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): origin과 동일하게 readonly/disabled 입력칸을 상태에 따라 동적 음영 처리 */
+#asWorkspace .caws-modal input[type=text][readonly],
+#asWorkspace .caws-modal select:disabled{
+  background:var(--surface-1);
+  color:var(--ink-3);
+  cursor:not-allowed;
+}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .caws-mnote{font-size:11px; color:var(--ink-3); line-height:1.55; margin-top:6px;}
 #asWorkspace .caws-mwarn{
   padding:8px 10px; border-radius:8px; margin-bottom:11px;
