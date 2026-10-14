@@ -45,7 +45,9 @@ var cafm = {
 	mode: 'insert',		/* insert(신규) | copy(복사) | sub(하위작업) */
 	srcNo: '',			/* copy: 원본 접수번호 / sub: 상위 접수번호 */
 	pref: null,			/* 프리필용 getAsInfo resultVO */
-	cust: null,			/* 선택된 고객사 {code,nm,seq,addr,post,tel,his, a,b,c,d(HIS 버전코드)} */
+	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객사 대표계정 자동 연동용 필드(repId/repNm/repTel) 추가 */
+	cust: null,			/* 선택된 고객사 {code,nm,seq,addr,post,tel,his,repId,repNm,repTel,a,b,c,d(HIS 버전코드)} */
+	/* [AX Lab] 수정 끝 */
 	sms: '',			/* SMS수신동의 'Y' | 'N' | '' */
 	val2: '',			/* 문의유형 VAL2 ('Y'=시스템성 유형) */
 	version: '',		/* 버전정보 코드 (시스템(대)에 대응하는 고객사 HIS 버전) */
@@ -198,8 +200,11 @@ function cafm_prefill(){
 		common.ajaxCall({ cust_code: vo.cust_code }, '/ad/member/getCustInfo2.do', 'cafm_custInfoReturn');	/* 동기 */
 		if(cafm.cust && caws_nvl(cafm.cust.code, '') === '') cafm.cust.code = vo.cust_code;
 		if(!cafm.cust){
+			/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 대표계정 정보가 없는 프리필 객체도 동일 구조 유지 */
 			cafm.cust = { code: vo.cust_code, nm: caws_nvl(vo.cust_kor_name, ''), seq: '',
-			              addr: '', post: '', tel: '', his: '', a: '', b: '', c: '', d: '' };
+			              addr: '', post: '', tel: '', his: '', repId: '', repNm: '', repTel: '',
+			              a: '', b: '', c: '', d: '' };
+			/* [AX Lab] 수정 끝 */
 		}
 		cafm_setCustView();
 	}
@@ -290,12 +295,30 @@ function cafm_custListReturn(data){
 	cafm_pager('cafmCustPager', cafm.custPage, list.length, 'cafm_custSearch');
 }
 function cafm_custPick(seq){
-	common.ajaxCall({ seq: seq }, '/ad/member/getCustInfo.do', 'cafm_custInfoReturn');	/* 동기 */
-	var p = cafm_el('cafmCustPanel');
-	if(p) p.style.display = 'none';
-	/* 원본 setValue 와 동일: 고객사가 바뀌면 신청자 ID/연락처 초기화 (이름은 유지) */
+	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 거래처 선택 시 고객사 대표계정(C001)을 기본 신청자로 자동 연동 */
+	cafm.cust = null;
+	cafm_sv('cafmApplyNm', '');
 	cafm_sv('cafmApplyId', '');
 	cafm_sv('cafmTel1', ''); cafm_sv('cafmTel2', ''); cafm_sv('cafmTel3', '');
+
+	common.ajaxCall({ seq: seq }, '/ad/member/getCustInfo.do', 'cafm_custInfoReturn');	/* 동기 */
+
+	var c = cafm.cust;
+	var an = cafm_el('cafmApplyNm');
+	if(an){ an.readOnly = true; an.placeholder = '이름'; }
+	if(c){
+		cafm_sv('cafmApplyNm', c.repNm);
+		cafm_sv('cafmApplyId', c.repId);
+		cafm_setTel(c.repTel);
+	}
+
+	var p = cafm_el('cafmCustPanel');
+	if(p) p.style.display = 'none';
+	/* [AX Lab] 삭제 (2026-10-14 AX Lab): 대표계정 자동 연동 직후 신청자 ID/연락처를 다시 지우던 기존 초기화 비활성화
+	cafm_sv('cafmApplyId', '');
+	cafm_sv('cafmTel1', ''); cafm_sv('cafmTel2', ''); cafm_sv('cafmTel3', '');
+	*/
+	/* [AX Lab] 수정 끝 */
 	/* 원본 showCustLayer 와 동일: 문의유형/시스템유형/버전정보 초기화 (고객사에 종속된 값이므로) */
 	cafm_sv('cafmReq', '');
 	cafm_reqChange();
@@ -312,6 +335,11 @@ function cafm_custInfoReturn(data){
 		post: caws_nvl(r.zip_code, ''),
 		tel:  caws_nvl(r.tel_no, ''),
 		his:  caws_nvl(r.his_treat_name, ''),
+		/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): CRM_CUST_ERP의 고객사 대표계정(C001) 정보 */
+		repId:  caws_nvl(r.emp_id, ''),
+		repNm:  caws_nvl(r.emp_name, ''),
+		repTel: caws_nvl(r.tel_no, ''),
+		/* [AX Lab] 수정 끝 */
 		/* HIS 버전코드 4종 — 시스템(대) 선택 시 버전정보 표시에 쓴다 (원본 a/b/c/d 전역과 동일) */
 		a: caws_nvl(r.his_basic_code, ''),		/* 기초 (P002 / CUST CD04) */
 		b: caws_nvl(r.his_treat_code, ''),		/* 진료 (P004 / CUST CD05) */
