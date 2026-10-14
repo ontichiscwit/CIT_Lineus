@@ -84,6 +84,11 @@ var CAWS_ACC_KEY = 'caws_acc_open_v2';
 var CAWS_DW_KEY = 'caws_detail_wide';
 /* 하단 작성영역 펼침상태 저장키. 기본은 "접힘" 이다 (타임라인 높이 확보) */
 var CAWS_CP_KEY = 'caws_compose_open';
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역의 사용자 조절 높이 저장 */
+var CAWS_CH_KEY = 'caws_compose_height';
+var CAWS_CH_MIN = 110;			/* 탭과 입력영역 일부가 보이는 최소 높이 */
+var CAWS_CH_DETAIL_MIN = 120;	/* 높이 조절 후에도 타임라인에 남겨 둘 최소 높이 */
+/* [AX Lab] 수정 끝 */
 
 /* 게시판 종류 카탈로그.
    notice/form.jsp 의 본문 링크 규칙을 그대로 이식했다. (토큰 텍스트 / board_gbn / 상세 URL)
@@ -1179,6 +1184,10 @@ function caws_lbDown(){
 function caws_renderCompose(){
 	var open = caws_composeOpen();
 	var h = ''
+	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 위쪽 경계를 드래그해 고객 답변 영역 높이 조절 */
+	+ '<div class="caws-cresize" onmousedown="caws_composeResizeStart(event);" ondblclick="caws_composeResizeReset();" '
+	+   'title="드래그: 고객 답변 영역 높이 조절 / 더블클릭: 기본 높이"></div>'
+	/* [AX Lab] 수정 끝 */
 	+ '<div class="caws-ctabs">'
 	+   '<span class="caws-ctab on" style="cursor:default; pointer-events:none;">고객 답변</span>'
 	+   '<span class="caws-cdraft" id="cawsDraftTag">작성 중</span>'
@@ -1210,6 +1219,9 @@ function caws_renderCompose(){
 	caws_html('asCompose', h);
 	var comp = caws_el('asCompose');
 	if(comp) comp.classList.toggle('off', !open);
+	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 저장된 사용자 조절 높이 복원 */
+	caws_composeHeightRestore();
+	/* [AX Lab] 수정 끝 */
 	caws_bindDrop();
 	caws_renderThumbs();
 }
@@ -2397,6 +2409,86 @@ function caws_openCompose(){
 	var comp = caws_el('asCompose');
 	if(comp && comp.classList.contains('off')) caws_toggleCompose();
 }
+
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 위쪽 경계 드래그 높이 조절
+   패널의 아래쪽은 고정되어 있으므로 마우스를 위로 움직이면 패널이 커지고,
+   아래로 움직이면 작아진다. 타임라인은 항상 CAWS_CH_DETAIL_MIN px 이상 남긴다. */
+function caws_composeHeightLimits(comp){
+	var parent = comp ? comp.parentNode : null;
+	var head = caws_el('asDetailHead');
+	var parentH = parent ? parent.clientHeight : 0;
+	var headH = head ? head.offsetHeight : 0;
+	/* 숨겨진 상태에서 렌더되면 clientHeight가 0이므로 저장 높이를 최소값으로 훼손하지 않는다. */
+	var maxH = parentH ? parentH - headH - CAWS_CH_DETAIL_MIN : 10000;
+	return {
+		min: CAWS_CH_MIN,
+		max: Math.max(CAWS_CH_MIN, maxH)
+	};
+}
+
+function caws_composeHeightSet(height, save){
+	var comp = caws_el('asCompose');
+	if(!comp) return;
+	var lim = caws_composeHeightLimits(comp);
+	var h = Math.max(lim.min, Math.min(lim.max, Math.round(height)));
+	comp.style.height = h + 'px';
+	comp.classList.add('caws-sized');
+	if(save){
+		try{ sessionStorage.setItem(CAWS_CH_KEY, String(h)); }catch(e){}
+	}
+}
+
+function caws_composeHeightRestore(){
+	var h = 0;
+	try{ h = parseInt(sessionStorage.getItem(CAWS_CH_KEY), 10) || 0; }catch(e){}
+	if(h > 0) caws_composeHeightSet(h, false);
+}
+
+function caws_composeResizeStart(e){
+	if(e && e.button !== undefined && e.button !== 0) return;
+	var comp = caws_el('asCompose');
+	if(!comp || comp.classList.contains('off')) return;
+	if(e) e.preventDefault();
+	var y0 = e.clientY;
+	var h0 = comp.getBoundingClientRect().height;
+	var handle = comp.querySelector('.caws-cresize');
+
+	comp.classList.add('caws-cresizing');
+	if(handle) handle.classList.add('on');
+	document.body.style.cursor = 'row-resize';
+	document.body.style.userSelect = 'none';
+
+	function mv(ev){
+		caws_composeHeightSet(h0 + (y0 - ev.clientY), false);
+	}
+	function up(){
+		document.removeEventListener('mousemove', mv);
+		document.removeEventListener('mouseup', up);
+		comp.classList.remove('caws-cresizing');
+		if(handle) handle.classList.remove('on');
+		document.body.style.cursor = '';
+		document.body.style.userSelect = '';
+		caws_composeHeightSet(comp.getBoundingClientRect().height, true);
+	}
+	document.addEventListener('mousemove', mv);
+	document.addEventListener('mouseup', up);
+}
+
+function caws_composeResizeReset(){
+	var comp = caws_el('asCompose');
+	if(!comp) return;
+	comp.style.height = '';
+	comp.classList.remove('caws-sized');
+	try{ sessionStorage.removeItem(CAWS_CH_KEY); }catch(e){}
+}
+
+function caws_composeHeightClamp(){
+	var comp = caws_el('asCompose');
+	if(!comp || !comp.classList.contains('caws-sized')) return;
+	caws_composeHeightSet(comp.getBoundingClientRect().height, true);
+}
+/* [AX Lab] 수정 끝 */
+
 /* 접힌 상태에서 작성 중인 글/첨부가 있으면 탭 줄에 '작성 중' 배지를 띄운다.
    (접었다는 사실 때문에 쓰던 글을 잊고 다른 건으로 넘어가는 것을 막는다) */
 function caws_syncDraftTag(){
@@ -3498,6 +3590,9 @@ function caws_rzInit(){
 
 /* 이 스크립트는 #asGrid 마크업보다 먼저 로드되므로(list.jsp 참고) DOM ready 에 초기화 */
 $(function(){ caws_rzInit(); });
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 창 크기 변경 시 저장 높이가 타임라인을 가리지 않도록 재제한 */
+window.addEventListener('resize', caws_composeHeightClamp);
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 
 /* ESC 로 열려 있는 모달을 닫는다. */

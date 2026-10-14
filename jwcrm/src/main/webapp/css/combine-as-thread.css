@@ -326,7 +326,30 @@
  * "고객에게 보이는 글(답변)" 과 "내부 기록(조치)" 을 탭으로 물리적으로 분리해 오발신을 막는다.
  * 탭 색이 곧 타임라인 버블 색과 같아서(청록 / 앰버) 어디에 쓰이는 글인지 바로 읽힌다.
  * ========================================================================== */
-#asWorkspace .caws-comp{flex-shrink:0; border-top:1px solid var(--line); background:var(--surface-1);}
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 위쪽 경계 드래그 높이 조절 */
+#asWorkspace .caws-comp{
+  position:relative; flex-shrink:0;
+  border-top:1px solid var(--line); background:var(--surface-1);
+}
+#asWorkspace .caws-cresize{
+  position:absolute; z-index:6; top:-6px; left:0; right:0; height:12px;
+  cursor:row-resize;
+}
+#asWorkspace .caws-cresize:before{
+  content:''; position:absolute; top:4px; left:50%; width:52px; height:3px;
+  margin-left:-26px; border-radius:2px; background:var(--line);
+  transition:background .12s;
+}
+#asWorkspace .caws-cresize:hover:before,
+#asWorkspace .caws-cresize.on:before{background:var(--accent);}
+#asWorkspace .caws-comp.caws-sized{display:flex; flex-direction:column; min-height:110px;}
+#asWorkspace .caws-comp.caws-sized .caws-ctabs{flex-shrink:0;}
+#asWorkspace .caws-comp.caws-sized .caws-cbody{flex:1; min-height:0; overflow-y:auto;}
+#asWorkspace .caws-comp.caws-resizing{user-select:none;}
+/* 접으면 저장된 인라인 높이를 잠시 무시하고 탭 한 줄만 남긴다. 다시 펼치면 조절 높이가 복원된다. */
+#asWorkspace .caws-comp.off{height:auto !important;}
+#asWorkspace .caws-comp.off .caws-cresize{display:none;}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .caws-comp:empty{display:none; border-top:none;}
 #asWorkspace .caws-ctabs{display:flex; align-items:center; gap:0; padding:0 10px; border-bottom:1px solid var(--line);}
 #asWorkspace .caws-ctab{
