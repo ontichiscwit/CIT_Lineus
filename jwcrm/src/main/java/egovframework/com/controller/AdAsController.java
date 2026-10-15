@@ -498,6 +498,11 @@ public class AdAsController {
 
 	    String pageType = SsStringUtil.normalizeNull(vo.getPageType()).trim();
 	    String script = "";
+	    // [AX Lab] 수정 시작 (2026-10-12 AX Lab): 일괄 처리 조치의견 최대 1,300자 서버 검증
+	    if (SsStringUtil.normalizeNull(vo.getAction_content()).length() > 1300) {
+	        return CommonExecute.execute(model, "parent.procReturn('fail');");
+	    }
+	    // [AX Lab] 수정 끝
 
 	    List<String> successList = new ArrayList<>();
 	    List<String> failList = new ArrayList<>();
@@ -699,6 +704,11 @@ public class AdAsController {
 	 * procAswsInline() 의 transferAssign 분기, JS 의 어댑터만 교체하면 된다.
 	 */
 	private static final String ASWS_TRANSFER_PREFIX = "[이관] " ;
+	// [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN 처리상태별 담당자 변경 허용 조건
+	private static boolean isAswsAssignEditableStatus(String status) {
+		return "C001".equals(status) || "C004".equals(status) ;
+	}
+	// [AX Lab] 수정 끝
 
 	/**
 	 * AS 통합화면(list.jsp) 의 인라인 처리.
@@ -720,9 +730,12 @@ public class AdAsController {
 
 		String pageType = SsStringUtil.normalizeNull(vo.getPageType()) ;
 		String asNo     = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
-		String comment  = SsStringUtil.normalizeNull(vo.getAction_content()).trim() ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 공백 제거 전 조치의견 길이도 검증
+		String rawComment = SsStringUtil.normalizeNull(vo.getAction_content()) ;
+		String comment  = rawComment.trim() ;
 
-		if("".equals(asNo) || "".equals(comment) || userInfo == null) return 0 ;
+		if("".equals(asNo) || userInfo == null || rawComment.length() > 1300) return 0 ;
+		// [AX Lab] 수정 끝
 
 		AsVO curKey = new AsVO() ;
 		curKey.setAs_no(asNo) ;
@@ -756,6 +769,12 @@ public class AdAsController {
 			String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim() ;
 
 			if("".equals(newStatus)) return 0 ;
+			// [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN 조치의견 필수 조건
+			if ((!"".equals(SsStringUtil.normalizeNull(cur.getAssign_id()).trim())
+					&& !empNo.equals(SsStringUtil.normalizeNull(cur.getAssign_id()).trim())
+					&& "".equals(comment))
+					|| (("C005".equals(newStatus) || "C006".equals(newStatus)) && "".equals(comment))) return 0 ;
+			// [AX Lab] 수정 끝
 
 			/* updateAsInfoAll 이 덮어쓰는 모든 컬럼을 현재 값으로 채운다.
 			   ※ BeanUtils.copyProperties 를 쓰지 않는 이유: PagingVO 에 getPaging():String 과
@@ -798,6 +817,10 @@ public class AdAsController {
 
 			if("".equals(newAssignId)) return 0 ;
 			if(newAssignId.equals(SsStringUtil.normalizeNull(cur.getAssign_id()).trim())) return 0 ;
+			// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 상태별 담당자 변경 및 ORIGIN 이관사유 검증
+			if(!isAswsAssignEditableStatus(SsStringUtil.normalizeNull(cur.getProc_status()).trim())) return 0 ;
+			if(!newAssignId.equals(empNo) && "".equals(comment)) return 0 ;
+			// [AX Lab] 수정 끝
 
 			AsVO assignVO = new AsVO() ;
 			assignVO.setAs_no(asNo) ;
@@ -814,6 +837,9 @@ public class AdAsController {
 
 		} else {
 			/* insertAction : 이력만 추가한다. 마스터(CRM_AS_MGT)는 건드리지 않는다. */
+			// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 조치내용 단독 추가는 공백 불가
+			if("".equals(comment)) return 0 ;
+			// [AX Lab] 수정 끝
 			returnValue = 1 ;
 		}
 
@@ -846,9 +872,12 @@ public class AdAsController {
 	private int procAswsSaveAction(AsVO vo, UserVO userInfo) throws Exception {
 
 		String asNo    = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
-		String comment = SsStringUtil.normalizeNull(vo.getAction_content()).trim() ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 공백 제거 전 조치의견 길이도 검증
+		String rawComment = SsStringUtil.normalizeNull(vo.getAction_content()) ;
+		String comment = rawComment.trim() ;
 
-		if("".equals(asNo) || "".equals(comment) || userInfo == null) return 0 ;
+		if("".equals(asNo) || userInfo == null || rawComment.length() > 1300) return 0 ;
+		// [AX Lab] 수정 끝
 
 		AsVO curKey = new AsVO() ;
 		curKey.setAs_no(asNo) ;
@@ -865,11 +894,22 @@ public class AdAsController {
 
 		boolean statusChanged = !"".equals(newStatus) && !newStatus.equals(curStatus) ;
 		boolean assignChanged = !"".equals(newAssign) && !newAssign.equals(curAssign) ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 변경 후 상태·담당자를 기준으로 ORIGIN 검증
+		String targetStatus = statusChanged ? newStatus : curStatus ;
+		String targetAssign = assignChanged ? newAssign : curAssign ;
+		if(assignChanged && !isAswsAssignEditableStatus(targetStatus)) return 0 ;
+		if((!"".equals(targetAssign) && !targetAssign.equals(empNo) && "".equals(comment))
+				|| (("C005".equals(targetStatus) || "C006".equals(targetStatus)) && "".equals(comment))) return 0 ;
+		if(!statusChanged && !assignChanged && "".equals(comment)) return 0 ;
+		// [AX Lab] 수정 끝
 
 		// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 처리상태사항 편집폼에 중요도/전화확인/전화부재중 추가.
 		//   updateAsInfoAll 의 SET 절에는 이 3개 컬럼이 없어 위 read-modify-write 로는 반영이 안 되므로,
 		//   egov-combine-as-thread-query.xml 의 updateAsProcExtra(부분 UPDATE) 로 별도 처리한다.
 		String newGrade = SsStringUtil.normalizeNull(vo.getInportance()).trim() ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 중요도 공백은 일반(C002)
+		if("".equals(newGrade)) newGrade = "C002" ;
+		// [AX Lab] 수정 끝
 		String curGrade = SsStringUtil.normalizeNull(cur.getInportance()).trim() ;
 		boolean gradeChanged = !"".equals(newGrade) && !newGrade.equals(curGrade) ;
 		// [AX Lab] 수정 끝
@@ -945,6 +985,9 @@ public class AdAsController {
 			extra.setTel_confirm(SsStringUtil.normalize(vo.getTel_confirm(), SsStringUtil.normalizeNull(cur.getTel_confirm()))) ;
 			extra.setTel_absence(SsStringUtil.normalize(vo.getTel_absence(), SsStringUtil.normalizeNull(cur.getTel_absence()))) ;
 			extra.setTel_absence_cnt(SsStringUtil.normalize(vo.getTel_absence_cnt(), SsStringUtil.normalizeNull(cur.getTel_absence_cnt()))) ;
+			// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 부재중 미체크 시 횟수 초기화
+			if(!"Y".equals(extra.getTel_absence())) extra.setTel_absence_cnt("") ;
+			// [AX Lab] 수정 끝
 			commonDAO.update(extra, "asDAO.updateAsProcExtra") ;
 			if(gradeChanged) hist.setInportance(newGrade) ;
 		}
@@ -1164,10 +1207,16 @@ public class AdAsController {
 		AsVO upd = new AsVO() ;
 		upd.setAs_no(asNo) ;
 		upd.setReg_id(userInfo.getEmp_no()) ;
-		upd.setInportance(SsStringUtil.normalize(vo.getInportance(), SsStringUtil.normalizeNull(cur.getInportance()))) ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 중요도 공백은 일반(C002)
+		upd.setInportance(SsStringUtil.normalize(vo.getInportance(),
+				SsStringUtil.normalize(SsStringUtil.normalizeNull(cur.getInportance()), "C002"))) ;
+		// [AX Lab] 수정 끝
 		upd.setTel_confirm(SsStringUtil.normalize(vo.getTel_confirm(), SsStringUtil.normalizeNull(cur.getTel_confirm()))) ;
 		upd.setTel_absence(SsStringUtil.normalize(vo.getTel_absence(), SsStringUtil.normalizeNull(cur.getTel_absence()))) ;
 		upd.setTel_absence_cnt(SsStringUtil.normalize(vo.getTel_absence_cnt(), SsStringUtil.normalizeNull(cur.getTel_absence_cnt()))) ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 부재중 미체크 시 횟수 초기화
+		if(!"Y".equals(upd.getTel_absence())) upd.setTel_absence_cnt("") ;
+		// [AX Lab] 수정 끝
 
 		return commonDAO.update(upd, "asDAO.updateAsProcExtra") ;
 	}

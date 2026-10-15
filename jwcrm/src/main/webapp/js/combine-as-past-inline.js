@@ -147,14 +147,17 @@ function cpi_reset(){
 	cpi.cache = {};
 }
 
-/* [이 건으로 이동] : 예전 동작 그대로 그 건을 COL2/COL3 에 연다 */
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): [이 건으로 이동]은 통합 AS 화면 새 탭에서 해당 건을 선택한다 */
 function cpi_go(){
 	var a = cpi.asNo, c = cpi.cn;
 	if(a === '') return;
+	var url = '/ad/as/list.do?as_no=' + encodeURIComponent(a);
+	if(c !== '') url += '&cn_as_no=' + encodeURIComponent(c);
+	var opened = window.open(url, '_blank', 'noopener');
+	if(opened) opened.opener = null;
 	cpi_close();
-	if(typeof caws_pastOpen === 'function'){ caws_pastOpen(a, c); return; }
-	if(typeof asws_openDetail === 'function') asws_openDetail(a, c);
 }
+/* [AX Lab] 수정 끝 */
 
 /* =============================================================================
  * 2) 조회 (기존 getAsInfo.do 무수정 재사용)
@@ -218,7 +221,9 @@ function cpi_html(){
 	+   '<span class="cpi-tit">과거 건 미리보기</span>'
 	+   '<span class="cpi-no">' + cpi_esc(cpi.asNo) + '</span>'
 	+   '<span class="cpi-sp"></span>'
-	+   '<button type="button" class="caws-minib" onclick="cpi_go();" title="지금 보는 건을 닫고 이 접수건을 화면 전체(COL2/COL3)에 엽니다">이 건으로 이동</button>'
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 현재 AS를 유지하고 통합 AS 화면 새 탭에서 과거 접수건 선택 */
+	+   '<button type="button" class="caws-minib" onclick="cpi_go();" title="통합 AS 화면을 새 탭으로 열어 이 접수건을 선택합니다">이 건으로 이동</button>'
+	/* [AX Lab] 수정 끝 */
 	+   '<button type="button" class="caws-minib cpi-x" onclick="cpi_close();" title="닫기">&#215;</button>'
 	+ '</div>';
 

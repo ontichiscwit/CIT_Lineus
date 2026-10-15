@@ -154,6 +154,9 @@
           <input type="text" id="cafmCustKw" placeholder="기관명 검색" style="flex:1; min-width:0;" title="기관명 검색"
                  onkeydown="if(event.keyCode===13){cafm_custSearch(1);return false;}" />
           <button type="button" class="btn-s" onclick="cafm_custSearch(1);">검색</button>
+          <%-- [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객사 조회 패널 닫기 버튼 추가 --%>
+          <button type="button" class="btn-s" onclick="cafm_custToggle();">닫기</button>
+          <%-- [AX Lab] 수정 끝 --%>
         </div>
         <div class="cafm-list" id="cafmCustList"></div>
         <div class="cafm-pgr" id="cafmCustPager"></div>
@@ -165,7 +168,9 @@
     <div class="caws-fld">
       <label>A/S 신청자<span class="caws-req">*</span></label>
       <div class="caws-frow">
-        <input type="text" id="cafmApplyNm" readonly placeholder="이름" style="width:130px; flex:0 0 auto;" title="A/S 신청자 이름" />
+        <%-- [AX Lab] 수정 시작 (2026-10-14 AX Lab): 신청자 이름 미선택 시 공란 표시 --%>
+        <input type="text" id="cafmApplyNm" readonly placeholder="" style="width:130px; flex:0 0 auto;" title="A/S 신청자 이름" />
+        <%-- [AX Lab] 수정 끝 --%>
         <input type="text" id="cafmApplyId" readonly placeholder="아이디" style="width:150px; flex:0 0 auto;" title="A/S 신청자 아이디" />
         <button type="button" class="btn-s" onclick="cafm_empToggle();" title="고객사 회원 중에서 선택합니다">조회</button>
         <button type="button" class="btn-s" onclick="cafm_empManual();" title="회원이 아닌 신청자의 이름을 직접 입력합니다">직접입력</button>
@@ -175,6 +180,9 @@
           <input type="text" id="cafmEmpKw" placeholder="이름 검색" style="flex:1; min-width:0;" title="신청자 이름 검색"
                  onkeydown="if(event.keyCode===13){cafm_empSearch(1);return false;}" />
           <button type="button" class="btn-s" onclick="cafm_empSearch(1);">검색</button>
+          <%-- [AX Lab] 수정 시작 (2026-10-14 AX Lab): 신청자 ID 조회 패널 닫기 버튼 추가 --%>
+          <button type="button" class="btn-s" onclick="cafm_empToggle();">닫기</button>
+          <%-- [AX Lab] 수정 끝 --%>
         </div>
         <div class="cafm-list" id="cafmEmpList"></div>
         <div class="cafm-pgr" id="cafmEmpPager"></div>

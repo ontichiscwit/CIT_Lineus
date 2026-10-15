@@ -326,7 +326,30 @@
  * "고객에게 보이는 글(답변)" 과 "내부 기록(조치)" 을 탭으로 물리적으로 분리해 오발신을 막는다.
  * 탭 색이 곧 타임라인 버블 색과 같아서(청록 / 앰버) 어디에 쓰이는 글인지 바로 읽힌다.
  * ========================================================================== */
-#asWorkspace .caws-comp{flex-shrink:0; border-top:1px solid var(--line); background:var(--surface-1);}
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 위쪽 경계 드래그 높이 조절 */
+#asWorkspace .caws-comp{
+  position:relative; flex-shrink:0;
+  border-top:1px solid var(--line); background:var(--surface-1);
+}
+#asWorkspace .caws-cresize{
+  position:absolute; z-index:6; top:-6px; left:0; right:0; height:12px;
+  cursor:row-resize;
+}
+#asWorkspace .caws-cresize:before{
+  content:''; position:absolute; top:4px; left:50%; width:52px; height:3px;
+  margin-left:-26px; border-radius:2px; background:var(--line);
+  transition:background .12s;
+}
+#asWorkspace .caws-cresize:hover:before,
+#asWorkspace .caws-cresize.on:before{background:var(--accent);}
+#asWorkspace .caws-comp.caws-sized{display:flex; flex-direction:column; min-height:110px;}
+#asWorkspace .caws-comp.caws-sized .caws-ctabs{flex-shrink:0;}
+#asWorkspace .caws-comp.caws-sized .caws-cbody{flex:1; min-height:0; overflow-y:auto;}
+#asWorkspace .caws-comp.caws-resizing{user-select:none;}
+/* 접으면 저장된 인라인 높이를 잠시 무시하고 탭 한 줄만 남긴다. 다시 펼치면 조절 높이가 복원된다. */
+#asWorkspace .caws-comp.off{height:auto !important;}
+#asWorkspace .caws-comp.off .caws-cresize{display:none;}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .caws-comp:empty{display:none; border-top:none;}
 #asWorkspace .caws-ctabs{display:flex; align-items:center; gap:0; padding:0 10px; border-bottom:1px solid var(--line);}
 #asWorkspace .caws-ctab{
@@ -603,6 +626,14 @@
 }
 #asWorkspace .caws-modal textarea:focus{border-color:var(--accent);}
 #asWorkspace .caws-modal .caws-ro{background:var(--surface-1); color:var(--ink-2);}
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): origin과 동일하게 readonly/disabled 입력칸을 상태에 따라 동적 음영 처리 */
+#asWorkspace .caws-modal input[type=text][readonly],
+#asWorkspace .caws-modal select:disabled{
+  background:var(--surface-1);
+  color:var(--ink-3);
+  cursor:not-allowed;
+}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .caws-mnote{font-size:11px; color:var(--ink-3); line-height:1.55; margin-top:6px;}
 #asWorkspace .caws-mwarn{
   padding:8px 10px; border-radius:8px; margin-bottom:11px;
@@ -739,6 +770,11 @@
 #asWorkspace .caws-fin.caws-fgrow{max-width:none; flex:1; min-width:0;}
 #asWorkspace .caws-fin.caws-fwide{max-width:none;}
 #asWorkspace .caws-fin.caws-fcnt{width:46px; max-width:46px; text-align:center;}
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 전화부재중 미체크 시 부재 횟수 음영·비활성 상태 명확화 */
+#asWorkspace .caws-fin.caws-fcnt.write_gray{
+  color:#999; background:#f3f3f3; border-color:#dcdcdc; cursor:not-allowed;
+}
+/* [AX Lab] 수정 끝 */
 
 /* 인라인 textarea (요청내용 / 팝오버 메모) — 기본 .caws-ta 는 border 가 없어 테두리를 되살린다 */
 #asWorkspace .caws-fta{
