@@ -51,6 +51,22 @@ function cai_pct(v){ v = Number(v || 0); return Math.round(v * 100) + '%'; }
 /* 관련도 표시값 — 하이브리드 relevance(후보 안 0~1) 우선, 구 응답이면 코사인(semantic_sim).
  * bge-m3 코사인은 상위 5건이 전부 63~70% 로 몰려 사용자에게 차이를 못 보여 주던 문제(2026-10-06). */
 function cai_relLabel(it){ var v = (it.relevance != null) ? it.relevance : it.semantic_sim; return '관련도 ' + cai_pct(v); }
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 확신도 표시.
+ * relevance 는 후보 집합 안 상대값(min-max)이라 전부 무관한 결과여도 상위는 항상 80~100% 로 보였다(테스터 테스트3).
+ * 서버가 절대 코사인 기준 confidence(high/mid/low) 를 항목마다 내려주면 'low' 에 "확신 낮음" 배지를 붙이고,
+ * 노출 항목 전부가 low 면 팝오버 헤더/안내문으로도 알린다. 구 서버 응답(confidence 없음)은 기존 표시 그대로. */
+function cai_conf(it){ return (it && it.confidence) ? String(it.confidence) : ''; }
+function cai_metaLabel(it){
+	var s = cai_relLabel(it);
+	if(cai_conf(it) === 'low') s += ' <i class="cai-low" title="문의 어휘와 정확히 맞는 사례가 아니라 가장 가까운 것을 보여줍니다">확신 낮음</i>';
+	return s;
+}
+function cai_allLow(items){
+	if(!items || !items.length) return false;
+	for(var i=0; i<items.length; i++){ if(cai_conf(items[i]) !== 'low') return false; }
+	return true;
+}
+/* [AX Lab] 수정 끝 */
 function cai_tier(it){ return CAI_TIER[Number(it && it.tier)] || { cls:'t0', label:'추천' }; }
 function cai_fileName(url){
 	var s = String(url || '').split('?')[0].split('#')[0];
@@ -129,19 +145,22 @@ function cai_popHtml(){
 		return h;
 	}
 	if(cai.status === 'ok'){
-		h += '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em class="cai-tag on">' + cai.items.length + '건</em></span>';
+		/* [AX Lab] 수정 (2026-10-12 AX Lab): 전부 확신 낮음이면 헤더 배지를 바꾸고 안내문을 한 줄 넣는다 */
+		var allLow = cai_allLow(cai.items);
+		h += '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em class="cai-tag' + (allLow ? ' low' : ' on') + '">' + cai.items.length + '건' + (allLow ? ' · 확신 낮음' : '') + '</em></span>';
 		if(!cai.items.length){
 			h += '<span class="cai-empty">문의 내용과 비슷한 사례를 찾지 못했습니다.</span>';
 			return h;
 		}
+		if(allLow) h += '<span class="cai-lownote">문의와 정확히 맞는 사례를 찾지 못해 가장 가까운 것을 보여줍니다. 참고용으로만 확인해주세요.</span>';
 		for(var j=0; j<cai.items.length; j++){
 			var it = cai.items[j], t = cai_tier(it);
 			var files = (it.attached_file && it.attached_file.length) ? ' · <span class="cai-clip" title="첨부 ' + it.attached_file.length + '개">&#128206;' + it.attached_file.length + '</span>' : '';
 			var when = cai_nvl(it.occurred_at, '');
-			h += '<button type="button" class="cai-item' + (j === cai.sel ? ' on' : '') + '" onclick="cai_open(' + j + ', event);" title="' + cai_esc(it.title) + '">'
+			h += '<button type="button" class="cai-item' + (j === cai.sel ? ' on' : '') + (cai_conf(it) === 'low' ? ' lowc' : '') + '" onclick="cai_open(' + j + ', event);" title="' + cai_esc(it.title) + '">'
 			   +   '<i class="cai-tier ' + t.cls + '">' + t.label + '</i>'
 			   +   '<span><b>' + cai_esc(it.title) + '</b>'
-			   +   '<small>' + cai_relLabel(it) + (when ? ' · ' + cai_esc(when) : '') + files + '</small></span>'
+			   +   '<small>' + cai_metaLabel(it) + (when ? ' · ' + cai_esc(when) : '') + files + '</small></span>'	/* [AX Lab] 2026-10-12 cai_relLabel → cai_metaLabel */
 			   + '</button>';
 		}
 		h += '<span class="cai-foot">항목을 누르면 우측 「접수 · 처리 정보」 상단에 본문이 열립니다.</span>';
@@ -280,7 +299,7 @@ function cai_detailHtml(it, idx){
 	var t = cai_tier(it);
 	var wide = cai_isWide();
 	var meta = [];
-	meta.push(cai_relLabel(it));
+	meta.push(cai_metaLabel(it));	/* [AX Lab] 2026-10-12: 확신 낮음 배지 포함 */
 	if(it.occurred_at) meta.push(cai_esc(it.occurred_at));
 	if(it.service_cate) meta.push(cai_esc(it.service_cate));
 	if(it.topic) meta.push(cai_esc(it.topic));

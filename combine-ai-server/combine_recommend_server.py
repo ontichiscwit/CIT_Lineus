@@ -14,11 +14,15 @@ CRM(WAS) 과 같은 PC 또는 같은 망에 띄운다. CRM 의 `combine-ai.prope
   400 {"result":"400","message":"..."}                      잘못된 요청
   401 {"result":"401","message":"invalid api key"}
   503 {"result":"503","message":"embedding unavailable"}    Ollama 다운 등
-  GET  /health → {"status":"ok","index":{...},"embed":{...}}
+  GET  /health → {"status":"ok","index":{...},"live":{...},"embed":{...}}
 
 실행:  run.bat                                   (Windows — 가상환경 생성·의존성 설치·기동까지)
        python combine_recommend_server.py --host 127.0.0.1 --port 8765
-환경변수: COMBINE_API_KEY · COMBINE_OLLAMA_HOST · COMBINE_EMBED_MODEL · COMBINE_DATA_DIR  (README.md 참조)
+환경변수: COMBINE_API_KEY · COMBINE_OLLAMA_HOST · COMBINE_EMBED_MODEL · COMBINE_DATA_DIR · COMBINE_LIVE_POLL_SEC  (README.md 참조)
+
+[AX Lab] 2026-10-15 준실시간 반영: 색인은 기동 후에도 combine_live_index.IndexKeeper 가 data/ 를 감시해
+  (1) 배치가 새 combine_index.npz 를 배포하면 재기동 없이 다시 읽고, (2) analysis/combine_live.py 가 data/combine_live.jsonl 에
+  쓴 종결 건 델타를 수 초 안에 반영한다. /health 의 "live" 로 상태를 본다.
 """
 import argparse
 import json
@@ -30,8 +34,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from combine_recommend import LocalIndex, Recommender, OUT_DIR  # noqa: E402
+from combine_recommend import LocalIndex, Recommender, OUT_DIR, index_info  # noqa: E402,F401
 from combine_embed_client import OLLAMA_HOST, EMBED_MODEL, ping  # noqa: E402
+# [AX Lab] 수정 (2026-10-15 AX Lab): 준실시간 반영 — 색인 핫리로드·라이브 델타 적용 스레드
+from combine_live_index import IndexKeeper  # noqa: E402
 
 API_KEY = os.getenv("COMBINE_API_KEY", "dev-key")
 MAX_BODY = 64 * 1024
@@ -41,6 +47,7 @@ MAX_QUERY = 4000
 class Handler(BaseHTTPRequestHandler):
     server_version = "CombineRecommend/0.1"
     rec: Recommender = None   # set in main
+    keeper: IndexKeeper = None  # [AX Lab] 2026-10-15 set in main
 
     def log_message(self, fmt, *args):   # 질의 본문은 절대 로그에 남기지 않는다 (§9 3-1)
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -60,7 +67,9 @@ class Handler(BaseHTTPRequestHandler):
             ok, msg = ping()          # 임베딩 서버까지 살아 있어야 'ok' — CRM 쪽 503 원인을 여기서 바로 가른다
             return self._json(200 if ok else 503,
                               {"status": "ok" if ok else "embed_down",
-                               "index": {"model": idx.model, "built_at": idx.built_at, "size": len(idx.doc_ids)},
+                               # [AX Lab] 수정 (2026-10-15 AX Lab): 라이브 반영 상태(live_*)·동기화기 상태(live) 추가
+                               "index": index_info(idx),
+                               "live": self.keeper.status() if self.keeper else None,
                                "embed": {"host": OLLAMA_HOST, "model": EMBED_MODEL, "ok": ok, "message": msg}})
         self._json(404, {"result": "404", "message": "not found"})
 
@@ -109,9 +118,15 @@ def main():
         log(f"[오류] 색인 파일이 없습니다: {OUT_DIR / 'combine_index.npz'}  (README '데이터' 참조)")
         sys.exit(2)
     t = time.time()
-    Handler.rec = Recommender(LocalIndex())
-    idx = Handler.rec.index
-    log(f"index loaded in {time.time() - t:.1f}s · {len(idx.doc_ids)} docs · model {idx.model} · built {idx.built_at} · {OUT_DIR}")
+    # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 준실시간 반영 — 색인 적재를 IndexKeeper 에 맡기고(기본 색인 + 라이브 델타),
+    #   이후 파일 변경을 감시해 재기동 없이 Recommender.index 를 교체한다. 기존 LocalIndex() 직접 적재는 keeper.load() 안에 있다.
+    Handler.rec = Recommender(None)
+    Handler.keeper = IndexKeeper(Handler.rec, OUT_DIR)
+    idx, n_live = Handler.keeper.load()
+    log(f"index loaded in {time.time() - t:.1f}s · {len(idx.doc_ids)} docs · model {idx.model} · built {idx.built_at} · {OUT_DIR}"
+        + (f" · 라이브 델타 {n_live}건 반영" if n_live else ""))
+    Handler.keeper.start()
+    # [AX Lab] 수정 끝
     if idx.model != EMBED_MODEL:
         log(f"[오류] 색인 모델({idx.model}) 과 질의 임베딩 모델({EMBED_MODEL}) 이 다릅니다. COMBINE_EMBED_MODEL 을 맞추거나 색인을 다시 만드세요.")
         sys.exit(2)

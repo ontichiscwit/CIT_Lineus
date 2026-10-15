@@ -930,7 +930,23 @@ function ckw_addPlaceChips(){
  *   빈 값이면 처리상태 IN 조건이 아예 붙지 않아 "전체 상태"가 된다.
  *   값을 잘못 채우면 IN ('') 이 되어 0건이 나온다. (caws_pastSearch 주석과 동일)
  * ========================================================================== */
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 조회 기간의 기준일을 "오늘" 이 아니라 "현재 건의 접수일" 로.
+ *   기존에는 오늘-365일 ~ 오늘 이라서, 과거 접수건을 열면 그 건보다 '나중에' 접수된 건이 "과거 이력" 으로 섞였다
+ *   (테스터 테스트4: 2026-05-30 접수건의 연관 이력에 2026-07-10 건이 노출). 접수일을 모르면 기존대로 오늘 기준. */
+function ckw_anchorDate(){
+	var vo = (typeof caws !== 'undefined' && caws) ? (caws.vo || {}) : {}, row = (typeof caws !== 'undefined' && caws) ? (caws.row || {}) : {};
+	var d = ckw_toDate(ckw_nvl(vo.accept_dt, ckw_nvl(row.accept_dt, '')));
+	return d || new Date();
+}
+function ckw_dayOffsetFrom(base, days){
+	var d = new Date(base.getTime());
+	d.setDate(d.getDate() + days);
+	var m = ('0'+(d.getMonth()+1)).slice(-2), dd = ('0'+d.getDate()).slice(-2);
+	return d.getFullYear()+'/'+m+'/'+dd;
+}
+/* [AX Lab] 수정 끝 */
 function ckw_fetch(custCode, my){
+	var anchor = ckw_anchorDate();								/* [AX Lab] 2026-10-12 */
 	$.ajax({
 		type     : 'POST',
 		url      : '/ad/as/getAsList.do',
@@ -940,8 +956,10 @@ function ckw_fetch(custCode, my){
 		data     : {
 			cust_code     : custCode,
 			search_type10 : 'Y',							/* 기간조건 사용 */
-			search_start  : caws_dayOffset(-CKW_PERIOD_DAYS),	/* yyyy/MM/dd — 서버가 '/' 를 지운다 */
-			search_end    : caws_dayOffset(0),
+			/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 현재 건 접수일 기준 1년 ~ 접수일 (기존: caws_dayOffset(-CKW_PERIOD_DAYS) ~ caws_dayOffset(0)) */
+			search_start  : ckw_dayOffsetFrom(anchor, -CKW_PERIOD_DAYS),	/* yyyy/MM/dd — 서버가 '/' 를 지운다 */
+			search_end    : ckw_dayOffsetFrom(anchor, 0),
+			/* [AX Lab] 수정 끝 */
 			search_text   : '',
 			procSelect    : '',								/* 빈 값 = 처리상태 전체 (위 주석) */
 			asGubunFlag   : '1',							/* 1 = 전체 (2 는 나의 A/S) */
@@ -1031,6 +1049,10 @@ function ckw_rank(list){
 		var it = list[i];
 		var no = ckw_nvl(it.as_no,'');
 		if(no === '' || no === me) continue;					/* 지금 보고 있는 건 제외 */
+		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 현재 건보다 나중에 접수된 건은 "과거 이력" 이 아니다 — 조회 기간을 접수일로
+		   잘랐어도(ckw_fetch) 접수일이 비어 있거나 형식이 다른 건이 섞일 수 있어 여기서 한 번 더 거른다 */
+		if(myDt !== '' && ckw_toDate(it.accept_dt) && ckw_toDate(myDt) && ckw_toDate(it.accept_dt).getTime() > ckw_toDate(myDt).getTime()) continue;
+		/* [AX Lab] 수정 끝 */
 		var body = ckw_nvl(it.call_content,'');
 		var norm = ckw_strip(body);							/* 표기 정규화까지 끝난 본문 (한 번만) */
 		var toks = ckw_tokOf(norm);
@@ -1373,7 +1395,8 @@ function ckw_render(){
 		+ '<div class="ckw-chips">' + ckw_chipsHtml() + '</div>'
 		+ '<div class="ckw-head ckw-head2">'
 		+   '<span class="ckw-tit">연관 이력</span>'
-		+   '<span class="ckw-note">최근 1년 · 기간필터 무관</span>'
+		/* [AX Lab] 수정 (2026-10-12 AX Lab): 기준이 '오늘' 이 아니라 '이 건의 접수일' 임을 표시 (기존: '최근 1년 · 기간필터 무관') */
+		+   '<span class="ckw-note" title="이 건의 접수일을 기준으로 이전 1년간 같은 거래처의 접수건만 봅니다">접수일 기준 이전 1년 · 기간필터 무관</span>'
 		+   '<span class="ckw-cnt">' + (ckw.state === 'done' ? cnt + '건' : '') + '</span>'
 		+ '</div>'
 		+ '<div class="ckw-list">' + ckw_listHtml() + '</div>';

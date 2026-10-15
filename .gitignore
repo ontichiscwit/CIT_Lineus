@@ -115,6 +115,11 @@ $RECYCLE.BIN/
 __pycache__/
 .pyc
 
+# [AX Lab] AI 추천 색인 준실시간 동기화 런타임 파일 (2026-10-15). 기본 색인(npz/jsonl)은 커밋, 델타·상태는 제외
+combine-ai-server/data/combine_live.jsonl
+combine-ai-server/data/combine_live_state.json
+combine-ai-server/data/*.tmp
+
 # 분석 원천/결과 데이터 (로컬 보관, 커밋 제외)
 *.csv
 analysis/

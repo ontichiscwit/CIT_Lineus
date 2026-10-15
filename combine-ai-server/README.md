@@ -18,10 +18,14 @@ CRM(Java, `CombineAsAiClient`) 이 이 서버에 문의 원문을 보내면, 표
 | `combine_recommend_server.py` | HTTP 서버 — `POST /api/recommend`, `GET /health` |
 | `combine_recommend.py` | 추천 엔진 — 하이브리드(밀집 bge-m3 + BM25) 검색, §7-3 점수·구성 규칙, 질의 전처리 |
 | `combine_lexical.py` | BM25 어휘 색인 (한글 어절 + 2-gram, 형태소 분석기 불필요) |
-| `combine_textprep.py` | 접수 템플릿 파싱 · 1겹 정규식 마스킹 — **적재 파이프라인(`analysis/`) 과 공용** |
+| `combine_textprep.py` | 접수 템플릿 파싱 · 첨부 상투어 제거 · 1겹 정규식 마스킹 — **적재 파이프라인(`analysis/`) 과 공용** |
+| `combine_synonyms.py` | 질의 도메인 동의어 확장 (현장어 ↔ 시스템어, 예: 산재 지사 → 산재조합/보험거래처코드). **질의에만** 적용, 색인 재생성 불필요 (2026-10-12) |
 | `combine_embed_client.py` | Ollama `bge-m3` 임베딩 호출 — 적재와 공용 |
-| `data/combine_index.npz` | 문서 벡터 9,221 × 1024 (float32, L2 정규화) + doc_id |
-| `data/combine_unified.jsonl` | 문서 본문·메타 (마스킹 완료. `cust_code`/`cust_nm` 없음) |
+| `combine_live_index.py` | **색인 준실시간 반영** (2026-10-15) — 백그라운드 스레드가 `data/` 를 30초마다 보고 ① 배치가 새 색인을 배포하면 재기동 없이 다시 읽고 ② `data/combine_live.jsonl` 의 델타(종결 건 upsert/delete) 를 메모리 색인에 반영 |
+| `data/combine_index.npz` | 문서 벡터 11,720 × 1024 (float32, L2 정규화) + doc_id — **기본 색인** (git 커밋) |
+| `data/combine_unified.jsonl` | 문서 본문·메타 (마스킹 완료. `cust_code`/`cust_nm` 없음) — 기본 색인 (git 커밋) |
+| `data/combine_live.jsonl` | 라이브 델타 — `analysis/combine_live.py` 가 append, 배치가 비움 (git 제외) |
+| `data/combine_live_state.json` | 동기화기 상태(워터마크·마지막 폴링·오류) — `/health` 의 `live.sync` 로 노출 (git 제외) |
 | `requirements.txt` | `numpy` 하나 |
 
 ## 2. 필요 환경
@@ -52,7 +56,8 @@ listening on http://127.0.0.1:8765  (X-Api-Key=dev-key)
 
 ```
 curl http://127.0.0.1:8765/health
-→ {"status":"ok","index":{...},"embed":{"ok":true,...}}        status 가 embed_down 이면 Ollama 연결 문제
+→ {"status":"ok","index":{...,"live_upserts":3,"live_last_ts":"..."},"live":{"reloads":1,"last_error":null,"sync":{"watermark":"...","last_poll_at":"..."}},"embed":{"ok":true,...}}
+   status 가 embed_down 이면 Ollama 연결 문제 · index.built_at 이 배치 시각과 다르면 아직 재적재 전(30초 대기) · live.sync 가 null 이면 동기화기 미기동
 ```
 
 CRM 쪽 설정(`jwcrm/src/main/resources/combine-ai.properties`) 은 기본값이 `http://127.0.0.1:8765/api/recommend` / `dev-key` 라서
@@ -72,20 +77,75 @@ CRM 쪽 설정(`jwcrm/src/main/resources/combine-ai.properties`) 은 기본값�
 | `COMBINE_OLLAMA_HOST` | `http://192.168.19.141:11434` | 임베딩 Ollama 주소 |
 | `COMBINE_EMBED_MODEL` | `bge-m3` | 색인을 만든 모델과 같아야 한다. 다르면 기동 시 멈춘다 |
 | `COMBINE_DATA_DIR` | `./data` | 색인 파일 위치 |
+| `COMBINE_LIVE_POLL_SEC` | `30` | `data/` 변경 감시 간격(초). `0` 이면 감시 끔 (기동 시 1회 적재만, 예전 동작) |
 
 ## 4. 데이터 (색인) 갱신
 
 `data/` 의 두 파일은 **`analysis/` 적재 파이프라인**(AX Lab 개발 PC, git 미포함) 이 만듭니다.
 
 ```
-combine_preprocess → combine_pii_llm(2겹 마스킹) → combine_chatbot_extract → combine_unified → combine_embed
+extract(DB) → build_dataset → 라벨(final_results) → combine_preprocess → combine_pii_llm(2겹 마스킹)
+ → combine_chatbot_extract → combine_unified → combine_embed
 ```
 
 `analysis/combine_embed.py` 가 마지막에 `combine_index.npz` + `combine_unified.jsonl` 을 이 폴더의 `data/` 로 복사합니다.
-갱신 후 서버를 재기동하면 반영됩니다. 두 파일은 **항상 같은 실행에서 나온 쌍**이어야 합니다(건수 불일치 시 기동 실패).
+**떠 있는 서버는 30초 안에 자동으로 다시 읽습니다**(2026-10-15, `combine_live_index.py`). 두 파일은 **항상 같은 실행에서 나온 쌍**이어야
+합니다 — 복사 도중(npz 는 새것, jsonl 은 옛것) 읽으면 건수 불일치로 그 틱은 실패하고 다음 틱에 다시 시도하므로 서비스는 기존 색인으로 계속됩니다.
 
-- 전처리 규칙(`combine_textprep.py`) 을 바꾸면 질의와 문서가 다르게 처리되므로 색인도 다시 만들어야 합니다.
-- 증분 적재(새 AS 건 추가) 는 AWS 이관(§7-2, §13) 에서 `rag_cases` 테이블로 옮기며 구현합니다. 현재 로컬 패키지는 전량 교체 방식입니다.
+### 두 층 구조 — 기본 색인(배치) + 라이브 델타(준실시간)
+
+| 층 | 만드는 것 | 주기 | 반영 지연 |
+|---|---|---|---|
+| 기본 색인 `combine_index.npz` + `combine_unified.jsonl` | `analysis/combine_refresh.py` (주기 배치, 아래) | 주 1회 권장 | 배치 종료 후 30초 |
+| 라이브 델타 `combine_live.jsonl` | `analysis/combine_live.py` (`analysis/run_live.bat`, 상시) | 5분 폴링 | 종결 후 **5~10분** |
+
+왜 두 층인가: 종결 건 하나가 추천 후보가 되려면 라벨(LLM) → 게이트 → PII 2겹 마스킹(LLM) → 임베딩을 거쳐야 해서 질의 시점에 DB 를
+직접 볼 수 없습니다. 그래서 변경분만 5분마다 같은 파이프라인으로 처리해 델타로 쌓고, 배치가 주 1회 전체를 다시 만들어 델타를 흡수합니다.
+
+### 준실시간 동기화기 (2026-10-15 추가 — `analysis/combine_live.py`)
+
+```
+cd analysis
+run_live.bat                                   # = python combine_live.py --loop   (5분 간격 상시)
+python combine_live.py --once                  # 한 사이클만
+python combine_live.py --once --since "2026-10-12 16:00"   # 워터마크 직접 지정 (첫 기동·복구)
+python combine_live.py --as-no 20261007020     # 특정 건만 강제 처리 (시험)
+```
+
+- 변경 감지: `CRM_AS_MGT.UPT_DATE/REG_DATE` ∪ `CRM_AS_MGT_ANSWER.W_DATE` ∪ `CRM_AS_MGT_HIST.REG_DATE` 세 곳 (상담원 답변은 `UPT_DATE` 를
+  올리지 않아 — 완료건 20% 가 그렇다 — 마스터만 보면 놓칩니다). 각 조회 0.1초 미만. 윈도 상한은 DB `SYSDATE - 5분`(디바운스).
+- 바뀐 접수번호만 01/02/04 추출 SQL 로 다시 읽고(기간 조건 → `AS_NO IN`), 배치와 **같은 함수**로 라벨·게이트·마스킹·통합·임베딩합니다.
+  라벨/PII/임베딩 결과는 배치와 같은 캐시 파일에 쌓이므로 다음 배치에서 비용이 다시 들지 않습니다.
+- 게이트를 통과하면 `upsert`, 색인에 있던 건이 이번 변경으로 탈락(또는 삭제)하면 `delete` 를 델타 파일에 씁니다. 서버는 30초 안에 반영.
+- 배치가 도는 동안(`analysis/out/combine_refresh.lock`) 은 쉬고, 배치가 끝나면 배치가 되돌려 둔 워터마크(추출 시작 - 30분)부터 이어받습니다.
+- 실패(Ollama 다운 등) 한 사이클은 워터마크를 전진시키지 않고 다음 사이클에 같은 윈도를 다시 봅니다. 라벨 실패 건은 `pending_retry` 로 재시도.
+- 상태 확인: `curl http://127.0.0.1:8765/health` 의 `live.sync.last_poll_at` 이 10분 넘게 멈춰 있으면 동기화기가 죽은 것. 로그 `analysis/out/combine_live.log`.
+- 전제: 동기화기를 띄우는 PC 가 **Oracle 과 Ollama 양쪽**에 닿아야 합니다 (프로젝트 루트 `.venv` — `oracledb`·`pandas`·`openai` 필요, Oracle 은 thick 모드라 클라이언트 설치본 필요).
+
+### 주기 갱신 (2026-10-12 추가 — `analysis/combine_refresh.py`)
+
+색인은 **추출 시점의 스냅샷**입니다. 10-06 색인은 2026-07-30 까지의 접수분이라, 테스터가 9~10월 접수건으로 검증했을 때
+기대답변(예: `20260915090`)이 색인에 없어 전부 X 가 났습니다. 그래서 전 단계를 한 번에 돌리는 갱신 스크립트를 두었습니다.
+
+```
+cd analysis
+..\.venv\Scripts\python.exe combine_refresh.py --start 20250601 --end 20261231 --redo-stale --workers 3
+```
+
+- 기존 산출물(라벨·PII 검출·임베딩) 은 캐시로 재사용하므로 **신규·변경 건만 비용**이 듭니다.
+  실측: 신규 9,529건 → 약 1시간 (사내 Ollama `gemma4:26b` 라벨 ~25% · 규칙 처리 ~75%, 임베딩 `bge-m3`). OpenAI 키 불필요.
+- `--redo-stale` : 접수 뒤 답변이 붙어 내용이 바뀐 건(무응답→답변 생김 등)을 다시 라벨링합니다. 주기 갱신 때 항상 켜세요.
+- 권장 주기: 주 1회(설계서 §7-2). 끝나면 **떠 있는 서버가 30초 안에 자동 반영**합니다(재기동 불필요, 2026-10-15). 배치는 라이브 델타 파일을
+  비우고 동기화기 워터마크를 되돌려 두므로 동기화기는 손대지 않아도 됩니다.
+- 전제: 복제 DB(`setup-local.config.ps1`) 접속 + Ollama PC `192.168.19.141` 가동.
+
+### 규칙 변경 시
+
+- 전처리 규칙(`combine_textprep.py`) 을 바꾸면 질의와 문서가 다르게 처리되므로 색인도 다시 만들어야 합니다 (`combine_refresh.py --from-stage 4`).
+- 동의어 규칙(`combine_synonyms.py`) 은 질의에만 적용되므로 서버 재기동만 하면 됩니다.
+- 게이트 예외(`analysis/combine_preprocess.py` 의 `CONCRETE_REF_RE`) : 80자 미만이라도 "매뉴얼 p.N" · "[메뉴]-[메뉴]" · "A > B > C" 같은
+  구체 참조가 있으면 적재합니다 (2026-10-12. 테스터 기대답변 `20250617092` "매뉴얼 p.14 [1-8-1 산재조합 등록] 참고" 47자가 이 예외로 들어옴).
+- AWS 이관(§13) 시에는 같은 파이프라인을 `rag_cases` UPSERT 로 옮깁니다.
 
 ## 5. API 계약 (요약 — 상세는 설계서 §6)
 
@@ -101,12 +161,18 @@ Content-Type: application/json
   "top_k": 5, "tiers": [1, 2, 3]
 }
 
-200 {"result":"000","elapsed_ms":300,"items":[{ doc_id, tier, tier_label, title, answer_text, answer_html,
-      relevance(0~1, 화면 표시용), semantic_sim(코사인 원값), lexical_score(BM25 원값), score,
+200 {"result":"000","elapsed_ms":300,"confidence":"high|mid|low","best_sim":0.69,
+     "items":[{ doc_id, tier, tier_label, title, answer_text, answer_html,
+      relevance(0~1, 후보 안 상대값 — 화면 표시용), semantic_sim(코사인 원값), lexical_score(BM25 원값), score,
+      confidence(high/mid/low — 절대 코사인 기준. low 면 화면에 "확신 낮음" 배지),
       service_cate, program_nm, screen_nm, topic, resolution, deep_link, public_link, attached_file[],
       occurred_at('YYYY-MM'), quality_score, internal_note, as_no, question_text }, ...]}
 400 잘못된 요청 · 401 키 불일치 · 503 임베딩 서버 장애
 ```
+
+`confidence` (2026-10-12 추가): `relevance` 는 후보 60건 안에서 min-max 한 값이라 전부 무관한 결과여도 1위는 항상 100% 로 보입니다.
+그래서 bge-m3 절대 코사인으로 `high ≥ 0.62 / mid / low < 0.58` 을 따로 내려줍니다 (임계는 `combine_recommend.py` 의 `CONF_*_SIM`,
+실측 근거는 그 주석 참조). 응답 상단 `confidence` 는 Java `CombineAsAiVO` 를 거치지 않으므로 CRM 화면은 항목별 `confidence` 만 씁니다.
 
 응답에는 고객사 식별 정보(`cust_code`/`cust_nm`) 가 들어가지 않습니다. 질의는 1겹 정규식 마스킹 후 임베딩하며 **저장·로그하지 않습니다**(접속 로그에도 본문 없음).
 
