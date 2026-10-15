@@ -49,6 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from combine_textprep import mask_regex, parse_question        # noqa: E402  1겹 마스킹 · 접수 템플릿 제거/프로그램명·화면명 추출
 from combine_embed_client import embed_one, OLLAMA_HOST, EMBED_MODEL  # noqa: E402
 from combine_lexical import BM25Index                          # noqa: E402  어휘 검색
+from combine_synonyms import expand as expand_synonyms         # noqa: E402  [AX Lab] 2026-10-12 질의 도메인 동의어 확장
 
 BASE_DIR = Path(__file__).resolve().parent
 # 색인 데이터 위치. 기본은 이 패키지의 data/ (analysis/combine_embed.py 가 색인을 만들고 여기로 복사한다).
@@ -64,11 +65,33 @@ REL_FLOOR = 0.30        # 이 아래 relevance 는 어떤 규칙으로도 노출
 TIER2_CAP = 3           # 1차 선발 상한. 칸이 남으면 풀린다 (compose 참조)
 DUP_CAP = 2
 CANDIDATES = 60         # dense 상위 N ∪ lexical 상위 N 을 후보 집합으로 삼아 재랭킹
+# [AX Lab] 수정 시작 (2026-10-12 AX Lab): 절대 확신도.
+#   relevance 는 후보 집합 안 min-max 라 "그나마 가장 가까운 것" 도 항상 100% 로 보인다 (테스터 테스트3 에서 전부 무관한데
+#   관련도 80~100% 로 표시). 그래서 bge-m3 절대 코사인으로 high/mid/low 를 따로 내려 화면이 '확신 낮음' 을 표시하게 한다.
+#   실측(2026-10-12, 기존 색인): Tier2 자기질의 150건의 상위 1건 코사인 p10 0.638 / p50 0.717,
+#   도메인 밖 무관 질의("회의실 예약", "점심 메뉴", "프린터 토너", "엑셀 피벗") 의 상위 1건은 0.52~0.57,
+#   테스터 테스트3 의 무관 결과(동의어 확장 전) 상위 1건은 0.548 → high ≥ 0.62, low < 0.58 로 잡는다.
+CONF_HIGH_SIM = 0.62
+CONF_LOW_SIM = 0.58
+
+
+def confidence_of(sim):
+    if sim >= CONF_HIGH_SIM:
+        return "high"
+    if sim >= CONF_LOW_SIM:
+        return "mid"
+    return "low"
+# [AX Lab] 수정 끝
 
 
 # ---------------------------------------------------------------- 인덱스
 class LocalIndex:
-    """combine_index.npz + combine_unified.jsonl 를 메모리에 올린 읽기 전용 인덱스."""
+    """combine_index.npz + combine_unified.jsonl 를 메모리에 올린 인덱스.
+
+    객체 자체는 만들어진 뒤 바뀌지 않는다(읽기 전용). 라이브 델타(§7-2 준실시간)는 apply_live() 가
+    델타를 반영한 **새 객체**를 돌려주고, 서버는 Recommender.index 참조를 통째로 바꿔 끼운다.
+    그래서 요청 처리 중인 스레드는 끝까지 자기가 잡은 객체를 보고, 잠금이 필요 없다.
+    """
 
     def __init__(self, out_dir=OUT_DIR):
         z = np.load(out_dir / "combine_index.npz", allow_pickle=False)
@@ -81,10 +104,87 @@ class LocalIndex:
             r = json.loads(line)
             self.meta[r["doc_id"]] = r
         assert len(self.meta) == len(self.doc_ids), "unified 와 index 건수 불일치 — combine_embed.py 재실행"
+        # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 준실시간 반영 — 라이브 델타 적용 상태를 들고 다닌다
+        self.live_upserts = 0       # 이 객체에 반영된 라이브 upsert 누계 (기본 색인 재적재 시 0 부터)
+        self.live_deletes = 0
+        self.live_last_ts = None    # 마지막으로 반영한 델타의 ts (combine_live.py 가 기록한 처리 시각)
+        self._finalize()
+
+    def _finalize(self):
+        """doc_ids/vectors/meta 가 확정된 뒤 파생 배열과 어휘 색인을 만든다 (생성·델타 적용 공통)."""
+        # [AX Lab] 수정 끝
         self.tiers = np.asarray([self.meta[d]["tier"] for d in self.doc_ids], dtype=np.int8)
         self.as_nos = np.asarray([self.meta[d].get("as_no") or "" for d in self.doc_ids])
         # 어휘 색인 — 임베딩에 쓴 것과 같은 embed_text 로 만든다 (dense/lexical 이 같은 본문을 본다)
         self.lexical = BM25Index([self.meta[d].get("embed_text") or "" for d in self.doc_ids])
+
+    # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 준실시간 반영 — 라이브 델타(upsert/delete) 를 적용한 새 인덱스
+    def apply_live(self, entries):
+        """analysis/combine_live.py 가 data/combine_live.jsonl 에 쓴 델타를 반영한 **새** LocalIndex 를 돌려준다.
+
+        entries: [{"op": "upsert", "doc_id", "ts", "record": {통합 스키마 레코드}, "vector": [1024 floats]}
+                  | {"op": "delete", "doc_id", "ts"}]  (파일에 적힌 순서대로 적용한다 — 같은 doc_id 는 마지막 것이 이긴다)
+        - upsert 는 doc_id 가 있으면 벡터·본문을 교체, 없으면 끝에 추가한다.
+        - delete 는 doc_id 가 없으면 무시한다 (색인에 없던 건이 게이트 탈락한 경우).
+        - 벡터는 길이 검사 후 L2 정규화한다 (코사인 = 내적 전제).
+        BM25 는 전량 재생성한다 (11.7천 건 3.5초 — 백그라운드 스레드에서 하므로 요청 지연에는 영향 없음).
+        """
+        if not entries:
+            return self
+        dim = self.vectors.shape[1]
+        pos = {d: i for i, d in enumerate(self.doc_ids)}
+        vectors = self.vectors.copy()
+        doc_ids = list(self.doc_ids)
+        meta = dict(self.meta)
+        add_ids, add_vecs, drop = [], [], set()
+        n_up = n_del = 0
+        last_ts = self.live_last_ts
+        for e in entries:
+            op, doc_id = e.get("op"), e.get("doc_id")
+            if not doc_id:
+                continue
+            last_ts = e.get("ts") or last_ts
+            if op == "upsert":
+                rec, vec = e.get("record") or {}, e.get("vector")
+                if rec.get("doc_id") != doc_id or not isinstance(vec, list) or len(vec) != dim or "tier" not in rec:
+                    continue                                      # 깨진 줄은 건너뛴다 (파일 끝 부분 기록 중 등)
+                v = np.asarray(vec, dtype=np.float32)
+                n = float(np.linalg.norm(v)) or 1.0
+                v /= n
+                meta[doc_id] = rec
+                if doc_id in pos:
+                    vectors[pos[doc_id]] = v
+                    drop.discard(doc_id)
+                elif doc_id in add_ids:
+                    add_vecs[add_ids.index(doc_id)] = v
+                else:
+                    add_ids.append(doc_id)
+                    add_vecs.append(v)
+                n_up += 1
+            elif op == "delete":
+                if doc_id in pos:
+                    drop.add(doc_id)
+                    n_del += 1
+                elif doc_id in add_ids:
+                    i = add_ids.index(doc_id)
+                    add_ids.pop(i); add_vecs.pop(i)
+                    n_del += 1
+                meta.pop(doc_id, None)
+        if drop:
+            keep = np.asarray([d not in drop for d in doc_ids])
+            vectors = vectors[keep]
+            doc_ids = [d for d in doc_ids if d not in drop]
+        if add_ids:
+            vectors = np.vstack([vectors, np.stack(add_vecs)]) if len(doc_ids) else np.stack(add_vecs)
+            doc_ids += add_ids
+        new = LocalIndex.__new__(LocalIndex)
+        new.vectors, new.doc_ids, new.meta = vectors, doc_ids, meta
+        new.model, new.built_at = self.model, self.built_at
+        new.live_upserts, new.live_deletes = self.live_upserts + n_up, self.live_deletes + n_del
+        new.live_last_ts = last_ts
+        new._finalize()
+        return new
+    # [AX Lab] 수정 끝
 
     def _mask(self, tiers, exclude_as_no):
         mask = np.isin(self.tiers, list(tiers))
@@ -133,6 +233,14 @@ class LocalIndex:
         return self.meta[doc_id]
 
 
+# [AX Lab] 수정 시작 (2026-10-15 AX Lab): 응답·/health 공용 색인 정보 (라이브 반영 상태 포함)
+def index_info(index):
+    return {"model": index.model, "built_at": index.built_at, "size": len(index.doc_ids),
+            "live_upserts": getattr(index, "live_upserts", 0), "live_deletes": getattr(index, "live_deletes", 0),
+            "live_last_ts": getattr(index, "live_last_ts", None)}
+# [AX Lab] 수정 끝
+
+
 # ---------------------------------------------------------------- 랭킹
 def _norm(s):
     return re.sub(r"\s+", "", (s or "")).lower()
@@ -172,7 +280,14 @@ def prepare_query(raw):
     body = body or (raw or "")
     q_text = mask_regex(body)[0].strip()
     names = " ".join(v for v in (meta.get("program_nm"), meta.get("screen_nm")) if v)
-    q_lex = (q_text + " " + names).strip()
+    # [AX Lab] 수정 시작 (2026-10-12 AX Lab): 도메인 동의어 확장 (combine_synonyms.RULES).
+    #   현장어(산재 지사) ↔ 시스템어(산재조합/보험거래처코드) 격차로 정답이 후보에도 못 들던 문제. 질의에만 적용한다.
+    syn_dense, syn_lex = expand_synonyms(q_text + " " + names)
+    if syn_dense:
+        q_text = q_text + "\n" + syn_dense
+    q_lex = " ".join(x for x in (q_text, names, syn_lex) if x).strip()
+    meta = dict(meta, synonyms=(syn_dense + " " + syn_lex).strip())
+    # [AX Lab] 수정 끝
     return q_text, q_lex, meta
 
 
@@ -237,24 +352,33 @@ class Recommender:
         excl = set(x for x in (exclude_as_no or []) if x)
         if as_no:
             excl.add(str(as_no))
+        # [AX Lab] 수정 (2026-10-15 AX Lab): 준실시간 반영 — 처리 도중 self.index 가 새 객체로 바뀌어도
+        #   이 요청은 처음 잡은 객체만 본다 (search 결과 doc_id 를 get() 에서 못 찾는 일 방지)
+        index = self.index
         qvec = self.embed_fn(q_text)
-        cands = self.index.search_hybrid(qvec, q_lex, tiers, excl, CANDIDATES)
+        cands = index.search_hybrid(qvec, q_lex, tiers, excl, CANDIDATES)
         # 호출자가 안 준 프로그램명/화면명은 질의 템플릿에서 뽑은 값으로 채운다 (product_match 폴백용)
         qmeta = {"service_cate": service_cate, "inquiry_type": inquiry_type,
                  "program_nm": program_nm or qm.get("program_nm"), "screen_nm": screen_nm or qm.get("screen_nm")}
         ranked = []
         for doc_id, sim, lex, rel in cands:
-            d = self.index.get(doc_id)
+            d = index.get(doc_id)
             pm = product_match(qmeta, d)
             ranked.append({**self._item(d), "semantic_sim": round(sim, 4), "lexical_score": round(lex, 2),
                            "relevance": round(rel, 4), "product_match": pm,
+                           # [AX Lab] 2026-10-12: 절대 코사인 기준 확신도 (relevance 는 후보 안 상대값이라 항상 상위가 100%)
+                           "confidence": confidence_of(sim),
                            "score": round(score(rel, pm, d["tier"], d["quality_score"]), 4)})
         ranked.sort(key=lambda c: -c["score"])
         items = compose(ranked, top_k)
         for it in items:
             it.pop("product_match", None)
+        # [AX Lab] 수정 시작 (2026-10-12 AX Lab): 결과 전체 확신도 = 노출 항목 중 가장 높은 절대 코사인 기준
+        best_sim = max((it["semantic_sim"] for it in items), default=0.0)
+        # [AX Lab] 수정 끝
         return {"result": "000", "elapsed_ms": int((time.time() - t0) * 1000), "items": items,
-                "index": {"model": self.index.model, "built_at": self.index.built_at, "size": len(self.index.doc_ids)}}
+                "confidence": confidence_of(best_sim), "best_sim": round(best_sim, 4),
+                "index": index_info(index)}
 
     @staticmethod
     def _item(d):
@@ -276,10 +400,10 @@ class Recommender:
 
 # ---------------------------------------------------------------- CLI
 def _print(res, show_body=False):
-    print(f"result={res['result']} elapsed={res.get('elapsed_ms')}ms")
+    print(f"result={res['result']} elapsed={res.get('elapsed_ms')}ms confidence={res.get('confidence')} best_sim={res.get('best_sim')}")
     for i, it in enumerate(res["items"], 1):
         line = (f" {i}. [{it['tier_label']}] {it['title'][:44]:44} rel={it['relevance']:.2f} "
-                f"(cos={it['semantic_sim']:.3f} bm25={it['lexical_score']:.1f}) score={it['score']:.3f}")
+                f"(cos={it['semantic_sim']:.3f} bm25={it['lexical_score']:.1f} {it.get('confidence', '')}) score={it['score']:.3f}")
         if it.get("service_cate"):
             line += f" · {it['service_cate']}"
         if it.get("topic"):
