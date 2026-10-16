@@ -21,6 +21,15 @@ if not exist ".venv\Scripts\python.exe" (
     if errorlevel 1 ( echo [오류] 의존성 설치 실패. 사내 프록시/인터넷 연결을 확인하세요. & pause & exit /b 1 )
 )
 
+rem [AX Lab] 수정 시작 (2026-10-16 AX Lab): 기존 가상환경에도 Kiwi(겹친 단어 형태소 분석)를 설치. 실패해도 규칙 방식으로 기동한다
+".venv\Scripts\python.exe" -c "import kiwipiepy" >nul 2>nul
+if errorlevel 1 (
+    echo [combine-ai-server] kiwipiepy 설치 중... ^(최초 1회^)
+    ".venv\Scripts\python.exe" -m pip install --quiet "kiwipiepy>=0.24"
+    if errorlevel 1 echo [경고] kiwipiepy 설치 실패 - 겹친 단어는 규칙 방식으로 표시합니다.
+)
+rem [AX Lab] 수정 끝
+
 set PYTHONIOENCODING=utf-8
 set PYTHONUNBUFFERED=1
 echo [combine-ai-server] 기동: http://%HOST%:8765   (Ollama: %COMBINE_OLLAMA_HOST% / 기본 192.168.19.141)

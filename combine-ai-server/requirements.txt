@@ -1,2 +1,4 @@
-# [AX Lab] AS 통합화면 AI 추천 서버 — 의존성 (표준 라이브러리 외 numpy 하나뿐)
+# [AX Lab] AS 통합화면 AI 추천 서버 — 의존성
 numpy>=1.24
+# [AX Lab] 2026-10-16 추천 근거(겹친 단어) 형태소 분석. 없어도 서버는 뜨고 규칙 방식으로 동작한다 (combine_morph.py)
+kiwipiepy>=0.24

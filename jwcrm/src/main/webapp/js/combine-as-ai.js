@@ -66,6 +66,22 @@ function cai_allLow(items){
 	return true;
 }
 /* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거 — 서버가 준 겹친 단어(match_terms) · 일치 사유(match_reason).
+ * 겹친 단어는 문의와 이 자료에 함께 들어 있는 말(단어 검색 근거)이고, 순위는 문장 뜻(재정렬)을 함께 보고 정한다.
+ * 겹친 단어가 없으면 문장 뜻으로만 찾은 것 → '뜻으로 찾음'. 구 서버 응답(두 필드 모두 없음)이면 아무것도 그리지 않는다. */
+function cai_whyHtml(it, max){
+	if(!it || (typeof it.match_terms === 'undefined' && typeof it.match_reason === 'undefined')) return '';
+	var terms = it.match_terms || [], h = '';
+	for(var i=0; i<terms.length && i<max; i++){
+		var m = terms[i] || {};
+		if(m.synonym) h += '<i class="cai-kw syn" title="문의에 없던 말 — 같은 뜻의 다른 표현(동의어)으로 찾았습니다">≈ ' + cai_esc(m.term) + '</i>';
+		else          h += '<i class="cai-kw">' + cai_esc(m.term) + '</i>';
+	}
+	if(!terms.length) h += '<i class="cai-kw sem" title="겹치는 단어 없이 문장 뜻이 비슷해 추천되었습니다">뜻으로 찾음</i>';
+	if(it.match_reason) h += '<i class="cai-kw rsn">' + cai_esc(it.match_reason) + '</i>';
+	return h;
+}
+/* [AX Lab] 수정 끝 */
 function cai_tier(it){ return CAI_TIER[Number(it && it.tier)] || { cls:'t0', label:'추천' }; }
 function cai_fileName(url){
 	var s = String(url || '').split('?')[0].split('#')[0];
@@ -157,10 +173,12 @@ function cai_popHtml(){
 			var it = cai.items[j], t = cai_tier(it);
 			var files = (it.attached_file && it.attached_file.length) ? ' · <span class="cai-clip" title="첨부 ' + it.attached_file.length + '개">&#128206;' + it.attached_file.length + '</span>' : '';
 			var when = cai_nvl(it.occurred_at, '');
+			var why = cai_whyHtml(it, 3);	/* [AX Lab] 2026-10-16 추천 근거 */
 			h += '<button type="button" class="cai-item' + (j === cai.sel ? ' on' : '') + (cai_conf(it) === 'low' ? ' refc' : '') + '" onclick="cai_open(' + j + ', event);" title="' + cai_esc(it.title) + '">'
 			   +   '<i class="cai-tier ' + t.cls + '">' + t.label + '</i>'
 			   +   '<span><b>' + cai_esc(it.title) + '</b>'
-			   +   '<small>' + cai_metaLabel(it) + (when ? ' · ' + cai_esc(when) : '') + files + '</small></span>'	/* [AX Lab] 2026-10-12 cai_relLabel → cai_metaLabel */
+			   +   '<small>' + cai_metaLabel(it) + (when ? ' · ' + cai_esc(when) : '') + files + '</small>'	/* [AX Lab] 2026-10-12 cai_relLabel → cai_metaLabel */
+			   +   (why ? '<span class="cai-why">' + why + '</span>' : '') + '</span>'
 			   + '</button>';
 		}
 		h += '<span class="cai-foot">항목을 누르면 우측 「접수 · 처리 정보」 상단에 본문이 열립니다.</span>';
@@ -320,6 +338,9 @@ function cai_detailHtml(it, idx){
 	+ '</div>'
 	+ '<div class="cai-ttl"><i class="cai-tier ' + t.cls + '">' + t.label + '</i><b>' + cai_esc(it.title) + '</b></div>'
 	+ '<div class="cai-meta">' + meta.join(' · ') + '</div>';
+	/* [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거 */
+	var why = cai_whyHtml(it, 4);
+	if(why) h += '<div class="cai-whyrow" title="문의와 이 자료에 함께 들어 있는 말입니다. 순위는 문장 뜻(AI 판단)도 함께 보고 정합니다."><em>겹친 단어</em>' + why + '</div>';
 
 	/* 과거사례는 "어떤 문의였나"가 맥락이므로 원 문의를 접힌 상태로 함께 둔다 */
 	if(Number(it.tier) === 2 && cai_nvl(it.question_text, '') !== ''){

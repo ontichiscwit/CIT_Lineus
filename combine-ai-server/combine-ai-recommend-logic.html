@@ -6,6 +6,9 @@
 <title>AS 통합화면 AI 추천 — 어떻게 동작하나요?</title>
 <!-- [AX Lab] 신규 파일 (2026-10-15 AX Lab): AI 추천 로직 설명용 독립 HTML (비전공자 대상) -->
 <!-- [AX Lab] 수정 (2026-10-16 AX Lab): 관련 없는 추천 제외(항상 5건 → 0~5건) 내용 반영 — #s-filter 섹션 신설 외 -->
+<!-- [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거(겹친 단어·일치 사유) 표시 — #s-screen 하단 -->
+<!-- [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어 형태소 분석기(Kiwi) 적용 이유·방식 — #s-morph -->
+
 
 <style>
   :root{
@@ -174,6 +177,16 @@
   .mock-i.ref{background:#fafbfc}
   .refb{display:inline-block;padding:0 6px;border-radius:6px;background:#eaf1f7;color:#486174;font-weight:700;font-size:10px}
   .mock-f{padding:8px 14px;background:#faf9ff;color:var(--muted);font-size:10px;text-align:center}
+  /* [AX Lab] 2026-10-16 추천 근거 칩 */
+  .kws{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+  .kw{display:inline-block;padding:0 6px;border-radius:7px;background:#f3f0fa;color:#5b4a9b;font-size:10px;font-weight:700;line-height:16px}
+  .kw.syn{background:#fff4e5;color:#9a5b0b}
+  .kw.sem{background:#eef3f8;color:#4c6275}
+  .kw.rsn{background:#e6f4f1;color:#1e7a68}
+  .whyk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+  .whyk > div{padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font-size:12px;color:var(--ink2)}
+  .whyk .kw{margin-bottom:6px}
+  .why2 h4{margin:0 0 8px;font-size:14px}
   .levels{display:grid;gap:10px}
   .lv{display:grid;grid-template-columns:150px 1fr;gap:16px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
   .lv b{font-size:14px}
@@ -248,6 +261,7 @@
     .analogy > div{border-right:0;border-bottom:1px solid var(--line)}
     .weights,.down{grid-template-columns:1fr 1fr}.stage{grid-template-columns:1fr}.screen{grid-template-columns:1fr}
     .why2,.rule3,.zero,.scale-eg{grid-template-columns:1fr}
+    .whyk{grid-template-columns:1fr 1fr}
     .player-body{grid-template-columns:auto 1fr}.player-body .ctrl{grid-column:1 / -1;justify-content:flex-end}.chips{margin-left:0}
     .row{grid-template-columns:28px 1fr 56px}.row .stack{grid-column:1 / -1}.row.axis{display:none}
   }
@@ -511,9 +525,9 @@
       <div class="screen">
         <div class="mock" aria-label="AI 추천 팝업 예시">
           <div class="mock-h"><span>✦ AI 추천</span><em>3건</em></div>
-          <div class="mock-i"><span class="tierb tier1">표준답변</span><div><b>카드 수납 취소 처리 방법</b><small>관련도 92% · 2026-08</small></div></div>
-          <div class="mock-i"><span class="tierb tier2">과거사례</span><div><b>카드 취소 시 승인번호 오류</b><small>관련도 78% · 2026-05</small></div></div>
-          <div class="mock-i ref"><span class="tierb tier2">과거사례</span><div><b>수납 내역 출력 오류 문의</b><small><span class="refb">참고 사례</span> · 2025-11</small></div></div>
+          <div class="mock-i"><span class="tierb tier1">표준답변</span><div><b>카드 수납 취소 처리 방법</b><small>관련도 92% · 2026-08</small><div class="kws"><span class="kw">카드</span><span class="kw">수납</span><span class="kw">취소</span><span class="kw rsn">같은 업무분류</span></div></div></div>
+          <div class="mock-i"><span class="tierb tier2">과거사례</span><div><b>카드 취소 시 승인번호 오류</b><small>관련도 78% · 2026-05</small><div class="kws"><span class="kw">카드</span><span class="kw">취소</span><span class="kw rsn">같은 업무분류</span></div></div></div>
+          <div class="mock-i ref"><span class="tierb tier2">과거사례</span><div><b>결제 환불이 처리되지 않아요</b><small><span class="refb">참고 사례</span> · 2025-11</small><div class="kws"><span class="kw sem">뜻으로 찾음</span></div></div></div>
           <div class="mock-f">항목을 누르면 오른쪽에 답변 본문이 열립니다</div>
         </div>
         <div>
@@ -526,6 +540,60 @@
           <div class="note" style="border-left-color:var(--brand);background:var(--brand-soft);color:#3f2f99"><span class="t" data-term="cosine">코사인 유사도</span>는 <span class="t" data-term="relevance">관련도</span> %와 다른 값입니다. 관련도는 후보들끼리의 등수라 항상 1등이 높게 나오지만, 코사인 유사도는 문장 뜻이 실제로 얼마나 가까운지를 재는 절대 기준이라 "확실한지"를 판단하는 데 씁니다.</div>
         </div>
       </div>
+
+      <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거(겹친 단어) 표시 -->
+      <h3 style="margin-top:30px">왜 추천됐는지도 보여 줍니다 <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
+      <p class="muted small">추천 항목마다 아래 칩이 붙습니다. 목록에는 3개, 항목을 눌러 여는 상세 패널의 "겹친 단어" 줄에는 4개까지 보입니다.</p>
+      <div class="whyk">
+        <div><span class="kw">시술확인서</span><br><b>겹친 단어</b><br>문의와 이 자료에 함께 들어 있는 말입니다. 드문 말부터 보여 주고, "문의"·"확인"처럼 어디에나 나오는 말은 뺍니다. <span class="t" data-term="morph">형태소 분석</span>으로 명사만 골라 "진단서를"은 "진단서"로, 붙여 쓴 "시술확인서"는 한 단어로 보여 줍니다(<a href="#s-morph">아래</a>).</div>
+        <div><span class="kw syn">≈ 산재조합</span><br><b>동의어로 찾은 말</b><br>문의에는 없었지만 <span class="t" data-term="qexpand">쿼리 확장</span>으로 덧붙인 같은 뜻의 다른 표현이 걸린 경우입니다. 예) "산재 지사"로 물었는데 "산재조합" 자료를 찾음.</div>
+        <div><span class="kw sem">뜻으로 찾음</span><br><b>겹친 단어 없음</b><br>같은 단어는 없지만 <span class="t" data-term="vector">벡터 검색</span>·<span class="t" data-term="rerank">리랭킹</span>이 문장 뜻이 비슷하다고 판단한 경우입니다. 예) "결제가 취소가 안 돼요" ↔ "수납 취소 불가".</div>
+        <div><span class="kw rsn">같은 업무분류</span><br><b>일치 사유</b><br>업무분류(원무 등)가 같으면 "같은 업무분류", 프로그램·화면이 같으면 "같은 프로그램·화면", 문의유형만 같으면 "같은 문의유형"이 붙습니다.</div>
+      </div>
+      <div class="note">겹친 단어는 <strong>단어 검색(<span class="t" data-term="bm25">BM25</span>) 쪽 근거</strong>입니다. 실제 순위는 리랭킹(문장 뜻)을 함께 보고 정하므로, 겹친 단어가 많다고 1등은 아닙니다. 대신 엉뚱한 추천의 이유를 드러내 줍니다. 예를 들어 "담당자 휴무라 4시 전에 연락 달라" 문의에 "그 전에 연락바랍니다" 사례가 뜬다면 칩에 <span class="kw">퇴근</span> <span class="kw">담당자</span> <span class="kw">긴급</span>이 보여, 업무 내용이 아니라 연락 요청 문구가 겹쳐서 올라왔다는 걸 바로 알 수 있습니다.</div>
+      <!-- [AX Lab] 수정 끝 -->
+
+      <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 겹친 단어 — 형태소 분석기(Kiwi) 적용 -->
+      <h3 id="s-morph" style="margin-top:30px">단어를 어디서 자르나요? — 형태소 분석기 Kiwi <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
+      <p>처음에는 띄어쓰기로 자른 덩어리(어절)에서 조사·어미를 규칙으로 떼어 냈습니다. 그런데 상담 문의는 띄어쓰기가 불규칙해서 <strong>두 방향 모두</strong> 틀렸습니다. 맞춤법대로 띄어 주는 것도 답이 아닙니다.</p>
+      <div class="why2">
+        <div class="card"><h4>덜 잘림 — 붙으면 안 되는 말이 붙음</h4><p><span class="kw">신규및</span> (신규 + 및), <span class="kw">신규오더시</span> (신규오더 + 시), <span class="kw">사진과</span> (사진 + 과)처럼 기능어가 단어에 붙어 칩에 그대로 나왔습니다.</p></div>
+        <div class="card"><h4>더 잘림 — 맞춤법대로 띄우면 뜻이 깨짐</h4><p>맞춤법상으로는 "시술 확인서"지만 현장에서는 <span class="kw">시술확인서</span>가 서식 이름 하나입니다. "시술", "확인서"로 나누면 한 단어처럼 보이지 않습니다.</p></div>
+      </div>
+      <p style="margin-top:14px">그래서 기준을 <strong>"맞춤법상 단어"가 아니라 "업무에서 한 뜻으로 쓰는 덩어리"</strong>로 잡았습니다.</p>
+      <div class="rule3">
+        <div class="card"><b>1. 품사를 나눈다</b><p>형태소 분석기 Kiwi가 문장을 명사·조사·어미·부사 등으로 나눕니다. "신규및" → 신규(명사) + 및(부사).</p></div>
+        <div class="card"><b>2. 붙어 있던 명사는 다시 붙인다</b><p>원문에서 띄어쓰기 없이 이어진 명사들은 하나로 합칩니다. 시술 + 확인서 → <span class="kw">시술확인서</span>, D / C + 오더 → <span class="kw">D/C오더</span>.</p></div>
+        <div class="card"><b>3. 명사가 아닌 것은 버린다</b><p>조사·어미·"및"·"같이"·"빠른" 같은 말과 끝에 붙은 "시·후·때·중·분"은 뗍니다. 자료에 덩어리 전체가 없으면 그 안의 더 짧은 조각을 찾습니다(신규오더 → 신규).</p></div>
+      </div>
+      <table class="cmp" style="margin-top:16px">
+        <thead><tr><th>실제 문의 (같은 추천 결과)</th><th>이전 (어절 규칙)</th><th>지금 (Kiwi)</th></tr></thead>
+        <tbody>
+          <tr><td>신규및 D/C오더 대상자 처방이 표기되지 않습니다</td><td><span class="kw">신규및</span> <span class="kw">대상자</span> <span class="kw">표기</span> <span class="kw">오더</span></td><td><span class="kw">대상자</span> <span class="kw">표기</span> <span class="kw">신규</span> <span class="kw">D/C오더</span></td></tr>
+          <tr><td>시술확인서 작성후 삭제했는지 … 경과기록지 삭제가 안 되어서 빠른 전화 부탁</td><td><span class="kw">되어서</span> <span class="kw">경과기록지</span> <span class="kw">작성</span> <span class="kw">빠른</span></td><td><span class="kw">경과기록지</span> <span class="kw">작성</span> <span class="kw">삭제</span></td></tr>
+          <tr><td>진단서를 출력하면 BIXOLON 드라이버 오류가 나옵니다</td><td>BIXOLON 드라이버 <span class="kw">진단</span> 출력 (진단서의 잘린 조각)</td><td>BIXOLON 드라이버 출력 <span class="kw">오류</span></td></tr>
+          <tr><td>마약류투약정보조회 화면에서 DUR 점검이 안됩니다</td><td>의약품 마약류 DUR 점검 (동의어 표시 없음)</td><td><span class="kw syn">≈ 의약품</span> 마약류 DUR 점검</td></tr>
+        </tbody>
+      </table>
+
+      <h4 style="margin-top:22px">왜 Kiwi인가요?</h4>
+      <p class="muted small">한국어 형태소 분석기 후보를 이 서버 환경(Windows PC, 파이썬, 응답 2.5초 제한) 기준으로 비교했습니다.</p>
+      <table class="cmp">
+        <thead><tr><th>후보</th><th>설치·운영</th><th>띄어쓰기 오류</th><th>판단</th></tr></thead>
+        <tbody>
+          <tr><td><b>Kiwi</b> (kiwipiepy)</td><td><code>pip install</code> 한 줄. Windows용 설치 파일이 있어 별도 빌드·Java가 필요 없음</td><td>강함. "신규및"을 신규 + 및으로 정확히 나눔</td><td><b>채택</b></td></tr>
+          <tr><td>Mecab-ko</td><td>빠르고 정확하지만 Windows에서 사전 빌드·설치가 번거로움</td><td>보통</td><td>운영 PC 설치 부담</td></tr>
+          <tr><td>KoNLPy (Okt·Komoran·Hannanum)</td><td>Java(JVM) 설치가 필요. 서버 기동이 무거워짐</td><td>분석기마다 다름</td><td>의존성 부담</td></tr>
+          <tr><td>규칙만 (이전 방식)</td><td>설치 없음</td><td>약함. 사례마다 규칙을 늘려야 함</td><td>폴백으로 유지</td></tr>
+        </tbody>
+      </table>
+      <div class="whyk" style="grid-template-columns:repeat(3,1fr)">
+        <div><b>원문 위치를 알려 줌</b><br>나눈 조각마다 원문의 몇 번째 글자인지 알려 줍니다. 그래서 "원래 붙어 있던 명사"만 정확히 다시 붙일 수 있습니다. 2번 규칙이 가능한 이유입니다.</div>
+        <div><b>업무 용어 사전을 넣을 수 있음</b><br>동의어 사전 용어와 화면명·프로그램명(여러 문서에 반복되는 것, 약 330개)을 사용자 사전에 넣습니다. 예를 들어 사전이 없으면 문장 첫머리 "D/C오더"를 "C + 이오 + 더"로 잘못 읽는데, "오더"를 넣으면 바로 고쳐집니다.</div>
+        <div><b>빠름</b><br>실측 결과 문장 하나에 약 1ms가 걸립니다. 모델을 불러오는 데 약 4초가 걸리지만, 서버를 켤 때 한 번만 뒤에서 불러오므로 추천 응답 시간에는 영향이 없습니다.</div>
+      </div>
+      <div class="note">안전장치: Kiwi는 <strong>화면에 보여 줄 칩을 고를 때만</strong> 씁니다. 검색(BM25)과 색인은 그대로라 색인을 다시 만들 필요가 없습니다. 서버를 켠 직후 Kiwi를 불러오는 몇 초 동안이나 Kiwi가 설치되지 않은 PC에서는 이전 규칙 방식으로 자동 전환되고, 추천 자체는 멈추지 않습니다. 상태는 추천 서버 <code>/health</code>의 <code>morph</code>에서 확인합니다.</div>
+      <!-- [AX Lab] 수정 끝 -->
     </section>
 
     <!-- 5. 안전장치 -->
@@ -584,13 +652,15 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
 후보                 = dense 상위 60 ∪ BM25 상위 60, cosine &lt; 0.35 제외 → 재정렬 상위 20 (COMBINE_RERANK_TOP)
 노출 제외(10-16)     = 재정렬 성공: rerank_raw &lt; -2.0 (COMBINE_RERANK_MIN_SCORE) 또는 재정렬 상위 20 밖
                        재정렬 폴백: cosine &lt; 0.55 (COMBINE_FALLBACK_MIN_SIM)  → 건수 0~top_k
-제한                 = CRM readTimeout 2.5s · 재정렬 0.9s (COMBINE_RERANK_TIMEOUT_MS) · 실패 시 30초 회로 차단</pre>
+제한                 = CRM readTimeout 2.5s · 재정렬 0.9s (COMBINE_RERANK_TIMEOUT_MS) · 실패 시 30초 회로 차단
+겹친 단어(10-16)     = Kiwi 명사 덩어리(붙어 있던 NNG/NNP/SL 재결합, 끝 의존명사 제거) ∩ embed_text, IDF ≥ 1.5, 최대 4개
+                       사용자 사전 = 동의어 용어 + 화면명/프로그램명(3건↑, 명사만) + SEED_WORDS · Kiwi 준비 전/미설치 → 어절 규칙</pre>
           <table>
             <thead><tr><th>위치</th><th>구성 요소</th><th>파일</th></tr></thead>
             <tbody>
               <tr><td>상담원 PC</td><td>AI 추천 버튼·팝업·상세</td><td>jwcrm/.../js/combine-as-ai.js, css/combine-as-ai.css</td></tr>
               <tr><td>CRM 서버 PC</td><td>WAS → 추천 API 호출</td><td>CombineAsAiServiceImpl.java, CombineAsAiClient.java, combine-ai.properties</td></tr>
-              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_live_index.py</td></tr>
+              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_live_index.py, combine_morph.py(Kiwi, 겹친 단어)</td></tr>
               <tr><td>AI PC :11434</td><td>Ollama 임베딩</td><td>combine_embed_client.py (호출 측)</td></tr>
               <tr><td>AI PC :8766</td><td>리랭킹 서버</td><td>combine-rerank-server.py, combine-rerank-run.bat</td></tr>
               <tr><td>AX Lab PC</td><td>색인 배치·준실시간 동기화</td><td>analysis/combine_refresh.py, analysis/combine_live.py (저장소 미포함)</td></tr>
@@ -604,13 +674,15 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
               <tr><td>relevance</td><td>후보 안 상대 점수</td><td>화면 관련도 %, 노출 하한 0.30</td></tr>
               <tr><td>rerank_score</td><td>재정렬 점수(0~1, 재정렬 성공 시에만)</td><td>최종 점수</td></tr>
               <tr><td>rerank_raw</td><td>재정렬 원점수 logit(재정렬 성공 시에만)</td><td>노출 하한 -2.0, 임계 재조정</td></tr>
+              <tr><td>match_terms</td><td>[{term, synonym}] 문의와 자료(embed_text)에 함께 있는 말, IDF 순 최대 4개</td><td>화면 "겹친 단어" 칩 (동의어는 ≈)</td></tr>
+              <tr><td>match_reason</td><td>같은 업무분류 / 같은 프로그램·화면 / 같은 문의유형 / null</td><td>화면 일치 사유 칩</td></tr>
               <tr><td>score</td><td>최종 합산 점수</td><td>정렬</td></tr>
               <tr><td>confidence</td><td>high / mid / low</td><td>일반 추천 또는 참고 사례 표시</td></tr>
             </tbody>
           </table>
         </div>
       </details>
-      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-16). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
+      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine_morph.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-16). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
     </section>
   </main>
 </div>
@@ -648,6 +720,7 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
     circuit:   { n:'서킷 브레이커', en:'Circuit Breaker', d:'리랭킹 서버 호출이 실패하면 30초 동안은 아예 부르지 않고 바로 폴백하는 장치입니다. 고장 난 곳을 계속 두드리느라 매번 느려지는 것을 막습니다.', eg:'비유: 누전 차단기. 문제가 생기면 잠시 끊었다가 다시 연결' },
     masking:   { n:'마스킹', en:'Masking', d:'이름·전화번호 같은 개인정보를 [이름], [전화번호] 같은 표시로 가리는 것입니다. AI에는 가려진 문장만 전달됩니다.' },
     preprocess:{ n:'전처리', en:'Preprocessing', d:'검색하기 전에 문장을 다듬는 작업입니다. 쓸모없는 양식 문구를 지우고 개인정보를 가립니다.' },
+    morph:     { n:'형태소 분석', en:'Morphological analysis · Kiwi', d:'문장을 뜻을 가진 가장 작은 조각(명사·조사·어미 등)으로 나누고 품사를 붙이는 일입니다. 한국어는 "진단서를"처럼 단어 뒤에 조사·어미가 붙고 띄어쓰기도 들쭉날쭉해서, 띄어쓰기만으로는 단어를 정확히 자를 수 없습니다. 여기서는 Kiwi라는 분석기로 겹친 단어 칩에 보여 줄 명사만 골라냅니다.', eg:'예: "신규및 D/C오더" → 신규 / 및 / D/C오더 → 칩에는 신규, D/C오더' },
     qexpand:   { n:'쿼리 확장', en:'Query Expansion', d:'질문(쿼리)에 같은 뜻의 다른 표현이나 시스템 용어를 덧붙여 검색하는 것입니다. 현장 용어와 시스템 용어가 달라도 찾을 수 있게 합니다.' },
     tier:      { n:'Tier', en:'자료 등급', d:'자료 종류별 우선순위입니다. Tier1 표준답변(1점) > Tier2 과거사례(0.7점) > Tier3 공지(0.5점) 순으로 가산점을 받습니다.' },
     weight:    { n:'가중치', en:'Weight', d:'여러 항목을 합칠 때 각 항목을 얼마나 중요하게 볼지 정한 비율입니다. 모두 더하면 100%입니다.', eg:'비유: 성적 산출 시 중간 30% · 기말 40% · 과제 30%' },

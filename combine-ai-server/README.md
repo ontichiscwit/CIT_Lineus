@@ -19,6 +19,7 @@ CRM(Java, `CombineAsAiClient`) 이 이 서버에 문의 원문을 보내면, 표
 | `combine_recommend.py` | 추천 엔진 — 하이브리드(밀집 bge-m3 + BM25) 검색, §7-3 점수·구성 규칙, 질의 전처리 |
 | `combine_lexical.py` | BM25 어휘 색인 (한글 어절 + 2-gram, 형태소 분석기 불필요) |
 | `combine_textprep.py` | 접수 템플릿 파싱 · 첨부 상투어 제거 · 1겹 정규식 마스킹 — **적재 파이프라인(`analysis/`) 과 공용** |
+| `combine_morph.py` | **추천 근거(겹친 단어) 표시용 형태소 분석** — Kiwi로 명사 덩어리 추출, 사용자 사전(동의어·화면명). 화면 표시 전용, 미설치 시 규칙 방식 폴백 (2026-10-16) |
 | `combine_synonyms.py` | 질의 도메인 동의어 확장 (현장어 ↔ 시스템어, 예: 산재 지사 → 산재조합/보험거래처코드). **질의에만** 적용, 색인 재생성 불필요 (2026-10-12) |
 | `combine_embed_client.py` | Ollama `bge-m3` 임베딩 호출 — 적재와 공용 |
 | `combine_live_index.py` | **색인 준실시간 반영** (2026-10-15) — 백그라운드 스레드가 `data/` 를 30초마다 보고 ① 배치가 새 색인을 배포하면 재기동 없이 다시 읽고 ② `data/combine_live.jsonl` 의 델타(종결 건 upsert/delete) 를 메모리 색인에 반영 |
@@ -66,7 +67,7 @@ listening on http://127.0.0.1:8765  (X-Api-Key=dev-key)
 <!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): health 재정렬 상태 추가 -->
 ```
 curl http://127.0.0.1:8765/health
-→ {"status":"ok","index":{...},"live":{...},"embed":{"ok":true,...},"rerank":{"enabled":true,"last_ok":...,"fallbacks":0,"circuit_open":false}}
+→ {"status":"ok","index":{...},"live":{...},"embed":{"ok":true,...},"rerank":{"enabled":true,"last_ok":...,"fallbacks":0,"circuit_open":false},"morph":{"available":true,"ready":true,"user_words":327,"error":null}}
    status 가 embed_down 이면 Ollama 연결 문제 · index.built_at 이 배치 시각과 다르면 아직 재적재 전(30초 대기) · live.sync 가 null 이면 동기화기 미기동
 ```
 <!-- [AX Lab] 수정 끝 -->
@@ -234,6 +235,7 @@ Content-Type: application/json
      "items":[{ doc_id, tier, tier_label, title, answer_text, answer_html,
       relevance(0~1, 후보 안 상대값 — 화면 표시용), semantic_sim(코사인 원값), lexical_score(BM25 원값), score,
       rerank_score(재정렬 성공 시에만 0~1), rerank_raw(재정렬 성공 시에만 원점수 logit — 2026-10-16),
+      match_terms[{term, synonym}](겹친 단어 — 2026-10-16), match_reason("같은 업무분류"|"같은 프로그램·화면"|"같은 문의유형"|null),
       confidence(high/mid/low — 절대 코사인 기준),
       service_cate, program_nm, screen_nm, topic, resolution, deep_link, public_link, attached_file[],
       occurred_at('YYYY-MM'), quality_score, internal_note, as_no, question_text }, ...]}
@@ -255,6 +257,26 @@ CRM 화면은 `low`를 오류나 실패로 단정하지 않습니다. 상대값�
 실측(질의 48건): 도메인 밖 질의 노출 후보는 전부 원점수 ≤ -2.5, 관련 사례는 대부분 ≥ -2 였고 코사인으로는 둘이 0.55~0.61 에서 겹쳤습니다.
 CRM 화면은 0건이면 버튼 건수를 흐리게 표시하고 "관련도가 충분한 사례가 없어 추천하지 않았습니다"로 안내합니다.
 임계를 다시 맞출 때는 CLI(`python combine_recommend.py "질의"`) 출력의 `rr=` 값을 봅니다.
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거(겹친 단어) -->
+**추천 근거** (2026-10-16): 최종 항목마다 `match_terms`(문의와 그 자료의 `embed_text` 에 함께 들어 있는 말, 드문 말 순 최대 4개)와
+`match_reason`(업무분류·프로그램/화면·문의유형 일치)을 붙입니다. 형태소 분석기가 없어 질의 어절의 앞부분 중 본문에 있는 가장 긴 것을 고르고
+흔한 조사·하다/되다 어미를 떼어 표시합니다("진단서를" → "진단서", "전송되지" → "전송"). 문서 20% 이상에 나오는 흔한 말(IDF < 1.5 — "문의"·"확인" 등)과
+서술어("나옵니다"·"뜬다고")는 뺍니다. `synonym=true` 는 질의에 없고 동의어 확장(`combine_synonyms.py`)으로 덧붙인 말이 걸렸다는 뜻입니다.
+이것은 **단어 검색 쪽 근거**일 뿐이고 순위는 재정렬(문장 뜻)을 함께 보므로, 목록이 비어도 추천될 수 있습니다(화면 표시 '뜻으로 찾음').
+CRM 화면은 목록에 칩 3개, 상세 패널 "겹친 단어" 줄에 4개까지 보여 주고, 동의어는 `≈` 를 붙여 주황색으로 구분합니다. CLI 출력은 `| 단어 … [일치 사유]`.
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 겹친 단어 형태소 분석기(Kiwi) -->
+**겹친 단어의 단어 자르기 — Kiwi** (2026-10-16, `combine_morph.py`): 위의 어절 규칙은 "신규및"(신규+및)처럼 덜 자르거나,
+맞춤법대로 띄우면 "시술확인서"(서식 이름)를 "시술 확인서"로 더 자르는 문제가 있어 형태소 분석기 [Kiwi](https://github.com/bab2min/kiwipiepy)로 바꿨습니다.
+품사를 나눈 뒤 **원문에서 붙어 있던 명사(NNG/NNP/SL 등)는 다시 한 덩어리로** 붙이고, 조사·어미·부사와 끝의 의존명사(시·후·때·중·분)는 뗍니다.
+본문에 덩어리 전체가 없으면 그 안의 더 짧은 연속 조각을 긴 것부터 찾습니다(신규오더 → 신규).
+- 사용자 사전: 동의어 사전 용어 + 색인 화면명/프로그램명 중 3건 이상 문서에 나오고 명사로만 이뤄진 3~12자 한글(약 330개) + `SEED_WORDS`("오더" 등 — 없으면 "D/C오더"를 C+이오+더로 오분석).
+- Kiwi를 고른 이유: `pip` 한 줄 설치(Windows 휠, Java·빌드 불필요 — Mecab-ko는 Windows 빌드, KoNLPy는 JVM 필요), 띄어쓰기 오류에 강함,
+  토큰마다 원문 위치를 줘서 "붙어 있던 명사"를 정확히 재결합 가능, 사용자 사전을 코드에서 바로 추가.
+- 비용: 기동 시 모델 적재 약 4초(백그라운드 스레드), 문장당 약 1ms. 요청당 질의 1회만 분석합니다.
+- 화면 표시에만 씁니다. 검색(BM25)·색인은 그대로라 **색인 재생성 불필요**. Kiwi 적재 전이거나 `kiwipiepy` 미설치면 어절 규칙으로 자동 폴백합니다.
+  상태는 `GET /health` 의 `morph` (`ready`, `user_words`, `error`). `run.bat` 은 기존 가상환경에 `kiwipiepy` 가 없으면 설치를 시도합니다(실패해도 기동).
 <!-- [AX Lab] 수정 끝 -->
 
 응답에는 고객사 식별 정보(`cust_code`/`cust_nm`) 가 들어가지 않습니다. 질의는 1겹 정규식 마스킹 후 임베딩하며 **저장·로그하지 않습니다**(접속 로그에도 본문 없음).
