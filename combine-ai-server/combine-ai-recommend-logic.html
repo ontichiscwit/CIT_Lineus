@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AS 통합화면 AI 추천 — 어떻게 동작하나요?</title>
+<!-- [AX Lab] 신규 파일 (2026-10-15 AX Lab): AI 추천 로직 설명용 독립 HTML (비전공자 대상) -->
+<!-- [AX Lab] 수정 (2026-10-16 AX Lab): 관련 없는 추천 제외(항상 5건 → 0~5건) 내용 반영 — #s-filter 섹션 신설 외 -->
+<!-- [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거(겹친 단어·일치 사유) 표시 — #s-screen 하단 -->
+<!-- [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어 형태소 분석기(Kiwi) 적용 이유·방식 — #s-morph -->
+
+
+<style>
+  :root{
+    --bg:#f6f7f9; --surface:#fff; --ink:#1b2430; --ink2:#3d4957; --muted:#6b7684; --line:#e2e6eb; --line2:#eef1f4;
+    --brand:#5b45c6; --brand-soft:#f1eeff; --brand-line:#d9d1fb;
+    --teal:#1f7a70; --teal-soft:#e8f5f3;
+    --blue:#2a6496; --blue-soft:#eaf2fa;
+    --amber:#94661a; --amber-soft:#fdf5e4;
+    --red:#a8433a; --red-soft:#fbeceb;
+    --slate:#56606c; --slate-soft:#eef1f4;
+    --s1:#5b45c6; --s2:#8a7bd9; --s3:#1f7a70; --s4:#6fb3a9; --s5:#b8c0ca;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;font-size:15px;line-height:1.7;word-break:keep-all}
+  .page{display:grid;grid-template-columns:200px minmax(0,1fr);gap:40px;max-width:1240px;margin:0 auto;padding:32px 28px 80px}
+
+  /* 좌측 목차 */
+  .toc{position:sticky;top:24px;align-self:start}
+  .toc b{display:block;margin-bottom:10px;font-size:12px;color:var(--muted)}
+  .toc a{display:block;padding:7px 10px;border-left:2px solid var(--line);color:var(--ink2);text-decoration:none;font-size:13px}
+  .toc a:hover{color:var(--brand);border-left-color:var(--brand)}
+  .toc a.on{color:var(--brand);border-left-color:var(--brand);font-weight:700}
+
+  /* 공통 */
+  section{margin-bottom:64px;scroll-margin-top:24px}
+  .kicker{margin:0 0 6px;font-size:12px;font-weight:800;color:var(--brand);letter-spacing:.04em}
+  h1{margin:0;font-size:30px;line-height:1.35;letter-spacing:-.03em}
+  h2{margin:0 0 6px;font-size:22px;letter-spacing:-.02em}
+  h3{margin:0 0 6px;font-size:16px}
+  .desc{margin:0 0 22px;color:var(--muted)}
+  p{margin:0}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+
+  /* 용어 툴팁 */
+  .t{border-bottom:1px dashed var(--brand);cursor:help;color:inherit;border-radius:2px;transition:background .15s}
+  .t:hover,.t:focus,.t.on{background:var(--brand-soft);outline:none}
+  #tip{position:fixed;left:0;top:0;z-index:100;width:max-content;max-width:310px;padding:12px 14px;border-radius:10px;
+    background:#222b36;color:#e8edf3;font-size:12.5px;font-weight:400;line-height:1.6;text-align:left;
+    box-shadow:0 8px 24px rgba(20,28,40,.22);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s}
+  #tip.show{opacity:1;visibility:visible}
+  #tip::after{content:"";position:absolute;left:var(--ax,50%);bottom:-5px;width:10px;height:10px;margin-left:-5px;background:#222b36;transform:rotate(45deg)}
+  #tip.below::after{bottom:auto;top:-5px}
+  #tip .tip-h{margin-bottom:3px;color:#fff;font-size:13.5px;font-weight:800}
+  #tip .tip-h small{margin-left:6px;color:#9aa6b4;font-size:11px;font-weight:400}
+  #tip .tip-eg{margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.14);color:#b9c3cf;font-size:12px}
+
+  /* 히어로 */
+  .hero{padding:34px 36px;background:var(--surface);border:1px solid var(--line);border-radius:18px;margin-bottom:56px}
+  .hero .lead{margin-top:12px;font-size:16px;color:var(--ink2);max-width:760px}
+  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
+  .summary div{padding:16px 18px;background:var(--bg);border-radius:12px}
+  .summary b{display:block;font-size:13px;color:var(--brand);margin-bottom:4px}
+  .summary span{font-size:14px;color:var(--ink2)}
+  .howto{margin-top:20px;font-size:13px;color:var(--muted)}
+
+  /* 비유 */
+  .analogy{display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .analogy > div{padding:22px 24px;border-right:1px solid var(--line)}
+  .analogy > div:last-child{border-right:0}
+  .analogy .n{display:inline-block;margin-bottom:10px;padding:2px 9px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-size:12px;font-weight:800}
+  .analogy .real{margin-top:12px;padding-top:12px;border-top:1px solid var(--line2);font-size:13px;color:var(--muted)}
+
+  /* 아키텍처 */
+  .tabs{display:flex;gap:6px;margin-bottom:16px}
+  .tabs button{padding:8px 14px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink2);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .tabs button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .arch{display:grid;grid-template-columns:1fr 1.45fr 1.45fr;grid-template-rows:auto auto;gap:14px}
+  .zone{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+  .zone-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}
+  .zone-h b{font-size:14px}
+  .zone-h span{font-size:11px;color:var(--muted)}
+  .box{padding:12px 14px;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);transition:background .2s,border-color .2s,opacity .2s}
+  .box:first-of-type{margin-top:0}
+  .box b{display:block;font-size:14px}
+  .box > span{display:block;font-size:12px;color:var(--muted);line-height:1.5;margin-top:3px}
+  .box small{font-weight:400}
+  .box .tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:5px;background:var(--teal-soft);color:var(--teal);font-size:10px;font-weight:800;vertical-align:2px}
+  .arch.playing .box{opacity:.5}
+  .arch.playing .box.lit{opacity:1;background:var(--brand-soft);border-color:var(--brand)}
+  .zone.wide{grid-column:span 1}
+  .player{margin-bottom:14px;background:var(--surface);border:1px solid var(--brand-line);border-radius:14px;overflow:hidden;box-shadow:0 4px 14px rgba(91,69,198,.08)}
+  .player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 20px;background:var(--brand-soft);border-bottom:1px solid var(--brand-line)}
+  .player-top .lbl{font-size:13px;font-weight:800;color:var(--brand)}
+  .player-top .cnt{font-size:12px;color:var(--muted)}
+  .chips{display:flex;gap:6px;margin-left:auto}
+  .chips button{width:30px;height:30px;border-radius:50%;border:1px solid var(--brand-line);background:var(--surface);color:var(--brand);font:inherit;font-size:12px;font-weight:800;cursor:pointer;transition:background .15s}
+  .chips button:hover{background:var(--brand-line)}
+  .chips button.done{background:var(--brand-line)}
+  .chips button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .player-body{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:18px 20px}
+  .player-body .num{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:var(--brand);color:#fff;font-size:18px;font-weight:800}
+  .player-body .st-text{display:flex;flex-direction:column;justify-content:flex-start;align-self:stretch}
+  .player-body .num{align-self:start}
+  .player-body h3{margin:0 0 2px}
+  .player-body p{font-size:14px;color:var(--ink2)}
+  .ctrl{display:flex;gap:8px}
+  .btn{height:42px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink2);font:inherit;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
+  .btn:hover{border-color:var(--brand-line);color:var(--brand)}
+  .btn:disabled{opacity:.35;cursor:default;border-color:var(--line);color:var(--ink2)}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.primary:hover{background:#4a36b0;color:#fff}
+  .btn.mini{height:30px;padding:0 12px;font-size:12px;border-color:var(--brand-line);color:var(--brand)}
+  .btn.pulse{animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(91,69,198,.5)}70%{box-shadow:0 0 0 10px rgba(91,69,198,0)}100%{box-shadow:0 0 0 0 rgba(91,69,198,0)}}
+
+  .down{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}
+  .down div{padding:14px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+  .down b{display:block;font-size:13px;margin-bottom:6px}
+  .down .st{display:inline-block;margin-bottom:8px;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:800}
+  .st.bad{background:var(--red-soft);color:var(--red)}
+  .st.mid{background:var(--amber-soft);color:var(--amber)}
+  .st.ok{background:var(--teal-soft);color:var(--teal)}
+  .down p{font-size:12px;color:var(--muted);line-height:1.6}
+
+  /* 단계 */
+  .stages{display:grid;gap:12px}
+  .stage{display:grid;grid-template-columns:56px 1fr 240px;gap:20px;padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .stage .no{font-size:26px;font-weight:800;color:var(--brand-line);line-height:1}
+  .stage p{color:var(--ink2);font-size:14px}
+  .stage .eg{padding:12px 14px;border-radius:10px;background:var(--bg);font-size:12px;color:var(--ink2);line-height:1.6}
+  .stage .eg b{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+  .funnel{display:flex;align-items:center;gap:8px;margin:18px 0 0;font-size:13px;color:var(--muted);flex-wrap:wrap}
+  .funnel span{padding:6px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+  .funnel span b{color:var(--brand)}
+
+  /* 점수 예시 */
+  .ex-q{display:flex;gap:14px;align-items:center;padding:16px 20px;background:var(--ink);color:#fff;border-radius:14px;margin-bottom:16px}
+  .ex-q small{display:block;color:#aab4c0;font-size:11px}
+  .ex-q b{font-size:17px}
+  .weights{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+  .w{padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .w .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:0}
+  .w b{font-size:13px}
+  .w .pct{float:right;font-weight:800;color:var(--ink);font-size:13px}
+  .w.off{opacity:.35}
+  .w p{margin-top:6px;font-size:12px;color:var(--muted);line-height:1.55}
+  .board{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 22px 18px}
+  .row{display:grid;grid-template-columns:34px 230px 1fr 64px;gap:16px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line2)}
+  .row:last-child{border-bottom:0}
+  .rank{font-size:20px;font-weight:800;color:var(--brand)}
+  .row .nm b{display:block;font-size:14px}
+  .row .nm span{font-size:12px;color:var(--muted)}
+  .tierb{display:inline-block;margin-right:6px;padding:0 6px;border-radius:5px;font-size:10px;font-weight:800;vertical-align:1px}
+  .tier1{background:var(--brand-soft);color:var(--brand)}
+  .tier2{background:var(--teal-soft);color:var(--teal)}
+  .tier3{background:var(--amber-soft);color:var(--amber)}
+  .stack{display:flex;height:22px;border-radius:6px;overflow:hidden;background:var(--line2)}
+  .stack i{display:block;height:100%;transition:width .45s}
+  .total{text-align:right;font-size:18px;font-weight:800}
+  .why{margin-top:6px;font-size:12px;color:var(--ink2)}
+  .row.axis{padding:8px 0 0;border-bottom:0}
+  .ax{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+  .insight{margin-top:14px;padding:14px 18px;border-radius:12px;background:var(--brand-soft);color:#3f2f99;font-size:14px}
+
+  /* 화면 */
+  .screen{display:grid;grid-template-columns:330px 1fr;gap:28px;align-items:start}
+  .mock{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:12px}
+  .mock-h{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line2);font-weight:800}
+  .mock-h em{font-style:normal;padding:0 8px;border-radius:6px;background:var(--brand);color:#fff;font-size:11px}
+  .mock-i{display:flex;align-items:flex-start;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line2)}
+  .mock-i .tierb{flex:0 0 auto;margin-top:2px}
+  .mock-i b{display:block;font-size:12px}
+  .mock-i small{color:var(--muted);font-size:11px}
+  .mock-i.ref{background:#fafbfc}
+  .refb{display:inline-block;padding:0 6px;border-radius:6px;background:#eaf1f7;color:#486174;font-weight:700;font-size:10px}
+  .mock-f{padding:8px 14px;background:#faf9ff;color:var(--muted);font-size:10px;text-align:center}
+  /* [AX Lab] 2026-10-16 추천 근거 칩 */
+  .kws{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+  .kw{display:inline-block;padding:0 6px;border-radius:7px;background:#f3f0fa;color:#5b4a9b;font-size:10px;font-weight:700;line-height:16px}
+  .kw.syn{background:#fff4e5;color:#9a5b0b}
+  .kw.sem{background:#eef3f8;color:#4c6275}
+  .kw.rsn{background:#e6f4f1;color:#1e7a68}
+  .whyk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+  .whyk > div{padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font-size:12px;color:var(--ink2)}
+  .whyk .kw{margin-bottom:6px}
+  .why2 h4{margin:0 0 8px;font-size:14px}
+  .levels{display:grid;gap:10px}
+  .lv{display:grid;grid-template-columns:150px 1fr;gap:16px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .lv b{font-size:14px}
+  .lv small{display:block;color:var(--muted);font-size:11px}
+  .lv p{font-size:13px;color:var(--ink2)}
+  .note{margin-top:14px;padding:14px 18px;border-left:3px solid var(--blue);background:var(--blue-soft);color:#2f5170;font-size:13px;border-radius:0 10px 10px 0}
+
+  /* [AX Lab] 2026-10-16 관련 없는 추천 제외 */
+  .why2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+  .why2 > div{padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .why2 .lbl{display:inline-block;margin-bottom:8px;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:800}
+  .why2 p{font-size:13px;color:var(--ink2)}
+  .rule3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px}
+  .rule3 > div{padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .rule3 .v{display:block;margin:2px 0 6px;font-size:22px;font-weight:800;color:var(--brand);line-height:1.2}
+  .rule3 p{font-size:12.5px;color:var(--muted)}
+  .scale{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:26px}
+  .scale-bar{position:relative;display:grid;grid-template-columns:37.5% 12.5% 50%;height:30px;border-radius:8px;font-size:11px;font-weight:800}
+  .scale-bar span:first-child{border-radius:8px 0 0 8px}
+  .scale-bar span:nth-child(3){border-radius:0 8px 8px 0}
+  .scale-bar span{display:flex;align-items:center;justify-content:center}
+  .scale-bar .b1{background:var(--red-soft);color:var(--red)}
+  .scale-bar .b2{background:var(--amber-soft);color:var(--amber)}
+  .scale-bar .b3{background:var(--teal-soft);color:var(--teal)}
+  .scale-bar .cut{position:absolute;left:37.5%;top:-4px;bottom:-4px;width:3px;margin-left:-1px;background:var(--ink)}
+  .scale-ax{position:relative;height:18px;margin-top:4px;font-size:10px;color:var(--muted)}
+  .scale-ax span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+  .scale-ax span.end{left:auto !important;right:0;transform:none}
+  #s-filter a, #s-steps a{color:var(--brand)}
+  .scale-ax span.cutl{color:var(--ink);font-weight:800}
+  .scale-eg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;font-size:12px;color:var(--ink2);line-height:1.6}
+  .scale-eg div{padding:12px 14px;border-radius:10px;background:var(--bg);border-top:3px solid var(--line)}
+  .scale-eg div.e1{border-top-color:var(--red)} .scale-eg div.e2{border-top-color:var(--amber)} .scale-eg div.e3{border-top-color:var(--teal)}
+  .scale-eg b{display:block;margin-bottom:4px;font-size:12px;color:var(--ink)}
+  .cmp{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:13px}
+  .cmp th,.cmp td{padding:12px 16px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
+  .cmp th{background:var(--bg);color:var(--muted);font-size:12px}
+  .cmp td b{color:var(--brand)}
+  .cmp tr:last-child td{border-bottom:0}
+  .zero{display:grid;grid-template-columns:330px 1fr;gap:28px;align-items:start;margin-top:26px}
+  .aibtn{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--brand-line);border-radius:8px;background:var(--brand-soft);color:var(--brand);font-size:12px;font-weight:800}
+  .aibtn i{font-style:normal;padding:0 6px;border-radius:6px;background:#fff;color:var(--brand);font-size:11px}
+  .aibtn i.na{color:#a79bcf}
+  .mock-empty{padding:16px 14px;color:var(--muted);font-size:12px;text-align:center}
+
+  /* 안전장치 */
+  .guards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .g{padding:18px 20px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .g p{font-size:13px;color:var(--muted)}
+
+  /* 데이터 */
+  .data{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .data > div{padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .data .big{font-size:24px;font-weight:800;color:var(--brand);line-height:1.2}
+  .data ol{margin:12px 0 0;padding-left:18px;font-size:13px;color:var(--ink2)}
+  .data li{margin:3px 0}
+
+  /* 개발자용 */
+  details{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  summary{padding:16px 20px;font-weight:800;cursor:pointer}
+  .dev{padding:0 20px 20px}
+  .dev pre{margin:0 0 14px;padding:14px 16px;background:#202733;color:#e8edf3;border-radius:10px;font:12px/1.75 Consolas,monospace;white-space:pre-wrap}
+  .dev table{width:100%;border-collapse:collapse;font-size:12px}
+  .dev th,.dev td{padding:9px 10px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
+  .dev th{color:var(--muted);font-weight:700}
+  .dev td:first-child{font-family:Consolas,monospace;color:var(--brand);white-space:nowrap}
+  .foot{margin-top:30px;font-size:11px;color:var(--muted)}
+
+  @media(max-width:1000px){
+    .page{grid-template-columns:1fr;gap:0}.toc{display:none}
+    .arch{grid-template-columns:1fr}.analogy,.summary,.guards,.data{grid-template-columns:1fr}
+    .analogy > div{border-right:0;border-bottom:1px solid var(--line)}
+    .weights,.down{grid-template-columns:1fr 1fr}.stage{grid-template-columns:1fr}.screen{grid-template-columns:1fr}
+    .why2,.rule3,.zero,.scale-eg{grid-template-columns:1fr}
+    .whyk{grid-template-columns:1fr 1fr}
+    .player-body{grid-template-columns:auto 1fr}.player-body .ctrl{grid-column:1 / -1;justify-content:flex-end}.chips{margin-left:0}
+    .row{grid-template-columns:28px 1fr 56px}.row .stack{grid-column:1 / -1}.row.axis{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <nav class="toc" id="toc">
+    <b>목차</b>
+    <a href="#s-overview">한눈에 보기</a>
+    <a href="#s-arch">어느 PC에서 무엇을?</a>
+    <a href="#s-steps">추천이 만들어지는 과정</a>
+    <a href="#s-score">순위는 어떻게 정하나</a>
+    <a href="#s-filter">관련 없는 추천은 빼기</a>
+    <a href="#s-screen">화면에서는 어떻게 보이나</a>
+    <a href="#s-guard">안전장치</a>
+    <a href="#s-data">추천 자료는 어디서 오나</a>
+    <a href="#s-dev">개발자용 상세</a>
+  </nav>
+
+  <main>
+    <!-- 0. 히어로 -->
+    <header class="hero" id="s-overview">
+      <p class="kicker">AS 통합화면 · AI 추천</p>
+      <h1>상담원이 문의를 열면,<br>AI가 비슷한 답변을 최대 5건 찾아 옆에 띄워 줍니다</h1>
+      <p class="lead">과거에 이미 해결한 AS 사례, 표준답변, 공지 약 1만 1천 건 중에서 지금 문의와 가장 비슷한 것을 골라 보여 주는 기능입니다. 상담원은 그 답변을 참고하거나 답변 초안에 바로 넣을 수 있습니다.</p>
+      <div class="summary">
+        <div><b>무엇을 찾나요?</b><span>지금 문의와 <strong>내용이 비슷한</strong> 과거 해결 사례·표준답변·공지</span></div>
+        <div><b>어떻게 찾나요?</b><span>뜻과 단어로 동시에 찾는 <span class="t" data-term="hybrid">하이브리드 검색</span> 후, AI가 직접 읽어 다시 채점하는 <span class="t" data-term="rerank">리랭킹</span></span></div>
+        <div><b>얼마나 걸리나요?</b><span>최대 <strong>2.5초</strong> <span class="t" data-term="timeout">타임아웃</span>. 늦어지면 추천만 건너뛰고 CRM 화면은 정상 동작</span></div>
+      </div>
+      <p class="howto">점선 밑줄이 있는 <span class="t" data-term="demo">개발 용어</span>에 마우스를 올리면(모바일은 누르면) 쉬운 설명과 비유가 나옵니다.</p>
+    </header>
+
+    <!-- 0-1. 비유 -->
+    <section>
+      <p class="kicker">먼저 비유로 이해하기</p>
+      <h2>도서관 사서가 책을 추천하는 과정과 같습니다</h2>
+      <p class="desc">질문을 받은 사서가 서가에서 후보를 빠르게 뽑고, 꼼꼼히 읽어 본 뒤, 상황에 맞는 몇 권만 건네주는 방식입니다.</p>
+      <div class="analogy">
+        <div>
+          <span class="n">1단계 · 빠르게 고르기</span>
+          <h3>서가에서 후보 수십 권을 뽑습니다</h3>
+          <p class="muted small">제목·내용이 비슷해 보이는 책을 빠르게 훑어 꺼냅니다. 정확하진 않지만 빠릅니다.</p>
+          <p class="real">실제: <span class="t" data-term="hybrid">하이브리드 검색</span>으로 1만 1천 건 중 후보 최대 120건 선별</p>
+        </div>
+        <div>
+          <span class="n">2단계 · 꼼꼼히 읽기</span>
+          <h3>상위 20권은 직접 펼쳐 읽어 봅니다</h3>
+          <p class="muted small">질문과 책 내용을 나란히 놓고 "이 책이 정말 이 질문의 답인가?"를 판단합니다.</p>
+          <p class="real">실제: <span class="t" data-term="rerank">리랭킹</span> 모델(<span class="t" data-term="crossenc">Cross-Encoder</span>)이 상위 20건 정밀 채점</p>
+        </div>
+        <div>
+          <span class="n">3단계 · 상황에 맞춰 건네기</span>
+          <h3>관련 없는 책은 빼고 최대 5권만 줍니다</h3>
+          <p class="muted small">읽어 보니 질문과 상관없는 책은 자리가 남아도 건네지 않습니다. 같은 분야인지, 공식 안내서인지, 비슷한 책이 겹치지 않는지 따져서 최종 선택합니다.</p>
+          <p class="real">실제: 리랭킹 기준 미달 제외, 업무 분류·<span class="t" data-term="tier">Tier</span>·답변 품질 반영, <span class="t" data-term="dedup">중복 제거</span> 후 0~5건</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1. 아키텍처 -->
+    <section id="s-arch">
+      <p class="kicker">아키텍처</p>
+      <h2>어느 PC에서 무엇을 하나요?</h2>
+      <p class="desc">AI 추천은 PC 여러 대가 역할을 나눠서 동작합니다. 아래 <strong>[다음 단계 →]</strong> 버튼을 누를 때마다 지금 일하는 PC가 그림에서 보라색으로 표시됩니다.</p>
+
+      <div class="tabs">
+        <button type="button" class="on" data-flow="live">추천 요청 흐름 (상담원이 문의를 열 때)</button>
+        <button type="button" data-flow="prep">자료 준비 흐름 (뒤에서 자동으로)</button>
+      </div>
+
+      <div class="player">
+        <div class="player-top">
+          <span class="lbl">▶ 흐름 따라가기</span>
+          <span class="cnt" id="stCount"></span>
+          <button type="button" class="btn mini" id="stAuto">▶ 자동 재생</button>
+          <div class="chips" id="stChips" aria-label="단계 바로가기"></div>
+        </div>
+        <div class="player-body">
+          <div class="num" id="stNum">1</div>
+          <div class="st-text" id="stText"><h3 id="stTitle"></h3><p id="stDesc"></p></div>
+          <div class="ctrl">
+            <button type="button" class="btn" id="stPrev">← 이전</button>
+            <button type="button" class="btn primary" id="stNext">다음 단계 →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch playing" id="arch">
+        <div class="zone">
+          <div class="zone-h"><b>상담원 PC</b><span>각 상담원 자리</span></div>
+          <div class="box" data-box="browser"><b>웹 브라우저</b><span>AS 통합화면. 문의를 열면 <span class="t" data-term="api">API</span>로 추천을 요청하고 결과를 화면 오른쪽 위 [AI 추천] 버튼에 보여 줍니다.</span></div>
+        </div>
+        <div class="zone">
+          <div class="zone-h"><b>CRM 서버 PC</b><span>현재는 두 <span class="t" data-term="server">서버</span> 프로그램이 같은 PC에서 동작</span></div>
+          <div class="box" data-box="was"><b>CRM 웹 서버 <small class="muted">(<span class="t" data-term="was">WAS</span>)</small></b><span>문의 내용을 <span class="t" data-term="db">DB</span>에서 꺼내 추천 서버 API를 호출하고, 최대 2.5초 <span class="t" data-term="timeout">타임아웃</span>까지 결과를 기다립니다.</span></div>
+          <div class="box" data-box="rec"><b>AI 추천 서버 <small class="muted">(<span class="t" data-term="port">포트</span> 8765)</small></b><span>추천의 두뇌. 자료 1만 1천 건의 <span class="t" data-term="index">인덱스</span>를 <span class="t" data-term="memory">메모리</span>에 올려 두고 <span class="t" data-term="hybrid">하이브리드 검색</span>·점수 계산·최종 최대 5건 선택을 합니다.</span></div>
+        </div>
+        <div class="zone">
+          <div class="zone-h"><b>AI PC</b><span><span class="t" data-term="ip">IP</span> 192.168.19.141 · AI 모델 전용</span></div>
+          <div class="box" data-box="embed"><b>임베딩 서버 <small class="muted">(<span class="t" data-term="ollama">Ollama</span> · <span class="t" data-term="bgem3">bge-m3</span>)</small></b><span>문의 문장을 뜻을 담은 숫자 묶음인 <span class="t" data-term="embedding">임베딩</span>으로 바꿔 줍니다.</span></div>
+          <div class="box" data-box="rerank"><b><span class="t" data-term="rerank">리랭킹</span> 서버<span class="tag">신규</span> <small class="muted">(포트 8766 · <span class="t" data-term="bgerr">bge-reranker-v2-m3</span>)</small></b><span>후보 상위 20건을 문의와 나란히 놓고 직접 읽어 다시 채점합니다. 꺼져 있어도 <span class="t" data-term="fallback">폴백</span>으로 추천은 정상 동작합니다.</span></div>
+          <div class="box" data-box="llm"><b>자료 정리용 <span class="t" data-term="llm">LLM</span> <small class="muted">(Ollama · <span class="t" data-term="gemma">gemma</span>)</small></b><span>새 AS 건이 들어오면 주제 분류와 개인정보 <span class="t" data-term="masking">마스킹</span>을 도와줍니다. 자료 준비 때만 씁니다.</span></div>
+        </div>
+        <div class="zone">
+          <div class="zone-h"><b>DB 서버</b><span>CRM 데이터 저장소</span></div>
+          <div class="box" data-box="db"><b>CRM <span class="t" data-term="db">DB</span> <small class="muted">(Oracle)</small></b><span>AS 접수 원문, 처리 이력, 상담원 답변이 저장된 곳입니다.</span></div>
+        </div>
+        <div class="zone" style="grid-column:span 2">
+          <div class="zone-h"><b>AX Lab 개발 PC</b><span>추천에 쓸 자료를 만들고 갱신</span></div>
+          <div class="box" data-box="batch"><b>인덱스 갱신 <span class="t" data-term="batch">배치</span></b><span>주 1회 전체 인덱스를 새로 만들고, 5분마다 <span class="t" data-term="polling">폴링</span>으로 새로 종결된 AS 건을 찾아 추가합니다. 만든 인덱스는 AI 추천 서버로 보내며, 추천 서버는 30초 안에 <span class="t" data-term="hotreload">핫 리로드</span>합니다.</span></div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:34px">PC가 꺼지면 어떻게 되나요?</h3>
+      <p class="muted small" style="margin-bottom:4px">어떤 경우에도 CRM의 다른 기능은 영향을 받지 않습니다. 추천 기능만 영향을 받습니다.</p>
+      <div class="down">
+        <div><span class="st bad">추천 중단</span><b>AI 추천 서버가 꺼지면</b><p>화면에 "AI 추천 서버 응답이 지연되어 건너뛰었습니다 [다시 시도]"가 뜹니다.</p></div>
+        <div><span class="st bad">추천 중단</span><b>AI PC(<span class="t" data-term="ollama">Ollama</span>)가 꺼지면</b><p>문의 문장을 <span class="t" data-term="embedding">임베딩</span>으로 바꿀 수 없어 "AI 추천을 불러오지 못했습니다"가 뜹니다.</p></div>
+        <div><span class="st mid">정확도만 조금 하락</span><b>리랭킹 서버만 꺼지면</b><p><span class="t" data-term="fallback">폴백</span>으로 정밀 채점을 건너뛰고 기존 방식으로 추천합니다. 이후 30초간은 <span class="t" data-term="circuit">서킷 브레이커</span>가 호출을 쉬어 추천이 느려지지 않습니다. 관련 없는 자료를 거르는 기준도 덜 정확한 코사인 0.55로 바뀌어, 엉뚱한 추천이 조금 더 섞일 수 있습니다.</p></div>
+        <div><span class="st ok">추천 정상</span><b>AX Lab 개발 PC가 꺼지면</b><p>추천은 그대로 됩니다. 다만 새로 종결된 AS 건이 추천 자료에 추가되지 않습니다.</p></div>
+      </div>
+    </section>
+
+    <!-- 2. 단계 -->
+    <section id="s-steps">
+      <p class="kicker">처리 과정</p>
+      <h2>추천이 만들어지는 5단계</h2>
+      <p class="desc">상담원이 문의를 열고 결과가 뜨기까지, AI 추천 서버 안에서 일어나는 일입니다.</p>
+      <div class="stages">
+        <div class="stage">
+          <div class="no">01</div>
+          <div><h3>문의 내용 <span class="t" data-term="preprocess">전처리</span></h3><p>접수 양식의 고정 문구("프로그램명:", "발생일시:" 등)를 떼어 내고, 환자 이름·전화번호 같은 개인정보는 <span class="t" data-term="masking">마스킹</span>합니다. 현장에서 쓰는 말을 시스템 용어로 보충하는 <span class="t" data-term="qexpand">쿼리 확장</span>도 합니다.</p></div>
+          <div class="eg"><b>예</b>"산재 지사 등록이 안 돼요" → "산재조합 / 보험거래처코드" 같은 시스템 용어를 함께 붙여 검색</div>
+        </div>
+        <div class="stage">
+          <div class="no">02</div>
+          <div><h3><span class="t" data-term="vector">벡터 검색</span> + <span class="t" data-term="bm25">BM25</span> = <span class="t" data-term="hybrid">하이브리드 검색</span></h3><p>두 가지 방법으로 동시에 찾습니다. <strong>벡터 검색</strong>은 <span class="t" data-term="embedding">임베딩</span>끼리 비교해 표현이 달라도 의미가 같으면 찾아내고, <strong>BM25</strong>는 프로그램명·화면명처럼 정확한 단어가 겹치는 자료를 찾아냅니다. 둘을 합쳐 쓰기 때문에 하이브리드 검색이라고 부릅니다.</p></div>
+          <div class="eg"><b>벡터 검색이 잘하는 것</b>"결제가 취소가 안 돼요" ↔ "수납 취소 불가"<br><b style="margin-top:6px">BM25가 잘하는 것</b>"마약류투약정보조회" 같은 드문 화면명</div>
+        </div>
+        <div class="stage">
+          <div class="no">03</div>
+          <div><h3>1차 점수 — <span class="t" data-term="relevance">관련도</span></h3><p>찾아온 후보들끼리 비교해 벡터 검색 점수와 BM25 점수를 각각 0~1로 <span class="t" data-term="normalize">정규화</span>한 뒤 반반 섞습니다. 이 점수가 화면의 <strong>관련도 %</strong>입니다. <span class="t" data-term="cosine">코사인 유사도</span>가 0.35 미만인 자료는 이 단계에서 버립니다.</p></div>
+          <div class="eg"><b>주의</b>관련도는 <strong>이번 후보들끼리의 등수</strong>입니다. 시험 점수가 아니라 반 등수와 비슷해서, 후보가 다 별로여도 1등은 높게 나옵니다.</div>
+        </div>
+        <div class="stage">
+          <div class="no">04</div>
+          <div><h3><span class="t" data-term="rerank">리랭킹</span> — AI가 직접 읽고 다시 채점</h3><p>1차 상위 20건을 AI PC의 <span class="t" data-term="crossenc">Cross-Encoder</span> 모델로 보냅니다. 1·2단계는 문장을 따로따로 비교했다면, 여기서는 문의와 답변을 <strong>나란히 놓고 함께 읽어</strong> 판단하므로 더 정확합니다.</p></div>
+          <div class="eg"><b><span class="t" data-term="timeout">타임아웃</span> 0.9초</b>0.9초 안에 답이 없으면 기다리지 않고 1차 점수만으로 다음 단계로 갑니다(<span class="t" data-term="fallback">폴백</span>).</div>
+        </div>
+        <div class="stage">
+          <div class="no">05</div>
+          <div><h3>최종 최대 5건 고르기</h3><p>먼저 리랭킹 <span class="t" data-term="rawscore">원점수</span>가 기준(-2.0)에 못 미치거나 리랭킹 20건 밖이라 검증되지 않은 후보는 뺍니다(<a href="#s-filter">자세히</a>). 남은 후보만 리랭킹 점수에 업무 분류 일치, <span class="t" data-term="tier">Tier</span>(표준답변인지), 답변 품질을 <span class="t" data-term="weight">가중치</span>대로 더해 순위를 정합니다. 그리고 비슷한 내용이 겹치지 않게 <span class="t" data-term="dedup">중복 제거</span>해서 최대 5건을 보냅니다. 관련 있는 자료가 적으면 5건보다 적게, 없으면 0건을 보냅니다.</p></div>
+          <div class="eg"><b>다음 섹션</b>아래 "순위는 어떻게 정하나"에서 실제 예시로 설명합니다.</div>
+        </div>
+      </div>
+      <div class="funnel">
+        <span>전체 자료 <b>약 11,700건</b></span>→
+        <span>1차 후보 <b>최대 120건</b></span>→
+        <span>리랭킹 <b>20건</b></span>→
+        <span>원점수 기준 통과 <b>0~20건</b></span>→
+        <span>화면 표시 <b>0~5건</b></span>
+      </div>
+    </section>
+
+    <!-- 3. 점수 -->
+    <section id="s-score">
+      <p class="kicker">순위 결정</p>
+      <h2>순위는 어떻게 정하나요? — 실제 예시로 보기</h2>
+      <p class="desc">후보마다 아래 5가지 항목을 각각 0~1점(1이 만점)으로 매기고, 항목별 <span class="t" data-term="weight">가중치</span>를 곱해 더한 값으로 줄을 세웁니다. 막대가 길수록 위에 표시됩니다.</p>
+
+      <div class="ex-q">
+        <div><small>예시 문의 (설명용으로 만든 수치입니다)</small><b>"원무 화면에서 카드 수납 취소가 안 됩니다"</b></div>
+      </div>
+
+      <div class="tabs">
+        <button type="button" class="on" data-mode="on">평소 (리랭킹 정상)</button>
+        <button type="button" data-mode="off">리랭킹 서버가 꺼졌을 때 (폴백)</button>
+      </div>
+
+      <div class="weights" id="weights"></div>
+      <div class="board" id="board"></div>
+      <div class="insight" id="insight"></div>
+    </section>
+
+    <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 추천 제외 -->
+    <section id="s-filter">
+      <p class="kicker">관련 없는 추천은 빼기 <small class="muted" style="font-weight:700">· 2026-10-16 적용</small></p>
+      <h2>왜 항상 5건이 아니라 0~5건인가요?</h2>
+      <p class="desc">예전에는 어떤 문의든 [AI 추천] 버튼에 항상 <b>5</b>가 떴습니다. 이제는 문의와 관련 있는 자료만 보여 주므로 건수가 0~5건으로 달라지고, 그 숫자 자체가 "볼 만한 추천이 몇 개인지"를 알려 줍니다.</p>
+
+      <div class="why2">
+        <div>
+          <span class="lbl st bad">예전</span>
+          <h3>자리가 5개면 무조건 5개를 채웠습니다</h3>
+          <p>순위에 쓰던 <span class="t" data-term="relevance">관련도</span>와 <span class="t" data-term="rerank">리랭킹</span> 점수는 둘 다 <strong>이번 후보들끼리의 등수</strong>(0~1로 <span class="t" data-term="normalize">정규화</span>)입니다. 후보가 전부 엉뚱해도 1등은 항상 높게 나오니, "관련 없다"고 판단할 근거가 없어 5칸을 다 채웠습니다. 실제로 "오늘 점심 메뉴 추천해주세요"를 넣어도 5건이 나왔습니다.</p>
+        </div>
+        <div>
+          <span class="lbl st ok">지금</span>
+          <h3>면접 점수가 기준 미달이면 자리가 남아도 뽑지 않습니다</h3>
+          <p>리랭킹 모델이 내는 <span class="t" data-term="rawscore">원점수</span>는 등수가 아니라 "이 답이 이 질문에 맞는가"에 대한 <strong>절대 점수</strong>입니다. 이 원점수가 <span class="t" data-term="threshold">임계값</span>(-2.0)에 못 미치는 자료는 아무리 다른 점수가 좋아도 목록에 넣지 않습니다.</p>
+        </div>
+      </div>
+
+      <h3>세 가지 규칙</h3>
+      <div class="rule3">
+        <div><b>리랭킹 원점수 기준</b><span class="v">-2.0 미만 제외</span><p>리랭킹이 정상일 때의 기본 규칙입니다. 질문과 함께 읽어 봤더니 맞지 않는 자료를 뺍니다.</p></div>
+        <div><b>검증 안 된 자료 제외</b><span class="v">리랭킹 20건 밖 제외</span><p>리랭킹은 상위 20건만 읽습니다. 그 밖의 자료는 아무도 읽어 보지 않았으므로, 빈칸 채우기나 "<a href="#s-guard">표준답변 최소 1건</a>" 규칙으로도 끼워 넣지 않습니다.</p></div>
+        <div><b>리랭킹 서버가 꺼졌을 때</b><span class="v">코사인 0.55 미만 제외</span><p>원점수가 없으므로 <span class="t" data-term="fallback">폴백</span>으로 <span class="t" data-term="cosine">코사인 유사도</span>를 씁니다. 원점수보다 덜 정확해서 기준을 느슨하게 잡았습니다.</p></div>
+      </div>
+
+      <h3>기준 -2.0은 어떻게 정했나요? — 실제 측정</h3>
+      <p class="muted small" style="margin-bottom:12px">실제 인덱스와 리랭킹 서버로 질의 48건(문의와 무관한 질문 8건, 실제 AS 문의 40건)을 돌려, 추천된 자료의 리랭킹 원점수와 내용을 하나씩 대조했습니다.</p>
+      <div class="scale">
+        <div class="scale-bar">
+          <span class="b1">-2.0 미만 · 대부분 무관 → 제외</span>
+          <span class="b2">-2 ~ 0</span>
+          <span class="b3">0 이상 · 대부분 관련 있음</span>
+          <i class="cut" title="기준선 -2.0"></i>
+        </div>
+        <div class="scale-ax">
+          <span style="left:12.5%">-6</span><span class="cutl" style="left:37.5%">기준 -2.0</span><span style="left:50%">0</span><span style="left:75%">+4</span><span class="end">+8 이상</span>
+        </div>
+        <div class="scale-eg">
+          <div class="e1"><b>-2.0 미만: 대부분 무관</b>문의와 무관한 질문에 추천되던 자료는 <strong>전부 -2.5 이하</strong>였습니다.<br>예) "회의실 예약" → 통합예약 오류 사례 -5.14<br>예) 산재평가 인증 문의 → "배달서비스공제조합 계약처코드" -5.13</div>
+          <div class="e2"><b>-2 ~ 0: 관련 있는 자료가 많음</b>직접 답은 아니어도 같은 업무 흐름인 자료가 많아 남겨 둡니다.<br>예) 위조직검사 FM→PH 처방 변경 문의 → 같은 변경 사례 -0.42<br>예) TKR CP 템플릿 문의 → 슬관절 CP 양식 사례 -1.25</div>
+          <div class="e3"><b>0 이상: 대부분 바로 쓸 수 있음</b>예) 차등제 치료식 환자수 조회 → 같은 문의 사례 +9.76<br>예) 서식지 열추가 칸 길이 문의 → 같은 증상 사례 +8.97</div>
+        </div>
+        <div class="note" style="margin-top:16px">같은 질의에서 <span class="t" data-term="cosine">코사인 유사도</span>는 무관한 자료도 0.55~0.61까지 나와 관련 있는 자료와 구간이 겹쳤습니다(예: "회의실 예약" 1등 코사인 0.61). 그래서 코사인은 리랭킹 서버가 꺼졌을 때의 예비 기준으로만 씁니다.</div>
+      </div>
+
+      <h3>적용 전후 비교 (같은 질의 48건)</h3>
+      <table class="cmp">
+        <thead><tr><th style="width:190px">질의 종류</th><th>적용 전</th><th>적용 후</th></tr></thead>
+        <tbody>
+          <tr><td>문의와 무관한 질문 8건</td><td>8건 모두 5건 추천</td><td><b>5건이 0건</b>이 됨 (회의실 예약, 점심 메뉴, 프린터 토너, 엑셀 피벗, 주차 등록)</td></tr>
+          <tr><td>실제 AS 문의 40건</td><td>40건 모두 5건 추천</td><td>32건은 5건, <b>8건은 0·2·4건</b>으로 줄어듦.<br>5건이 유지된 경우도 리랭킹 20건 밖에서 검증 없이 끼어들던 자료 대신 기준을 통과한 자료가 그 자리를 채움</td></tr>
+        </tbody>
+      </table>
+
+      <div class="zero">
+        <div class="mock" aria-label="추천 0건일 때 팝업 예시">
+          <div class="mock-h"><span class="aibtn">✦ AI 추천 <i class="na">0</i> ⌄</span><em style="background:#eee8ff;color:#6547c7">0건</em></div>
+          <div class="mock-empty">문의 내용과 관련도가 충분한 사례가 없어 추천하지 않았습니다.</div>
+        </div>
+        <div>
+          <h3>0건일 때 화면</h3>
+          <p class="small" style="color:var(--ink2)">버튼의 숫자를 흐린 색으로 표시하고, 팝업에는 "관련도가 충분한 사례가 없어 추천하지 않았습니다"라고 안내합니다. 오류가 아니라 <strong>억지로 채우지 않았다</strong>는 뜻입니다. 상담원은 버튼을 열어 보지 않고도 "이번 문의는 참고할 추천이 없다"는 걸 알 수 있습니다.</p>
+          <div class="note" style="border-left-color:var(--amber);background:var(--amber-soft);color:#6b4a12"><b>아직 남은 한계</b> — "담당자 휴무라 4시 전에 연락 달라"처럼 <strong>내용 없이 연락만 요청하는 문의</strong>는 여전히 5건이 나옵니다. 인덱스 안에 "그 전에 연락바랍니다" 같은 연락 요청 접수건이 실제로 있고, 리랭킹 모델도 서로 비슷하다고(원점수 +2 안팎) 판단하기 때문입니다. 점수 기준으로는 풀 수 없어, 인덱스에서 이런 사례를 거르거나 질문에서 연락 요청 문구를 뺀 뒤 남는 내용이 없으면 추천을 건너뛰는 방식을 검토 중입니다.</div>
+        </div>
+      </div>
+    </section>
+    <!-- [AX Lab] 수정 끝 -->
+
+    <!-- 4. 화면 -->
+    <section id="s-screen">
+      <p class="kicker">사용자 화면</p>
+      <h2>화면에서는 어떻게 보이나요?</h2>
+      <p class="desc">추천마다 <span class="t" data-term="confidence">신뢰도</span>(얼마나 확실한지)를 따로 판단해서, 확실하지 않은 결과는 추천이라고 단정하지 않고 '참고 사례'로 보여 줍니다.</p>
+      <div class="screen">
+        <div class="mock" aria-label="AI 추천 팝업 예시">
+          <div class="mock-h"><span>✦ AI 추천</span><em>3건</em></div>
+          <div class="mock-i"><span class="tierb tier1">표준답변</span><div><b>카드 수납 취소 처리 방법</b><small>관련도 92% · 2026-08</small><div class="kws"><span class="kw">카드</span><span class="kw">수납</span><span class="kw">취소</span><span class="kw rsn">같은 업무분류</span></div></div></div>
+          <div class="mock-i"><span class="tierb tier2">과거사례</span><div><b>카드 취소 시 승인번호 오류</b><small>관련도 78% · 2026-05</small><div class="kws"><span class="kw">카드</span><span class="kw">취소</span><span class="kw rsn">같은 업무분류</span></div></div></div>
+          <div class="mock-i ref"><span class="tierb tier2">과거사례</span><div><b>결제 환불이 처리되지 않아요</b><small><span class="refb">참고 사례</span> · 2025-11</small><div class="kws"><span class="kw sem">뜻으로 찾음</span></div></div></div>
+          <div class="mock-f">항목을 누르면 오른쪽에 답변 본문이 열립니다</div>
+        </div>
+        <div>
+          <div class="levels">
+            <div class="lv"><div><b>확실함 <small style="display:inline">high</small></b><small><span class="t" data-term="cosine">코사인 유사도</span> 0.62 이상</small></div><p>일반 추천으로 보여 주고 관련도 %를 함께 표시합니다.</p></div>
+            <div class="lv"><div><b>보통 <small style="display:inline">mid</small></b><small>코사인 유사도 0.58 ~ 0.62</small></div><p>일반 추천으로 보여 줍니다.</p></div>
+            <div class="lv"><div><b>참고 사례 <small style="display:inline">low</small></b><small>코사인 유사도 0.58 미만</small></div><p>관련도 % 대신 <span class="refb">참고 사례</span>라고 표시합니다. 모든 결과가 이 경우라면 "직접 일치하는 답변 대신 유사한 업무 사례를 보여 드립니다"라는 안내가 함께 나옵니다.</p></div>
+          </div>
+          <div class="note">왜 '관련 없음'이라고 하지 않나요? 정확히 같은 사례는 없어도 같은 업무 흐름의 사례가 해결 실마리가 되는 경우가 많습니다. 그래서 결과를 숨기거나 부정적으로 표시하는 대신, "직접적인 답은 아니지만 참고할 만한 자료"라는 사실 그대로 안내합니다.</div>
+          <div class="note" style="border-left-color:var(--brand);background:var(--brand-soft);color:#3f2f99"><span class="t" data-term="cosine">코사인 유사도</span>는 <span class="t" data-term="relevance">관련도</span> %와 다른 값입니다. 관련도는 후보들끼리의 등수라 항상 1등이 높게 나오지만, 코사인 유사도는 문장 뜻이 실제로 얼마나 가까운지를 재는 절대 기준이라 "확실한지"를 판단하는 데 씁니다.</div>
+        </div>
+      </div>
+
+      <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거(겹친 단어) 표시 -->
+      <h3 style="margin-top:30px">왜 추천됐는지도 보여 줍니다 <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
+      <p class="muted small">추천 항목마다 아래 칩이 붙습니다. 목록에는 3개, 항목을 눌러 여는 상세 패널의 "겹친 단어" 줄에는 4개까지 보입니다.</p>
+      <div class="whyk">
+        <div><span class="kw">시술확인서</span><br><b>겹친 단어</b><br>문의와 이 자료에 함께 들어 있는 말입니다. 드문 말부터 보여 주고, "문의"·"확인"처럼 어디에나 나오는 말은 뺍니다. <span class="t" data-term="morph">형태소 분석</span>으로 명사만 골라 "진단서를"은 "진단서"로, 붙여 쓴 "시술확인서"는 한 단어로 보여 줍니다(<a href="#s-morph">아래</a>).</div>
+        <div><span class="kw syn">≈ 산재조합</span><br><b>동의어로 찾은 말</b><br>문의에는 없었지만 <span class="t" data-term="qexpand">쿼리 확장</span>으로 덧붙인 같은 뜻의 다른 표현이 걸린 경우입니다. 예) "산재 지사"로 물었는데 "산재조합" 자료를 찾음.</div>
+        <div><span class="kw sem">뜻으로 찾음</span><br><b>겹친 단어 없음</b><br>같은 단어는 없지만 <span class="t" data-term="vector">벡터 검색</span>·<span class="t" data-term="rerank">리랭킹</span>이 문장 뜻이 비슷하다고 판단한 경우입니다. 예) "결제가 취소가 안 돼요" ↔ "수납 취소 불가".</div>
+        <div><span class="kw rsn">같은 업무분류</span><br><b>일치 사유</b><br>업무분류(원무 등)가 같으면 "같은 업무분류", 프로그램·화면이 같으면 "같은 프로그램·화면", 문의유형만 같으면 "같은 문의유형"이 붙습니다.</div>
+      </div>
+      <div class="note">겹친 단어는 <strong>단어 검색(<span class="t" data-term="bm25">BM25</span>) 쪽 근거</strong>입니다. 실제 순위는 리랭킹(문장 뜻)을 함께 보고 정하므로, 겹친 단어가 많다고 1등은 아닙니다. 대신 엉뚱한 추천의 이유를 드러내 줍니다. 예를 들어 "담당자 휴무라 4시 전에 연락 달라" 문의에 "그 전에 연락바랍니다" 사례가 뜬다면 칩에 <span class="kw">퇴근</span> <span class="kw">담당자</span> <span class="kw">긴급</span>이 보여, 업무 내용이 아니라 연락 요청 문구가 겹쳐서 올라왔다는 걸 바로 알 수 있습니다.</div>
+      <!-- [AX Lab] 수정 끝 -->
+
+      <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 겹친 단어 — 형태소 분석기(Kiwi) 적용 -->
+      <h3 id="s-morph" style="margin-top:30px">단어를 어디서 자르나요? — 형태소 분석기 Kiwi <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
+      <p>처음에는 띄어쓰기로 자른 덩어리(어절)에서 조사·어미를 규칙으로 떼어 냈습니다. 그런데 상담 문의는 띄어쓰기가 불규칙해서 <strong>두 방향 모두</strong> 틀렸습니다. 맞춤법대로 띄어 주는 것도 답이 아닙니다.</p>
+      <div class="why2">
+        <div class="card"><h4>덜 잘림 — 붙으면 안 되는 말이 붙음</h4><p><span class="kw">신규및</span> (신규 + 및), <span class="kw">신규오더시</span> (신규오더 + 시), <span class="kw">사진과</span> (사진 + 과)처럼 기능어가 단어에 붙어 칩에 그대로 나왔습니다.</p></div>
+        <div class="card"><h4>더 잘림 — 맞춤법대로 띄우면 뜻이 깨짐</h4><p>맞춤법상으로는 "시술 확인서"지만 현장에서는 <span class="kw">시술확인서</span>가 서식 이름 하나입니다. "시술", "확인서"로 나누면 한 단어처럼 보이지 않습니다.</p></div>
+      </div>
+      <p style="margin-top:14px">그래서 기준을 <strong>"맞춤법상 단어"가 아니라 "업무에서 한 뜻으로 쓰는 덩어리"</strong>로 잡았습니다.</p>
+      <div class="rule3">
+        <div class="card"><b>1. 품사를 나눈다</b><p>형태소 분석기 Kiwi가 문장을 명사·조사·어미·부사 등으로 나눕니다. "신규및" → 신규(명사) + 및(부사).</p></div>
+        <div class="card"><b>2. 붙어 있던 명사는 다시 붙인다</b><p>원문에서 띄어쓰기 없이 이어진 명사들은 하나로 합칩니다. 시술 + 확인서 → <span class="kw">시술확인서</span>, D / C + 오더 → <span class="kw">D/C오더</span>.</p></div>
+        <div class="card"><b>3. 명사가 아닌 것은 버린다</b><p>조사·어미·"및"·"같이"·"빠른" 같은 말과 끝에 붙은 "시·후·때·중·분"은 뗍니다. 자료에 덩어리 전체가 없으면 그 안의 더 짧은 조각을 찾습니다(신규오더 → 신규).</p></div>
+      </div>
+      <table class="cmp" style="margin-top:16px">
+        <thead><tr><th>실제 문의 (같은 추천 결과)</th><th>이전 (어절 규칙)</th><th>지금 (Kiwi)</th></tr></thead>
+        <tbody>
+          <tr><td>신규및 D/C오더 대상자 처방이 표기되지 않습니다</td><td><span class="kw">신규및</span> <span class="kw">대상자</span> <span class="kw">표기</span> <span class="kw">오더</span></td><td><span class="kw">대상자</span> <span class="kw">표기</span> <span class="kw">신규</span> <span class="kw">D/C오더</span></td></tr>
+          <tr><td>시술확인서 작성후 삭제했는지 … 경과기록지 삭제가 안 되어서 빠른 전화 부탁</td><td><span class="kw">되어서</span> <span class="kw">경과기록지</span> <span class="kw">작성</span> <span class="kw">빠른</span></td><td><span class="kw">경과기록지</span> <span class="kw">작성</span> <span class="kw">삭제</span></td></tr>
+          <tr><td>진단서를 출력하면 BIXOLON 드라이버 오류가 나옵니다</td><td>BIXOLON 드라이버 <span class="kw">진단</span> 출력 (진단서의 잘린 조각)</td><td>BIXOLON 드라이버 출력 <span class="kw">오류</span></td></tr>
+          <tr><td>마약류투약정보조회 화면에서 DUR 점검이 안됩니다</td><td>의약품 마약류 DUR 점검 (동의어 표시 없음)</td><td><span class="kw syn">≈ 의약품</span> 마약류 DUR 점검</td></tr>
+        </tbody>
+      </table>
+
+      <h4 style="margin-top:22px">왜 Kiwi인가요?</h4>
+      <p class="muted small">한국어 형태소 분석기 후보를 이 서버 환경(Windows PC, 파이썬, 응답 2.5초 제한) 기준으로 비교했습니다.</p>
+      <table class="cmp">
+        <thead><tr><th>후보</th><th>설치·운영</th><th>띄어쓰기 오류</th><th>판단</th></tr></thead>
+        <tbody>
+          <tr><td><b>Kiwi</b> (kiwipiepy)</td><td><code>pip install</code> 한 줄. Windows용 설치 파일이 있어 별도 빌드·Java가 필요 없음</td><td>강함. "신규및"을 신규 + 및으로 정확히 나눔</td><td><b>채택</b></td></tr>
+          <tr><td>Mecab-ko</td><td>빠르고 정확하지만 Windows에서 사전 빌드·설치가 번거로움</td><td>보통</td><td>운영 PC 설치 부담</td></tr>
+          <tr><td>KoNLPy (Okt·Komoran·Hannanum)</td><td>Java(JVM) 설치가 필요. 서버 기동이 무거워짐</td><td>분석기마다 다름</td><td>의존성 부담</td></tr>
+          <tr><td>규칙만 (이전 방식)</td><td>설치 없음</td><td>약함. 사례마다 규칙을 늘려야 함</td><td>폴백으로 유지</td></tr>
+        </tbody>
+      </table>
+      <div class="whyk" style="grid-template-columns:repeat(3,1fr)">
+        <div><b>원문 위치를 알려 줌</b><br>나눈 조각마다 원문의 몇 번째 글자인지 알려 줍니다. 그래서 "원래 붙어 있던 명사"만 정확히 다시 붙일 수 있습니다. 2번 규칙이 가능한 이유입니다.</div>
+        <div><b>업무 용어 사전을 넣을 수 있음</b><br>동의어 사전 용어와 화면명·프로그램명(여러 문서에 반복되는 것, 약 330개)을 사용자 사전에 넣습니다. 예를 들어 사전이 없으면 문장 첫머리 "D/C오더"를 "C + 이오 + 더"로 잘못 읽는데, "오더"를 넣으면 바로 고쳐집니다.</div>
+        <div><b>빠름</b><br>실측 결과 문장 하나에 약 1ms가 걸립니다. 모델을 불러오는 데 약 4초가 걸리지만, 서버를 켤 때 한 번만 뒤에서 불러오므로 추천 응답 시간에는 영향이 없습니다.</div>
+      </div>
+      <div class="note">안전장치: Kiwi는 <strong>화면에 보여 줄 칩을 고를 때만</strong> 씁니다. 검색(BM25)과 색인은 그대로라 색인을 다시 만들 필요가 없습니다. 서버를 켠 직후 Kiwi를 불러오는 몇 초 동안이나 Kiwi가 설치되지 않은 PC에서는 이전 규칙 방식으로 자동 전환되고, 추천 자체는 멈추지 않습니다. 상태는 추천 서버 <code>/health</code>의 <code>morph</code>에서 확인합니다.</div>
+      <!-- [AX Lab] 수정 끝 -->
+    </section>
+
+    <!-- 5. 안전장치 -->
+    <section id="s-guard">
+      <p class="kicker">안전장치</p>
+      <h2>엉뚱하거나 위험한 결과를 막는 규칙</h2>
+      <p class="desc">점수가 높더라도 아래 규칙을 먼저 지킵니다.</p>
+      <div class="guards">
+        <div class="g"><h3>자기 자신은 빼기</h3><p>지금 보고 있는 접수건과 그 건에 연결된 부모·자식·연결 접수건은 추천에서 제외합니다. 안 빼면 자기 자신이 1등이 됩니다.</p></div>
+        <div class="g"><h3>표준답변 최소 1건</h3><p>관련 기준을 통과한 표준답변(<span class="t" data-term="tier">Tier</span>1)이 있으면 목록 안에 최소 1건은 꼭 넣습니다. 공식 답변이 묻히지 않게 하기 위해서입니다.</p></div>
+        <div class="g"><h3>과거사례는 3건까지</h3><p>과거사례(Tier2)가 목록을 다 차지하지 않도록 먼저 3건까지만 넣고, 자리가 남으면 더 채웁니다.</p></div>
+        <div class="g"><h3>같은 내용 반복 금지</h3><p>주제와 업무 분류가 같은 자료는 2건까지만 보여 주는 <span class="t" data-term="dedup">중복 제거</span> 규칙입니다. 비슷한 답이 5개 나란히 뜨는 것을 막습니다.</p></div>
+        <div class="g"><h3>너무 먼 자료는 버리기</h3><p><span class="t" data-term="cosine">코사인 유사도</span> 0.35 미만이거나 <span class="t" data-term="relevance">관련도</span> 30% 미만인 자료는 <span class="t" data-term="threshold">임계값</span>에 걸려 어떤 경우에도 보여 주지 않습니다.</p></div>
+        <div class="g"><h3>관련 없으면 칸을 채우지 않기</h3><p><span class="t" data-term="rerank">리랭킹</span> <span class="t" data-term="rawscore">원점수</span>가 -2.0 미만이거나 리랭킹을 거치지 않은 자료는 자리가 남아도 넣지 않습니다. 리랭킹 서버가 꺼졌을 때는 코사인 유사도 0.55 미만을 뺍니다. 그래서 건수가 0~5건으로 달라지고, 0건이면 "관련도가 충분한 사례가 없어 추천하지 않았습니다"라고 안내합니다.</p></div>
+        <div class="g"><h3>개인정보 보호</h3><p>문의 속 개인정보는 <span class="t" data-term="masking">마스킹</span>한 뒤 AI에 보내고, 문의 내용은 저장하거나 <span class="t" data-term="log">로그</span>에 남기지 않습니다. 추천 결과에도 고객사 정보는 들어가지 않습니다.</p></div>
+      </div>
+    </section>
+
+    <!-- 6. 데이터 -->
+    <section id="s-data">
+      <p class="kicker">추천 자료</p>
+      <h2>추천 자료는 어디서 오나요?</h2>
+      <p class="desc">추천 대상은 세 종류이고, AS 건이 종결되면 자동으로 추천 자료에 추가됩니다.</p>
+      <div class="data">
+        <div>
+          <h3>세 종류의 자료</h3>
+          <ol>
+            <li><span class="tierb tier1">표준답변</span> 자주 묻는 질문에 대해 정리해 둔 공식 답변. 가장 우선합니다.</li>
+            <li><span class="tierb tier2">과거사례</span> 실제로 처리가 끝난 AS 접수건과 상담원 답변.</li>
+            <li><span class="tierb tier3">공지</span> 라인어스 공지사항·안내 게시물.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>얼마나 빨리 반영되나요?</h3>
+          <p class="big">종결 후 5~10분</p>
+          <ol>
+            <li>5분마다 <span class="t" data-term="polling">폴링</span>으로 새로 종결되거나 답변이 바뀐 AS 건을 DB에서 찾습니다.</li>
+            <li><span class="t" data-term="llm">LLM</span>이 주제를 분류하고 개인정보를 <span class="t" data-term="masking">마스킹</span>한 뒤 <span class="t" data-term="embedding">임베딩</span>으로 바꿉니다.</li>
+            <li>AI 추천 서버가 30초 안에 <span class="t" data-term="hotreload">핫 리로드</span>합니다. 재시작이 필요 없습니다.</li>
+            <li>주 1회는 <span class="t" data-term="batch">배치</span>로 전체 <span class="t" data-term="index">인덱스</span>를 처음부터 다시 만듭니다.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. 개발자용 -->
+    <section id="s-dev">
+      <details>
+        <summary>개발자용 상세 — 점수 산식, 설정값, 응답 필드</summary>
+        <div class="dev">
+<pre>관련도(relevance)   = 0.5 × dense_norm + 0.5 × lexical_norm      (후보 집합 안 min-max 정규화)
+최종(재정렬 성공)    = 0.35×rerank + 0.30×relevance + 0.15×product_match + 0.10×tier_weight + 0.10×quality
+최종(재정렬 폴백)    = 0.55×relevance + 0.20×product_match + 0.15×tier_weight + 0.10×quality
+tier_weight          = Tier1 1.0 / Tier2 0.7 / Tier3 0.5
+product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.0 / inquiry_type 일치 0.6 / 그 외 0
+후보                 = dense 상위 60 ∪ BM25 상위 60, cosine &lt; 0.35 제외 → 재정렬 상위 20 (COMBINE_RERANK_TOP)
+노출 제외(10-16)     = 재정렬 성공: rerank_raw &lt; -2.0 (COMBINE_RERANK_MIN_SCORE) 또는 재정렬 상위 20 밖
+                       재정렬 폴백: cosine &lt; 0.55 (COMBINE_FALLBACK_MIN_SIM)  → 건수 0~top_k
+제한                 = CRM readTimeout 2.5s · 재정렬 0.9s (COMBINE_RERANK_TIMEOUT_MS) · 실패 시 30초 회로 차단
+겹친 단어(10-16)     = Kiwi 명사 덩어리(붙어 있던 NNG/NNP/SL 재결합, 끝 의존명사 제거) ∩ embed_text, IDF ≥ 1.5, 최대 4개
+                       사용자 사전 = 동의어 용어 + 화면명/프로그램명(3건↑, 명사만) + SEED_WORDS · Kiwi 준비 전/미설치 → 어절 규칙</pre>
+          <table>
+            <thead><tr><th>위치</th><th>구성 요소</th><th>파일</th></tr></thead>
+            <tbody>
+              <tr><td>상담원 PC</td><td>AI 추천 버튼·팝업·상세</td><td>jwcrm/.../js/combine-as-ai.js, css/combine-as-ai.css</td></tr>
+              <tr><td>CRM 서버 PC</td><td>WAS → 추천 API 호출</td><td>CombineAsAiServiceImpl.java, CombineAsAiClient.java, combine-ai.properties</td></tr>
+              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_live_index.py, combine_morph.py(Kiwi, 겹친 단어)</td></tr>
+              <tr><td>AI PC :11434</td><td>Ollama 임베딩</td><td>combine_embed_client.py (호출 측)</td></tr>
+              <tr><td>AI PC :8766</td><td>리랭킹 서버</td><td>combine-rerank-server.py, combine-rerank-run.bat</td></tr>
+              <tr><td>AX Lab PC</td><td>색인 배치·준실시간 동기화</td><td>analysis/combine_refresh.py, analysis/combine_live.py (저장소 미포함)</td></tr>
+            </tbody>
+          </table>
+          <table style="margin-top:14px">
+            <thead><tr><th>응답 필드</th><th>의미</th><th>쓰임</th></tr></thead>
+            <tbody>
+              <tr><td>semantic_sim</td><td>bge-m3 코사인 원값</td><td>후보 제외, high/mid/low 판정, 재정렬 폴백 시 노출 하한 0.55</td></tr>
+              <tr><td>lexical_score</td><td>BM25 원점수</td><td>희귀 용어 검색</td></tr>
+              <tr><td>relevance</td><td>후보 안 상대 점수</td><td>화면 관련도 %, 노출 하한 0.30</td></tr>
+              <tr><td>rerank_score</td><td>재정렬 점수(0~1, 재정렬 성공 시에만)</td><td>최종 점수</td></tr>
+              <tr><td>rerank_raw</td><td>재정렬 원점수 logit(재정렬 성공 시에만)</td><td>노출 하한 -2.0, 임계 재조정</td></tr>
+              <tr><td>match_terms</td><td>[{term, synonym}] 문의와 자료(embed_text)에 함께 있는 말, IDF 순 최대 4개</td><td>화면 "겹친 단어" 칩 (동의어는 ≈)</td></tr>
+              <tr><td>match_reason</td><td>같은 업무분류 / 같은 프로그램·화면 / 같은 문의유형 / null</td><td>화면 일치 사유 칩</td></tr>
+              <tr><td>score</td><td>최종 합산 점수</td><td>정렬</td></tr>
+              <tr><td>confidence</td><td>high / mid / low</td><td>일반 추천 또는 참고 사례 표시</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine_morph.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-16). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
+    </section>
+  </main>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+(function(){
+  /* ---------- 용어 설명 (n: 이름, en: 원어, d: 설명, eg: 비유·예시) ---------- */
+  var TERMS = {
+    demo:      { n:'이렇게 설명이 나옵니다', d:'문서 곳곳의 개발 용어에 점선 밑줄이 있습니다. 마우스를 올리거나(모바일은 누르면) 뜻과 비유를 볼 수 있습니다.' },
+    server:    { n:'서버', en:'Server', d:'다른 프로그램의 요청을 기다렸다가 일을 처리해 주는 프로그램입니다. 그 프로그램이 도는 PC를 서버라고 부르기도 합니다.' },
+    was:       { n:'WAS', en:'Web Application Server', d:'CRM 화면과 기능을 제공하는 본체 프로그램입니다. 지금 쓰고 있는 CRM 그 자체라고 보면 됩니다.' },
+    api:       { n:'API', en:'Application Programming Interface', d:'프로그램끼리 일을 부탁하고 결과를 받는 약속된 방법입니다.', eg:'비유: 식당의 주문서 양식. 정해진 양식대로 적어 내면 정해진 음식이 나옵니다.' },
+    port:      { n:'포트', en:'Port', d:'한 PC 안에서 프로그램마다 붙는 문 번호입니다. 8765번 문은 추천 서버, 8766번 문은 리랭킹 서버가 받습니다.', eg:'비유: 같은 건물 안의 호수(101호, 102호)' },
+    ip:        { n:'IP 주소', en:'IP Address', d:'사내 네트워크에서 특정 PC를 찾아가는 주소입니다. 192.168.19.141은 AI PC의 주소입니다.' },
+    db:        { n:'DB', en:'Database', d:'CRM의 모든 데이터가 저장되는 곳입니다. 이 시스템은 Oracle DB를 씁니다.' },
+    index:     { n:'인덱스', en:'Index · 색인', d:'빨리 찾을 수 있도록 미리 정리해 둔 자료 목록입니다. 추천 서버는 매번 DB를 뒤지지 않고 이 목록에서 찾습니다.', eg:'비유: 책 뒤의 "찾아보기"' },
+    memory:    { n:'메모리', en:'Memory · RAM', d:'프로그램이 지금 바로 쓰는 작업 공간입니다. 디스크보다 훨씬 빨라서, 인덱스를 여기에 올려 두면 검색이 순식간에 끝납니다.', eg:'비유: 서랍(디스크)에 넣어 둔 자료가 아니라 책상 위(메모리)에 펼쳐 둔 자료' },
+    ollama:    { n:'Ollama', d:'AI 모델을 사내 PC에서 직접 돌려 주는 프로그램입니다. 문의 내용을 외부 인터넷 AI 서비스로 보내지 않습니다.' },
+    bgem3:     { n:'bge-m3', d:'문장을 임베딩(뜻을 담은 숫자 1,024개)으로 바꿔 주는 AI 모델입니다. 한국어를 잘 다룹니다.' },
+    bgerr:     { n:'bge-reranker-v2-m3', d:'질문과 답변 한 쌍을 함께 읽고 "맞는 답인가"를 채점하는 리랭킹 전용 AI 모델입니다.' },
+    llm:       { n:'LLM', en:'Large Language Model', d:'글을 읽고 쓸 수 있는 대규모 언어 AI입니다. ChatGPT와 같은 종류이며, 여기서는 사내 PC에서 돌립니다.' },
+    gemma:     { n:'gemma', d:'글을 읽고 분류·요약하는 LLM입니다. 이 시스템에서는 추천 자료를 준비할 때만 씁니다.' },
+    embedding: { n:'임베딩', en:'Embedding · 벡터', d:'문장의 뜻을 1,024개의 숫자로 바꾼 것입니다. 뜻이 비슷한 문장은 숫자도 비슷해져서, 숫자끼리 비교하면 뜻이 얼마나 가까운지 알 수 있습니다.', eg:'비유: 문장마다 "뜻 지도" 위에 좌표를 찍어 두고, 가까운 좌표끼리 비슷한 문장으로 보는 것' },
+    vector:    { n:'벡터 검색', en:'Dense Retrieval', d:'임베딩끼리 비교해서 뜻이 가까운 자료를 찾는 방식입니다. 표현이 달라도 의미가 같으면 찾아냅니다.', eg:'예: "결제 취소가 안 돼요" ↔ "수납 취소 불가"' },
+    bm25:      { n:'BM25', en:'단어 검색', d:'질문의 단어가 자료에 얼마나 들어 있는지로 점수를 매기는 전통적인 검색 방식입니다. 흔한 단어보다 드문 단어가 겹칠 때 점수가 큽니다.', eg:'예: "마약류투약정보조회" 같은 드문 화면명을 정확히 찾음' },
+    hybrid:    { n:'하이브리드 검색', en:'Hybrid Search', d:'벡터 검색(뜻)과 BM25(단어)를 함께 쓰는 방식입니다. 한쪽이 놓친 자료를 다른 쪽이 잡아 줍니다.' },
+    cosine:    { n:'코사인 유사도', en:'Cosine Similarity', d:'두 문장의 임베딩이 얼마나 같은 방향을 가리키는지 잰 값입니다. 1에 가까울수록 뜻이 같습니다. 후보끼리 비교한 값이 아닌 절대 기준이라 "확실한지" 판단에 씁니다.', eg:'이 서비스 기준: 0.62 이상 확실 · 0.58 미만 참고 사례 · 0.35 미만 제외 · 리랭킹 서버가 꺼졌을 때는 0.55 미만 제외' },
+    relevance: { n:'관련도', en:'Relevance', d:'이번 후보들끼리 비교한 1차 점수(0~100%)입니다. 화면에 표시되는 값입니다.', eg:'비유: 시험 점수가 아니라 반 등수. 후보가 다 별로여도 1등은 높게 나옵니다.' },
+    normalize: { n:'정규화', en:'Normalization', d:'단위가 다른 점수를 같은 0~1 범위로 맞추는 것입니다. 후보 중 최고점을 1, 최저점을 0으로 놓고 나머지를 그 사이에 배치합니다(min-max).', eg:'비유: 100점 만점 시험과 5점 만점 시험을 같은 기준으로 환산' },
+    rerank:    { n:'리랭킹', en:'Re-ranking · 재정렬', d:'1차로 추린 후보를 AI가 질문과 함께 직접 읽고 순위를 다시 매기는 것입니다. 정확하지만 느려서 상위 20건에만 씁니다. 이 일을 하는 모델을 리랭커라고 부릅니다.', eg:'비유: 서류 심사를 통과한 사람만 면접을 보는 것' },
+    crossenc:  { n:'Cross-Encoder', d:'질문과 답변을 한 쌍으로 묶어 동시에 읽는 AI 모델 구조입니다. 따로 읽고 비교하는 벡터 검색보다 문맥을 훨씬 정확하게 이해합니다.', eg:'비유: 벡터 검색은 두 사람의 이력서를 따로 보고 비교하는 것, Cross-Encoder는 두 사람을 마주 앉혀 대화를 들어 보는 것' },
+    fallback:  { n:'폴백', en:'Fallback', d:'어떤 기능이 실패하면 미리 정해 둔 예비 방식으로 자동 전환하는 것입니다.', eg:'예: 리랭킹 서버가 꺼지면 1차 점수만으로 추천' },
+    timeout:   { n:'타임아웃', en:'Timeout', d:'정해진 시간 안에 답이 없으면 더 기다리지 않고 포기하는 것입니다. 화면이 멈추지 않게 해 줍니다.', eg:'추천 전체 2.5초 · 리랭킹 0.9초' },
+    circuit:   { n:'서킷 브레이커', en:'Circuit Breaker', d:'리랭킹 서버 호출이 실패하면 30초 동안은 아예 부르지 않고 바로 폴백하는 장치입니다. 고장 난 곳을 계속 두드리느라 매번 느려지는 것을 막습니다.', eg:'비유: 누전 차단기. 문제가 생기면 잠시 끊었다가 다시 연결' },
+    masking:   { n:'마스킹', en:'Masking', d:'이름·전화번호 같은 개인정보를 [이름], [전화번호] 같은 표시로 가리는 것입니다. AI에는 가려진 문장만 전달됩니다.' },
+    preprocess:{ n:'전처리', en:'Preprocessing', d:'검색하기 전에 문장을 다듬는 작업입니다. 쓸모없는 양식 문구를 지우고 개인정보를 가립니다.' },
+    morph:     { n:'형태소 분석', en:'Morphological analysis · Kiwi', d:'문장을 뜻을 가진 가장 작은 조각(명사·조사·어미 등)으로 나누고 품사를 붙이는 일입니다. 한국어는 "진단서를"처럼 단어 뒤에 조사·어미가 붙고 띄어쓰기도 들쭉날쭉해서, 띄어쓰기만으로는 단어를 정확히 자를 수 없습니다. 여기서는 Kiwi라는 분석기로 겹친 단어 칩에 보여 줄 명사만 골라냅니다.', eg:'예: "신규및 D/C오더" → 신규 / 및 / D/C오더 → 칩에는 신규, D/C오더' },
+    qexpand:   { n:'쿼리 확장', en:'Query Expansion', d:'질문(쿼리)에 같은 뜻의 다른 표현이나 시스템 용어를 덧붙여 검색하는 것입니다. 현장 용어와 시스템 용어가 달라도 찾을 수 있게 합니다.' },
+    tier:      { n:'Tier', en:'자료 등급', d:'자료 종류별 우선순위입니다. Tier1 표준답변(1점) > Tier2 과거사례(0.7점) > Tier3 공지(0.5점) 순으로 가산점을 받습니다.' },
+    weight:    { n:'가중치', en:'Weight', d:'여러 항목을 합칠 때 각 항목을 얼마나 중요하게 볼지 정한 비율입니다. 모두 더하면 100%입니다.', eg:'비유: 성적 산출 시 중간 30% · 기말 40% · 과제 30%' },
+    dedup:     { n:'중복 제거', en:'Deduplication', d:'주제와 업무 분류가 같은 자료가 여러 건이면 2건까지만 남기는 것입니다. 비슷한 답이 나란히 뜨는 것을 막습니다.' },
+    threshold: { n:'임계값', en:'Threshold', d:'통과와 탈락을 가르는 기준선입니다. 이 값보다 낮으면 결과에서 뺍니다.', eg:'이 서비스 기준: 리랭킹 원점수 -2.0 미만 제외 · 리랭킹 장애 시 코사인 0.55 미만 제외' },
+    rawscore:  { n:'원점수', en:'Raw score · logit', d:'리랭킹 모델이 "이 답이 이 질문에 맞는가"를 판단해 내놓는 원래 점수입니다. 다른 후보와 비교한 등수가 아니라 절대 점수라서, 후보가 전부 엉뚱하면 모두 낮게 나옵니다. 그래서 "관련 없음"을 가르는 기준으로 씁니다. 대략 -10 ~ +10 범위이고, 높을수록 잘 맞습니다.', eg:'비유: 반 등수가 아니라 면접 점수. 지원자가 다 별로면 1등도 불합격일 수 있습니다.' },
+    confidence:{ n:'신뢰도', en:'Confidence', d:'추천 하나하나가 얼마나 확실한지를 high / mid / low 세 단계로 나눈 값입니다. 코사인 유사도로 판단합니다.' },
+    batch:     { n:'배치', en:'Batch', d:'사람이 누르지 않아도 정해진 시간에 자동으로 한꺼번에 처리하는 작업입니다.', eg:'예: 매주 1회 전체 인덱스 재생성, 5분마다 신규 건 추가' },
+    polling:   { n:'폴링', en:'Polling', d:'일정 간격으로 "새로 생긴 것이 있나?"를 확인하는 방식입니다. 여기서는 5분마다 DB를 확인합니다.' },
+    hotreload: { n:'핫 리로드', en:'Hot Reload', d:'프로그램을 끄지 않은 채 새 자료를 다시 읽어 들이는 것입니다. 추천 서버는 새 인덱스가 들어오면 30초 안에 자동 반영합니다.' },
+    log:       { n:'로그', en:'Log', d:'프로그램이 무슨 일을 했는지 남기는 기록 파일입니다. 추천 서버는 문의 본문을 로그에 남기지 않습니다.' }
+  };
+  function termify(s){
+    return s.replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, '<span class="t" tabindex="0" data-term="$2">$1</span>');
+  }
+
+  var tip = document.getElementById('tip'), tipEl = null;
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function showTip(el){
+    var t = TERMS[el.getAttribute('data-term')];
+    if(!t) return;
+    if(tipEl && tipEl !== el) tipEl.classList.remove('on');
+    tipEl = el; el.classList.add('on');
+    tip.innerHTML = '<div class="tip-h">' + esc(t.n) + (t.en ? '<small>' + esc(t.en) + '</small>' : '') + '</div>'
+      + '<div>' + esc(t.d) + '</div>' + (t.eg ? '<div class="tip-eg">' + esc(t.eg) + '</div>' : '');
+    tip.className = 'show';
+    var r = el.getClientRects()[0] || el.getBoundingClientRect();
+    var tw = tip.offsetWidth, th = tip.offsetHeight, vw = document.documentElement.clientWidth;
+    var cx = r.left + r.width / 2;
+    var left = Math.max(10, Math.min(cx - tw / 2, vw - tw - 10));
+    var top = r.top - th - 10;
+    if(top < 10){ top = r.bottom + 10; tip.className = 'show below'; }
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+    tip.style.setProperty('--ax', Math.max(14, Math.min(cx - left, tw - 14)) + 'px');
+  }
+  function hideTip(){
+    tip.className = '';
+    if(tipEl){ tipEl.classList.remove('on'); tipEl = null; }
+  }
+  function termOf(node){ return node && node.closest ? node.closest('.t[data-term]') : null; }
+  document.addEventListener('mouseover', function(e){ var el = termOf(e.target); if(el && el !== tipEl) showTip(el); });
+  document.addEventListener('mouseout', function(e){
+    var el = termOf(e.target);
+    if(el && el === tipEl && !el.contains(e.relatedTarget)) hideTip();
+  });
+  document.addEventListener('focusin', function(e){ var el = termOf(e.target); if(el) showTip(el); });
+  document.addEventListener('focusout', function(e){ if(termOf(e.target) === tipEl) hideTip(); });
+  document.addEventListener('click', function(e){
+    var el = termOf(e.target);
+    if(el){ if(el === tipEl && e.pointerType !== 'mouse') hideTip(); else showTip(el); }
+    else hideTip();
+  });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') hideTip(); });
+  window.addEventListener('scroll', hideTip, { passive:true });
+  window.addEventListener('resize', hideTip);
+  var staticTerms = document.querySelectorAll('.t[data-term]');
+  for(var st=0; st<staticTerms.length; st++) staticTerms[st].setAttribute('tabindex', '0');
+
+  /* ---------- 아키텍처 단계 ---------- */
+  var FLOWS = {
+    live: [
+      { t:'상담원이 AS 문의를 엽니다', d:'브라우저가 CRM 웹 서버([[WAS|was]])에 "이 접수건의 AI 추천을 주세요"라고 [[API|api]]로 요청합니다. 화면을 멈추지 않도록 뒤에서 조용히 요청합니다.', b:['browser','was'] },
+      { t:'CRM이 DB에서 문의 내용을 꺼냅니다', d:'[[DB|db]]에서 문의 원문, 업무 분류(예: 원무), 그리고 추천에서 빼야 할 자기 자신·연결 접수번호를 조회합니다.', b:['was','db'] },
+      { t:'CRM이 AI 추천 서버에 전달합니다', d:'같은 PC에 있는 AI 추천 서버([[포트|port]] 8765)로 문의를 보냅니다. CRM은 최대 2.5초 [[타임아웃|timeout]]까지만 기다립니다.', b:['was','rec'] },
+      { t:'문의 문장을 임베딩으로 바꿉니다', d:'추천 서버가 개인정보를 [[마스킹|masking]]한 문장을 AI PC의 [[Ollama|ollama]]로 보내 [[임베딩|embedding]]으로 바꿔 받습니다.', b:['rec','embed'] },
+      { t:'하이브리드 검색으로 후보를 찾고 관련도를 매깁니다', d:'[[메모리|memory]]에 올려 둔 1만 1천여 건의 [[인덱스|index]]에서 [[벡터 검색|vector]]과 [[BM25|bm25]]를 동시에 돌려 후보를 추리고 [[관련도|relevance]]를 계산합니다.', b:['rec'] },
+      { t:'리랭킹 서버가 상위 20건을 다시 채점합니다', d:'AI PC의 [[리랭킹|rerank]] 서버(포트 8766)가 문의와 후보를 나란히 읽어 채점합니다. 0.9초 안에 답이 없으면 [[폴백|fallback]]으로 이 단계를 건너뜁니다.', b:['rec','rerank'] },
+      { t:'최대 5건을 골라 화면에 보여 줍니다', d:'리랭킹 기준에 못 미치는 후보를 뺀 뒤 점수를 [[가중치|weight]]대로 합산하고 [[중복 제거|dedup]]·자기 자신 제외 후 최대 5건을 CRM을 거쳐 브라우저로 돌려줍니다. [AI 추천] 버튼의 건수는 관련 있는 자료 수라 0~5건으로 달라집니다.', b:['rec','was','browser'] }
+    ],
+    prep: [
+      { t:'5분마다 새로 종결된 AS 건을 찾습니다', d:'AX Lab 개발 PC의 [[배치|batch]] 프로그램이 [[폴링|polling]]으로 DB에서 최근 종결되거나 답변이 바뀐 접수건을 찾습니다.', b:['batch','db'] },
+      { t:'LLM이 자료를 정리합니다', d:'AI PC의 [[LLM|llm]]([[gemma|gemma]])이 주제를 분류하고 개인정보를 [[마스킹|masking]]합니다. 너무 짧거나 쓸모없는 답변은 이 단계에서 걸러집니다.', b:['batch','llm'] },
+      { t:'자료를 임베딩으로 바꿉니다', d:'추천 때와 똑같은 모델([[bge-m3|bgem3]])로 [[임베딩|embedding]]을 만들어야 문의와 자료를 서로 비교할 수 있습니다.', b:['batch','embed'] },
+      { t:'AI 추천 서버가 새 인덱스를 자동 반영합니다', d:'만든 [[인덱스|index]]를 추천 서버 폴더에 넣으면, 추천 서버가 30초 안에 [[핫 리로드|hotreload]]합니다. 재시작이 필요 없습니다. 주 1회는 전체 인덱스를 새로 만듭니다.', b:['batch','rec'] }
+    ]
+  };
+  var flow = 'live', idx = 0, touched = false, timer = null;
+  var arch = document.getElementById('arch');
+  var btnPrev = document.getElementById('stPrev'), btnNext = document.getElementById('stNext'), btnAuto = document.getElementById('stAuto');
+  function lastIdx(){ return FLOWS[flow].length - 1; }
+  function renderStep(){
+    var s = FLOWS[flow][idx], n = FLOWS[flow].length;
+    document.getElementById('stNum').textContent = idx + 1;
+    document.getElementById('stTitle').textContent = s.t;
+    document.getElementById('stDesc').innerHTML = termify(s.d);
+    document.getElementById('stCount').textContent = '총 ' + n + '단계 중 ' + (idx + 1) + '단계';
+    var boxes = arch.querySelectorAll('.box');
+    for(var i=0;i<boxes.length;i++){
+      boxes[i].classList.toggle('lit', s.b.indexOf(boxes[i].getAttribute('data-box')) >= 0);
+    }
+    btnPrev.disabled = idx === 0;
+    btnNext.textContent = idx === n - 1 ? '처음부터 다시 ↺' : '다음 단계 →';
+    btnNext.classList.toggle('pulse', !touched);
+    var chips = '';
+    for(var j=0;j<n;j++){
+      chips += '<button type="button" data-i="' + j + '" class="' + (j === idx ? 'on' : (j < idx ? 'done' : '')) + '"'
+             + ' title="' + (j + 1) + '단계: ' + FLOWS[flow][j].t + '">' + (j + 1) + '</button>';
+    }
+    document.getElementById('stChips').innerHTML = chips;
+  }
+  function stopAuto(){
+    if(timer){ clearInterval(timer); timer = null; }
+    btnAuto.textContent = '▶ 자동 재생';
+  }
+  function go(i){ touched = true; idx = i; renderStep(); }
+  btnPrev.onclick = function(){ stopAuto(); if(idx > 0) go(idx - 1); };
+  btnNext.onclick = function(){ stopAuto(); go(idx < lastIdx() ? idx + 1 : 0); };
+  document.getElementById('stChips').onclick = function(e){
+    var b = e.target.closest('button[data-i]');
+    if(b){ stopAuto(); go(+b.getAttribute('data-i')); }
+  };
+  btnAuto.onclick = function(){
+    if(timer){ stopAuto(); return; }
+    go(idx < lastIdx() ? idx : 0);
+    btnAuto.textContent = '❚❚ 멈춤';
+    timer = setInterval(function(){
+      if(idx < lastIdx()) go(idx + 1); else stopAuto();
+    }, 2800);
+  };
+  var flowBtns = document.querySelectorAll('[data-flow]');
+  for(var f=0; f<flowBtns.length; f++){
+    flowBtns[f].onclick = function(){
+      for(var k=0;k<flowBtns.length;k++) flowBtns[k].classList.toggle('on', flowBtns[k] === this);
+      stopAuto(); flow = this.getAttribute('data-flow'); idx = 0; renderStep();
+    };
+  }
+  /* 설명 길이가 달라도 상자 높이가 흔들리지 않도록, 두 흐름의 모든 단계 중 가장 긴 높이로 고정 */
+  var stText = document.getElementById('stText');
+  function lockStepHeight(){
+    var t = document.getElementById('stTitle'), d = document.getElementById('stDesc'), max = 0;
+    stText.style.minHeight = '';
+    for(var key in FLOWS){
+      for(var i=0;i<FLOWS[key].length;i++){
+        t.textContent = FLOWS[key][i].t;
+        d.innerHTML = termify(FLOWS[key][i].d);
+        max = Math.max(max, stText.offsetHeight);
+      }
+    }
+    stText.style.minHeight = max + 'px';
+    renderStep();
+  }
+  var resizeTimer = null;
+  window.addEventListener('resize', function(){ clearTimeout(resizeTimer); resizeTimer = setTimeout(lockStepHeight, 150); });
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(lockStepHeight);
+  lockStepHeight();
+
+  /* ---------- 점수 예시 ---------- */
+  var ITEMS = [
+    { name:'카드 수납 취소 처리 방법', tier:1, tierLabel:'표준답변', v:{ rr:.95, rel:.80, pm:1, tw:1.0, q:.8 },
+      why:'[[리랭커|rerank]]가 읽어 보니 "취소 방법"을 정확히 설명하는 공식 답변이라 가장 높은 점수를 받았습니다.' },
+    { name:'카드 취소 시 승인번호 오류', tier:2, tierLabel:'과거사례', v:{ rr:.80, rel:1.0, pm:1, tw:.7, q:.6 },
+      why:'단어가 가장 많이 겹쳐 [[BM25|bm25]] 덕분에 관련도는 1등이지만, 특정 오류 상황이라 리랭킹 점수는 조금 낮았습니다.' },
+    { name:'수납 화면 메뉴 위치 변경 안내', tier:3, tierLabel:'공지', v:{ rr:.20, rel:.70, pm:1, tw:.5, q:.5 },
+      why:'"수납 화면"이라는 단어는 겹치지만, 읽어 보면 취소와 관계없는 공지라 리랭킹에서 크게 밀렸습니다.' }
+  ];
+  var W = {
+    on:  [ { k:'rr',  label:'리랭킹 점수', w:.35, c:'var(--s1)', d:'[[Cross-Encoder|crossenc]]가 문의와 답변을 함께 읽고 "맞는 답인가"를 채점한 점수' },
+           { k:'rel', label:'관련도',     w:.30, c:'var(--s2)', d:'[[하이브리드 검색|hybrid]]에서 받은 1차 점수 (화면의 관련도 %)' },
+           { k:'pm',  label:'업무 분류 일치', w:.15, c:'var(--s3)', d:'같은 업무 분류(원무 등)·같은 프로그램/화면이면 만점' },
+           { k:'tw',  label:'Tier',       w:.10, c:'var(--s4)', d:'[[Tier|tier]]별 점수: 표준답변 1점, 과거사례 0.7점, 공지 0.5점' },
+           { k:'q',   label:'답변 품질',  w:.10, c:'var(--s5)', d:'인덱스를 만들 때 미리 매겨 둔 답변의 충실도' } ],
+    off: [ { k:'rr',  label:'리랭킹 점수', w:0,   c:'var(--s1)', d:'리랭킹 서버가 꺼져 있어 [[폴백|fallback]] 산식에서는 이 항목이 빠집니다' },
+           { k:'rel', label:'관련도',     w:.55, c:'var(--s2)', d:'리랭킹 점수 대신 1차 점수의 [[가중치|weight]]가 커집니다' },
+           { k:'pm',  label:'업무 분류 일치', w:.20, c:'var(--s3)', d:'같은 업무 분류(원무 등)·같은 프로그램/화면이면 만점' },
+           { k:'tw',  label:'Tier',       w:.15, c:'var(--s4)', d:'[[Tier|tier]]별 점수: 표준답변 1점, 과거사례 0.7점, 공지 0.5점' },
+           { k:'q',   label:'답변 품질',  w:.10, c:'var(--s5)', d:'인덱스를 만들 때 미리 매겨 둔 답변의 충실도' } ]
+  };
+  var INSIGHT = {
+    on:'1차 [[관련도|relevance]]만 보면 과거사례가 1등이지만, [[리랭킹|rerank]]에서 "취소 방법을 정확히 설명하는" 표준답변이 1등으로 올라왔습니다. 단어만 겹치는 공지는 3등으로 크게 밀렸습니다. 만약 이 공지의 리랭킹 [[원점수|rawscore]]가 기준(-2.0)에 못 미쳤다면 3등이 아니라 목록에서 아예 빠지고 2건만 보입니다.',
+    off:'리랭킹이 빠지는 [[폴백|fallback]] 상태에서는 단어가 가장 많이 겹친 과거사례가 1등이 되고, 공지와의 점수 차이도 줄어듭니다. 결과는 여전히 나오지만, 리랭킹이 있을 때보다 덜 정확할 수 있습니다.'
+  };
+  function renderScore(mode){
+    var ws = W[mode], h = '';
+    for(var i=0;i<ws.length;i++){
+      h += '<div class="w' + (ws[i].w ? '' : ' off') + '"><span class="sw" style="background:' + ws[i].c + '"></span><b>' + ws[i].label + '</b>'
+         + '<span class="pct">' + Math.round(ws[i].w * 100) + '%</span><p>' + termify(ws[i].d) + '</p></div>';
+    }
+    document.getElementById('weights').innerHTML = h;
+    var rows = ITEMS.map(function(it){
+      var total = 0, segs = '';
+      ws.forEach(function(x){ var part = x.w * it.v[x.k]; total += part;
+        if(part > 0) segs += '<i style="width:' + (part * 100) + '%;background:' + x.c + '" title="' + x.label + ' ' + it.v[x.k].toFixed(2) + '점 × ' + Math.round(x.w*100) + '% = ' + part.toFixed(3) + '"></i>'; });
+      return { it:it, total:total, segs:segs };
+    }).sort(function(a,b){ return b.total - a.total; });
+    var b = '';
+    rows.forEach(function(r, n){
+      b += '<div class="row"><div class="rank">' + (n + 1) + '</div>'
+         + '<div class="nm"><b><span class="tierb tier' + r.it.tier + '">' + r.it.tierLabel + '</span>' + r.it.name + '</b>'
+         + '<span>' + (mode === 'on' ? '리랭킹 ' + r.it.v.rr.toFixed(2) + ' · ' : '') + '관련도 ' + Math.round(r.it.v.rel * 100) + '%</span></div>'
+         + '<div><div class="stack">' + r.segs + '</div><p class="why">' + (mode === 'on' ? termify(r.it.why) : '') + '</p></div>'
+         + '<div class="total">' + r.total.toFixed(2) + '</div></div>';
+    });
+    b += '<div class="row axis"><div></div><div class="muted small">최종 점수 (막대 길이)</div><div class="ax"><span>0점</span><span>0.5점</span><span>1점 · 만점</span></div><div></div></div>';
+    document.getElementById('board').innerHTML = b;
+    document.getElementById('insight').innerHTML = termify(INSIGHT[mode]);
+  }
+  var modeBtns = document.querySelectorAll('[data-mode]');
+  for(var m=0;m<modeBtns.length;m++){
+    modeBtns[m].onclick = function(){
+      for(var k=0;k<modeBtns.length;k++) modeBtns[k].classList.toggle('on', modeBtns[k] === this);
+      renderScore(this.getAttribute('data-mode'));
+    };
+  }
+  renderScore('on');
+
+  /* ---------- 목차 하이라이트 ---------- */
+  var links = document.querySelectorAll('#toc a');
+  var secs = [];
+  for(var l=0;l<links.length;l++) secs.push(document.querySelector(links[l].getAttribute('href')));
+  function onScroll(){
+    var cur = 0;
+    for(var i=0;i<secs.length;i++){ if(secs[i] && secs[i].getBoundingClientRect().top < 140) cur = i; }
+    for(var j=0;j<links.length;j++) links[j].classList.toggle('on', j === cur);
+  }
+  window.addEventListener('scroll', onScroll, { passive:true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

@@ -52,19 +52,34 @@ function cai_pct(v){ v = Number(v || 0); return Math.round(v * 100) + '%'; }
  * bge-m3 코사인은 상위 5건이 전부 63~70% 로 몰려 사용자에게 차이를 못 보여 주던 문제(2026-10-06). */
 function cai_relLabel(it){ var v = (it.relevance != null) ? it.relevance : it.semantic_sim; return '관련도 ' + cai_pct(v); }
 /* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 확신도 표시.
- * relevance 는 후보 집합 안 상대값(min-max)이라 전부 무관한 결과여도 상위는 항상 80~100% 로 보였다(테스터 테스트3).
- * 서버가 절대 코사인 기준 confidence(high/mid/low) 를 항목마다 내려주면 'low' 에 "확신 낮음" 배지를 붙이고,
- * 노출 항목 전부가 low 면 팝오버 헤더/안내문으로도 알린다. 구 서버 응답(confidence 없음)은 기존 표시 그대로. */
+ * [AX Lab] 수정 (2026-10-15 AX Lab): low 를 실패/경고처럼 보이는 "확신 낮음"으로 노출하지 않는다.
+ * relevance 는 후보 안 상대값이라 low 에서 높은 퍼센트와 경고가 동시에 보일 수 있으므로 퍼센트를 숨기고
+ * 검토 가능한 "참고 사례"로 안내한다. 구 서버 응답(confidence 없음)은 기존 표시 그대로 유지한다. */
 function cai_conf(it){ return (it && it.confidence) ? String(it.confidence) : ''; }
 function cai_metaLabel(it){
-	var s = cai_relLabel(it);
-	if(cai_conf(it) === 'low') s += ' <i class="cai-low" title="문의 어휘와 정확히 맞는 사례가 아니라 가장 가까운 것을 보여줍니다">확신 낮음</i>';
-	return s;
+	if(cai_conf(it) === 'low') return '<i class="cai-low" title="직접 일치하는 답변 대신 유사한 업무 사례를 함께 보여드립니다">참고 사례</i>';
+	return cai_relLabel(it);
 }
 function cai_allLow(items){
 	if(!items || !items.length) return false;
 	for(var i=0; i<items.length; i++){ if(cai_conf(items[i]) !== 'low') return false; }
 	return true;
+}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거 — 서버가 준 겹친 단어(match_terms) · 일치 사유(match_reason).
+ * 겹친 단어는 문의와 이 자료에 함께 들어 있는 말(단어 검색 근거)이고, 순위는 문장 뜻(재정렬)을 함께 보고 정한다.
+ * 겹친 단어가 없으면 문장 뜻으로만 찾은 것 → '뜻으로 찾음'. 구 서버 응답(두 필드 모두 없음)이면 아무것도 그리지 않는다. */
+function cai_whyHtml(it, max){
+	if(!it || (typeof it.match_terms === 'undefined' && typeof it.match_reason === 'undefined')) return '';
+	var terms = it.match_terms || [], h = '';
+	for(var i=0; i<terms.length && i<max; i++){
+		var m = terms[i] || {};
+		if(m.synonym) h += '<i class="cai-kw syn" title="문의에 없던 말 — 같은 뜻의 다른 표현(동의어)으로 찾았습니다">≈ ' + cai_esc(m.term) + '</i>';
+		else          h += '<i class="cai-kw">' + cai_esc(m.term) + '</i>';
+	}
+	if(!terms.length) h += '<i class="cai-kw sem" title="겹치는 단어 없이 문장 뜻이 비슷해 추천되었습니다">뜻으로 찾음</i>';
+	if(it.match_reason) h += '<i class="cai-kw rsn">' + cai_esc(it.match_reason) + '</i>';
+	return h;
 }
 /* [AX Lab] 수정 끝 */
 function cai_tier(it){ return CAI_TIER[Number(it && it.tier)] || { cls:'t0', label:'추천' }; }
@@ -134,7 +149,8 @@ function cai_buttonHtml(){
 }
 function cai_countHtml(){
 	if(cai.status === 'loading') return '<b class="cai-cnt cai-ld" title="검색 중"><span class="asws-spin cai-spin"></span></b>';
-	if(cai.status === 'ok')      return '<b class="cai-cnt">' + cai.items.length + '</b>';
+	/* [AX Lab] 수정 (2026-10-16 AX Lab): 서버가 관련 없는 후보를 빼므로 건수가 0~5로 달라진다. 0건은 흐린 색으로 */
+	if(cai.status === 'ok')      return '<b class="cai-cnt' + (cai.items.length ? '' : ' cai-na') + '">' + cai.items.length + '</b>';
 	return '<b class="cai-cnt cai-na">-</b>';
 }
 function cai_popHtml(){
@@ -145,22 +161,24 @@ function cai_popHtml(){
 		return h;
 	}
 	if(cai.status === 'ok'){
-		/* [AX Lab] 수정 (2026-10-12 AX Lab): 전부 확신 낮음이면 헤더 배지를 바꾸고 안내문을 한 줄 넣는다 */
+		/* [AX Lab] 수정 (2026-10-15 AX Lab): 전부 low여도 목록은 유지하되 중립적인 참고 사례로 안내한다 */
 		var allLow = cai_allLow(cai.items);
-		h += '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em class="cai-tag' + (allLow ? ' low' : ' on') + '">' + cai.items.length + '건' + (allLow ? ' · 확신 낮음' : '') + '</em></span>';
+		h += '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em class="cai-tag' + (allLow ? ' ref' : ' on') + '">' + (allLow ? '참고 사례 ' : '') + cai.items.length + '건</em></span>';
 		if(!cai.items.length){
-			h += '<span class="cai-empty">문의 내용과 비슷한 사례를 찾지 못했습니다.</span>';
+			h += '<span class="cai-empty">문의 내용과 관련도가 충분한 사례가 없어 추천하지 않았습니다.</span>';	/* [AX Lab] 2026-10-16 문구: 관련 없는 후보 제외 */
 			return h;
 		}
-		if(allLow) h += '<span class="cai-lownote">문의와 정확히 맞는 사례를 찾지 못해 가장 가까운 것을 보여줍니다. 참고용으로만 확인해주세요.</span>';
+		if(allLow) h += '<span class="cai-lownote">직접 일치하는 답변 대신 유사한 업무 사례를 함께 보여드립니다. 내용을 확인한 후 활용해주세요.</span>';
 		for(var j=0; j<cai.items.length; j++){
 			var it = cai.items[j], t = cai_tier(it);
 			var files = (it.attached_file && it.attached_file.length) ? ' · <span class="cai-clip" title="첨부 ' + it.attached_file.length + '개">&#128206;' + it.attached_file.length + '</span>' : '';
 			var when = cai_nvl(it.occurred_at, '');
-			h += '<button type="button" class="cai-item' + (j === cai.sel ? ' on' : '') + (cai_conf(it) === 'low' ? ' lowc' : '') + '" onclick="cai_open(' + j + ', event);" title="' + cai_esc(it.title) + '">'
+			var why = cai_whyHtml(it, 3);	/* [AX Lab] 2026-10-16 추천 근거 */
+			h += '<button type="button" class="cai-item' + (j === cai.sel ? ' on' : '') + (cai_conf(it) === 'low' ? ' refc' : '') + '" onclick="cai_open(' + j + ', event);" title="' + cai_esc(it.title) + '">'
 			   +   '<i class="cai-tier ' + t.cls + '">' + t.label + '</i>'
 			   +   '<span><b>' + cai_esc(it.title) + '</b>'
-			   +   '<small>' + cai_metaLabel(it) + (when ? ' · ' + cai_esc(when) : '') + files + '</small></span>'	/* [AX Lab] 2026-10-12 cai_relLabel → cai_metaLabel */
+			   +   '<small>' + cai_metaLabel(it) + (when ? ' · ' + cai_esc(when) : '') + files + '</small>'	/* [AX Lab] 2026-10-12 cai_relLabel → cai_metaLabel */
+			   +   (why ? '<span class="cai-why">' + why + '</span>' : '') + '</span>'
 			   + '</button>';
 		}
 		h += '<span class="cai-foot">항목을 누르면 우측 「접수 · 처리 정보」 상단에 본문이 열립니다.</span>';
@@ -299,7 +317,7 @@ function cai_detailHtml(it, idx){
 	var t = cai_tier(it);
 	var wide = cai_isWide();
 	var meta = [];
-	meta.push(cai_metaLabel(it));	/* [AX Lab] 2026-10-12: 확신 낮음 배지 포함 */
+	meta.push(cai_metaLabel(it));	/* [AX Lab] 2026-10-15: low는 관련도 대신 참고 사례 배지 */
 	if(it.occurred_at) meta.push(cai_esc(it.occurred_at));
 	if(it.service_cate) meta.push(cai_esc(it.service_cate));
 	if(it.topic) meta.push(cai_esc(it.topic));
@@ -320,6 +338,9 @@ function cai_detailHtml(it, idx){
 	+ '</div>'
 	+ '<div class="cai-ttl"><i class="cai-tier ' + t.cls + '">' + t.label + '</i><b>' + cai_esc(it.title) + '</b></div>'
 	+ '<div class="cai-meta">' + meta.join(' · ') + '</div>';
+	/* [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거 */
+	var why = cai_whyHtml(it, 4);
+	if(why) h += '<div class="cai-whyrow" title="문의와 이 자료에 함께 들어 있는 말입니다. 순위는 문장 뜻(AI 판단)도 함께 보고 정합니다."><em>겹친 단어</em>' + why + '</div>';
 
 	/* 과거사례는 "어떤 문의였나"가 맥락이므로 원 문의를 접힌 상태로 함께 둔다 */
 	if(Number(it.tier) === 2 && cai_nvl(it.question_text, '') !== ''){

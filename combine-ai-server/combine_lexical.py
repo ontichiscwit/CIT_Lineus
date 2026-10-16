@@ -40,6 +40,13 @@ def tokenize(text):
     return out
 
 
+# [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거 "겹친 단어" 표시용 — tokenize 와 같은 규칙으로 자르되 2-gram 없이 어절만
+def surface_words(text):
+    """마스킹 토큰을 뺀 원래 어절/영문/숫자 목록 (화면 표시용, 순서 유지)."""
+    return _TOK.findall(_MASK_TOKEN.sub(" ", text or ""))
+# [AX Lab] 수정 끝
+
+
 class BM25Index:
     """순수 파이썬 BM25 (Okapi). 문서 순서는 호출자가 준 리스트 순서를 그대로 유지한다."""
 

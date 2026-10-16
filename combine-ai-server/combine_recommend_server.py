@@ -34,8 +34,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from combine_recommend import LocalIndex, Recommender, OUT_DIR, index_info  # noqa: E402,F401
+# [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 재정렬 상태를 health에 함께 제공한다.
+from combine_recommend import (LocalIndex, Recommender, OUT_DIR, index_info,  # noqa: E402,F401
+                               ping_rerank, rerank_status)
+# [AX Lab] 수정 끝
 from combine_embed_client import OLLAMA_HOST, EMBED_MODEL, ping  # noqa: E402
+import combine_morph  # noqa: E402  [AX Lab] 2026-10-16 /health 의 morph 상태
 # [AX Lab] 수정 (2026-10-15 AX Lab): 준실시간 반영 — 색인 핫리로드·라이브 델타 적용 스레드
 from combine_live_index import IndexKeeper  # noqa: E402
 
@@ -70,7 +74,11 @@ class Handler(BaseHTTPRequestHandler):
                                # [AX Lab] 수정 (2026-10-15 AX Lab): 라이브 반영 상태(live_*)·동기화기 상태(live) 추가
                                "index": index_info(idx),
                                "live": self.keeper.status() if self.keeper else None,
-                               "embed": {"host": OLLAMA_HOST, "model": EMBED_MODEL, "ok": ok, "message": msg}})
+                               "embed": {"host": OLLAMA_HOST, "model": EMBED_MODEL, "ok": ok, "message": msg},
+                               # [AX Lab] 수정 (2026-10-15 AX Lab): 장애여도 기존 검색으로 폴백하므로 전체 status는 유지
+                               "rerank": rerank_status(),
+                               # [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어 형태소 분석(Kiwi) 준비 상태. 준비 전·미설치면 규칙 방식
+                               "morph": combine_morph.status()})
         self._json(404, {"result": "404", "message": "not found"})
 
     def do_POST(self):
@@ -127,11 +135,17 @@ def main():
         + (f" · 라이브 델타 {n_live}건 반영" if n_live else ""))
     Handler.keeper.start()
     # [AX Lab] 수정 끝
+    # [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어용 Kiwi 백그라운드 적재 (사용자 사전 = 동의어 + 색인 화면명/프로그램명)
+    combine_morph.warmup(combine_morph.domain_words(idx.meta))
     if idx.model != EMBED_MODEL:
         log(f"[오류] 색인 모델({idx.model}) 과 질의 임베딩 모델({EMBED_MODEL}) 이 다릅니다. COMBINE_EMBED_MODEL 을 맞추거나 색인을 다시 만드세요.")
         sys.exit(2)
     ok, msg = ping()
     log(("embedding ok · " if ok else "[경고] embedding 연결 실패 — 요청 시 503 으로 응답합니다 · ") + msg)
+    # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 재정렬은 선택적 향상 기능 — 장애 시 기존 하이브리드로 폴백.
+    rr_ok, rr_msg = ping_rerank()
+    log(("rerank ok · " if rr_ok else "[경고] rerank 연결 실패 — 기존 하이브리드로 동작합니다 · ") + rr_msg)
+    # [AX Lab] 수정 끝
     log(f"listening on http://{args.host}:{args.port}  (X-Api-Key={'***' if API_KEY != 'dev-key' else 'dev-key'})")
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
 
