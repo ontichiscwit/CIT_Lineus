@@ -34,7 +34,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from combine_recommend import LocalIndex, Recommender, OUT_DIR, index_info  # noqa: E402,F401
+# [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 재정렬 상태를 health에 함께 제공한다.
+from combine_recommend import (LocalIndex, Recommender, OUT_DIR, index_info,  # noqa: E402,F401
+                               ping_rerank, rerank_status)
+# [AX Lab] 수정 끝
 from combine_embed_client import OLLAMA_HOST, EMBED_MODEL, ping  # noqa: E402
 # [AX Lab] 수정 (2026-10-15 AX Lab): 준실시간 반영 — 색인 핫리로드·라이브 델타 적용 스레드
 from combine_live_index import IndexKeeper  # noqa: E402
@@ -70,7 +73,9 @@ class Handler(BaseHTTPRequestHandler):
                                # [AX Lab] 수정 (2026-10-15 AX Lab): 라이브 반영 상태(live_*)·동기화기 상태(live) 추가
                                "index": index_info(idx),
                                "live": self.keeper.status() if self.keeper else None,
-                               "embed": {"host": OLLAMA_HOST, "model": EMBED_MODEL, "ok": ok, "message": msg}})
+                               "embed": {"host": OLLAMA_HOST, "model": EMBED_MODEL, "ok": ok, "message": msg},
+                               # [AX Lab] 수정 (2026-10-15 AX Lab): 장애여도 기존 검색으로 폴백하므로 전체 status는 유지
+                               "rerank": rerank_status()})
         self._json(404, {"result": "404", "message": "not found"})
 
     def do_POST(self):
@@ -132,6 +137,10 @@ def main():
         sys.exit(2)
     ok, msg = ping()
     log(("embedding ok · " if ok else "[경고] embedding 연결 실패 — 요청 시 503 으로 응답합니다 · ") + msg)
+    # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 재정렬은 선택적 향상 기능 — 장애 시 기존 하이브리드로 폴백.
+    rr_ok, rr_msg = ping_rerank()
+    log(("rerank ok · " if rr_ok else "[경고] rerank 연결 실패 — 기존 하이브리드로 동작합니다 · ") + rr_msg)
+    # [AX Lab] 수정 끝
     log(f"listening on http://{args.host}:{args.port}  (X-Api-Key={'***' if API_KEY != 'dev-key' else 'dev-key'})")
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
 

@@ -40,7 +40,9 @@ import os
 import random
 import re
 import sys
+import threading
 import time
+import urllib.request
 from pathlib import Path
 
 import numpy as np
@@ -65,6 +67,22 @@ REL_FLOOR = 0.30        # 이 아래 relevance 는 어떤 규칙으로도 노출
 TIER2_CAP = 3           # 1차 선발 상한. 칸이 남으면 풀린다 (compose 참조)
 DUP_CAP = 2
 CANDIDATES = 60         # dense 상위 N ∪ lexical 상위 N 을 후보 집합으로 삼아 재랭킹
+# [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 Cross-Encoder 재정렬.
+#   무거운 모델은 Ollama가 있는 AI PC의 별도 서버에서 실행한다. 연결 장애/지연 시 기존 점수식을 그대로 써서
+#   CRM의 2.5초 제한과 추천 기능 가용성을 보호한다. 한 번 실패하면 짧은 회로 차단으로 매 요청의 timeout 누적을 막는다.
+RERANK_ENABLED = os.getenv("COMBINE_RERANK_ENABLED", "Y").upper() not in ("N", "NO", "FALSE", "0")
+RERANK_URL = os.getenv("COMBINE_RERANK_URL", "http://192.168.19.141:8766/api/rerank")
+RERANK_API_KEY = os.getenv("COMBINE_RERANK_API_KEY", "dev-key")
+RERANK_TOP = max(1, min(int(os.getenv("COMBINE_RERANK_TOP", "20")), 20))
+RERANK_TIMEOUT = max(0.1, int(os.getenv("COMBINE_RERANK_TIMEOUT_MS", "900")) / 1000.0)
+RERANK_RETRY_AFTER = 30.0
+W_RERANK, W_HYBRID_R, W_PROD_R, W_TIER_R, W_QUAL_R = 0.35, 0.30, 0.15, 0.10, 0.10
+_RERANK_LOCK = threading.Lock()
+_RERANK_STATUS = {
+    "enabled": RERANK_ENABLED, "url": RERANK_URL, "last_ok": None, "last_error": None,
+    "fallbacks": 0, "disabled_until": 0.0,
+}
+# [AX Lab] 수정 끝
 # [AX Lab] 수정 시작 (2026-10-12 AX Lab): 절대 확신도.
 #   relevance 는 후보 집합 안 min-max 라 "그나마 가장 가까운 것" 도 항상 100% 로 보인다 (테스터 테스트3 에서 전부 무관한데
 #   관련도 80~100% 로 표시). 그래서 bge-m3 절대 코사인으로 high/mid/low 를 따로 내려 화면이 '확신 낮음' 을 표시하게 한다.
@@ -81,6 +99,81 @@ def confidence_of(sim):
     if sim >= CONF_LOW_SIM:
         return "mid"
     return "low"
+# [AX Lab] 수정 끝
+
+
+# [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 재정렬 호출·상태.
+def _set_rerank_status(*, ok, error=None):
+    with _RERANK_LOCK:
+        if ok:
+            _RERANK_STATUS["last_ok"] = int(time.time())
+            _RERANK_STATUS["last_error"] = None
+            _RERANK_STATUS["disabled_until"] = 0.0
+        else:
+            _RERANK_STATUS["last_error"] = error
+            _RERANK_STATUS["fallbacks"] += 1
+            _RERANK_STATUS["disabled_until"] = time.time() + RERANK_RETRY_AFTER
+
+
+def rerank_status():
+    with _RERANK_LOCK:
+        status = dict(_RERANK_STATUS)
+    status["circuit_open"] = bool(status["disabled_until"] > time.time())
+    status.pop("disabled_until", None)
+    return status
+
+
+def ping_rerank():
+    """재정렬 서버 health 확인. 추천 요청 경로의 폴백 횟수에는 포함하지 않는다."""
+    if not RERANK_ENABLED:
+        return False, "disabled"
+    health_url = RERANK_URL.rsplit("/api/rerank", 1)[0] + "/health"
+    try:
+        data = json.loads(urllib.request.urlopen(health_url, timeout=RERANK_TIMEOUT).read().decode("utf-8"))
+        if data.get("status") != "ok":
+            raise RuntimeError("health not ok")
+        with _RERANK_LOCK:
+            _RERANK_STATUS["last_ok"] = int(time.time())
+            _RERANK_STATUS["last_error"] = None
+            _RERANK_STATUS["disabled_until"] = 0.0
+        return True, f"{data.get('model', '')} {data.get('device', '')}".strip()
+    except Exception as exc:
+        with _RERANK_LOCK:
+            _RERANK_STATUS["last_error"] = type(exc).__name__
+            _RERANK_STATUS["disabled_until"] = time.time() + RERANK_RETRY_AFTER
+        return False, type(exc).__name__
+
+
+def rerank_texts(query, documents):
+    """마스킹된 질의와 상위 후보 본문을 원격 Cross-Encoder로 평가한다. 실패하면 예외를 내고 호출자가 폴백한다."""
+    with _RERANK_LOCK:
+        if _RERANK_STATUS["disabled_until"] > time.time():
+            raise RuntimeError("rerank circuit open")
+    body = json.dumps({"query": query, "documents": documents}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        RERANK_URL, data=body,
+        headers={"Content-Type": "application/json", "X-Api-Key": RERANK_API_KEY},
+    )
+    try:
+        data = json.loads(urllib.request.urlopen(req, timeout=RERANK_TIMEOUT).read().decode("utf-8"))
+        scores = data.get("scores")
+        if data.get("result") != "000" or not isinstance(scores, list) or len(scores) != len(documents):
+            raise RuntimeError("invalid rerank response")
+        values = [float(value) for value in scores]
+        _set_rerank_status(ok=True)
+        return values
+    except Exception as exc:
+        _set_rerank_status(ok=False, error=type(exc).__name__)
+        raise
+
+
+def _normalize_rerank(scores):
+    if not scores:
+        return []
+    lo, hi = min(scores), max(scores)
+    if hi <= lo:
+        return [0.5] * len(scores)
+    return [(value - lo) / (hi - lo) for value in scores]
 # [AX Lab] 수정 끝
 
 
@@ -264,8 +357,14 @@ def product_match(q, d):
     return 0.0
 
 
-def score(rel, pm, tier, quality):
+def score(rel, pm, tier, quality, rerank=None):
     """rel 은 후보 집합 안에서 0~1 로 정규화된 하이브리드 관련도 (search_hybrid 의 relevance)."""
+    # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 재정렬 성공 요청만 Cross-Encoder 점수를 반영한다.
+    #   rerank=None 은 장애/비활성 경로이며 기존 산식을 한 글자도 바꾸지 않는다.
+    if rerank is not None:
+        return (W_RERANK * rerank + W_HYBRID_R * rel + W_PROD_R * pm
+                + W_TIER_R * TIER_WEIGHT.get(tier, 0.5) + W_QUAL_R * float(quality or 0))
+    # [AX Lab] 수정 끝
     return W_SEM * rel + W_PROD * pm + W_TIER * TIER_WEIGHT.get(tier, 0.5) + W_QUAL * float(quality or 0)
 
 
@@ -339,9 +438,11 @@ def compose(ranked, top_k):
 
 
 class Recommender:
-    def __init__(self, index, embed_fn=None):
+    def __init__(self, index, embed_fn=None, rerank_fn=None):
         self.index = index
         self.embed_fn = embed_fn or embed_one
+        # [AX Lab] 수정 (2026-10-15 AX Lab): 테스트에서는 가짜 함수를 주입하고, 운영은 환경변수로 켜고 끈다.
+        self.rerank_fn = rerank_fn if rerank_fn is not None else (rerank_texts if RERANK_ENABLED else None)
 
     def recommend(self, query, *, as_no=None, exclude_as_no=None, service_cate=None, inquiry_type=None,
                   request_type=None, program_nm=None, screen_nm=None, top_k=5, tiers=(1, 2, 3)):
@@ -357,6 +458,27 @@ class Recommender:
         index = self.index
         qvec = self.embed_fn(q_text)
         cands = index.search_hybrid(qvec, q_lex, tiers, excl, CANDIDATES)
+        # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 하이브리드 상위 후보만 원격 Cross-Encoder로 정밀 재정렬.
+        #   원격 서버가 느리거나 실패하면 rerank_by_doc을 비워 아래 기존 score 산식으로 즉시 폴백한다.
+        rerank_by_doc = {}
+        if self.rerank_fn and cands:
+            rerank_cands = cands[:RERANK_TOP]
+            rerank_docs = []
+            for doc_id, _sim, _lex, _rel in rerank_cands:
+                doc = index.get(doc_id)
+                rerank_docs.append((doc.get("embed_text") or "\n".join(
+                    str(doc.get(key) or "") for key in ("title", "question_text", "answer_text")
+                ))[:6000])
+            try:
+                rerank_raw = self.rerank_fn(q_text, rerank_docs)
+                if len(rerank_raw) != len(rerank_cands):
+                    raise ValueError("rerank score count mismatch")
+                rerank_by_doc = {
+                    rerank_cands[i][0]: value for i, value in enumerate(_normalize_rerank(rerank_raw))
+                }
+            except Exception:
+                rerank_by_doc = {}
+        # [AX Lab] 수정 끝
         # 호출자가 안 준 프로그램명/화면명은 질의 템플릿에서 뽑은 값으로 채운다 (product_match 폴백용)
         qmeta = {"service_cate": service_cate, "inquiry_type": inquiry_type,
                  "program_nm": program_nm or qm.get("program_nm"), "screen_nm": screen_nm or qm.get("screen_nm")}
@@ -364,11 +486,17 @@ class Recommender:
         for doc_id, sim, lex, rel in cands:
             d = index.get(doc_id)
             pm = product_match(qmeta, d)
-            ranked.append({**self._item(d), "semantic_sim": round(sim, 4), "lexical_score": round(lex, 2),
-                           "relevance": round(rel, 4), "product_match": pm,
-                           # [AX Lab] 2026-10-12: 절대 코사인 기준 확신도 (relevance 는 후보 안 상대값이라 항상 상위가 100%)
-                           "confidence": confidence_of(sim),
-                           "score": round(score(rel, pm, d["tier"], d["quality_score"]), 4)})
+            # 재정렬 성공 요청에서는 상위 N 밖 후보도 0점으로 명시해 점수 척도를 하나로 유지한다.
+            rr = rerank_by_doc.get(doc_id, 0.0) if rerank_by_doc else None
+            item = {**self._item(d), "semantic_sim": round(sim, 4), "lexical_score": round(lex, 2),
+                    "relevance": round(rel, 4), "product_match": pm,
+                    # [AX Lab] 2026-10-12: 절대 코사인 기준 확신도 (relevance 는 후보 안 상대값이라 항상 상위가 100%)
+                    "confidence": confidence_of(sim),
+                    "score": round(score(rel, pm, d["tier"], d["quality_score"], rr), 4)}
+            # [AX Lab] 수정 (2026-10-15 AX Lab): 구 서버 계약을 깨지 않는 선택 필드.
+            if rr is not None:
+                item["rerank_score"] = round(rr, 4)
+            ranked.append(item)
         ranked.sort(key=lambda c: -c["score"])
         items = compose(ranked, top_k)
         for it in items:

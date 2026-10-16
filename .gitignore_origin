@@ -1,0 +1,125 @@
+# =========================================================
+# Eclipse 워크스페이스 메타데이터 (절대 올리면 안 됨)
+# =========================================================
+.metadata/
+.recommenders/
+RemoteSystemsTempFiles/
+Servers/
+mdfile/
+lineus/
+# =========================================================
+# Eclipse 프로젝트 / IDE 설정 파일
+# =========================================================
+.settings/
+.externalToolBuilders/
+.classpath
+.project
+.springBeans
+.factorypath
+.apt_generated/
+bin/
+
+# IntelliJ IDEA (혹시 사용 시)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+
+# VS Code
+.vscode/
+
+# =========================================================
+# 버전관리 흔적 (SVN -> Git 이전)
+# =========================================================
+.svn/
+
+# =========================================================
+# Maven 빌드 산출물
+# =========================================================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# Gradle (혹시 사용 시)
+.gradle/
+build/
+
+# =========================================================
+# 프론트엔드 빌드/의존성 (jwcrm: gulp / bower / npm)
+# =========================================================
+node_modules/
+bower_components/
+jwcrm/build/
+jwcrm/production/
+npm-debug.log*
+yarn-error.log*
+
+# =========================================================
+# 컴파일 결과물 / 패키징 파일
+# =========================================================
+*.class
+*.war
+*.ear
+*.jar
+*.log
+
+# =========================================================
+# 로그 / 임시 파일
+# =========================================================
+logs/
+*.log.*
+*.tmp
+*.bak
+*.swp
+*~
+
+# =========================================================
+# 민감 정보 (DB 접속정보, 인증서, 로컬 환경설정)
+# =========================================================
+# [AX Lab] 로컬 실행 전용 (DB 접속정보 포함, 커밋 금지)
+jwcrm/local-run/
+settings-local.xml
+# [AX Lab] PC 별 로컬 설정(DB 비번 포함, 커밋 금지). 샘플(setup-local.config.sample.ps1)만 커밋.
+setup-local.config.ps1
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+*.pem
+**/jdbc.properties
+**/database.properties
+**/context-datasource-local.xml
+.env
+.env.local
+
+# =========================================================
+# 사용자 업로드 / 런타임 생성 파일
+# =========================================================
+jwcrm/src/main/webapp/upload/
+lineus/src/main/webapp/upload/
+
+# =========================================================
+# OS 생성 파일
+# =========================================================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.DS_Store?
+._*
+
+.venv/
+__pycache__/
+.pyc
+
+# [AX Lab] AI 추천 색인 준실시간 동기화 런타임 파일 (2026-10-15). 기본 색인(npz/jsonl)은 커밋, 델타·상태는 제외
+combine-ai-server/data/combine_live.jsonl
+combine-ai-server/data/combine_live_state.json
+combine-ai-server/data/*.tmp
+
+# 분석 원천/결과 데이터 (로컬 보관, 커밋 제외)
+*.csv
+analysis/

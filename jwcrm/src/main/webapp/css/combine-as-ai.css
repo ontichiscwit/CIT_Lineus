@@ -19,14 +19,16 @@
 /* ---- 팝오버 : 헤더 배지 -------------------------------------------------- */
 #asWorkspace .caws-aiphd em.cai-tag{background:#EEE8FF; color:#6547C7;}
 #asWorkspace .caws-aiphd em.cai-tag.on{background:#6547C7; color:#fff;}
-/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 확신 낮음 표시 (서버 confidence=low) */
-#asWorkspace .caws-aiphd em.cai-tag.low{background:#FFF3E0; color:#B25E00;}
-#asWorkspace .cai-lownote{display:block; padding:6px 11px; background:#FFF8EE; border-bottom:1px solid #F5E3C8; font-size:9.5px; color:#8A4B00; line-height:1.4;}
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 서버 confidence=low 표시
+   [AX Lab] 수정 (2026-10-15 AX Lab): 경고색 대신 검토 가능한 '참고 사례'의 중립색으로 표시 */
+#asWorkspace .caws-aiphd em.cai-tag.ref{background:#EAF1F7; color:#486174;}
+#asWorkspace .cai-lownote{display:block; padding:6px 11px; background:#F5F8FB; border-bottom:1px solid #E2EAF0; font-size:9.5px; color:#536675; line-height:1.4;}
 #asWorkspace .cai-low, #asWorkspace .cai-meta .cai-low{
-  display:inline-block; margin-left:4px; padding:0 5px; border-radius:7px; background:#FFF3E0; color:#B25E00;
+  display:inline-block; margin-left:0; padding:0 5px; border-radius:7px; background:#EAF1F7; color:#486174;
   font-size:9px; font-style:normal; font-weight:600; line-height:14px; vertical-align:middle;
 }
-#asWorkspace .cai-item.lowc b{color:var(--ink-2, #555);}
+#asWorkspace .cai-item.refc{background:#FBFCFD;}
+#asWorkspace .cai-item.refc:hover{background:#F4F7FA;}
 /* [AX Lab] 수정 끝 */
 
 /* ---- 팝오버 : 추천 항목 (1줄 제목 + 메타) --------------------------------- */

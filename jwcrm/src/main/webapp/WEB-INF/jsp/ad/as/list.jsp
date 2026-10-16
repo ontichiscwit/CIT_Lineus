@@ -1507,9 +1507,9 @@
      ★ 로드 순서 : combine-as-thread.js(caws_renderAll/caws_renderRecord 를 감싼다) 와
        combine-as-loading.css(.asws-spin 재사용) 뒤여야 한다.
      ★ 원복 : 아래 두 줄만 지우면 combine-as-thread.js 의 caws_aiRecommendHtml() 이 기존 플레이스홀더로 돌아간다. --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-ai.css" />
-<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 통합 AS 화면 새 탭에서 원본 접수건 선택 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-ai.js?v=20261012-3"></script>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-ai.css?v=20261015-1" />
+<%-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): AI 재정렬·참고 사례 UX 반영 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-ai.js?v=20261015-1"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 연관 이력 / 과거 상담이력 항목을 "그 자리에서" 펼쳐 보기.

@@ -112,6 +112,9 @@ $RECYCLE.BIN/
 ._*
 
 .venv/
+# [AX Lab] 수정 시작 (2026-10-15 AX Lab): AI PC 재정렬 서버 전용 가상환경 제외
+.venv-rerank/
+# [AX Lab] 수정 끝
 __pycache__/
 .pyc
 
