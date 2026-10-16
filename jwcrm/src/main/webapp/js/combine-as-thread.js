@@ -393,6 +393,9 @@ function caws_buildEvents(){
 			/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 응답에 첨부목록이 없을 때 파일 그룹 재조회용 */
 			fileSeq: caws_nvl(hi.file_seq, caws_nvl(hi.attach_seq2,'0')),
 			/* [AX Lab] 수정 끝 */
+			/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 조치이력 작성자 권한 확인용 등록자 사번 */
+			regId: caws_nvl(hi.reg_id,''),
+			/* [AX Lab] 수정 끝 */
 			seq: caws_nvl(hi.seq,'')
 		});
 		/* [AX Lab] 수정 끝 */
@@ -992,16 +995,31 @@ function caws_loadMissingHistFiles(actEvs){
 /* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 [수정] 팝오버 — 작업처리의견 개별 수정
    form.jsp 의 showHistContent + updateHisContent 를 combine-as 환경에 맞게 재구성.
    저장은 기존 histProc.do + pageType=updateHistActionContent 경로를 그대로 재사용한다. */
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 기존 form.jsp처럼 본인이 작성한 조치이력만 수정 허용 */
+function caws_histEvent(seq){
+	for(var i=0; i<caws.events.length; i++){
+		var ev = caws.events[i];
+		if(ev.kind === 'act' && String(caws_nvl(ev.seq,'')) === String(seq)) return ev;
+	}
+	return null;
+}
+function caws_histOwnedByLogin(seq){
+	var ev = caws_histEvent(seq);
+	var loginEmpNo = (typeof CAWS_LOGIN_EMP_NO !== 'undefined') ? caws_nvl(CAWS_LOGIN_EMP_NO,'') : '';
+	return !!ev && String(caws_nvl(ev.regId,'')) !== ''
+		&& String(caws_nvl(ev.regId,'')) === String(loginEmpNo);
+}
+/* [AX Lab] 수정 끝 */
 function caws_histEdit(seq){
 	/* 이미 열려 있으면 먼저 제거 */
 	var old = caws_el('cawsHistEditModal');
 	if(old && old.parentNode) old.parentNode.removeChild(old);
 
 	/* 현재 저장된 텍스트를 이벤트 목록에서 찾는다 */
-	var cur = '';
-	for(var i=0; i<caws.events.length; i++){
-		if(caws_nvl(caws.events[i].seq,'') === String(seq)){ cur = caws_nvl(caws.events[i].text,''); break; }
-	}
+	var ev = caws_histEvent(seq);
+	if(!ev){ alert('조치이력을 찾을 수 없습니다.'); return; }
+	var cur = caws_nvl(ev.text,'');
+	var isOwner = caws_histOwnedByLogin(seq);
 
 	/* 모달을 #asWorkspace 에 동적으로 추가 (position:fixed 라 DOM 위치 무관, CSS 스코핑만 충족) */
 	var ws = caws_el('asWorkspace');
@@ -1011,19 +1029,19 @@ function caws_histEdit(seq){
 	m.className = 'caws-modal';
 	m.style.display = 'flex';
 	m.innerHTML = '<div class="caws-mh">'
-	  + '<h3>작업처리 의견 수정</h3>'
+	  + '<h3>작업처리 의견 '+(isOwner ? '수정' : '조회')+'</h3>'
 	  + '<button type="button" class="caws-mx" onclick="caws_histEditClose();" title="닫기 (ESC)">&times;</button>'
 	  + '</div>'
 	  + '<div class="caws-mb"><div class="caws-fld">'
 	  + '<label>작업처리 의견</label>'
 	  /* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 작업처리 의견 최대 1,300자 */
-	  + '<textarea id="cawsHistEditTa" class="caws-ta caws-fta" maxlength="1300" oninput="caws_autoGrow(this);"></textarea>'
+	  + '<textarea id="cawsHistEditTa" class="caws-ta caws-fta" maxlength="1300" oninput="caws_autoGrow(this);"'+(isOwner ? '' : ' disabled="disabled"')+'></textarea>'
 	  /* [AX Lab] 수정 끝 */
 	  + '</div></div>'
 	  + '<div class="caws-mf">'
 	  + '<div class="caws-sp"></div>'
-	  + '<button type="button" class="btn-s" onclick="caws_histEditClose();">취소</button>'
-	  + '<button type="button" class="btn-s primary" onclick="caws_histEditSave(\''+caws_esc(String(seq))+'\');">저장</button>'
+	  + '<button type="button" class="btn-s" onclick="caws_histEditClose();">'+(isOwner ? '취소' : '닫기')+'</button>'
+	  + (isOwner ? '<button type="button" class="btn-s primary" onclick="caws_histEditSave(\''+caws_esc(String(seq))+'\');">저장</button>' : '')
 	  + '</div>';
 	ws.appendChild(m);
 
@@ -1046,6 +1064,9 @@ function caws_histEditClose(){
 	if(dim && !any) dim.style.display = 'none';
 }
 function caws_histEditSave(seq){
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 개발자도구를 통한 저장 함수 직접 호출도 화면에서 차단 */
+	if(!caws_histOwnedByLogin(seq)){ alert('본인이 작성한 조치이력만 수정할 수 있습니다.'); return; }
+	/* [AX Lab] 수정 끝 */
 	var ta = caws_el('cawsHistEditTa');
 	if(!ta) return;
 	var v = String(ta.value||'').trim();

@@ -2634,6 +2634,9 @@ SELECT OUT_TB3.EMP_NO,
 		WHERE 
 				 AS_NO = #{as_no, jdbcType=VARCHAR}
 			AND SEQ = #{seq, jdbcType=INTEGER}
+			/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 본인이 작성한 조치이력만 수정 허용 */
+			AND REG_ID = #{reg_id, jdbcType=VARCHAR}
+			/* [AX Lab] 수정 끝 */
 	]]>
 	</update>
 
