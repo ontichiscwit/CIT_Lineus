@@ -1,0 +1,149 @@
+/* [AX Lab] 신규 파일 (2026-10-16 AX Lab): AS 목록에서 다른 접수건 선택 시 열기 방식 선택 */
+#asWorkspace .asoc-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 10020;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	background: rgba(20, 31, 38, .46);
+}
+
+#asWorkspace .asoc-dialog {
+	width: 430px;
+	max-width: calc(100vw - 40px);
+	padding: 24px;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 18px 48px rgba(0, 0, 0, .24);
+	color: #263238;
+}
+
+#asWorkspace .asoc-title {
+	margin: 0 0 12px;
+	font-size: 18px;
+	font-weight: 700;
+}
+
+#asWorkspace .asoc-message {
+	margin: 0;
+	line-height: 1.6;
+}
+
+#asWorkspace .asoc-case {
+	margin-top: 12px;
+	padding: 10px 12px;
+	border-radius: 6px;
+	background: #f3f6f8;
+	font-weight: 600;
+}
+
+#asWorkspace .asoc-warning {
+	margin-top: 10px;
+	color: #c62828;
+	font-size: 12px;
+}
+
+#asWorkspace .asoc-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 20px;
+}
+
+#asWorkspace .asoc-actions button {
+	min-width: 92px;
+	height: 34px;
+	padding: 0 14px;
+	border: 1px solid #b8c2c8;
+	border-radius: 4px;
+	background: #fff;
+	cursor: pointer;
+}
+
+#asWorkspace .asoc-actions .asoc-current {
+	border-color: #1769aa;
+	background: #1769aa;
+	color: #fff;
+}
+
+#asWorkspace .asoc-actions button:focus {
+	outline: 2px solid #74aee2;
+	outline-offset: 2px;
+}
+/* [AX Lab] 신규 파일 (2026-10-16 AX Lab): AS 목록에서 다른 접수건 선택 시 열기 방식 선택 */
+#asWorkspace .asoc-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 10020;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	background: rgba(20, 31, 38, .46);
+}
+
+#asWorkspace .asoc-dialog {
+	width: min(430px, calc(100vw - 40px));
+	padding: 24px;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 18px 48px rgba(0, 0, 0, .24);
+	color: #263238;
+}
+
+#asWorkspace .asoc-title {
+	margin: 0 0 12px;
+	font-size: 18px;
+	font-weight: 700;
+}
+
+#asWorkspace .asoc-message {
+	margin: 0;
+	line-height: 1.6;
+}
+
+#asWorkspace .asoc-case {
+	margin-top: 12px;
+	padding: 10px 12px;
+	border-radius: 6px;
+	background: #f3f6f8;
+	font-weight: 600;
+}
+
+#asWorkspace .asoc-warning {
+	margin-top: 10px;
+	color: #c62828;
+	font-size: 12px;
+}
+
+#asWorkspace .asoc-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 20px;
+}
+
+#asWorkspace .asoc-actions button {
+	min-width: 92px;
+	height: 34px;
+	padding: 0 14px;
+	border: 1px solid #b8c2c8;
+	border-radius: 4px;
+	background: #fff;
+	cursor: pointer;
+}
+
+#asWorkspace .asoc-actions .asoc-current {
+	border-color: #1769aa;
+	background: #1769aa;
+	color: #fff;
+}
+
+#asWorkspace .asoc-actions button:focus {
+	outline: 2px solid #74aee2;
+	outline-offset: 2px;
+}

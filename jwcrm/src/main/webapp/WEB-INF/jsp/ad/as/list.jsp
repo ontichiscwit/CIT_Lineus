@@ -164,8 +164,9 @@
 		/* 처리구분(나의/전체 A/S) - 저장값 없으면 '나의 A/S'(2) 기본 */
 		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '전체 A/S' 선택이 검색 후 유지되지 않던 문제 수정.
 		   기존에는 '전체 A/S' 의 option value 가 빈 문자열('') 이라 "미지정(첫 진입)" 과 구분되지 않았다.
-		   검색(getAsList)은 listFrm 을 /ad/as/list.do 로 재요청해 화면을 다시 그리는데, 이때 돌아온
-		   ''(=전체 선택) 이 "저장값 없음" 으로 판정되어 매번 '2'(나의 A/S) 로 되돌아갔다.
+		   [AX Lab] 수정 (2026-10-16 AX Lab): 현재 검색은 getAsList.do 비동기 조회로 화면을 다시 그리지 않는다.
+		   기존 전체 페이지 재요청 방식에서는 ''(=전체 선택) 이 "저장값 없음" 으로 판정되어
+		   매번 '2'(나의 A/S) 로 되돌아갔다.
 		   → AS 처리담당자가 아닌 계정은 담당건이 0건이라 '전체 A/S' 를 골라도 목록이 계속 비어 보였다.
 		   해결: '전체 A/S' 의 값을 '1' 로 부여해 ''(미지정) 과 구분한다. 아래 복원 로직은 그대로 두어도
 		   '1' 이 그대로 복원되므로 정상 동작한다.
@@ -387,9 +388,17 @@
 		/* [AX Lab] 삭제 (2026-07-24 AX Lab): 제거된 검색필드(search_type7/cust_*) 재활성 코드 - 고급필터 동적행으로 대체 */
 
 		f.page.value = pageIndex;
+		/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 검색/페이징은 왼쪽 목록만 비동기로 갱신한다.
+		   전체 페이지 submit 시 asws 상태가 새로 만들어져 이미 열린 AS상세내용이 초기화되는 문제를 방지한다.
+		   로딩 스크립트가 누락된 배포 환경에서는 기존 submit 방식으로 안전하게 폴백한다. */
+		if(typeof asws_listLoad === 'function'){
+			asws_listLoad();
+			return;
+		}
 		f.target = '';
 		f.action = '/ad/as/list.do';
 		f.submit();
+		/* [AX Lab] 수정 끝 */
 	}
 	
 	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 목록조회를 비동기로 전환 + 로딩표시.
@@ -500,7 +509,9 @@
 				     (test/check-aslist-columns.js 로 개수 정합성을 정적 검사할 수 있다) */
 				var fullTxt = callC + (actC ? '\n\n[조치]\n' + actC : '');
 
-				str += '<tr data-asno="'+asNo+'" class="'+(isOff ? 'cust-off' : '')+'" onclick="asws_openDetail(\''+asNo+'\',\''+cnAsNo+'\');">';
+				/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 이미 다른 AS가 열려 있으면 새 탭/현재 화면 선택창 표시 */
+				str += '<tr data-asno="'+asNo+'" class="'+(isOff ? 'cust-off' : '')+'" onclick="typeof asoc_selectFromList===\'function\'?asoc_selectFromList(\''+asNo+'\',\''+cnAsNo+'\'):asws_openDetail(\''+asNo+'\',\''+cnAsNo+'\');">';
+				/* [AX Lab] 수정 끝 */
 				str += '  <td class="col-chk" onclick="event.cancelBubble=true;">' +
 				       '<input type="checkbox" title="거래선택" name="chk" ' +
 				       'value="'+asNo+'@'+cnAsNo+'" ' +
@@ -568,16 +579,23 @@
 			$("#pagination").html(vo.json_paging);
 
 			/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 비동기 전환에 따른 "조회 후 열어둘 건" 처리.
-			   makeListData(afterFn) 로 콜백이 넘어온 경우(등록 직후 / 답변 직후)는 그 건을 열고,
-			   없으면 기존대로 첫 행을 연다. 기존처럼 "첫 행을 열었다가 즉시 다른 건으로 바꾸는"
-			   이중 렌더가 사라져 깜빡임도 함께 없어진다. */
+			   makeListData(afterFn) 로 콜백이 넘어온 경우(등록 직후 / 답변 직후)는 그 건을 연다. */
 			var afterFn = (typeof asws_listTakeAfter === 'function') ? asws_listTakeAfter() : null;
 			if (afterFn) {
 				afterFn();
 			} else {
-				/* 첫 행 자동 선택(상세 열기) */
-				var first = resultList[0];
-				asws_openDetail(common.nvl(first.as_no,''), common.nvl(first.cn_as_no,''));
+				/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 목록 첫 행 자동 열기를 제거한다.
+				   최초 진입은 안내문을 유지한다. 페이징/검색으로 목록만 다시 조회할 때는
+				   사용자가 이미 선택한 상세를 초기화하지 않고, 현재 페이지에 있으면 선택 표시만 복원한다. */
+				var selectedNo = (typeof asws !== 'undefined') ? common.nvl(asws.asNo,'') : '';
+				if(selectedNo !== ''){
+					/* 현재 페이지에 선택건이 없으면 기존 curRow도 유지해 상세 기능의 부가정보가 사라지지 않게 한다. */
+					if(asws.rowMap[selectedNo]) asws.curRow = asws.rowMap[selectedNo];
+					$('#asList tr[data-asno="'+selectedNo+'"]').addClass('on');
+				}else if(typeof caws_clear === 'function'){
+					caws_clear('왼쪽 목록에서 접수건을 선택하세요.');
+				}
+				/* [AX Lab] 수정 끝 */
 			}
 			/* [AX Lab] 수정 끝 */
 
@@ -596,13 +614,16 @@
 			/* [AX Lab] 수정 끝 */
 			$('#count').html('0');
 			$("#pagination").html('');
-			/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 통합화면은 헤더/작성영역까지 3영역을 함께 비워야 한다.
-			   (조회 0건인데 직전 선택건의 헤더·작성영역이 남아 있으면 없는 건에 답변을 등록하게 된다) */
 			/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 저장 직후 현재 건이 검색조건에서 빠져도 상세는 유지.
 			   담당자 이관 후 '나의 A/S' 목록이 0건이 될 수 있으므로, 대기 중 콜백이 있으면
 			   빈 화면으로 초기화하지 않고 방금 저장한 접수번호를 다시 조회한다. */
+			/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 검색 결과가 0건이어도 이미 연 AS 상세는 초기화하지 않는다.
+			   검색은 왼쪽 목록만 갱신하며, 사용자가 다른 AS를 직접 선택하기 전까지 현재 상세를 유지한다. */
+			var openedAsNo = (typeof asws !== 'undefined') ? common.nvl(asws.asNo,'') : '';
 			if(emptyAfterFn){
 				emptyAfterFn();
+			}else if(openedAsNo !== ''){
+				/* 기존 AS상세내용/접수처리정보 유지 */
 			}else if(typeof caws_clear === 'function'){
 				caws_clear('조회된 접수건이 없습니다.');
 			}else{
@@ -1459,6 +1480,11 @@
 <link rel="stylesheet" type="text/css" href="/css/combine-as-pagination.css" />
 <%-- [AX Lab] 수정 끝 --%>
 <script type="text/javascript" src="/js/combine-as.js"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-open-choice.css?v=20261016-1" />
+<%-- [AX Lab] 수정 (2026-10-16 AX Lab): 새 탭 링크 방식 적용 및 선택창 즉시 닫기 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-open-choice.js?v=20261016-4"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면(통합 타임라인 / 작성영역 / 모달 / 아코디언 / 과거이력).
      combine-as.css / combine-as.js 를 고치지 않고 "뒤에 추가"하는 방식이라 로드 순서가 중요하다.
      ① CSS 는 combine-as.css 다음에 와야 같은 특정도에서 나중 규칙이 이긴다.
