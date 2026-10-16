@@ -19,6 +19,9 @@ AWS 이관 시 Django `gpt/views_recommend.py` 는 이 파일의 `Recommender.re
   - 상위 5건 중 Tier2 최대 3건
   - 같은 topic + 같은 service_cate 조합은 최대 2건
   - exclude_as_no[] (자신·부모·자식·연결건) 제외, dense 코사인 < MIN_SIM 은 제외
+  - [AX Lab] 2026-10-16 관련 없는 후보는 칸을 채우지 않는다 (0~5건):
+    재정렬 성공 시 재정렬 원점수 < RERANK_MIN_SCORE 또는 재정렬 상위 N 밖이면 제외, 재정렬 장애 시 코사인 < FALLBACK_MIN_SIM 제외
+  - [AX Lab] 2026-10-16 추천 근거: 최종 항목에 match_terms(겹친 단어) · match_reason(업무분류/화면/문의유형 일치) 를 붙인다
 질의 전처리 (§9 3-1 + 2026-10-06)
   - combine_textprep.parse_question 으로 접수 템플릿(라벨·안내문)을 벗기고 프로그램명/화면명을 메타로 뽑는다.
     CRM 은 CALL_CONTENT 원문을 그대로 보내면 된다 — 전처리 규칙은 적재 쪽과 공용 모듈(combine_textprep) 한 곳에서만 관리한다.
@@ -40,7 +43,9 @@ import os
 import random
 import re
 import sys
+import threading
 import time
+import urllib.request
 from pathlib import Path
 
 import numpy as np
@@ -48,8 +53,10 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from combine_textprep import mask_regex, parse_question        # noqa: E402  1겹 마스킹 · 접수 템플릿 제거/프로그램명·화면명 추출
 from combine_embed_client import embed_one, OLLAMA_HOST, EMBED_MODEL  # noqa: E402
-from combine_lexical import BM25Index                          # noqa: E402  어휘 검색
+from combine_lexical import BM25Index, surface_words           # noqa: E402  어휘 검색 · [AX Lab] 2026-10-16 겹친 단어
 from combine_synonyms import expand as expand_synonyms         # noqa: E402  [AX Lab] 2026-10-12 질의 도메인 동의어 확장
+import combine_morph                                           # noqa: E402  [AX Lab] 2026-10-16 겹친 단어 형태소 분석 (Kiwi)
+from combine_morph import units as morph_units                 # noqa: E402
 
 BASE_DIR = Path(__file__).resolve().parent
 # 색인 데이터 위치. 기본은 이 패키지의 data/ (analysis/combine_embed.py 가 색인을 만들고 여기로 복사한다).
@@ -65,6 +72,32 @@ REL_FLOOR = 0.30        # 이 아래 relevance 는 어떤 규칙으로도 노출
 TIER2_CAP = 3           # 1차 선발 상한. 칸이 남으면 풀린다 (compose 참조)
 DUP_CAP = 2
 CANDIDATES = 60         # dense 상위 N ∪ lexical 상위 N 을 후보 집합으로 삼아 재랭킹
+# [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 Cross-Encoder 재정렬.
+#   무거운 모델은 Ollama가 있는 AI PC의 별도 서버에서 실행한다. 연결 장애/지연 시 기존 점수식을 그대로 써서
+#   CRM의 2.5초 제한과 추천 기능 가용성을 보호한다. 한 번 실패하면 짧은 회로 차단으로 매 요청의 timeout 누적을 막는다.
+RERANK_ENABLED = os.getenv("COMBINE_RERANK_ENABLED", "Y").upper() not in ("N", "NO", "FALSE", "0")
+RERANK_URL = os.getenv("COMBINE_RERANK_URL", "http://192.168.19.141:8766/api/rerank")
+RERANK_API_KEY = os.getenv("COMBINE_RERANK_API_KEY", "dev-key")
+RERANK_TOP = max(1, min(int(os.getenv("COMBINE_RERANK_TOP", "20")), 20))
+RERANK_TIMEOUT = max(0.1, int(os.getenv("COMBINE_RERANK_TIMEOUT_MS", "900")) / 1000.0)
+RERANK_RETRY_AFTER = 30.0
+W_RERANK, W_HYBRID_R, W_PROD_R, W_TIER_R, W_QUAL_R = 0.35, 0.30, 0.15, 0.10, 0.10
+# [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 후보는 칸을 채우지 않고 뺀다 (항상 5건 → 0~5건).
+#   relevance·rerank_score 는 후보 안 min-max 상대값이라 무관해도 1위가 높게 나온다. 절대 기준은
+#   Cross-Encoder 원점수(logit)만 쓸 만하다. 실측(2026-10-16, 기존 색인, 질의 48건):
+#   도메인 밖 질의(회의실 예약·점심 메뉴·프린터 토너·엑셀 피벗·주차 등록) 노출 후보 전부 ≤ -2.5,
+#   Tier2 자기질의의 무관 후보(배달서비스공제조합 계약처코드 -5.13, 자동감면해제 -5.16 등) 대부분 < -2,
+#   -2 ~ 0 구간은 관련 사례가 많다(위조직검사 FM→PH 변경 -0.42, CP 양식 -1.25, KISA 고유식별정보 -1.26).
+#   같은 질의에서 코사인은 무관 후보도 0.55~0.61 이라 코사인만으로는 가를 수 없다 → 재정렬 장애 시에만 코사인으로 거른다.
+RERANK_MIN_SCORE = float(os.getenv("COMBINE_RERANK_MIN_SCORE", "-2.0"))
+FALLBACK_MIN_SIM = float(os.getenv("COMBINE_FALLBACK_MIN_SIM", "0.55"))
+# [AX Lab] 수정 끝
+_RERANK_LOCK = threading.Lock()
+_RERANK_STATUS = {
+    "enabled": RERANK_ENABLED, "url": RERANK_URL, "last_ok": None, "last_error": None,
+    "fallbacks": 0, "disabled_until": 0.0,
+}
+# [AX Lab] 수정 끝
 # [AX Lab] 수정 시작 (2026-10-12 AX Lab): 절대 확신도.
 #   relevance 는 후보 집합 안 min-max 라 "그나마 가장 가까운 것" 도 항상 100% 로 보인다 (테스터 테스트3 에서 전부 무관한데
 #   관련도 80~100% 로 표시). 그래서 bge-m3 절대 코사인으로 high/mid/low 를 따로 내려 화면이 '확신 낮음' 을 표시하게 한다.
@@ -81,6 +114,81 @@ def confidence_of(sim):
     if sim >= CONF_LOW_SIM:
         return "mid"
     return "low"
+# [AX Lab] 수정 끝
+
+
+# [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 재정렬 호출·상태.
+def _set_rerank_status(*, ok, error=None):
+    with _RERANK_LOCK:
+        if ok:
+            _RERANK_STATUS["last_ok"] = int(time.time())
+            _RERANK_STATUS["last_error"] = None
+            _RERANK_STATUS["disabled_until"] = 0.0
+        else:
+            _RERANK_STATUS["last_error"] = error
+            _RERANK_STATUS["fallbacks"] += 1
+            _RERANK_STATUS["disabled_until"] = time.time() + RERANK_RETRY_AFTER
+
+
+def rerank_status():
+    with _RERANK_LOCK:
+        status = dict(_RERANK_STATUS)
+    status["circuit_open"] = bool(status["disabled_until"] > time.time())
+    status.pop("disabled_until", None)
+    return status
+
+
+def ping_rerank():
+    """재정렬 서버 health 확인. 추천 요청 경로의 폴백 횟수에는 포함하지 않는다."""
+    if not RERANK_ENABLED:
+        return False, "disabled"
+    health_url = RERANK_URL.rsplit("/api/rerank", 1)[0] + "/health"
+    try:
+        data = json.loads(urllib.request.urlopen(health_url, timeout=RERANK_TIMEOUT).read().decode("utf-8"))
+        if data.get("status") != "ok":
+            raise RuntimeError("health not ok")
+        with _RERANK_LOCK:
+            _RERANK_STATUS["last_ok"] = int(time.time())
+            _RERANK_STATUS["last_error"] = None
+            _RERANK_STATUS["disabled_until"] = 0.0
+        return True, f"{data.get('model', '')} {data.get('device', '')}".strip()
+    except Exception as exc:
+        with _RERANK_LOCK:
+            _RERANK_STATUS["last_error"] = type(exc).__name__
+            _RERANK_STATUS["disabled_until"] = time.time() + RERANK_RETRY_AFTER
+        return False, type(exc).__name__
+
+
+def rerank_texts(query, documents):
+    """마스킹된 질의와 상위 후보 본문을 원격 Cross-Encoder로 평가한다. 실패하면 예외를 내고 호출자가 폴백한다."""
+    with _RERANK_LOCK:
+        if _RERANK_STATUS["disabled_until"] > time.time():
+            raise RuntimeError("rerank circuit open")
+    body = json.dumps({"query": query, "documents": documents}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        RERANK_URL, data=body,
+        headers={"Content-Type": "application/json", "X-Api-Key": RERANK_API_KEY},
+    )
+    try:
+        data = json.loads(urllib.request.urlopen(req, timeout=RERANK_TIMEOUT).read().decode("utf-8"))
+        scores = data.get("scores")
+        if data.get("result") != "000" or not isinstance(scores, list) or len(scores) != len(documents):
+            raise RuntimeError("invalid rerank response")
+        values = [float(value) for value in scores]
+        _set_rerank_status(ok=True)
+        return values
+    except Exception as exc:
+        _set_rerank_status(ok=False, error=type(exc).__name__)
+        raise
+
+
+def _normalize_rerank(scores):
+    if not scores:
+        return []
+    lo, hi = min(scores), max(scores)
+    if hi <= lo:
+        return [0.5] * len(scores)
+    return [(value - lo) / (hi - lo) for value in scores]
 # [AX Lab] 수정 끝
 
 
@@ -248,24 +356,168 @@ def _norm(s):
 
 def product_match(q, d):
     """현재 문의(q) 와 후보(d) 의 제품/업무 일치도. service_cate 우선, program/screen 폴백 (§7-3)."""
+    return product_match_detail(q, d)[0]
+
+
+# [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거 표시 — 점수와 함께 "왜 일치로 봤는지" 라벨을 돌려준다.
+#   기존 product_match 의 판정 순서·점수는 그대로 이 함수로 옮겼다 (product_match 는 점수만 꺼내 쓴다).
+def product_match_detail(q, d):
     qs, ds = _norm(q.get("service_cate")), _norm(d.get("service_cate"))
     if qs and ds:
         if qs == ds:
-            return 1.0
+            return 1.0, "같은 업무분류"
         # service_cate 가 다르면 화면이 같을 수 없다 — 단, 큐레이션 Tier1 라벨은 LLM 추정이라 0.3 만 깎는다
-        return 0.0 if d.get("tier") == 2 else 0.3
+        return (0.0 if d.get("tier") == 2 else 0.3), None
     qp = {_norm(q.get("program_nm")), _norm(q.get("screen_nm"))} - {""}
     dp = {_norm(d.get("program_nm")), _norm(d.get("screen_nm"))} - {""}
     if qp and dp and (qp & dp):
-        return 1.0
+        return 1.0, "같은 프로그램·화면"
     qi, di = _norm(q.get("inquiry_type")), _norm(d.get("inquiry_type"))
     if qi and di and qi == di:
-        return 0.6
-    return 0.0
+        return 0.6, "같은 문의유형"
+    return 0.0, None
 
 
-def score(rel, pm, tier, quality):
+MATCH_MAX = 4           # 항목당 보여 줄 겹친 단어 수
+MATCH_MIN_IDF = 1.5     # 문서 약 20% 이상에 나오는 흔한 말("문의", "확인" 등)은 근거로 보여 주지 않는다
+# 화면 표시용으로 떼어 내는 조사·하다/되다 어미 (긴 것부터). 한 글자 조사는 명사 끝 글자와 헷갈리기 쉬운 것
+# (도: 만족도 · 로: 매크로 · 의: 주치의 · 고: 교통사고)은 넣지 않았다. '과'는 부서명(진료과·원무과)만 예외로 둔다.
+_MATCH_SUFFIX = sorted("""
+되었습니다 하였습니다 했습니다 했는데 하는데 되는데 합니다 됩니다 하셔서 되어서 해서 되어 되지 되고 되면 되는 된다
+하면 하고 하는 하여 해도 해야 하게 한다 했다 에서는 으로는 이라고 라고 이라 에서 으로 에게 까지 부터 처럼 이나 에는 에도
+된 한 함 됨 되 를 을 는 은 이 가 에 과 와 시
+""".split(), key=len, reverse=True)
+_MATCH_KEEP = re.compile(r"(?:진료|원무|약제|간호|검사|행정|전산|영상의학|재활의학|가정의학|진단검사의학)과$")
+# IDF 는 높아도 문의 문장에 습관처럼 붙는 말 ("사진과 같이", "첨부 드립니다", "확인 부탁")
+_MATCH_KO_STOP = {"같이", "첨부", "관련", "부탁", "경우", "현재", "다시", "계속", "해당", "요청", "내용", "부분",
+                  "지금", "혹시", "아래", "다음", "이번", "오늘", "어제", "바로", "항상", "자꾸", "전화"}
+# 떼고 나서도 이런 말로 끝나면 서술어라 근거로 보여 주지 않는다 (나옵니다 · 뜬다고 · 바랍니다 …)
+_MATCH_PREDICATE = re.compile(r"(?:니다|어요|아요|해요|세요|네요|까요|나요|는데|다고|달라고)$")
+_MATCH_EN_STOP = {"the", "and", "for", "not", "you", "are", "was", "can", "its"}
+
+
+def _match_stem(s):
+    """'처방이라고' → '처방', '전송되지' → '전송'. 떼고 남는 말이 두 글자 미만이면 떼지 않는다."""
+    if _MATCH_KEEP.search(s):
+        return s
+    for suf in _MATCH_SUFFIX:
+        if s.endswith(suf) and len(s) - len(suf) >= 2:
+            return s[:-len(suf)]
+    return s
+
+
+def match_terms(q_lex, synonyms, doc_text, idf, q_units=None):
+    """질의의 말 중 후보 본문(embed_text — BM25 가 보는 본문)에 실제로 들어 있는 것 → [{"term", "synonym"}].
+
+    드문 말(IDF 큰 것) 순으로 MATCH_MAX 개, 서로 포함 관계인 말은 긴 쪽 하나만.
+    synonym=True 는 질의에 없고 동의어 확장(combine_synonyms)으로 덧붙인 말이 걸렸다는 뜻이다.
+    벡터 검색·재정렬은 문장 뜻으로 판단하므로 이 목록이 비어 있어도 추천될 수 있다 (화면에는 '뜻으로 찾음').
+    q_units: combine_morph.units(q_lex) 결과 (요청당 한 번 계산해 넘긴다). None 이면 여기서 구하고,
+             Kiwi 가 준비 전이거나 False 를 주면 어절 규칙 방식(_match_terms_rule)으로 계산한다.
+    """
+    if q_units is None:
+        q_units = morph_units(q_lex)
+    if q_units is None or q_units is False:
+        return _match_terms_rule(q_lex, synonyms, doc_text, idf)
+    # [AX Lab] 수정 시작 (2026-10-16 AX Lab): Kiwi 명사 덩어리 기준 (combine_morph 참조)
+    #   "시술확인서" 처럼 붙어 있던 명사는 한 덩어리로, "신규및"·"신규오더시" 는 명사만 남긴다.
+    #   덩어리 전체가 본문에 없으면 그 안의 더 짧은 연속 조각(신규오더 → 신규)을 긴 것부터 찾는다.
+    text = (doc_text or "").lower()
+    flat = re.sub(r"\s+", "", text)
+    syn = set((synonyms or "").split())
+    found = {}
+    for parts in q_units:
+        whole = "".join(p[0] for p in parts)
+        taken = []
+        spans = sorted(((i, j) for i in range(len(parts)) for j in range(i + 1, len(parts) + 1)),
+                       key=lambda ij: (ij[0] - ij[1], ij[0]))
+        for i, j in spans:
+            if parts[i][1] == "J" or parts[j - 1][1] == "J" or any(i < b and a < j for a, b in taken):
+                continue
+            s = "".join(p[0] for p in parts[i:j])
+            if not _match_present(s, text, flat):
+                continue
+            taken.append((i, j))
+            key = s.lower()
+            # 덩어리 자체가 BM25 사전에 없으면(D/C오더) 안의 가장 드문 조각 기준
+            weight = (idf.get(key) or idf.get(key[:2])
+                      or max((idf.get(p[0].lower()) or 0.0 for p in parts[i:j] if len(p[0]) >= 2), default=0.0))
+            if weight < MATCH_MIN_IDF:
+                continue
+            if key not in found or weight > found[key][0]:
+                found[key] = (weight, s in syn or whole in syn, s)
+    return _match_pick(found)
+
+
+def _match_present(s, text, flat):
+    """표시할 만한 말이고 본문에 들어 있는가."""
+    if s.isdigit() or s in _MATCH_KO_STOP:
+        return False
+    if re.fullmatch(r"[A-Za-z]+", s):
+        sl = s.lower()
+        if len(sl) < (2 if s.isupper() else 3) or sl in _MATCH_EN_STOP:
+            return False
+        return re.search(r"(?<![a-z])" + re.escape(sl) + r"(?![a-z])", text) is not None
+    if len(s) < 2:
+        return False
+    return s.lower() in flat
+
+
+def _match_pick(found):
+    out = []
+    for key, (_w, is_syn, s) in sorted(found.items(), key=lambda kv: -kv[1][0]):
+        if any(key in o["term"].lower() for o in out):
+            continue
+        shorter = next((o for o in out if o["term"].lower() in key), None)
+        if shorter:
+            shorter.update(term=s, synonym=is_syn)
+            continue
+        out.append({"term": s, "synonym": is_syn})
+        if len(out) >= MATCH_MAX:
+            break
+    return out
+# [AX Lab] 수정 끝
+
+
+def _match_terms_rule(q_lex, synonyms, doc_text, idf):
+    """Kiwi 없이 어절 규칙으로 계산 (폴백). 질의 어절의 앞부분 중 본문에 있는 가장 긴 것에서 조사·어미를 뗀다."""
+    text = (doc_text or "").lower()
+    syn = set((synonyms or "").split())
+    found = {}
+    for w in surface_words(q_lex):
+        if w.isdigit():
+            continue                                    # 날짜·번호 조각은 근거로 의미가 없다
+        if "가" <= w[0] <= "힣":
+            s = next((w[:n] for n in range(len(w), 1, -1) if w[:n] in text), None)
+            if s:
+                s = _match_stem(s)
+                if _MATCH_PREDICATE.search(s) or s in _MATCH_KO_STOP:
+                    continue
+        else:
+            wl = w.lower()
+            # 영문은 대문자 약어(DUR·EMR·TA)는 두 글자부터, 그 외는 세 글자부터 ('it's' 의 it 같은 조각 제외)
+            ok_len = len(wl) >= (2 if w.isupper() else 3)
+            s = w if ok_len and wl not in _MATCH_EN_STOP and re.search(r"(?<![a-z])" + re.escape(wl) + r"(?![a-z])", text) else None
+        if not s:
+            continue
+        key = s.lower()
+        weight = idf.get(key) or idf.get(key[:2]) or 0.0
+        if weight < MATCH_MIN_IDF:
+            continue
+        if key not in found or weight > found[key][0]:
+            found[key] = (weight, w in syn, s)
+    return _match_pick(found)
+# [AX Lab] 수정 끝
+
+
+def score(rel, pm, tier, quality, rerank=None):
     """rel 은 후보 집합 안에서 0~1 로 정규화된 하이브리드 관련도 (search_hybrid 의 relevance)."""
+    # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 재정렬 성공 요청만 Cross-Encoder 점수를 반영한다.
+    #   rerank=None 은 장애/비활성 경로이며 기존 산식을 한 글자도 바꾸지 않는다.
+    if rerank is not None:
+        return (W_RERANK * rerank + W_HYBRID_R * rel + W_PROD_R * pm
+                + W_TIER_R * TIER_WEIGHT.get(tier, 0.5) + W_QUAL_R * float(quality or 0))
+    # [AX Lab] 수정 끝
     return W_SEM * rel + W_PROD * pm + W_TIER * TIER_WEIGHT.get(tier, 0.5) + W_QUAL * float(quality or 0)
 
 
@@ -339,9 +591,15 @@ def compose(ranked, top_k):
 
 
 class Recommender:
-    def __init__(self, index, embed_fn=None):
+    def __init__(self, index, embed_fn=None, rerank_fn=None):
         self.index = index
         self.embed_fn = embed_fn or embed_one
+        # [AX Lab] 수정 (2026-10-15 AX Lab): 테스트에서는 가짜 함수를 주입하고, 운영은 환경변수로 켜고 끈다.
+        self.rerank_fn = rerank_fn if rerank_fn is not None else (rerank_texts if RERANK_ENABLED else None)
+        # [AX Lab] 수정 (2026-10-16 AX Lab): Kiwi 적재(약 4초)는 백그라운드. 끝나기 전 요청은 규칙 방식으로 겹친 단어를 낸다.
+        #   서버는 Recommender(None) 뒤에 색인을 읽으므로 거기서(combine_recommend_server.main) 따로 부른다.
+        if index is not None:
+            combine_morph.warmup(combine_morph.domain_words(getattr(index, "meta", None)))
 
     def recommend(self, query, *, as_no=None, exclude_as_no=None, service_cate=None, inquiry_type=None,
                   request_type=None, program_nm=None, screen_nm=None, top_k=5, tiers=(1, 2, 3)):
@@ -357,22 +615,71 @@ class Recommender:
         index = self.index
         qvec = self.embed_fn(q_text)
         cands = index.search_hybrid(qvec, q_lex, tiers, excl, CANDIDATES)
+        # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 하이브리드 상위 후보만 원격 Cross-Encoder로 정밀 재정렬.
+        #   원격 서버가 느리거나 실패하면 rerank_by_doc을 비워 아래 기존 score 산식으로 즉시 폴백한다.
+        rerank_by_doc = {}
+        rerank_raw_by_doc = {}      # [AX Lab] 2026-10-16 거르기 기준용 원점수(logit)
+        if self.rerank_fn and cands:
+            rerank_cands = cands[:RERANK_TOP]
+            rerank_docs = []
+            for doc_id, _sim, _lex, _rel in rerank_cands:
+                doc = index.get(doc_id)
+                rerank_docs.append((doc.get("embed_text") or "\n".join(
+                    str(doc.get(key) or "") for key in ("title", "question_text", "answer_text")
+                ))[:6000])
+            try:
+                rerank_raw = self.rerank_fn(q_text, rerank_docs)
+                if len(rerank_raw) != len(rerank_cands):
+                    raise ValueError("rerank score count mismatch")
+                rerank_by_doc = {
+                    rerank_cands[i][0]: value for i, value in enumerate(_normalize_rerank(rerank_raw))
+                }
+                rerank_raw_by_doc = {rerank_cands[i][0]: float(value) for i, value in enumerate(rerank_raw)}
+            except Exception:
+                rerank_by_doc = {}
+                rerank_raw_by_doc = {}
+        # [AX Lab] 수정 끝
         # 호출자가 안 준 프로그램명/화면명은 질의 템플릿에서 뽑은 값으로 채운다 (product_match 폴백용)
         qmeta = {"service_cate": service_cate, "inquiry_type": inquiry_type,
                  "program_nm": program_nm or qm.get("program_nm"), "screen_nm": screen_nm or qm.get("screen_nm")}
         ranked = []
         for doc_id, sim, lex, rel in cands:
+            # [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 후보 제외.
+            #   재정렬 성공 요청은 재정렬을 거친 상위 N 중 원점수 ≥ RERANK_MIN_SCORE 만 남긴다 — 상위 N 밖 후보는
+            #   검증되지 않은 채 Tier1 최소 보장·빈칸 채우기로 끼어들던 것(점심 메뉴 질의에 '미수회입' 등)이라 뺀다.
+            #   재정렬 장애·비활성이면 코사인 < FALLBACK_MIN_SIM 만 뺀다. 이후 compose 의 모든 규칙은 남은 후보 안에서만 돈다.
+            if rerank_by_doc:
+                raw = rerank_raw_by_doc.get(doc_id)
+                if raw is None or raw < RERANK_MIN_SCORE:
+                    continue
+            elif sim < FALLBACK_MIN_SIM:
+                continue
+            # [AX Lab] 수정 끝
             d = index.get(doc_id)
-            pm = product_match(qmeta, d)
-            ranked.append({**self._item(d), "semantic_sim": round(sim, 4), "lexical_score": round(lex, 2),
-                           "relevance": round(rel, 4), "product_match": pm,
-                           # [AX Lab] 2026-10-12: 절대 코사인 기준 확신도 (relevance 는 후보 안 상대값이라 항상 상위가 100%)
-                           "confidence": confidence_of(sim),
-                           "score": round(score(rel, pm, d["tier"], d["quality_score"]), 4)})
+            pm, pm_label = product_match_detail(qmeta, d)      # [AX Lab] 2026-10-16 라벨은 추천 근거 표시용
+            rr = rerank_by_doc.get(doc_id, 0.0) if rerank_by_doc else None
+            item = {**self._item(d), "semantic_sim": round(sim, 4), "lexical_score": round(lex, 2),
+                    "relevance": round(rel, 4), "product_match": pm, "match_reason": pm_label,
+                    # [AX Lab] 2026-10-12: 절대 코사인 기준 확신도 (relevance 는 후보 안 상대값이라 항상 상위가 100%)
+                    "confidence": confidence_of(sim),
+                    "score": round(score(rel, pm, d["tier"], d["quality_score"], rr), 4)}
+            # [AX Lab] 수정 (2026-10-15 AX Lab): 구 서버 계약을 깨지 않는 선택 필드.
+            if rr is not None:
+                item["rerank_score"] = round(rr, 4)
+                item["rerank_raw"] = round(rerank_raw_by_doc[doc_id], 3)   # [AX Lab] 2026-10-16 임계 재조정용
+            ranked.append(item)
         ranked.sort(key=lambda c: -c["score"])
         items = compose(ranked, top_k)
+        # [AX Lab] 수정 (2026-10-16 AX Lab): 최종 항목에만 "겹친 단어" 계산 (항목당 수 ms 미만)
+        idf = getattr(getattr(index, "lexical", None), "idf", None) or {}
+        q_units = morph_units(q_lex)                        # [AX Lab] 2026-10-16 질의 형태소 분석은 요청당 1회
+        if q_units is None:
+            q_units = False
         for it in items:
             it.pop("product_match", None)
+            d = index.get(it["doc_id"])
+            body = d.get("embed_text") or " ".join(str(d.get(k) or "") for k in ("title", "question_text", "answer_text"))
+            it["match_terms"] = match_terms(q_lex, qm.get("synonyms"), body, idf, q_units)
         # [AX Lab] 수정 시작 (2026-10-12 AX Lab): 결과 전체 확신도 = 노출 항목 중 가장 높은 절대 코사인 기준
         best_sim = max((it["semantic_sim"] for it in items), default=0.0)
         # [AX Lab] 수정 끝
@@ -404,6 +711,11 @@ def _print(res, show_body=False):
     for i, it in enumerate(res["items"], 1):
         line = (f" {i}. [{it['tier_label']}] {it['title'][:44]:44} rel={it['relevance']:.2f} "
                 f"(cos={it['semantic_sim']:.3f} bm25={it['lexical_score']:.1f} {it.get('confidence', '')}) score={it['score']:.3f}")
+        if "rerank_raw" in it:      # [AX Lab] 2026-10-16
+            line += f" rr={it['rerank_raw']:.2f}"
+        if it.get("match_terms") or it.get("match_reason"):     # [AX Lab] 2026-10-16 추천 근거
+            line += " | " + " ".join(m["term"] + ("(동의어)" if m["synonym"] else "") for m in it.get("match_terms") or [])
+            line += f" [{it['match_reason']}]" if it.get("match_reason") else ""
         if it.get("service_cate"):
             line += f" · {it['service_cate']}"
         if it.get("topic"):
@@ -427,6 +739,7 @@ def main():
 
     idx = LocalIndex()
     rec = Recommender(idx)
+    combine_morph.warmup(wait=True)     # [AX Lab] 2026-10-16 CLI 는 Kiwi 적재를 기다린다 (겹친 단어를 Kiwi 기준으로 보이게)
     tiers = tuple(int(t) for t in args.tiers.split(","))
 
     if args.sample:

@@ -11,7 +11,7 @@ CRM(Java, `CombineAsAiClient`) 이 이 서버에 문의 원문을 보내면, 표
 ---
 
 ## 1. 폴더 구성
-
+<!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 Cross-Encoder 재정렬 구성 파일 추가 -->
 | 파일 | 역할 |
 |---|---|
 | `run.bat` | **Windows 기동 스크립트.** 처음 실행 시 `.venv` 생성 + `numpy` 설치, 이후엔 서버만 기동 |
@@ -19,24 +19,34 @@ CRM(Java, `CombineAsAiClient`) 이 이 서버에 문의 원문을 보내면, 표
 | `combine_recommend.py` | 추천 엔진 — 하이브리드(밀집 bge-m3 + BM25) 검색, §7-3 점수·구성 규칙, 질의 전처리 |
 | `combine_lexical.py` | BM25 어휘 색인 (한글 어절 + 2-gram, 형태소 분석기 불필요) |
 | `combine_textprep.py` | 접수 템플릿 파싱 · 첨부 상투어 제거 · 1겹 정규식 마스킹 — **적재 파이프라인(`analysis/`) 과 공용** |
+| `combine_morph.py` | **추천 근거(겹친 단어) 표시용 형태소 분석** — Kiwi로 명사 덩어리 추출, 사용자 사전(동의어·화면명). 화면 표시 전용, 미설치 시 규칙 방식 폴백 (2026-10-16) |
 | `combine_synonyms.py` | 질의 도메인 동의어 확장 (현장어 ↔ 시스템어, 예: 산재 지사 → 산재조합/보험거래처코드). **질의에만** 적용, 색인 재생성 불필요 (2026-10-12) |
 | `combine_embed_client.py` | Ollama `bge-m3` 임베딩 호출 — 적재와 공용 |
 | `combine_live_index.py` | **색인 준실시간 반영** (2026-10-15) — 백그라운드 스레드가 `data/` 를 30초마다 보고 ① 배치가 새 색인을 배포하면 재기동 없이 다시 읽고 ② `data/combine_live.jsonl` 의 델타(종결 건 upsert/delete) 를 메모리 색인에 반영 |
+| `combine-rerank-server.py` | **AI PC 전용** Cross-Encoder 재정렬 API (`POST /api/rerank`, `GET /health`) |
+| `combine-rerank-run.bat` | AI PC 전용 `.venv-rerank` 생성·모델 설치·재정렬 서버 기동 |
+| `combine-rerank-run.sh` | 위 bat의 **macOS판** (현재 AI PC `192.168.19.141`은 macOS, Apple Silicon MPS 사용) (2026-10-16) |
+| `combine-rerank-launchd.plist` | macOS 재정렬 서버 자동 기동·재기동용 LaunchAgent (2026-10-16) |
+| `combine-rerank-requirements.txt` | AI PC 전용 PyTorch/Transformers 의존성. CRM PC의 경량 `requirements.txt`와 분리 |
+| `combine-rerank-test.py` | 모델·네트워크 없이 순위 반영과 장애 폴백을 검증하는 회귀 테스트 |
 | `data/combine_index.npz` | 문서 벡터 11,720 × 1024 (float32, L2 정규화) + doc_id — **기본 색인** (git 커밋) |
 | `data/combine_unified.jsonl` | 문서 본문·메타 (마스킹 완료. `cust_code`/`cust_nm` 없음) — 기본 색인 (git 커밋) |
 | `data/combine_live.jsonl` | 라이브 델타 — `analysis/combine_live.py` 가 append, 배치가 비움 (git 제외) |
 | `data/combine_live_state.json` | 동기화기 상태(워터마크·마지막 폴링·오류) — `/health` 의 `live.sync` 로 노출 (git 제외) |
 | `requirements.txt` | `numpy` 하나 |
+<!-- [AX Lab] 수정 끝 -->
 
 ## 2. 필요 환경
 
+<!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): 재정렬 서버 네트워크·포트 추가 -->
 | 항목 | 값 |
 |---|---|
 | Python | 3.9 이상 (Windows 는 python.org 설치본, PATH 에 `python` 또는 `py`) |
 | 패키지 | `numpy` (그 외 전부 표준 라이브러리) |
 | 메모리 | 약 300 MB (벡터 38 MB + 본문 + BM25 색인) |
-| 네트워크 | **사내 Ollama PC `192.168.19.141:11434` 에 접속 가능해야 함** — 질의 임베딩(`bge-m3`) 을 거기서 한다. 문서 벡터는 `data/` 에 있어 Ollama 는 질의 1건 임베딩에만 쓰인다 |
-| 포트 | 8765 (CRM `combine-ai.properties` 의 `combine.ai.url` 과 맞출 것) |
+| 네트워크 | **사내 AI PC `192.168.19.141` 에 접속 가능해야 함** — `11434`는 질의 임베딩, `8766`은 선택적 Cross-Encoder 재정렬에 사용 |
+| 포트 | 추천 서버 8765 (CRM 연결), AI PC 재정렬 서버 8766 |
+<!-- [AX Lab] 수정 끝 -->
 
 ## 3. 실행
 
@@ -54,14 +64,63 @@ listening on http://127.0.0.1:8765  (X-Api-Key=dev-key)
 
 확인:
 
+<!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): health 재정렬 상태 추가 -->
 ```
 curl http://127.0.0.1:8765/health
-→ {"status":"ok","index":{...,"live_upserts":3,"live_last_ts":"..."},"live":{"reloads":1,"last_error":null,"sync":{"watermark":"...","last_poll_at":"..."}},"embed":{"ok":true,...}}
+→ {"status":"ok","index":{...},"live":{...},"embed":{"ok":true,...},"rerank":{"enabled":true,"last_ok":...,"fallbacks":0,"circuit_open":false},"morph":{"available":true,"ready":true,"user_words":327,"error":null}}
    status 가 embed_down 이면 Ollama 연결 문제 · index.built_at 이 배치 시각과 다르면 아직 재적재 전(30초 대기) · live.sync 가 null 이면 동기화기 미기동
 ```
+<!-- [AX Lab] 수정 끝 -->
 
 CRM 쪽 설정(`jwcrm/src/main/resources/combine-ai.properties`) 은 기본값이 `http://127.0.0.1:8765/api/recommend` / `dev-key` 라서
 **같은 PC 에서 CRM 과 이 서버를 같이 띄우면 추가 설정 없이** 동작합니다. CRM 은 재컴파일·재기동 불필요(서버만 띄우면 다음 호출부터 성공).
+
+<!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): AI PC 재정렬 서버 설치·운영 -->
+### AI PC 재정렬 서버
+
+Ollama가 실행 중인 AI PC에서 저장소의 `combine-ai-server` 폴더를 배포한 뒤 실행합니다.
+
+```
+set COMBINE_RERANK_API_KEY=<운영 키>
+combine-rerank-run.bat 0.0.0.0
+curl http://127.0.0.1:8766/health
+```
+
+최초 실행은 `BAAI/bge-reranker-v2-m3` 모델을 내려받아 시간이 걸립니다. GPU가 있으면 CUDA(Windows)·MPS(Apple Silicon)를 자동 사용하고,
+없으면 CPU로 실행되지만 상위 20건 처리 시간이 0.9초를 넘을 수 있으므로 운영 전 실측해야 합니다. 추천 서버와 재정렬 서버의
+`COMBINE_RERANK_API_KEY`는 같아야 하며 Windows 방화벽에서 추천 서버 IP에만 TCP 8766을 허용합니다.
+
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 실제 AI PC(192.168.19.141)는 macOS — Mac 배포·자동 기동 절차 추가 -->
+#### macOS AI PC (현재 운영: `192.168.19.141`, Apple M3 Ultra, 계정 `axlab`)
+
+git 저장소 전체는 필요 없습니다. `combine-rerank-server.py` · `combine-rerank-requirements.txt` · `combine-rerank-run.sh` ·
+`combine-rerank-launchd.plist` 4개만 `~/workspace/combine-ai-server/` 에 두면 됩니다.
+
+```
+scp combine-rerank-server.py combine-rerank-requirements.txt combine-rerank-run.sh combine-rerank-launchd.plist axlab@192.168.19.141:~/workspace/combine-ai-server/
+# Mac에서 (Windows에서 복사했으면 CRLF → LF 변환 필요)
+cd ~/workspace/combine-ai-server && perl -pi -e 's/\r\n?/\n/' combine-rerank-* && chmod +x combine-rerank-run.sh
+./combine-rerank-run.sh 0.0.0.0          # 최초 1회: .venv-rerank 생성·torch 설치·모델 다운로드 후 포그라운드 기동
+```
+
+상시 운영은 launchd(LaunchAgent)로 띄웁니다. 로그인 시 자동 기동, 비정상 종료 시 자동 재기동되며 로그는 `combine-rerank.log` 입니다.
+
+```
+cp combine-rerank-launchd.plist ~/Library/LaunchAgents/com.axlab.combine-rerank.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.axlab.combine-rerank.plist   # 등록·기동
+launchctl kickstart -k gui/$(id -u)/com.axlab.combine-rerank                             # 코드 교체 후 재기동
+launchctl bootout gui/$(id -u)/com.axlab.combine-rerank                                  # 중지·해제
+```
+
+운영 키는 plist의 `EnvironmentVariables` → `COMBINE_RERANK_API_KEY` 에 넣고 다시 등록합니다. macOS 방화벽은 현재 꺼져 있습니다.
+LaunchAgent는 `axlab` 로그인 세션이 있어야 뜨므로 Mac 재부팅 후 자동 로그인이 켜져 있어야 합니다.
+실측(2026-10-16, MPS): 평균 600자 문서 20건 약 0.3초, 1024토큰 꽉 찬 문서 20건 약 0.8초. 실제 색인 문서는 평균 276자(p99 898자)라 0.9초 제한 안쪽입니다.
+<!-- [AX Lab] 수정 끝 -->
+
+추천 흐름은 `bge-m3 + BM25 후보 검색 → 상위 20건 Cross-Encoder → 업무/자료유형/품질 결합`입니다. 재정렬 성공 시 최종 점수는
+`재정렬 35% + 하이브리드 관련도 30% + 업무 일치 15% + 자료 유형 10% + 품질 10%`입니다. 재정렬 서버가 중단되거나
+0.9초 안에 답하지 않으면 요청을 실패시키지 않고 기존 산식으로 즉시 폴백하며, 30초 동안 재호출을 쉬어 지연 누적을 막습니다.
+<!-- [AX Lab] 수정 끝 -->
 
 ### 다른 PC 의 CRM 이 이 서버를 쓰게 하려면
 
@@ -70,7 +129,7 @@ CRM 쪽 설정(`jwcrm/src/main/resources/combine-ai.properties`) 은 기본값�
 3. CRM 기동 시 `-Dcombine.ai.url=http://<이 PC IP>:8765/api/recommend` 주입 (또는 properties 수정)
 
 ### 환경변수 (선택)
-
+<!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): 재정렬 클라이언트 설정 추가 -->
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `COMBINE_API_KEY` | `dev-key` | `X-Api-Key` 검증 키. 운영에서는 반드시 바꾸고 CRM 쪽 `combine.ai.key` 와 맞춘다 (파일에 평문으로 두지 말 것) |
@@ -78,6 +137,16 @@ CRM 쪽 설정(`jwcrm/src/main/resources/combine-ai.properties`) 은 기본값�
 | `COMBINE_EMBED_MODEL` | `bge-m3` | 색인을 만든 모델과 같아야 한다. 다르면 기동 시 멈춘다 |
 | `COMBINE_DATA_DIR` | `./data` | 색인 파일 위치 |
 | `COMBINE_LIVE_POLL_SEC` | `30` | `data/` 변경 감시 간격(초). `0` 이면 감시 끔 (기동 시 1회 적재만, 예전 동작) |
+| `COMBINE_RERANK_ENABLED` | `Y` | `N`이면 재정렬 호출 없이 기존 하이브리드 순위만 사용 |
+| `COMBINE_RERANK_URL` | `http://192.168.19.141:8766/api/rerank` | AI PC 재정렬 API |
+| `COMBINE_RERANK_API_KEY` | `dev-key` | 재정렬 서버 키와 일치시킬 것 |
+| `COMBINE_RERANK_TOP` | `20` | 재정렬할 하이브리드 상위 후보 수(최대 20) |
+| `COMBINE_RERANK_TIMEOUT_MS` | `900` | 재정렬 제한 시간. 초과 시 기존 순위로 폴백 |
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 추천 제외 임계 -->
+| `COMBINE_RERANK_MIN_SCORE` | `-2.0` | 재정렬 원점수(logit)가 이 값 미만인 후보는 추천하지 않음. 재정렬 상위 N 밖 후보도 제외. 아주 낮게(`-99`) 두면 사실상 끔 |
+| `COMBINE_FALLBACK_MIN_SIM` | `0.55` | 재정렬 장애·비활성 시 코사인이 이 값 미만인 후보는 추천하지 않음 |
+<!-- [AX Lab] 수정 끝 -->
 
 ## 4. 데이터 (색인) 갱신
 
@@ -149,6 +218,7 @@ cd analysis
 
 ## 5. API 계약 (요약 — 상세는 설계서 §6)
 
+<!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): 선택적 rerank_score 응답 필드 추가 -->
 ```
 POST /api/recommend
 X-Api-Key: dev-key
@@ -164,15 +234,50 @@ Content-Type: application/json
 200 {"result":"000","elapsed_ms":300,"confidence":"high|mid|low","best_sim":0.69,
      "items":[{ doc_id, tier, tier_label, title, answer_text, answer_html,
       relevance(0~1, 후보 안 상대값 — 화면 표시용), semantic_sim(코사인 원값), lexical_score(BM25 원값), score,
-      confidence(high/mid/low — 절대 코사인 기준. low 면 화면에 "확신 낮음" 배지),
+      rerank_score(재정렬 성공 시에만 0~1), rerank_raw(재정렬 성공 시에만 원점수 logit — 2026-10-16),
+      match_terms[{term, synonym}](겹친 단어 — 2026-10-16), match_reason("같은 업무분류"|"같은 프로그램·화면"|"같은 문의유형"|null),
+      confidence(high/mid/low — 절대 코사인 기준),
       service_cate, program_nm, screen_nm, topic, resolution, deep_link, public_link, attached_file[],
       occurred_at('YYYY-MM'), quality_score, internal_note, as_no, question_text }, ...]}
 400 잘못된 요청 · 401 키 불일치 · 503 임베딩 서버 장애
 ```
+<!-- [AX Lab] 수정 끝 -->
 
 `confidence` (2026-10-12 추가): `relevance` 는 후보 60건 안에서 min-max 한 값이라 전부 무관한 결과여도 1위는 항상 100% 로 보입니다.
 그래서 bge-m3 절대 코사인으로 `high ≥ 0.62 / mid / low < 0.58` 을 따로 내려줍니다 (임계는 `combine_recommend.py` 의 `CONF_*_SIM`,
 실측 근거는 그 주석 참조). 응답 상단 `confidence` 는 Java `CombineAsAiVO` 를 거치지 않으므로 CRM 화면은 항목별 `confidence` 만 씁니다.
+<!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): low 사용자 표시 정책 -->
+CRM 화면은 `low`를 오류나 실패로 단정하지 않습니다. 상대값인 관련도 퍼센트 대신 `참고 사례`로 표시하고,
+전부 low이면 “직접 일치하는 답변 대신 유사한 업무 사례”라는 중립 안내와 함께 목록을 그대로 제공합니다.
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 추천 제외 -->
+**건수는 0~`top_k`건입니다** (2026-10-16). 예전에는 무관한 후보로도 항상 5칸을 채웠습니다(`relevance`·`rerank_score` 가 후보 안 상대값이라
+무관해도 1위가 높게 나옴). 이제 재정렬 성공 시 원점수 `rerank_raw < COMBINE_RERANK_MIN_SCORE(-2.0)` 이거나 재정렬 상위 N 밖인 후보,
+재정렬 장애 시 코사인 `< COMBINE_FALLBACK_MIN_SIM(0.55)` 인 후보는 Tier1 최소 보장을 포함한 어떤 규칙으로도 노출하지 않습니다.
+실측(질의 48건): 도메인 밖 질의 노출 후보는 전부 원점수 ≤ -2.5, 관련 사례는 대부분 ≥ -2 였고 코사인으로는 둘이 0.55~0.61 에서 겹쳤습니다.
+CRM 화면은 0건이면 버튼 건수를 흐리게 표시하고 "관련도가 충분한 사례가 없어 추천하지 않았습니다"로 안내합니다.
+임계를 다시 맞출 때는 CLI(`python combine_recommend.py "질의"`) 출력의 `rr=` 값을 봅니다.
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거(겹친 단어) -->
+**추천 근거** (2026-10-16): 최종 항목마다 `match_terms`(문의와 그 자료의 `embed_text` 에 함께 들어 있는 말, 드문 말 순 최대 4개)와
+`match_reason`(업무분류·프로그램/화면·문의유형 일치)을 붙입니다. 형태소 분석기가 없어 질의 어절의 앞부분 중 본문에 있는 가장 긴 것을 고르고
+흔한 조사·하다/되다 어미를 떼어 표시합니다("진단서를" → "진단서", "전송되지" → "전송"). 문서 20% 이상에 나오는 흔한 말(IDF < 1.5 — "문의"·"확인" 등)과
+서술어("나옵니다"·"뜬다고")는 뺍니다. `synonym=true` 는 질의에 없고 동의어 확장(`combine_synonyms.py`)으로 덧붙인 말이 걸렸다는 뜻입니다.
+이것은 **단어 검색 쪽 근거**일 뿐이고 순위는 재정렬(문장 뜻)을 함께 보므로, 목록이 비어도 추천될 수 있습니다(화면 표시 '뜻으로 찾음').
+CRM 화면은 목록에 칩 3개, 상세 패널 "겹친 단어" 줄에 4개까지 보여 주고, 동의어는 `≈` 를 붙여 주황색으로 구분합니다. CLI 출력은 `| 단어 … [일치 사유]`.
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 겹친 단어 형태소 분석기(Kiwi) -->
+**겹친 단어의 단어 자르기 — Kiwi** (2026-10-16, `combine_morph.py`): 위의 어절 규칙은 "신규및"(신규+및)처럼 덜 자르거나,
+맞춤법대로 띄우면 "시술확인서"(서식 이름)를 "시술 확인서"로 더 자르는 문제가 있어 형태소 분석기 [Kiwi](https://github.com/bab2min/kiwipiepy)로 바꿨습니다.
+품사를 나눈 뒤 **원문에서 붙어 있던 명사(NNG/NNP/SL 등)는 다시 한 덩어리로** 붙이고, 조사·어미·부사와 끝의 의존명사(시·후·때·중·분)는 뗍니다.
+본문에 덩어리 전체가 없으면 그 안의 더 짧은 연속 조각을 긴 것부터 찾습니다(신규오더 → 신규).
+- 사용자 사전: 동의어 사전 용어 + 색인 화면명/프로그램명 중 3건 이상 문서에 나오고 명사로만 이뤄진 3~12자 한글(약 330개) + `SEED_WORDS`("오더" 등 — 없으면 "D/C오더"를 C+이오+더로 오분석).
+- Kiwi를 고른 이유: `pip` 한 줄 설치(Windows 휠, Java·빌드 불필요 — Mecab-ko는 Windows 빌드, KoNLPy는 JVM 필요), 띄어쓰기 오류에 강함,
+  토큰마다 원문 위치를 줘서 "붙어 있던 명사"를 정확히 재결합 가능, 사용자 사전을 코드에서 바로 추가.
+- 비용: 기동 시 모델 적재 약 4초(백그라운드 스레드), 문장당 약 1ms. 요청당 질의 1회만 분석합니다.
+- 화면 표시에만 씁니다. 검색(BM25)·색인은 그대로라 **색인 재생성 불필요**. Kiwi 적재 전이거나 `kiwipiepy` 미설치면 어절 규칙으로 자동 폴백합니다.
+  상태는 `GET /health` 의 `morph` (`ready`, `user_words`, `error`). `run.bat` 은 기존 가상환경에 `kiwipiepy` 가 없으면 설치를 시도합니다(실패해도 기동).
+<!-- [AX Lab] 수정 끝 -->
 
 응답에는 고객사 식별 정보(`cust_code`/`cust_nm`) 가 들어가지 않습니다. 질의는 1겹 정규식 마스킹 후 임베딩하며 **저장·로그하지 않습니다**(접속 로그에도 본문 없음).
 
@@ -188,9 +293,15 @@ Content-Type: application/json
 | 서버에 AI 추천 모듈이 아직 반영되지 않았습니다 | 900 | CRM Java 가 구버전 (응답에 `result` 없음) | `mvn compile` + WAS 재기동 |
 | 추후 제공 (플레이스홀더) | 901 | `combine.ai.enabled=N` | 의도적 비활성 |
 
+<!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): 재정렬 장애 확인 -->
+`/health`의 `rerank.last_error`가 있고 `circuit_open=true`이면 원격 재정렬 장애입니다. 추천 자체는 기존 하이브리드로 정상 응답합니다.
+AI PC의 `http://127.0.0.1:8766/health`, 방화벽, 양쪽 API 키를 확인합니다. `fallbacks`는 요청 처리 중 폴백한 누계입니다.
+<!-- [AX Lab] 수정 끝 -->
+
 CRM 로그: `[AX Lab] AI 추천 호출 as_no=… result=… elapsed=…ms queryLen=…` (질의 본문은 남기지 않음)
 
 ## 7. 끄기 / 롤백
 
 - 이 서버만 끄면 CRM 은 903 으로 조용히 실패하고 나머지 기능은 영향 없다.
 - CRM 에서 버튼 자체를 숨기려면 `combine.ai.enabled=N` (재기동 필요).
+<!-- [AX Lab] 수정 (2026-10-15 AX Lab): 재정렬만 끄려면 추천 서버에 `COMBINE_RERANK_ENABLED=N`을 설정하고 재기동한다. -->
