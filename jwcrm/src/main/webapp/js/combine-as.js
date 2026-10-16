@@ -344,6 +344,10 @@ function asws_esc(s){
 var ASWS_ADV_CATALOG = [
 	{ key:'AS_NO',         label:'접수번호',      type:'keyword' },
 	{ key:'CUST',          label:'거래처명/코드', type:'cust' },
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): A/S신청자 이름·연락처 검색조건 추가 */
+	{ key:'RL_APPLY_NM',    label:'A/S신청자 이름', type:'keyword' },
+	{ key:'APPLY_TEL',      label:'A/S신청자 연락처', type:'keyword' },
+	/* [AX Lab] 수정 끝 */
 	{ key:'EMP_NM',        label:'처리담당자명',  type:'keyword' },
 	{ key:'DEPT',          label:'부서명/코드',   type:'keyword' },
 	{ key:'REQUEST_TYPE',  label:'문의유형',      type:'select', cg:'AS',     pc:'CD07' },

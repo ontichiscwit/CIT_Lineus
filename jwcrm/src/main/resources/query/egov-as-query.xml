@@ -245,6 +245,10 @@
 			UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
 			UPPER(IN_TB.CUST_CODE) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
 			UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+			/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 통합검색에 A/S신청자 이름·연락처 추가 (연락처 하이픈 무시) */
+			UPPER(IN_TB.RL_APPLY_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+			REPLACE(IN_TB.APPLY_TEL, '-', '') LIKE '%'|| REPLACE(#{search_text}, '-', '') ||'%' OR
+			/* [AX Lab] 수정 끝 */
 			UPPER(IN_TB.CALL_CONTENT) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
 			UPPER(IN_TB.ACTION_CONTENT) LIKE '%'|| UPPER(#{search_text}) ||'%'
 			)
@@ -267,6 +271,14 @@
 					<when test="af.field == 'CUST_CODE'">
 						AND UPPER(IN_TB.CUST_CODE) LIKE '%'|| UPPER(#{af.value}) ||'%'
 					</when>
+					<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): A/S신청자 이름·연락처 고급검색 (연락처 하이픈 무시) -->
+					<when test="af.field == 'RL_APPLY_NM'">
+						AND UPPER(IN_TB.RL_APPLY_NM) LIKE '%'|| UPPER(#{af.value}) ||'%'
+					</when>
+					<when test="af.field == 'APPLY_TEL'">
+						AND REPLACE(IN_TB.APPLY_TEL, '-', '') LIKE '%'|| REPLACE(#{af.value}, '-', '') ||'%'
+					</when>
+					<!-- [AX Lab] 수정 끝 -->
 					<when test="af.field == 'EMP_NM'">
 						AND UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{af.value}) ||'%'
 					</when>
@@ -342,6 +354,9 @@
 	            ,A.CALL_CONTENT
 	            ,A.ACTION_CONTENT
 	            ,E.RETIRE_DATE
+	            /* [AX Lab] 수정 시작 (2026-10-16 AX Lab): A/S신청자 검색용 연락처 */
+	            ,A.APPLY_TEL
+	            /* [AX Lab] 수정 끝 */
 	            ,A.RL_APPLY_NM
 	            ,(SELECT REG_DATE FROM CRM_AS_MGT_HIST WHERE SEQ = ( SELECT MAX(SEQ) FROM CRM_AS_MGT_HIST WHERE AS_NO = A.AS_NO AND PROC_STATUS = 'C005') AND AS_NO = A.AS_NO) REG_DATE
 	        FROM         
@@ -419,6 +434,9 @@
 		a.cn_as_no, 
 		a.as_no_link,
 		a.apply_nm, 
+		/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): A/S신청자 검색용 연락처 */
+		a.apply_tel,
+		/* [AX Lab] 수정 끝 */
 		a.proc_status, /* 처리상태 C */ 
 		a.cust_code, /* 거래처 코드 (cust_code) */ 
 		b.cust_kor_name, /* 거래처명 */ 
