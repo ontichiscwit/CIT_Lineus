@@ -1240,8 +1240,23 @@ function caws_empListParams(){
 	};
 }
 /* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 운영 ORIGIN과 동일하게 담당자명을 오름차순으로 정렬 */
+function caws_empSort(list){
+	var sorted = (list || []).slice(0);
+	sorted.sort(function(a, b){
+		var an = caws_nvl(a.emp_nm,''), bn = caws_nvl(b.emp_nm,'');
+		if(an < bn) return -1;
+		if(an > bn) return 1;
+		var ano = caws_nvl(a.emp_no,''), bno = caws_nvl(b.emp_no,'');
+		return ano < bno ? -1 : (ano > bno ? 1 : 0);
+	});
+	return sorted;
+}
+/* [AX Lab] 수정 끝 */
 function caws_actEmpLoaded(data){
-	caws.act.empList = (data && data.resultList) ? data.resultList : [];
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 담당자 이관 팝오버를 이름순으로 표시 */
+	caws.act.empList = caws_empSort((data && data.resultList) ? data.resultList : []);
+	/* [AX Lab] 수정 끝 */
 	caws_actEmpFilter();
 }
 function caws_actEmpFilter(){
@@ -1796,7 +1811,9 @@ function caws_inlineEmpOptions(){
 	return s;
 }
 function caws_inlineEmpLoaded(data){
-	caws.act.empList = (data && data.resultList) ? data.resultList : [];
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 접수처리정보의 담당자 선택을 이름순으로 표시 */
+	caws.act.empList = caws_empSort((data && data.resultList) ? data.resultList : []);
+	/* [AX Lab] 수정 끝 */
 	var el = caws_el('cawsFldIn');
 	if(caws.fld !== 'assign' || !el) return;
 	el.innerHTML = caws_inlineEmpOptions();

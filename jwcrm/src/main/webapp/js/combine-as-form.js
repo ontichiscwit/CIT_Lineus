@@ -566,15 +566,28 @@ function cafm_fillAssign(list){
 	var sel = cafm_el('cafmAssign');
 	if(!sel) return;
 	var s = '<option value="">담당자 선택</option>', has = false;
-	for(var i = 0; i < list.length; i++){
-		var no = caws_nvl(list[i].emp_no, ''), nm = caws_nvl(list[i].emp_nm, '');
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 운영 ORIGIN과 동일하게 담당자명을 오름차순으로 정렬 */
+	var sorted = list.slice(0);
+	for(var h = 0; h < sorted.length; h++){
+		if(caws_nvl(sorted[h].emp_no, '') === cafm.assignId){ has = true; break; }
+	}
+	/* 자동배정된 담당자가 후보 목록에 없으면 정렬 전에 포함해 표시 순서를 동일하게 유지한다. */
+	if(!has && cafm.assignId !== ''){
+		sorted.push({ emp_no: cafm.assignId, emp_nm: cafm.assignNm });
+	}
+	sorted.sort(function(a, b){
+		var an = caws_nvl(a.emp_nm, ''), bn = caws_nvl(b.emp_nm, '');
+		if(an < bn) return -1;
+		if(an > bn) return 1;
+		var ano = caws_nvl(a.emp_no, ''), bno = caws_nvl(b.emp_no, '');
+		return ano < bno ? -1 : (ano > bno ? 1 : 0);
+	});
+	for(var i = 0; i < sorted.length; i++){
+		var no = caws_nvl(sorted[i].emp_no, ''), nm = caws_nvl(sorted[i].emp_nm, '');
 		if(no === cafm.assignId) has = true;
 		s += '<option value="' + caws_esc(no) + '">' + caws_esc(nm) + '</option>';
 	}
-	/* 자동배정된 담당자가 후보 목록에 없으면 옵션으로 추가해 값이 유실되지 않게 한다 */
-	if(!has && cafm.assignId !== ''){
-		s += '<option value="' + caws_esc(cafm.assignId) + '">' + caws_esc(cafm.assignNm) + '</option>';
-	}
+	/* [AX Lab] 수정 끝 */
 	sel.innerHTML = s;
 	sel.value = cafm.assignId;
 }
