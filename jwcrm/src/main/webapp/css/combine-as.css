@@ -471,6 +471,12 @@
 #asWorkspace .adv-row .adv-val .adv-date{flex:1 1 0;}
 #asWorkspace .adv-row .adv-val .dwave{color:var(--ink-3); font-size:11px; flex-shrink:0;}
 #asWorkspace .adv-row .adv-del{flex:0 0 26px; height:28px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--ink-3); font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;}
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 SumoSelect를 고급필터 행 폭·높이에 맞춤 */
+#asWorkspace .adv-row .adv-val .SumoSelect{flex:1; width:100%; min-width:0;}
+#asWorkspace .adv-row .adv-val .SumoSelect > .CaptionCont{display:flex; align-items:center; height:28px; min-height:28px; padding:0 7px; border-radius:6px; font-size:11.5px;}
+#asWorkspace .adv-row .adv-val .SumoSelect > .CaptionCont > span{padding-right:22px; font-size:11.5px;}
+#asWorkspace .adv-row .adv-val .SumoSelect.open > .optWrapper{top:30px;}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 #asWorkspace .adv-row .adv-del:hover{border-color:var(--red); color:var(--red);}
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건행(모달 조회 방식) 값 UI.

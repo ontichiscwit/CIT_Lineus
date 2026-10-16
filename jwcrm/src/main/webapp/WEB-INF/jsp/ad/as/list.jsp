@@ -358,6 +358,9 @@
 	function getAsList(pageIndex) {
 		var val = procSelect.sumo.getSelStr();
 		$("#procSelect").val(val);
+		/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 체크박스 선택값을 조회용 CSV로 확정 */
+		if(typeof asws_assignFlush === 'function') asws_assignFlush();
+		/* [AX Lab] 수정 끝 */
 
 		var f = document.listFrm;
 
@@ -1475,11 +1478,15 @@
 <input type="hidden" name="w_content" id="w_content"/>
 
 <%-- [AX Lab] 수정 시작 (2026-07-23 AX Lab): AS 통합 워크스페이스(3분할) 화면 리뉴얼 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as.css" />
+<%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as.css?v=20261016-2" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): AS 목록의 현재 페이지를 굵게 강조 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-pagination.css" />
 <%-- [AX Lab] 수정 끝 --%>
-<script type="text/javascript" src="/js/combine-as.js"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스크립트 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as.js?v=20261016-3"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-open-choice.css?v=20261016-1" />
 <%-- [AX Lab] 수정 (2026-10-16 AX Lab): 새 탭 링크 방식 적용 및 선택창 즉시 닫기 캐시 갱신 --%>
@@ -1867,7 +1874,7 @@
             <div id="advRows"></div>
             <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자' 체크박스를 조건행 아래로 옮기고 조건부 노출로 변경.
                  ① 위치: 처리담당자명 조건에 딸린 하위 옵션이므로 조건행 바로 아래에 둔다.
-                 ② 노출: 처리담당자명(EMP_NM) 조건행이 있을 때만 보인다. (combine-as.js / asws_advSyncRetireChk)
+                 ② 노출: 처리담당자(ASSIGN_ID) 조건행이 있을 때만 보인다. (combine-as.js / asws_advSyncRetireChk)
                     display:none 을 마크업에 박아두어 스크립트 실행 전 잠깐 보이는 깜빡임을 막는다.
                  ③ 라벨: '퇴사자 포함' → '퇴사자만'. 쿼리 조건이 RETIRE_DATE IS NOT NULL 이라
                     실제 동작은 "퇴사한 처리담당자의 건만" 조회하는 것이어서 '포함' 이라는 표현이 사실과 달랐다.

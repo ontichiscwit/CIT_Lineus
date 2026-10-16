@@ -152,6 +152,14 @@
 			test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type13) == 'Y'.toString() ">
 			AND IN_TB.PROC_STATUS IN ('C001','C004')
 		</if>
+		<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 처리담당자 체크박스 다중검색 (사번 기준) -->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNullArray(assignSelectArray) != ''">
+			AND IN_TB.ASSIGN_ID IN
+			<foreach collection="assignSelectArray" item="assignId" open="(" close=")" separator=",">
+				#{assignId}
+			</foreach>
+		</if>
+		<!-- [AX Lab] 수정 끝 -->
 		<if
 			test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
 			AND IN_TB.CAUSE_TYPE = #{search_type2}

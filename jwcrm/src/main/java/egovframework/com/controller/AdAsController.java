@@ -308,6 +308,11 @@ public class AdAsController {
 		
 		String[] procSelectArray =  vo.getProcSelect().split(",");
 		vo.setProcSelectArray(procSelectArray);
+		// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 체크박스로 선택한 재직 처리담당자 다중검색
+		String assignSelect = SsStringUtil.normalizeNull(vo.getAssignSelect());
+		/* normalizeNullArray()가 array[0]을 확인하므로 미선택도 길이 1의 빈 문자열 배열로 전달한다. */
+		vo.setAssignSelectArray(assignSelect.split(","));
+		// [AX Lab] 수정 끝
 		
 		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 처리구분(나의 A/S) + 고급 동적필터(AND 중복) 조건 조립
 		// 나의 A/S(asGubunFlag="2")이면 로그인 사용자 사번을 담당자(ASSIGN_ID) 필터로 사용
@@ -1254,6 +1259,11 @@ public class AdAsController {
 		
 		String[] procSelectArray =  vo.getProcSelect().split(",");
 		vo.setProcSelectArray(procSelectArray);
+		// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 엑셀에도 재직 처리담당자 다중검색 적용
+		String assignSelect = SsStringUtil.normalizeNull(vo.getAssignSelect());
+		/* normalizeNullArray()가 array[0]을 확인하므로 미선택도 길이 1의 빈 문자열 배열로 전달한다. */
+		vo.setAssignSelectArray(assignSelect.split(","));
+		// [AX Lab] 수정 끝
 	
 		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 엑셀도 목록과 동일하게 처리구분(나의 A/S)+고급 동적필터 적용
 		if ("2".equals(SsStringUtil.normalizeNull(vo.getAsGubunFlag())) && userInfo != null) {

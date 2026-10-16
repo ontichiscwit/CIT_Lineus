@@ -348,7 +348,9 @@ var ASWS_ADV_CATALOG = [
 	{ key:'RL_APPLY_NM',    label:'A/S신청자 이름', type:'keyword' },
 	{ key:'APPLY_TEL',      label:'A/S신청자 연락처', type:'keyword' },
 	/* [AX Lab] 수정 끝 */
-	{ key:'EMP_NM',        label:'처리담당자명',  type:'keyword' },
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 처리담당자를 체크박스로 다중선택 */
+	{ key:'ASSIGN_ID',      label:'처리담당자',    type:'assignee' },
+	/* [AX Lab] 수정 끝 */
 	{ key:'DEPT',          label:'부서명/코드',   type:'keyword' },
 	{ key:'REQUEST_TYPE',  label:'문의유형',      type:'select', cg:'AS',     pc:'CD07' },
 	{ key:'SERVICE_CATE',  label:'시스템유형',    type:'select', cg:'AS',     pc:'CD03' },
@@ -386,6 +388,64 @@ function asws_loadCodes(cg, pc){
 	return out;
 }
 
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 중인 AS 처리담당자 목록.
+   기존 권한 등록 URL(getAsEmpList2.do)을 재사용하고, 퇴사자는 서버 쿼리에서 제외한다. */
+var ASWS_ASSIGN_CACHE = null;
+function asws_loadAssignees(){
+	if(ASWS_ASSIGN_CACHE !== null) return ASWS_ASSIGN_CACHE;
+	var out = [];
+	try{
+		$.ajax({
+			type:'POST', url:'/ad/as/getAsEmpList2.do', dataType:'json', async:false,
+			success:function(d){
+				var l = (d && d.resultList) ? d.resultList : [];
+				for(var i=0;i<l.length;i++){
+					out.push({ id:asws_nvl(l[i].emp_no,''), name:asws_nvl(l[i].emp_nm,'') });
+				}
+			}
+		});
+	}catch(e){}
+	out.sort(function(a,b){
+		var n = a.name.localeCompare(b.name);
+		return n !== 0 ? n : a.id.localeCompare(b.id);
+	});
+	ASWS_ASSIGN_CACHE = out;
+	return out;
+}
+
+/* SumoSelect의 실제 선택값을 검색용 CSV hidden 두 곳에 동기화한다.
+   adv_value는 검색 후 조건행 복원용, assignSelect는 MyBatis IN 조건용이다. */
+var ASWS_ASSIGN_CLEARING = false;
+function asws_assignSync($row){
+	if(!$row || !$row.length) return;
+	var v = $row.find('.adv-assign-multi').val() || [];
+	if(typeof v === 'string') v = [v];
+	var csv = v.join(',');
+	$row.find('input[name=adv_value]').val(csv);
+	$row.find('input[name=assignSelect]').val(csv);
+	if(csv !== '' && !ASWS_ASSIGN_CLEARING) $('#search_type17').prop('checked', false);
+}
+function asws_assignFlush(){
+	$('#advRows .adv-row').each(function(){
+		if($(this).find('.adv-field').val() === 'ASSIGN_ID') asws_assignSync($(this));
+	});
+}
+function asws_assignClear(){
+	ASWS_ASSIGN_CLEARING = true;
+	try{
+		$('#advRows .adv-assign-multi').each(function(){
+			try{ if(this.sumo) this.sumo.unSelectAll(); }catch(e){}
+			$(this).val([]);
+		});
+	}finally{
+		ASWS_ASSIGN_CLEARING = false;
+	}
+	$('#advRows input[name=assignSelect], #advRows .adv-row input[name=adv_value]').filter(function(){
+		return $(this).closest('.adv-row').find('.adv-field').val() === 'ASSIGN_ID';
+	}).val('');
+}
+/* [AX Lab] 수정 끝 */
+
 /* YYYYMMDD -> yy/mm/dd (datepicker 표시용) */
 function asws_fmtDateInput(v){
 	v = (''+asws_nvl(v,'')).replace(/[^0-9]/g,'');
@@ -397,7 +457,7 @@ function asws_fmtDateInput(v){
    - select : 등호(=) 조건이라 같은 항목을 2개 걸면 결과가 없거나 의미가 없다.
    - cust   : 정확일치(=) 조건 + 값 UI 가 고정 id(cust_kor_name/cust_code)를 쓰는 기존 모달 콜백
               (makeCustInfo)에 의존하므로 화면에 1개만 존재해야 한다. */
-function asws_advIsSingleUse(type){ return type==='select' || type==='cust'; }
+function asws_advIsSingleUse(type){ return type==='select' || type==='cust' || type==='assignee'; }
 /* [AX Lab] 수정 끝 */
 
 /* 이미 사용 중인 1회성 검색구분 키 목록 (중복 방지용) */
@@ -458,6 +518,36 @@ function asws_advRenderVal($row, field, value, value2){
 		$val.html(h);
 		$val.find('select[name=adv_value]').val(value);
 
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 처리담당자 체크박스형 다중선택 */
+	}else if(m.type==='assignee'){
+		var emps = asws_loadAssignees();
+		var selected = {};
+		var selectedArr = String(value || '').split(',');
+		for(var ai=0;ai<selectedArr.length;ai++){
+			if($.trim(selectedArr[ai]) !== '') selected[$.trim(selectedArr[ai])] = true;
+		}
+		var ah = '<select class="adv-input adv-assign-multi" multiple title="처리담당자 선택">';
+		for(var aj=0;aj<emps.length;aj++){
+			var eid = emps[aj].id, enm = emps[aj].name;
+			ah += '<option value="'+asws_esc(eid)+'"'+(selected[eid] ? ' selected' : '')+'>'
+			   + asws_esc(enm)+'</option>';
+		}
+		ah += '</select>'
+		   + '<input type="hidden" name="assignSelect" value="">'
+		   + '<input type="hidden" name="adv_value" value="">'
+		   + '<input type="hidden" name="adv_value2" value="">';
+		$val.html(ah);
+		var $assign = $val.find('.adv-assign-multi');
+		var assignEl = $assign.SumoSelect({
+			placeholder:'전체 담당자', csvDispCount:3, captionFormat:'{0}명 선택',
+			captionFormatAllSelected:'전체 담당자', selectAll:true, search:true,
+			searchText:'담당자 검색', noMatch:'검색 결과 없음', locale:['확인','취소','전체선택']
+		});
+		$assign.on('change', function(){ asws_assignSync($row); });
+		asws_assignSync($row);
+		if(assignEl && assignEl.sumo) assignEl.sumo.setText();
+	/* [AX Lab] 수정 끝 */
+
 	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건 = 기존 거래처 조회 모달(#div1) 방식.
 	   - 직접 입력을 막고(readonly) [조회] 버튼 또는 입력칸 클릭으로 모달을 띄운다. (원본 화면과 동일)
 	   - 전송 파라미터는 원본과 같은 cust_kor_name / cust_code → 쿼리의 기존 정확일치 조건을 그대로 사용.
@@ -488,7 +578,7 @@ function asws_advRenderVal($row, field, value, value2){
 	}
 }
 
-/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자만' 체크박스는 처리담당자명(EMP_NM) 조건이 있을 때만 노출.
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자만' 체크박스는 처리담당자(ASSIGN_ID) 조건이 있을 때만 노출.
    이 체크박스는 쿼리에서 IN_TB.RETIRE_DATE IS NOT NULL (= 처리담당자의 퇴사일이 있는 건) 으로 동작하므로
    처리담당자 조건과 함께 쓸 때만 의미가 있다. 단독으로 켜면 "퇴사자 담당 건 전체"가 나와
    사용자가 의도를 알기 어려운 조회결과가 됐다.
@@ -498,7 +588,7 @@ function asws_advSyncRetireChk(){
 	if(!wrap) return;
 	var hasEmp = false;
 	$('#advRows .adv-row').each(function(){
-		if($(this).find('.adv-field').val() === 'EMP_NM') hasEmp = true;
+		if($(this).find('.adv-field').val() === 'ASSIGN_ID') hasEmp = true;
 	});
 	if(hasEmp){
 		wrap.style.display = '';
@@ -583,7 +673,11 @@ function asws_advInit(){
 	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 복원 후 배지 갱신 + 체크박스형 고급조건 변경 감지
 	   (2026-07-28 수정: search_type13 은 체크박스 → hidden 으로 바뀌어 감지 대상에서 제외) */
 	asws_advUpdateCount();
-	$('#search_type17').off('change.aswsAdvCnt').on('change.aswsAdvCnt', asws_advUpdateCount);
+	$('#search_type17').off('change.aswsAdvCnt').on('change.aswsAdvCnt', function(){
+		/* 퇴사자만 조회는 재직 담당자 선택과 동시에 적용하지 않는다. */
+		if(this.checked) asws_assignClear();
+		asws_advUpdateCount();
+	});
 	/* [AX Lab] 수정 끝 */
 }
 
