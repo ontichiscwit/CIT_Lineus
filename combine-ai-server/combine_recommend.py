@@ -19,6 +19,8 @@ AWS 이관 시 Django `gpt/views_recommend.py` 는 이 파일의 `Recommender.re
   - 상위 5건 중 Tier2 최대 3건
   - 같은 topic + 같은 service_cate 조합은 최대 2건
   - exclude_as_no[] (자신·부모·자식·연결건) 제외, dense 코사인 < MIN_SIM 은 제외
+  - [AX Lab] 2026-10-16 관련 없는 후보는 칸을 채우지 않는다 (0~5건):
+    재정렬 성공 시 재정렬 원점수 < RERANK_MIN_SCORE 또는 재정렬 상위 N 밖이면 제외, 재정렬 장애 시 코사인 < FALLBACK_MIN_SIM 제외
 질의 전처리 (§9 3-1 + 2026-10-06)
   - combine_textprep.parse_question 으로 접수 템플릿(라벨·안내문)을 벗기고 프로그램명/화면명을 메타로 뽑는다.
     CRM 은 CALL_CONTENT 원문을 그대로 보내면 된다 — 전처리 규칙은 적재 쪽과 공용 모듈(combine_textprep) 한 곳에서만 관리한다.
@@ -77,6 +79,16 @@ RERANK_TOP = max(1, min(int(os.getenv("COMBINE_RERANK_TOP", "20")), 20))
 RERANK_TIMEOUT = max(0.1, int(os.getenv("COMBINE_RERANK_TIMEOUT_MS", "900")) / 1000.0)
 RERANK_RETRY_AFTER = 30.0
 W_RERANK, W_HYBRID_R, W_PROD_R, W_TIER_R, W_QUAL_R = 0.35, 0.30, 0.15, 0.10, 0.10
+# [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 후보는 칸을 채우지 않고 뺀다 (항상 5건 → 0~5건).
+#   relevance·rerank_score 는 후보 안 min-max 상대값이라 무관해도 1위가 높게 나온다. 절대 기준은
+#   Cross-Encoder 원점수(logit)만 쓸 만하다. 실측(2026-10-16, 기존 색인, 질의 48건):
+#   도메인 밖 질의(회의실 예약·점심 메뉴·프린터 토너·엑셀 피벗·주차 등록) 노출 후보 전부 ≤ -2.5,
+#   Tier2 자기질의의 무관 후보(배달서비스공제조합 계약처코드 -5.13, 자동감면해제 -5.16 등) 대부분 < -2,
+#   -2 ~ 0 구간은 관련 사례가 많다(위조직검사 FM→PH 변경 -0.42, CP 양식 -1.25, KISA 고유식별정보 -1.26).
+#   같은 질의에서 코사인은 무관 후보도 0.55~0.61 이라 코사인만으로는 가를 수 없다 → 재정렬 장애 시에만 코사인으로 거른다.
+RERANK_MIN_SCORE = float(os.getenv("COMBINE_RERANK_MIN_SCORE", "-2.0"))
+FALLBACK_MIN_SIM = float(os.getenv("COMBINE_FALLBACK_MIN_SIM", "0.55"))
+# [AX Lab] 수정 끝
 _RERANK_LOCK = threading.Lock()
 _RERANK_STATUS = {
     "enabled": RERANK_ENABLED, "url": RERANK_URL, "last_ok": None, "last_error": None,
@@ -461,6 +473,7 @@ class Recommender:
         # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 하이브리드 상위 후보만 원격 Cross-Encoder로 정밀 재정렬.
         #   원격 서버가 느리거나 실패하면 rerank_by_doc을 비워 아래 기존 score 산식으로 즉시 폴백한다.
         rerank_by_doc = {}
+        rerank_raw_by_doc = {}      # [AX Lab] 2026-10-16 거르기 기준용 원점수(logit)
         if self.rerank_fn and cands:
             rerank_cands = cands[:RERANK_TOP]
             rerank_docs = []
@@ -476,17 +489,29 @@ class Recommender:
                 rerank_by_doc = {
                     rerank_cands[i][0]: value for i, value in enumerate(_normalize_rerank(rerank_raw))
                 }
+                rerank_raw_by_doc = {rerank_cands[i][0]: float(value) for i, value in enumerate(rerank_raw)}
             except Exception:
                 rerank_by_doc = {}
+                rerank_raw_by_doc = {}
         # [AX Lab] 수정 끝
         # 호출자가 안 준 프로그램명/화면명은 질의 템플릿에서 뽑은 값으로 채운다 (product_match 폴백용)
         qmeta = {"service_cate": service_cate, "inquiry_type": inquiry_type,
                  "program_nm": program_nm or qm.get("program_nm"), "screen_nm": screen_nm or qm.get("screen_nm")}
         ranked = []
         for doc_id, sim, lex, rel in cands:
+            # [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 후보 제외.
+            #   재정렬 성공 요청은 재정렬을 거친 상위 N 중 원점수 ≥ RERANK_MIN_SCORE 만 남긴다 — 상위 N 밖 후보는
+            #   검증되지 않은 채 Tier1 최소 보장·빈칸 채우기로 끼어들던 것(점심 메뉴 질의에 '미수회입' 등)이라 뺀다.
+            #   재정렬 장애·비활성이면 코사인 < FALLBACK_MIN_SIM 만 뺀다. 이후 compose 의 모든 규칙은 남은 후보 안에서만 돈다.
+            if rerank_by_doc:
+                raw = rerank_raw_by_doc.get(doc_id)
+                if raw is None or raw < RERANK_MIN_SCORE:
+                    continue
+            elif sim < FALLBACK_MIN_SIM:
+                continue
+            # [AX Lab] 수정 끝
             d = index.get(doc_id)
             pm = product_match(qmeta, d)
-            # 재정렬 성공 요청에서는 상위 N 밖 후보도 0점으로 명시해 점수 척도를 하나로 유지한다.
             rr = rerank_by_doc.get(doc_id, 0.0) if rerank_by_doc else None
             item = {**self._item(d), "semantic_sim": round(sim, 4), "lexical_score": round(lex, 2),
                     "relevance": round(rel, 4), "product_match": pm,
@@ -496,6 +521,7 @@ class Recommender:
             # [AX Lab] 수정 (2026-10-15 AX Lab): 구 서버 계약을 깨지 않는 선택 필드.
             if rr is not None:
                 item["rerank_score"] = round(rr, 4)
+                item["rerank_raw"] = round(rerank_raw_by_doc[doc_id], 3)   # [AX Lab] 2026-10-16 임계 재조정용
             ranked.append(item)
         ranked.sort(key=lambda c: -c["score"])
         items = compose(ranked, top_k)
@@ -532,6 +558,8 @@ def _print(res, show_body=False):
     for i, it in enumerate(res["items"], 1):
         line = (f" {i}. [{it['tier_label']}] {it['title'][:44]:44} rel={it['relevance']:.2f} "
                 f"(cos={it['semantic_sim']:.3f} bm25={it['lexical_score']:.1f} {it.get('confidence', '')}) score={it['score']:.3f}")
+        if "rerank_raw" in it:      # [AX Lab] 2026-10-16
+            line += f" rr={it['rerank_raw']:.2f}"
         if it.get("service_cate"):
             line += f" · {it['service_cate']}"
         if it.get("topic"):

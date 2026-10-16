@@ -11,10 +11,10 @@ except ModuleNotFoundError:
     np = types.SimpleNamespace()
     sys.modules["numpy"] = np
 
-from combine_recommend import RERANK_TOP, Recommender
+from combine_recommend import FALLBACK_MIN_SIM, RERANK_MIN_SCORE, RERANK_TOP, Recommender
 
 
-def _doc(doc_id, relevance):
+def _doc(doc_id, relevance, cos=0.65):
     return {
         "doc_id": doc_id,
         "tier": 2,
@@ -36,13 +36,14 @@ def _doc(doc_id, relevance):
         "as_no": doc_id,
         "question_text": "테스트 문의",
         "public_link": None,
-        "_candidate": (doc_id, 0.65, 1.0, relevance),
+        "_candidate": (doc_id, cos, 1.0, relevance),
     }
 
 
 class FakeIndex:
-    def __init__(self, relevances):
-        docs = [_doc(f"d{i}", rel) for i, rel in enumerate(relevances)]
+    def __init__(self, relevances, cosines=None):
+        cosines = cosines or [0.65] * len(relevances)
+        docs = [_doc(f"d{i}", rel, cos) for i, (rel, cos) in enumerate(zip(relevances, cosines))]
         self.meta = {doc["doc_id"]: doc for doc in docs}
         self.doc_ids = list(self.meta)
         self.model = "bge-m3"
@@ -93,6 +94,28 @@ class RerankIntegrationTest(unittest.TestCase):
         self.assertEqual(RERANK_TOP, len(captured))
         self.assertEqual("000", result["result"])
         self.assertLessEqual(len(result["items"]), 5)
+
+    # [AX Lab] 2026-10-16 관련 없는 후보 거르기
+    def test_low_raw_rerank_score_is_excluded(self):
+        index = FakeIndex([1.0, 0.8, 0.6])
+        result = self._recommend(index, lambda _q, _d: [3.0, RERANK_MIN_SCORE - 0.01, RERANK_MIN_SCORE])
+        self.assertEqual(["d0", "d2"], sorted(it["doc_id"] for it in result["items"]))
+        self.assertEqual(3.0, result["items"][0]["rerank_raw"])
+
+    def test_candidates_outside_rerank_top_are_excluded(self):
+        index = FakeIndex([1.0 - i * 0.01 for i in range(RERANK_TOP + 5)])
+        result = self._recommend(index, lambda _q, docs: [RERANK_MIN_SCORE - 3.0] * len(docs))
+        self.assertEqual("000", result["result"])
+        self.assertEqual([], result["items"])
+
+    def test_fallback_excludes_low_cosine(self):
+        index = FakeIndex([1.0, 0.8], cosines=[FALLBACK_MIN_SIM + 0.05, FALLBACK_MIN_SIM - 0.01])
+
+        def fail(_query, _docs):
+            raise TimeoutError("test")
+
+        result = self._recommend(index, fail, top_k=2)
+        self.assertEqual(["d0"], [it["doc_id"] for it in result["items"]])
 
 
 if __name__ == "__main__":

@@ -142,6 +142,10 @@ LaunchAgent는 `axlab` 로그인 세션이 있어야 뜨므로 Mac 재부팅 후
 | `COMBINE_RERANK_TOP` | `20` | 재정렬할 하이브리드 상위 후보 수(최대 20) |
 | `COMBINE_RERANK_TIMEOUT_MS` | `900` | 재정렬 제한 시간. 초과 시 기존 순위로 폴백 |
 <!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 추천 제외 임계 -->
+| `COMBINE_RERANK_MIN_SCORE` | `-2.0` | 재정렬 원점수(logit)가 이 값 미만인 후보는 추천하지 않음. 재정렬 상위 N 밖 후보도 제외. 아주 낮게(`-99`) 두면 사실상 끔 |
+| `COMBINE_FALLBACK_MIN_SIM` | `0.55` | 재정렬 장애·비활성 시 코사인이 이 값 미만인 후보는 추천하지 않음 |
+<!-- [AX Lab] 수정 끝 -->
 
 ## 4. 데이터 (색인) 갱신
 
@@ -229,7 +233,8 @@ Content-Type: application/json
 200 {"result":"000","elapsed_ms":300,"confidence":"high|mid|low","best_sim":0.69,
      "items":[{ doc_id, tier, tier_label, title, answer_text, answer_html,
       relevance(0~1, 후보 안 상대값 — 화면 표시용), semantic_sim(코사인 원값), lexical_score(BM25 원값), score,
-      rerank_score(재정렬 성공 시에만 0~1), confidence(high/mid/low — 절대 코사인 기준),
+      rerank_score(재정렬 성공 시에만 0~1), rerank_raw(재정렬 성공 시에만 원점수 logit — 2026-10-16),
+      confidence(high/mid/low — 절대 코사인 기준),
       service_cate, program_nm, screen_nm, topic, resolution, deep_link, public_link, attached_file[],
       occurred_at('YYYY-MM'), quality_score, internal_note, as_no, question_text }, ...]}
 400 잘못된 요청 · 401 키 불일치 · 503 임베딩 서버 장애
@@ -242,6 +247,14 @@ Content-Type: application/json
 <!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): low 사용자 표시 정책 -->
 CRM 화면은 `low`를 오류나 실패로 단정하지 않습니다. 상대값인 관련도 퍼센트 대신 `참고 사례`로 표시하고,
 전부 low이면 “직접 일치하는 답변 대신 유사한 업무 사례”라는 중립 안내와 함께 목록을 그대로 제공합니다.
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 추천 제외 -->
+**건수는 0~`top_k`건입니다** (2026-10-16). 예전에는 무관한 후보로도 항상 5칸을 채웠습니다(`relevance`·`rerank_score` 가 후보 안 상대값이라
+무관해도 1위가 높게 나옴). 이제 재정렬 성공 시 원점수 `rerank_raw < COMBINE_RERANK_MIN_SCORE(-2.0)` 이거나 재정렬 상위 N 밖인 후보,
+재정렬 장애 시 코사인 `< COMBINE_FALLBACK_MIN_SIM(0.55)` 인 후보는 Tier1 최소 보장을 포함한 어떤 규칙으로도 노출하지 않습니다.
+실측(질의 48건): 도메인 밖 질의 노출 후보는 전부 원점수 ≤ -2.5, 관련 사례는 대부분 ≥ -2 였고 코사인으로는 둘이 0.55~0.61 에서 겹쳤습니다.
+CRM 화면은 0건이면 버튼 건수를 흐리게 표시하고 "관련도가 충분한 사례가 없어 추천하지 않았습니다"로 안내합니다.
+임계를 다시 맞출 때는 CLI(`python combine_recommend.py "질의"`) 출력의 `rr=` 값을 봅니다.
 <!-- [AX Lab] 수정 끝 -->
 
 응답에는 고객사 식별 정보(`cust_code`/`cust_nm`) 가 들어가지 않습니다. 질의는 1겹 정규식 마스킹 후 임베딩하며 **저장·로그하지 않습니다**(접속 로그에도 본문 없음).

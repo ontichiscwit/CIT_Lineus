@@ -133,7 +133,8 @@ function cai_buttonHtml(){
 }
 function cai_countHtml(){
 	if(cai.status === 'loading') return '<b class="cai-cnt cai-ld" title="검색 중"><span class="asws-spin cai-spin"></span></b>';
-	if(cai.status === 'ok')      return '<b class="cai-cnt">' + cai.items.length + '</b>';
+	/* [AX Lab] 수정 (2026-10-16 AX Lab): 서버가 관련 없는 후보를 빼므로 건수가 0~5로 달라진다. 0건은 흐린 색으로 */
+	if(cai.status === 'ok')      return '<b class="cai-cnt' + (cai.items.length ? '' : ' cai-na') + '">' + cai.items.length + '</b>';
 	return '<b class="cai-cnt cai-na">-</b>';
 }
 function cai_popHtml(){
@@ -148,7 +149,7 @@ function cai_popHtml(){
 		var allLow = cai_allLow(cai.items);
 		h += '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em class="cai-tag' + (allLow ? ' ref' : ' on') + '">' + (allLow ? '참고 사례 ' : '') + cai.items.length + '건</em></span>';
 		if(!cai.items.length){
-			h += '<span class="cai-empty">문의 내용과 비슷한 사례를 찾지 못했습니다.</span>';
+			h += '<span class="cai-empty">문의 내용과 관련도가 충분한 사례가 없어 추천하지 않았습니다.</span>';	/* [AX Lab] 2026-10-16 문구: 관련 없는 후보 제외 */
 			return h;
 		}
 		if(allLow) h += '<span class="cai-lownote">직접 일치하는 답변 대신 유사한 업무 사례를 함께 보여드립니다. 내용을 확인한 후 활용해주세요.</span>';

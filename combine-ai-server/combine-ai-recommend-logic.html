@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AS 통합화면 AI 추천 — 어떻게 동작하나요?</title>
 <!-- [AX Lab] 신규 파일 (2026-10-15 AX Lab): AI 추천 로직 설명용 독립 HTML (비전공자 대상) -->
+<!-- [AX Lab] 수정 (2026-10-16 AX Lab): 관련 없는 추천 제외(항상 5건 → 0~5건) 내용 반영 — #s-filter 섹션 신설 외 -->
+
 <style>
   :root{
     --bg:#f6f7f9; --surface:#fff; --ink:#1b2430; --ink2:#3d4957; --muted:#6b7684; --line:#e2e6eb; --line2:#eef1f4;
@@ -179,6 +181,44 @@
   .lv p{font-size:13px;color:var(--ink2)}
   .note{margin-top:14px;padding:14px 18px;border-left:3px solid var(--blue);background:var(--blue-soft);color:#2f5170;font-size:13px;border-radius:0 10px 10px 0}
 
+  /* [AX Lab] 2026-10-16 관련 없는 추천 제외 */
+  .why2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+  .why2 > div{padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .why2 .lbl{display:inline-block;margin-bottom:8px;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:800}
+  .why2 p{font-size:13px;color:var(--ink2)}
+  .rule3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px}
+  .rule3 > div{padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .rule3 .v{display:block;margin:2px 0 6px;font-size:22px;font-weight:800;color:var(--brand);line-height:1.2}
+  .rule3 p{font-size:12.5px;color:var(--muted)}
+  .scale{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:26px}
+  .scale-bar{position:relative;display:grid;grid-template-columns:37.5% 12.5% 50%;height:30px;border-radius:8px;font-size:11px;font-weight:800}
+  .scale-bar span:first-child{border-radius:8px 0 0 8px}
+  .scale-bar span:nth-child(3){border-radius:0 8px 8px 0}
+  .scale-bar span{display:flex;align-items:center;justify-content:center}
+  .scale-bar .b1{background:var(--red-soft);color:var(--red)}
+  .scale-bar .b2{background:var(--amber-soft);color:var(--amber)}
+  .scale-bar .b3{background:var(--teal-soft);color:var(--teal)}
+  .scale-bar .cut{position:absolute;left:37.5%;top:-4px;bottom:-4px;width:3px;margin-left:-1px;background:var(--ink)}
+  .scale-ax{position:relative;height:18px;margin-top:4px;font-size:10px;color:var(--muted)}
+  .scale-ax span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+  .scale-ax span.end{left:auto !important;right:0;transform:none}
+  #s-filter a, #s-steps a{color:var(--brand)}
+  .scale-ax span.cutl{color:var(--ink);font-weight:800}
+  .scale-eg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;font-size:12px;color:var(--ink2);line-height:1.6}
+  .scale-eg div{padding:12px 14px;border-radius:10px;background:var(--bg);border-top:3px solid var(--line)}
+  .scale-eg div.e1{border-top-color:var(--red)} .scale-eg div.e2{border-top-color:var(--amber)} .scale-eg div.e3{border-top-color:var(--teal)}
+  .scale-eg b{display:block;margin-bottom:4px;font-size:12px;color:var(--ink)}
+  .cmp{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:13px}
+  .cmp th,.cmp td{padding:12px 16px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
+  .cmp th{background:var(--bg);color:var(--muted);font-size:12px}
+  .cmp td b{color:var(--brand)}
+  .cmp tr:last-child td{border-bottom:0}
+  .zero{display:grid;grid-template-columns:330px 1fr;gap:28px;align-items:start;margin-top:26px}
+  .aibtn{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--brand-line);border-radius:8px;background:var(--brand-soft);color:var(--brand);font-size:12px;font-weight:800}
+  .aibtn i{font-style:normal;padding:0 6px;border-radius:6px;background:#fff;color:var(--brand);font-size:11px}
+  .aibtn i.na{color:#a79bcf}
+  .mock-empty{padding:16px 14px;color:var(--muted);font-size:12px;text-align:center}
+
   /* 안전장치 */
   .guards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
   .g{padding:18px 20px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
@@ -207,6 +247,7 @@
     .arch{grid-template-columns:1fr}.analogy,.summary,.guards,.data{grid-template-columns:1fr}
     .analogy > div{border-right:0;border-bottom:1px solid var(--line)}
     .weights,.down{grid-template-columns:1fr 1fr}.stage{grid-template-columns:1fr}.screen{grid-template-columns:1fr}
+    .why2,.rule3,.zero,.scale-eg{grid-template-columns:1fr}
     .player-body{grid-template-columns:auto 1fr}.player-body .ctrl{grid-column:1 / -1;justify-content:flex-end}.chips{margin-left:0}
     .row{grid-template-columns:28px 1fr 56px}.row .stack{grid-column:1 / -1}.row.axis{display:none}
   }
@@ -220,6 +261,7 @@
     <a href="#s-arch">어느 PC에서 무엇을?</a>
     <a href="#s-steps">추천이 만들어지는 과정</a>
     <a href="#s-score">순위는 어떻게 정하나</a>
+    <a href="#s-filter">관련 없는 추천은 빼기</a>
     <a href="#s-screen">화면에서는 어떻게 보이나</a>
     <a href="#s-guard">안전장치</a>
     <a href="#s-data">추천 자료는 어디서 오나</a>
@@ -230,7 +272,7 @@
     <!-- 0. 히어로 -->
     <header class="hero" id="s-overview">
       <p class="kicker">AS 통합화면 · AI 추천</p>
-      <h1>상담원이 문의를 열면,<br>AI가 비슷한 답변 5건을 찾아 옆에 띄워 줍니다</h1>
+      <h1>상담원이 문의를 열면,<br>AI가 비슷한 답변을 최대 5건 찾아 옆에 띄워 줍니다</h1>
       <p class="lead">과거에 이미 해결한 AS 사례, 표준답변, 공지 약 1만 1천 건 중에서 지금 문의와 가장 비슷한 것을 골라 보여 주는 기능입니다. 상담원은 그 답변을 참고하거나 답변 초안에 바로 넣을 수 있습니다.</p>
       <div class="summary">
         <div><b>무엇을 찾나요?</b><span>지금 문의와 <strong>내용이 비슷한</strong> 과거 해결 사례·표준답변·공지</span></div>
@@ -260,9 +302,9 @@
         </div>
         <div>
           <span class="n">3단계 · 상황에 맞춰 건네기</span>
-          <h3>분야·자료 종류를 고려해 5권만 줍니다</h3>
-          <p class="muted small">같은 분야인지, 공식 안내서인지, 비슷한 책이 겹치지 않는지 따져서 최종 선택합니다.</p>
-          <p class="real">실제: 업무 분류·<span class="t" data-term="tier">Tier</span>·답변 품질 반영, <span class="t" data-term="dedup">중복 제거</span> 후 5건</p>
+          <h3>관련 없는 책은 빼고 최대 5권만 줍니다</h3>
+          <p class="muted small">읽어 보니 질문과 상관없는 책은 자리가 남아도 건네지 않습니다. 같은 분야인지, 공식 안내서인지, 비슷한 책이 겹치지 않는지 따져서 최종 선택합니다.</p>
+          <p class="real">실제: 리랭킹 기준 미달 제외, 업무 분류·<span class="t" data-term="tier">Tier</span>·답변 품질 반영, <span class="t" data-term="dedup">중복 제거</span> 후 0~5건</p>
         </div>
       </div>
     </section>
@@ -303,7 +345,7 @@
         <div class="zone">
           <div class="zone-h"><b>CRM 서버 PC</b><span>현재는 두 <span class="t" data-term="server">서버</span> 프로그램이 같은 PC에서 동작</span></div>
           <div class="box" data-box="was"><b>CRM 웹 서버 <small class="muted">(<span class="t" data-term="was">WAS</span>)</small></b><span>문의 내용을 <span class="t" data-term="db">DB</span>에서 꺼내 추천 서버 API를 호출하고, 최대 2.5초 <span class="t" data-term="timeout">타임아웃</span>까지 결과를 기다립니다.</span></div>
-          <div class="box" data-box="rec"><b>AI 추천 서버 <small class="muted">(<span class="t" data-term="port">포트</span> 8765)</small></b><span>추천의 두뇌. 자료 1만 1천 건의 <span class="t" data-term="index">인덱스</span>를 <span class="t" data-term="memory">메모리</span>에 올려 두고 <span class="t" data-term="hybrid">하이브리드 검색</span>·점수 계산·최종 5건 선택을 합니다.</span></div>
+          <div class="box" data-box="rec"><b>AI 추천 서버 <small class="muted">(<span class="t" data-term="port">포트</span> 8765)</small></b><span>추천의 두뇌. 자료 1만 1천 건의 <span class="t" data-term="index">인덱스</span>를 <span class="t" data-term="memory">메모리</span>에 올려 두고 <span class="t" data-term="hybrid">하이브리드 검색</span>·점수 계산·최종 최대 5건 선택을 합니다.</span></div>
         </div>
         <div class="zone">
           <div class="zone-h"><b>AI PC</b><span><span class="t" data-term="ip">IP</span> 192.168.19.141 · AI 모델 전용</span></div>
@@ -326,7 +368,7 @@
       <div class="down">
         <div><span class="st bad">추천 중단</span><b>AI 추천 서버가 꺼지면</b><p>화면에 "AI 추천 서버 응답이 지연되어 건너뛰었습니다 [다시 시도]"가 뜹니다.</p></div>
         <div><span class="st bad">추천 중단</span><b>AI PC(<span class="t" data-term="ollama">Ollama</span>)가 꺼지면</b><p>문의 문장을 <span class="t" data-term="embedding">임베딩</span>으로 바꿀 수 없어 "AI 추천을 불러오지 못했습니다"가 뜹니다.</p></div>
-        <div><span class="st mid">정확도만 조금 하락</span><b>리랭킹 서버만 꺼지면</b><p><span class="t" data-term="fallback">폴백</span>으로 정밀 채점을 건너뛰고 기존 방식으로 추천합니다. 이후 30초간은 <span class="t" data-term="circuit">서킷 브레이커</span>가 호출을 쉬어 추천이 느려지지 않습니다.</p></div>
+        <div><span class="st mid">정확도만 조금 하락</span><b>리랭킹 서버만 꺼지면</b><p><span class="t" data-term="fallback">폴백</span>으로 정밀 채점을 건너뛰고 기존 방식으로 추천합니다. 이후 30초간은 <span class="t" data-term="circuit">서킷 브레이커</span>가 호출을 쉬어 추천이 느려지지 않습니다. 관련 없는 자료를 거르는 기준도 덜 정확한 코사인 0.55로 바뀌어, 엉뚱한 추천이 조금 더 섞일 수 있습니다.</p></div>
         <div><span class="st ok">추천 정상</span><b>AX Lab 개발 PC가 꺼지면</b><p>추천은 그대로 됩니다. 다만 새로 종결된 AS 건이 추천 자료에 추가되지 않습니다.</p></div>
       </div>
     </section>
@@ -359,7 +401,7 @@
         </div>
         <div class="stage">
           <div class="no">05</div>
-          <div><h3>최종 5건 고르기</h3><p>리랭킹 점수에 업무 분류 일치, <span class="t" data-term="tier">Tier</span>(표준답변인지), 답변 품질을 <span class="t" data-term="weight">가중치</span>대로 더해 순위를 정합니다. 그리고 비슷한 내용이 겹치지 않게 <span class="t" data-term="dedup">중복 제거</span>해서 최대 5건을 보냅니다.</p></div>
+          <div><h3>최종 최대 5건 고르기</h3><p>먼저 리랭킹 <span class="t" data-term="rawscore">원점수</span>가 기준(-2.0)에 못 미치거나 리랭킹 20건 밖이라 검증되지 않은 후보는 뺍니다(<a href="#s-filter">자세히</a>). 남은 후보만 리랭킹 점수에 업무 분류 일치, <span class="t" data-term="tier">Tier</span>(표준답변인지), 답변 품질을 <span class="t" data-term="weight">가중치</span>대로 더해 순위를 정합니다. 그리고 비슷한 내용이 겹치지 않게 <span class="t" data-term="dedup">중복 제거</span>해서 최대 5건을 보냅니다. 관련 있는 자료가 적으면 5건보다 적게, 없으면 0건을 보냅니다.</p></div>
           <div class="eg"><b>다음 섹션</b>아래 "순위는 어떻게 정하나"에서 실제 예시로 설명합니다.</div>
         </div>
       </div>
@@ -367,7 +409,8 @@
         <span>전체 자료 <b>약 11,700건</b></span>→
         <span>1차 후보 <b>최대 120건</b></span>→
         <span>리랭킹 <b>20건</b></span>→
-        <span>화면 표시 <b>최대 5건</b></span>
+        <span>원점수 기준 통과 <b>0~20건</b></span>→
+        <span>화면 표시 <b>0~5건</b></span>
       </div>
     </section>
 
@@ -390,6 +433,75 @@
       <div class="board" id="board"></div>
       <div class="insight" id="insight"></div>
     </section>
+
+    <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 추천 제외 -->
+    <section id="s-filter">
+      <p class="kicker">관련 없는 추천은 빼기 <small class="muted" style="font-weight:700">· 2026-10-16 적용</small></p>
+      <h2>왜 항상 5건이 아니라 0~5건인가요?</h2>
+      <p class="desc">예전에는 어떤 문의든 [AI 추천] 버튼에 항상 <b>5</b>가 떴습니다. 이제는 문의와 관련 있는 자료만 보여 주므로 건수가 0~5건으로 달라지고, 그 숫자 자체가 "볼 만한 추천이 몇 개인지"를 알려 줍니다.</p>
+
+      <div class="why2">
+        <div>
+          <span class="lbl st bad">예전</span>
+          <h3>자리가 5개면 무조건 5개를 채웠습니다</h3>
+          <p>순위에 쓰던 <span class="t" data-term="relevance">관련도</span>와 <span class="t" data-term="rerank">리랭킹</span> 점수는 둘 다 <strong>이번 후보들끼리의 등수</strong>(0~1로 <span class="t" data-term="normalize">정규화</span>)입니다. 후보가 전부 엉뚱해도 1등은 항상 높게 나오니, "관련 없다"고 판단할 근거가 없어 5칸을 다 채웠습니다. 실제로 "오늘 점심 메뉴 추천해주세요"를 넣어도 5건이 나왔습니다.</p>
+        </div>
+        <div>
+          <span class="lbl st ok">지금</span>
+          <h3>면접 점수가 기준 미달이면 자리가 남아도 뽑지 않습니다</h3>
+          <p>리랭킹 모델이 내는 <span class="t" data-term="rawscore">원점수</span>는 등수가 아니라 "이 답이 이 질문에 맞는가"에 대한 <strong>절대 점수</strong>입니다. 이 원점수가 <span class="t" data-term="threshold">임계값</span>(-2.0)에 못 미치는 자료는 아무리 다른 점수가 좋아도 목록에 넣지 않습니다.</p>
+        </div>
+      </div>
+
+      <h3>세 가지 규칙</h3>
+      <div class="rule3">
+        <div><b>리랭킹 원점수 기준</b><span class="v">-2.0 미만 제외</span><p>리랭킹이 정상일 때의 기본 규칙입니다. 질문과 함께 읽어 봤더니 맞지 않는 자료를 뺍니다.</p></div>
+        <div><b>검증 안 된 자료 제외</b><span class="v">리랭킹 20건 밖 제외</span><p>리랭킹은 상위 20건만 읽습니다. 그 밖의 자료는 아무도 읽어 보지 않았으므로, 빈칸 채우기나 "<a href="#s-guard">표준답변 최소 1건</a>" 규칙으로도 끼워 넣지 않습니다.</p></div>
+        <div><b>리랭킹 서버가 꺼졌을 때</b><span class="v">코사인 0.55 미만 제외</span><p>원점수가 없으므로 <span class="t" data-term="fallback">폴백</span>으로 <span class="t" data-term="cosine">코사인 유사도</span>를 씁니다. 원점수보다 덜 정확해서 기준을 느슨하게 잡았습니다.</p></div>
+      </div>
+
+      <h3>기준 -2.0은 어떻게 정했나요? — 실제 측정</h3>
+      <p class="muted small" style="margin-bottom:12px">실제 인덱스와 리랭킹 서버로 질의 48건(문의와 무관한 질문 8건, 실제 AS 문의 40건)을 돌려, 추천된 자료의 리랭킹 원점수와 내용을 하나씩 대조했습니다.</p>
+      <div class="scale">
+        <div class="scale-bar">
+          <span class="b1">-2.0 미만 · 대부분 무관 → 제외</span>
+          <span class="b2">-2 ~ 0</span>
+          <span class="b3">0 이상 · 대부분 관련 있음</span>
+          <i class="cut" title="기준선 -2.0"></i>
+        </div>
+        <div class="scale-ax">
+          <span style="left:12.5%">-6</span><span class="cutl" style="left:37.5%">기준 -2.0</span><span style="left:50%">0</span><span style="left:75%">+4</span><span class="end">+8 이상</span>
+        </div>
+        <div class="scale-eg">
+          <div class="e1"><b>-2.0 미만: 대부분 무관</b>문의와 무관한 질문에 추천되던 자료는 <strong>전부 -2.5 이하</strong>였습니다.<br>예) "회의실 예약" → 통합예약 오류 사례 -5.14<br>예) 산재평가 인증 문의 → "배달서비스공제조합 계약처코드" -5.13</div>
+          <div class="e2"><b>-2 ~ 0: 관련 있는 자료가 많음</b>직접 답은 아니어도 같은 업무 흐름인 자료가 많아 남겨 둡니다.<br>예) 위조직검사 FM→PH 처방 변경 문의 → 같은 변경 사례 -0.42<br>예) TKR CP 템플릿 문의 → 슬관절 CP 양식 사례 -1.25</div>
+          <div class="e3"><b>0 이상: 대부분 바로 쓸 수 있음</b>예) 차등제 치료식 환자수 조회 → 같은 문의 사례 +9.76<br>예) 서식지 열추가 칸 길이 문의 → 같은 증상 사례 +8.97</div>
+        </div>
+        <div class="note" style="margin-top:16px">같은 질의에서 <span class="t" data-term="cosine">코사인 유사도</span>는 무관한 자료도 0.55~0.61까지 나와 관련 있는 자료와 구간이 겹쳤습니다(예: "회의실 예약" 1등 코사인 0.61). 그래서 코사인은 리랭킹 서버가 꺼졌을 때의 예비 기준으로만 씁니다.</div>
+      </div>
+
+      <h3>적용 전후 비교 (같은 질의 48건)</h3>
+      <table class="cmp">
+        <thead><tr><th style="width:190px">질의 종류</th><th>적용 전</th><th>적용 후</th></tr></thead>
+        <tbody>
+          <tr><td>문의와 무관한 질문 8건</td><td>8건 모두 5건 추천</td><td><b>5건이 0건</b>이 됨 (회의실 예약, 점심 메뉴, 프린터 토너, 엑셀 피벗, 주차 등록)</td></tr>
+          <tr><td>실제 AS 문의 40건</td><td>40건 모두 5건 추천</td><td>32건은 5건, <b>8건은 0·2·4건</b>으로 줄어듦.<br>5건이 유지된 경우도 리랭킹 20건 밖에서 검증 없이 끼어들던 자료 대신 기준을 통과한 자료가 그 자리를 채움</td></tr>
+        </tbody>
+      </table>
+
+      <div class="zero">
+        <div class="mock" aria-label="추천 0건일 때 팝업 예시">
+          <div class="mock-h"><span class="aibtn">✦ AI 추천 <i class="na">0</i> ⌄</span><em style="background:#eee8ff;color:#6547c7">0건</em></div>
+          <div class="mock-empty">문의 내용과 관련도가 충분한 사례가 없어 추천하지 않았습니다.</div>
+        </div>
+        <div>
+          <h3>0건일 때 화면</h3>
+          <p class="small" style="color:var(--ink2)">버튼의 숫자를 흐린 색으로 표시하고, 팝업에는 "관련도가 충분한 사례가 없어 추천하지 않았습니다"라고 안내합니다. 오류가 아니라 <strong>억지로 채우지 않았다</strong>는 뜻입니다. 상담원은 버튼을 열어 보지 않고도 "이번 문의는 참고할 추천이 없다"는 걸 알 수 있습니다.</p>
+          <div class="note" style="border-left-color:var(--amber);background:var(--amber-soft);color:#6b4a12"><b>아직 남은 한계</b> — "담당자 휴무라 4시 전에 연락 달라"처럼 <strong>내용 없이 연락만 요청하는 문의</strong>는 여전히 5건이 나옵니다. 인덱스 안에 "그 전에 연락바랍니다" 같은 연락 요청 접수건이 실제로 있고, 리랭킹 모델도 서로 비슷하다고(원점수 +2 안팎) 판단하기 때문입니다. 점수 기준으로는 풀 수 없어, 인덱스에서 이런 사례를 거르거나 질문에서 연락 요청 문구를 뺀 뒤 남는 내용이 없으면 추천을 건너뛰는 방식을 검토 중입니다.</div>
+        </div>
+      </div>
+    </section>
+    <!-- [AX Lab] 수정 끝 -->
 
     <!-- 4. 화면 -->
     <section id="s-screen">
@@ -423,10 +535,11 @@
       <p class="desc">점수가 높더라도 아래 규칙을 먼저 지킵니다.</p>
       <div class="guards">
         <div class="g"><h3>자기 자신은 빼기</h3><p>지금 보고 있는 접수건과 그 건에 연결된 부모·자식·연결 접수건은 추천에서 제외합니다. 안 빼면 자기 자신이 1등이 됩니다.</p></div>
-        <div class="g"><h3>표준답변 최소 1건</h3><p>관련 있는 표준답변(<span class="t" data-term="tier">Tier</span>1)이 있으면 5건 안에 최소 1건은 꼭 넣습니다. 공식 답변이 묻히지 않게 하기 위해서입니다.</p></div>
+        <div class="g"><h3>표준답변 최소 1건</h3><p>관련 기준을 통과한 표준답변(<span class="t" data-term="tier">Tier</span>1)이 있으면 목록 안에 최소 1건은 꼭 넣습니다. 공식 답변이 묻히지 않게 하기 위해서입니다.</p></div>
         <div class="g"><h3>과거사례는 3건까지</h3><p>과거사례(Tier2)가 목록을 다 차지하지 않도록 먼저 3건까지만 넣고, 자리가 남으면 더 채웁니다.</p></div>
         <div class="g"><h3>같은 내용 반복 금지</h3><p>주제와 업무 분류가 같은 자료는 2건까지만 보여 주는 <span class="t" data-term="dedup">중복 제거</span> 규칙입니다. 비슷한 답이 5개 나란히 뜨는 것을 막습니다.</p></div>
         <div class="g"><h3>너무 먼 자료는 버리기</h3><p><span class="t" data-term="cosine">코사인 유사도</span> 0.35 미만이거나 <span class="t" data-term="relevance">관련도</span> 30% 미만인 자료는 <span class="t" data-term="threshold">임계값</span>에 걸려 어떤 경우에도 보여 주지 않습니다.</p></div>
+        <div class="g"><h3>관련 없으면 칸을 채우지 않기</h3><p><span class="t" data-term="rerank">리랭킹</span> <span class="t" data-term="rawscore">원점수</span>가 -2.0 미만이거나 리랭킹을 거치지 않은 자료는 자리가 남아도 넣지 않습니다. 리랭킹 서버가 꺼졌을 때는 코사인 유사도 0.55 미만을 뺍니다. 그래서 건수가 0~5건으로 달라지고, 0건이면 "관련도가 충분한 사례가 없어 추천하지 않았습니다"라고 안내합니다.</p></div>
         <div class="g"><h3>개인정보 보호</h3><p>문의 속 개인정보는 <span class="t" data-term="masking">마스킹</span>한 뒤 AI에 보내고, 문의 내용은 저장하거나 <span class="t" data-term="log">로그</span>에 남기지 않습니다. 추천 결과에도 고객사 정보는 들어가지 않습니다.</p></div>
       </div>
     </section>
@@ -469,6 +582,8 @@
 tier_weight          = Tier1 1.0 / Tier2 0.7 / Tier3 0.5
 product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.0 / inquiry_type 일치 0.6 / 그 외 0
 후보                 = dense 상위 60 ∪ BM25 상위 60, cosine &lt; 0.35 제외 → 재정렬 상위 20 (COMBINE_RERANK_TOP)
+노출 제외(10-16)     = 재정렬 성공: rerank_raw &lt; -2.0 (COMBINE_RERANK_MIN_SCORE) 또는 재정렬 상위 20 밖
+                       재정렬 폴백: cosine &lt; 0.55 (COMBINE_FALLBACK_MIN_SIM)  → 건수 0~top_k
 제한                 = CRM readTimeout 2.5s · 재정렬 0.9s (COMBINE_RERANK_TIMEOUT_MS) · 실패 시 30초 회로 차단</pre>
           <table>
             <thead><tr><th>위치</th><th>구성 요소</th><th>파일</th></tr></thead>
@@ -484,17 +599,18 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
           <table style="margin-top:14px">
             <thead><tr><th>응답 필드</th><th>의미</th><th>쓰임</th></tr></thead>
             <tbody>
-              <tr><td>semantic_sim</td><td>bge-m3 코사인 원값</td><td>후보 제외, high/mid/low 판정</td></tr>
+              <tr><td>semantic_sim</td><td>bge-m3 코사인 원값</td><td>후보 제외, high/mid/low 판정, 재정렬 폴백 시 노출 하한 0.55</td></tr>
               <tr><td>lexical_score</td><td>BM25 원점수</td><td>희귀 용어 검색</td></tr>
               <tr><td>relevance</td><td>후보 안 상대 점수</td><td>화면 관련도 %, 노출 하한 0.30</td></tr>
               <tr><td>rerank_score</td><td>재정렬 점수(0~1, 재정렬 성공 시에만)</td><td>최종 점수</td></tr>
+              <tr><td>rerank_raw</td><td>재정렬 원점수 logit(재정렬 성공 시에만)</td><td>노출 하한 -2.0, 임계 재조정</td></tr>
               <tr><td>score</td><td>최종 합산 점수</td><td>정렬</td></tr>
               <tr><td>confidence</td><td>high / mid / low</td><td>일반 추천 또는 참고 사례 표시</td></tr>
             </tbody>
           </table>
         </div>
       </details>
-      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-15). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
+      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-16). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
     </section>
   </main>
 </div>
@@ -522,7 +638,7 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
     vector:    { n:'벡터 검색', en:'Dense Retrieval', d:'임베딩끼리 비교해서 뜻이 가까운 자료를 찾는 방식입니다. 표현이 달라도 의미가 같으면 찾아냅니다.', eg:'예: "결제 취소가 안 돼요" ↔ "수납 취소 불가"' },
     bm25:      { n:'BM25', en:'단어 검색', d:'질문의 단어가 자료에 얼마나 들어 있는지로 점수를 매기는 전통적인 검색 방식입니다. 흔한 단어보다 드문 단어가 겹칠 때 점수가 큽니다.', eg:'예: "마약류투약정보조회" 같은 드문 화면명을 정확히 찾음' },
     hybrid:    { n:'하이브리드 검색', en:'Hybrid Search', d:'벡터 검색(뜻)과 BM25(단어)를 함께 쓰는 방식입니다. 한쪽이 놓친 자료를 다른 쪽이 잡아 줍니다.' },
-    cosine:    { n:'코사인 유사도', en:'Cosine Similarity', d:'두 문장의 임베딩이 얼마나 같은 방향을 가리키는지 잰 값입니다. 1에 가까울수록 뜻이 같습니다. 후보끼리 비교한 값이 아닌 절대 기준이라 "확실한지" 판단에 씁니다.', eg:'이 서비스 기준: 0.62 이상 확실 · 0.58 미만 참고 사례 · 0.35 미만 제외' },
+    cosine:    { n:'코사인 유사도', en:'Cosine Similarity', d:'두 문장의 임베딩이 얼마나 같은 방향을 가리키는지 잰 값입니다. 1에 가까울수록 뜻이 같습니다. 후보끼리 비교한 값이 아닌 절대 기준이라 "확실한지" 판단에 씁니다.', eg:'이 서비스 기준: 0.62 이상 확실 · 0.58 미만 참고 사례 · 0.35 미만 제외 · 리랭킹 서버가 꺼졌을 때는 0.55 미만 제외' },
     relevance: { n:'관련도', en:'Relevance', d:'이번 후보들끼리 비교한 1차 점수(0~100%)입니다. 화면에 표시되는 값입니다.', eg:'비유: 시험 점수가 아니라 반 등수. 후보가 다 별로여도 1등은 높게 나옵니다.' },
     normalize: { n:'정규화', en:'Normalization', d:'단위가 다른 점수를 같은 0~1 범위로 맞추는 것입니다. 후보 중 최고점을 1, 최저점을 0으로 놓고 나머지를 그 사이에 배치합니다(min-max).', eg:'비유: 100점 만점 시험과 5점 만점 시험을 같은 기준으로 환산' },
     rerank:    { n:'리랭킹', en:'Re-ranking · 재정렬', d:'1차로 추린 후보를 AI가 질문과 함께 직접 읽고 순위를 다시 매기는 것입니다. 정확하지만 느려서 상위 20건에만 씁니다. 이 일을 하는 모델을 리랭커라고 부릅니다.', eg:'비유: 서류 심사를 통과한 사람만 면접을 보는 것' },
@@ -536,7 +652,8 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
     tier:      { n:'Tier', en:'자료 등급', d:'자료 종류별 우선순위입니다. Tier1 표준답변(1점) > Tier2 과거사례(0.7점) > Tier3 공지(0.5점) 순으로 가산점을 받습니다.' },
     weight:    { n:'가중치', en:'Weight', d:'여러 항목을 합칠 때 각 항목을 얼마나 중요하게 볼지 정한 비율입니다. 모두 더하면 100%입니다.', eg:'비유: 성적 산출 시 중간 30% · 기말 40% · 과제 30%' },
     dedup:     { n:'중복 제거', en:'Deduplication', d:'주제와 업무 분류가 같은 자료가 여러 건이면 2건까지만 남기는 것입니다. 비슷한 답이 나란히 뜨는 것을 막습니다.' },
-    threshold: { n:'임계값', en:'Threshold', d:'통과와 탈락을 가르는 기준선입니다. 이 값보다 낮으면 결과에서 뺍니다.' },
+    threshold: { n:'임계값', en:'Threshold', d:'통과와 탈락을 가르는 기준선입니다. 이 값보다 낮으면 결과에서 뺍니다.', eg:'이 서비스 기준: 리랭킹 원점수 -2.0 미만 제외 · 리랭킹 장애 시 코사인 0.55 미만 제외' },
+    rawscore:  { n:'원점수', en:'Raw score · logit', d:'리랭킹 모델이 "이 답이 이 질문에 맞는가"를 판단해 내놓는 원래 점수입니다. 다른 후보와 비교한 등수가 아니라 절대 점수라서, 후보가 전부 엉뚱하면 모두 낮게 나옵니다. 그래서 "관련 없음"을 가르는 기준으로 씁니다. 대략 -10 ~ +10 범위이고, 높을수록 잘 맞습니다.', eg:'비유: 반 등수가 아니라 면접 점수. 지원자가 다 별로면 1등도 불합격일 수 있습니다.' },
     confidence:{ n:'신뢰도', en:'Confidence', d:'추천 하나하나가 얼마나 확실한지를 high / mid / low 세 단계로 나눈 값입니다. 코사인 유사도로 판단합니다.' },
     batch:     { n:'배치', en:'Batch', d:'사람이 누르지 않아도 정해진 시간에 자동으로 한꺼번에 처리하는 작업입니다.', eg:'예: 매주 1회 전체 인덱스 재생성, 5분마다 신규 건 추가' },
     polling:   { n:'폴링', en:'Polling', d:'일정 간격으로 "새로 생긴 것이 있나?"를 확인하는 방식입니다. 여기서는 5분마다 DB를 확인합니다.' },
@@ -599,7 +716,7 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
       { t:'문의 문장을 임베딩으로 바꿉니다', d:'추천 서버가 개인정보를 [[마스킹|masking]]한 문장을 AI PC의 [[Ollama|ollama]]로 보내 [[임베딩|embedding]]으로 바꿔 받습니다.', b:['rec','embed'] },
       { t:'하이브리드 검색으로 후보를 찾고 관련도를 매깁니다', d:'[[메모리|memory]]에 올려 둔 1만 1천여 건의 [[인덱스|index]]에서 [[벡터 검색|vector]]과 [[BM25|bm25]]를 동시에 돌려 후보를 추리고 [[관련도|relevance]]를 계산합니다.', b:['rec'] },
       { t:'리랭킹 서버가 상위 20건을 다시 채점합니다', d:'AI PC의 [[리랭킹|rerank]] 서버(포트 8766)가 문의와 후보를 나란히 읽어 채점합니다. 0.9초 안에 답이 없으면 [[폴백|fallback]]으로 이 단계를 건너뜁니다.', b:['rec','rerank'] },
-      { t:'최종 5건을 골라 화면에 보여 줍니다', d:'점수를 [[가중치|weight]]대로 합산하고 [[중복 제거|dedup]]·자기 자신 제외 후 최대 5건을 CRM을 거쳐 브라우저로 돌려줍니다. [AI 추천] 버튼에 건수가 표시됩니다.', b:['rec','was','browser'] }
+      { t:'최대 5건을 골라 화면에 보여 줍니다', d:'리랭킹 기준에 못 미치는 후보를 뺀 뒤 점수를 [[가중치|weight]]대로 합산하고 [[중복 제거|dedup]]·자기 자신 제외 후 최대 5건을 CRM을 거쳐 브라우저로 돌려줍니다. [AI 추천] 버튼의 건수는 관련 있는 자료 수라 0~5건으로 달라집니다.', b:['rec','was','browser'] }
     ],
     prep: [
       { t:'5분마다 새로 종결된 AS 건을 찾습니다', d:'AX Lab 개발 PC의 [[배치|batch]] 프로그램이 [[폴링|polling]]으로 DB에서 최근 종결되거나 답변이 바뀐 접수건을 찾습니다.', b:['batch','db'] },
@@ -700,7 +817,7 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
            { k:'q',   label:'답변 품질',  w:.10, c:'var(--s5)', d:'인덱스를 만들 때 미리 매겨 둔 답변의 충실도' } ]
   };
   var INSIGHT = {
-    on:'1차 [[관련도|relevance]]만 보면 과거사례가 1등이지만, [[리랭킹|rerank]]에서 "취소 방법을 정확히 설명하는" 표준답변이 1등으로 올라왔습니다. 단어만 겹치는 공지는 3등으로 크게 밀렸습니다.',
+    on:'1차 [[관련도|relevance]]만 보면 과거사례가 1등이지만, [[리랭킹|rerank]]에서 "취소 방법을 정확히 설명하는" 표준답변이 1등으로 올라왔습니다. 단어만 겹치는 공지는 3등으로 크게 밀렸습니다. 만약 이 공지의 리랭킹 [[원점수|rawscore]]가 기준(-2.0)에 못 미쳤다면 3등이 아니라 목록에서 아예 빠지고 2건만 보입니다.',
     off:'리랭킹이 빠지는 [[폴백|fallback]] 상태에서는 단어가 가장 많이 겹친 과거사례가 1등이 되고, 공지와의 점수 차이도 줄어듭니다. 결과는 여전히 나오지만, 리랭킹이 있을 때보다 덜 정확할 수 있습니다.'
   };
   function renderScore(mode){
