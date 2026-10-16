@@ -330,16 +330,18 @@ function caws_buildEvents(){
 	var acceptDt = caws_nvl(vo.accept_dt, caws_nvl(row.accept_dt,''));
 	var acceptTm = caws_nvl(vo.accept_time,'');
 	var custNm   = caws_nvl(row.cust_kor_name, caws_nvl(vo.cust_kor_name,''));
-	var applyNm  = caws_nvl(vo.apply_nm, caws_nvl(vo.rl_apply_nm,''));
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 문의 카드에 병원명 다음 실제 A/S 신청자명 표시 */
+	var applyNm  = caws_nvl(vo.rl_apply_nm, caws_nvl(vo.apply_nm,''));
 	out.push({
 		kind:'q', grp:'talk', ord:ord++,
 		ts:   caws_ts(acceptDt + acceptTm),
-		who:  applyNm || '고객',
-		sub:  custNm,
+		who:  custNm || '고객',
+		sub:  applyNm,
 		when: caws_date(acceptDt) + (caws_time(acceptTm) ? ' ' + caws_time(acceptTm) : ''),
 		text: caws_nvl(vo.call_content, caws_nvl(row.call_content,'')),
 		files: caws.attach1
 	});
+	/* [AX Lab] 수정 끝 */
 
 	/* --- 답변 : CRM_AS_MGT_ANSWER (W_GUBUN U=고객 / A=직원) --- */
 	for(var i=0; i<caws.aws.length; i++){
