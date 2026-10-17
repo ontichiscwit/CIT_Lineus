@@ -1531,7 +1531,30 @@ public class AdAsController {
 	    } else if ("update".equals(vo.getPageType())) {
 	        returnValue = asService.updateAws(vo, request);
 	    } else if ("delete".equals(vo.getPageType())) {
-	        returnValue = asService.deleteAws(vo, request);
+	        // [AX Lab] 수정 시작 (2026-10-17 AX Lab): 답변 삭제 시 작성자 또는 관리자 권한을 서버에서 재검증
+	        // 화면의 삭제 버튼 노출 여부만 신뢰하면 요청을 직접 조작해 다른 직원의 답변을 삭제할 수 있다.
+	        boolean canDelete = false;
+	        String loginEmpNo = adUserInfo != null && adUserInfo.getEmp_no() != null
+	                ? adUserInfo.getEmp_no() : "";
+	        String targetSeq = vo.getSeq() != null ? vo.getSeq() : "";
+	        boolean isAdmin = adUserInfo != null && "C001".equals(adUserInfo.getEmp_grade());
+
+	        if (!"".equals(loginEmpNo) && !"".equals(targetSeq)) {
+	            List<AsVO> awsList = asService.getList(vo, "asDAO.getAwsList");
+	            if (awsList != null) {
+	                for (AsVO awsVO : awsList) {
+	                    if (targetSeq.equals(awsVO.getSeq())) {
+	                        canDelete = loginEmpNo.equals(awsVO.getW_id()) || isAdmin;
+	                        break;
+	                    }
+	                }
+	            }
+	        }
+
+	        if (canDelete) {
+	            returnValue = asService.deleteAws(vo, request);
+	        }
+	        // [AX Lab] 수정 끝
 	    }
 
 	    // 1건이라도 성공하면 성공 코드

@@ -47,6 +47,9 @@ var caws = {
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 답변 등록 후 미저장 접수처리정보 복원용 */
 	answerBatchDraft:null,
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 답변 삭제 콜백에서 작성 중 초안 보존 여부 판별 */
+	answerDeletePending:false,
+	/* [AX Lab] 수정 끝 */
 	restoreScroll:null,
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 필드 단위 클릭 즉시 수정(click-to-edit).
@@ -352,6 +355,10 @@ function caws_buildEvents(){
 			ts:   caws_ts(a.w_date),
 			who:  caws_nvl(a.emp_nm,'') || (isCust ? '고객' : '담당자'),
 			when: caws_stamp(a.w_date),
+			/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 본인 답변 삭제 권한 및 삭제 대상 식별 */
+			seq:   caws_nvl(a.seq,''),
+			wId:   caws_nvl(a.w_id,''),
+			/* [AX Lab] 수정 끝 */
 			/* getAwsList 쿼리는 W_CONTENT 를 가공 없이 주므로 줄바꿈을 그대로 살려 pre-line 으로 표시한다. */
 			text: caws_nvl(a.w_content,''),
 			files: (a.amap && a.amap.attachList) ? a.amap.attachList : []
@@ -717,6 +724,10 @@ function caws_evHtml(ev, idx){
 	      /* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 내용 우측 상단에 AI 추천 팝오버 배치 */
 	      + (ev.kind === 'q' ? caws_aiRecommendHtml() : '')
 	      /* [AX Lab] 수정 끝 */
+	      /* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 본인이 작성한 직원 답변에만 삭제 버튼 표시 */
+	      + (caws_answerOwnedByLogin(ev)
+	          ? '<button type="button" class="caws-minib" onclick="caws_deleteAnswer('+idx+');" title="본인이 작성한 답변을 삭제합니다">삭제</button>' : '')
+	      /* [AX Lab] 수정 끝 */
 	      + '</div>';
 
 	/* 조치이력 메타 : 처리일자 / 인수자 / 처리상태 / 중요도 */
@@ -736,6 +747,44 @@ function caws_evHtml(ev, idx){
 	  +  '</div></div>';
 	return s;
 }
+
+/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 본인 답변 삭제
+   버튼 노출과 함수 직접 호출을 모두 사번으로 확인하고, 실제 권한은 awsProc.do에서도 다시 검증한다. */
+function caws_answerOwnedByLogin(ev){
+	var loginEmpNo = (typeof CAWS_LOGIN_EMP_NO !== 'undefined') ? caws_nvl(CAWS_LOGIN_EMP_NO,'') : '';
+	return !!ev && ev.kind === 'staff'
+		&& String(caws_nvl(ev.seq,'')) !== ''
+		&& String(caws_nvl(ev.wId,'')) !== ''
+		&& String(caws_nvl(ev.wId,'')) === String(loginEmpNo);
+}
+function caws_deleteAnswer(idx){
+	if(caws.answerDeletePending) return;
+	var ev = caws.events[idx];
+	if(!caws_answerOwnedByLogin(ev)){
+		alert('본인이 작성한 답변만 삭제할 수 있습니다.');
+		return;
+	}
+	if(!confirm('해당 답변을 삭제하시겠습니까?')) return;
+
+	var f = document.answerForm;
+	if(!f){ alert('답변 처리 폼을 찾을 수 없습니다.'); return; }
+	f.w_content.value = '';
+	f.as_no.value = caws.asNo;
+	f.seq.value = ev.seq;
+	f.pageType.value = 'delete';
+	caws.answerDeletePending = true;
+
+	try{ $('#awsFrame').remove(); }catch(e){}
+	$('<iframe id="awsFrame" name="awsFrame" style="width:0;height:0;display:none;"></iframe>').appendTo('body');
+	f.method = 'post';
+	f.target = 'awsFrame';
+	f.action = '/ad/as/awsProc.do';
+	f.submit();
+}
+function caws_answerFailed(){
+	caws.answerDeletePending = false;
+}
+/* [AX Lab] 수정 끝 */
 
 /* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 문의(요청내용) 버블 인라인 수정.
    접수처리정보(COL3)의 요청내용 행을 없애면서, 가운데 타임라인의 문의 버블에서 직접 고치게 한다.
@@ -2734,6 +2783,13 @@ function caws_histReturn(data){
 
 /* 답변 등록 성공 후 (list.jsp awsProcReturn 에서 호출) */
 function caws_afterAnswer(){
+	/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 삭제 후에는 작성 중인 답변 초안과 첨부를 지우지 않고 목록만 갱신 */
+	if(caws.answerDeletePending){
+		caws.answerDeletePending = false;
+		caws_reload(false);
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
 	var ta = caws_el('cawsText');
 	if(ta) ta.value = '';
 	caws_clearFiles();
