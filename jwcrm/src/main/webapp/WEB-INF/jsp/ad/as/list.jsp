@@ -1540,12 +1540,15 @@
      ★ 로드 순서 : combine-as-thread.js(caws_renderAll/caws_renderRecord 를 감싼다) 와
        combine-as-loading.css(.asws-spin 재사용) 뒤여야 한다.
      ★ 원복 : 아래 두 줄만 지우면 combine-as-thread.js 의 caws_aiRecommendHtml() 이 기존 플레이스홀더로 돌아간다. --%>
-<%-- [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거(겹친 단어) 칩 스타일 반영 캐시 갱신 (기존 v=20261015-1) --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-ai.css?v=20261016-2" />
+<%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): AI 추천 긴 본문 스크롤 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-ai.css?v=20261016-3" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): AI 재정렬·참고 사례 UX 반영 캐시 갱신
      [AX Lab] 수정 (2026-10-16 AX Lab): 관련 없는 추천 제외(0~5건) 표시 반영 캐시 갱신
      [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거(겹친 단어) 표시 반영 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-ai.js?v=20261016-2"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 색인 불일치 시 원본 최신 직원답변 사용 반영 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-ai.js?v=20261017-2"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 연관 이력 / 과거 상담이력 항목을 "그 자리에서" 펼쳐 보기.

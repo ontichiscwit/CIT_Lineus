@@ -95,6 +95,77 @@ function cai_fileExt(url){
 }
 function cai_isImg(url){ return ['png','jpg','jpeg','gif','bmp','webp'].indexOf(cai_fileExt(url)) >= 0; }
 
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 과거사례 색인 답변이 적재 길이 제한으로 잘린 경우 원본 답변 전문 보충
+ * 추천 색인은 검색용 스냅샷이라 과거 데이터 일부의 answer_text가 문장 중간에서 끝날 수 있다.
+ * [AX Lab] 수정 (2026-10-17 AX Lab): 전처리된 색인 본문과 원문이 불일치하면 최신 직원 답변을 사용한다.
+ * Tier2 항목을 열거나 초안에 넣을 때 기존 getAsInfo.do로 원본 답변목록을 읽고, 색인 본문과 앞부분이 정확히
+ * 일치하는 직원 답변을 우선 사용한다. 색인 전처리·마스킹 때문에 일치하지 않으면 해당 접수건의 최신 직원
+ * 답변(자동등록 계정 88888 제외)을 사용한다. 원본 접수번호로 다시 조회한 결과만 쓰므로 다른 건과 섞이지 않는다. */
+function cai_caseNo(it){
+	var no = cai_nvl(it && it.as_no, '');
+	if(no === '' && String(it && it.doc_id || '').indexOf('AS-') === 0) no = String(it.doc_id).substring(3);
+	return no;
+}
+function cai_answerText(v){ return String(cai_nvl(v, '')).replace(/\r/g, '').trim(); }
+/* DB 원문과 색인 생성본은 줄바꿈·탭·연속 공백이 달라질 수 있으므로 답변 식별 때만 공백을 제거해 비교한다.
+ * 화면/초안에는 아래 비교용 문자열이 아니라 DB 원문(full)을 그대로 사용한다. */
+function cai_matchText(v){ return cai_answerText(v).replace(/[\s\u00a0]+/g, ''); }
+function cai_findFullAnswer(it, list){
+	var seed = cai_matchText(it && it.answer_text);
+	if(seed === '') return '';
+	var best = '', latest = '', latestSeq = -1;
+	for(var i=0; i<(list || []).length; i++){
+		var a = list[i] || {};
+		if(String(cai_nvl(a.w_gubun, '')).toUpperCase() !== 'A') continue;
+		if(String(cai_nvl(a.w_id, '')) === '88888') continue;
+		var full = cai_answerText(a.w_content);
+		if(full === '') continue;
+		var seq = parseInt(cai_nvl(a.seq, i), 10);
+		if(isNaN(seq)) seq = i;
+		if(seq >= latestSeq){ latestSeq = seq; latest = full; }
+		var fullMatch = cai_matchText(full);
+		if(fullMatch.length > seed.length && fullMatch.indexOf(seed) === 0 && full.length > best.length) best = full;
+	}
+	return best || latest;
+}
+function cai_loadFullAnswer(idx, done){
+	var it = cai.items[idx];
+	if(!it || Number(it.tier) !== 2 || cai_caseNo(it) === ''){
+		if(done) done(false);
+		return;
+	}
+	if(it._fullState === 'done' || it._fullState === 'fail'){
+		if(done) done(false);
+		return;
+	}
+	if(!it._fullWait) it._fullWait = [];
+	if(done) it._fullWait.push(done);
+	if(it._fullState === 'loading') return;
+	it._fullState = 'loading';
+
+	function finish(changed, state){
+		it._fullState = state;
+		var wait = it._fullWait || [];
+		it._fullWait = [];
+		for(var i=0; i<wait.length; i++){ try{ wait[i](changed); }catch(e){} }
+	}
+	$.ajax({
+		type:'POST', url:CAI_URL, dataType:'json', async:true,
+		data:{ as_no:cai_caseNo(it), pageType:'update' },
+		success:function(data){
+			var full = cai_findFullAnswer(it, data && data.awsList);
+			var changed = full !== '';
+			if(changed){
+				it.answer_text = full;
+				it.answer_html = '';		/* DB 원문은 HTML이 아니므로 화면에서 반드시 이스케이프 경로를 탄다 */
+			}
+			finish(changed, 'done');
+		},
+		error:function(){ finish(false, 'fail'); }
+	});
+}
+/* [AX Lab] 수정 끝 */
+
 /* =============================================================================
  * 1) 조회
  * ========================================================================== */
@@ -269,6 +340,11 @@ function cai_open(idx, evt){
 	if(rec) rec.scrollTop = 0;
 	if(box) box.classList.add('flash');
 	setTimeout(function(){ var b = cai_el('caiBox'); if(b) b.classList.remove('flash'); }, 700);
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): Tier2는 원본 답변 전문 확인 후 열린 패널만 다시 그린다 */
+	cai_loadFullAnswer(idx, function(changed){
+		if(changed && cai.sel === idx) cai_mount();
+	});
+	/* [AX Lab] 수정 끝 */
 }
 function cai_close(){
 	cai.sel = -1;
@@ -388,7 +464,7 @@ function cai_detailHtml(it, idx){
 		h += '<button type="button" class="caws-send cai-primary" onclick="cai_insertDraft(' + idx + ');" title="이 답변 원문을 아래 작성영역에 붙여 넣습니다">답변 초안에 넣기</button>';
 		if(it.deep_link) h += '<button type="button" class="btn-s" onclick="cai_openLink(' + idx + ');">게시물 열기</button>';
 	}else if(tier === 2){
-		var asNo = cai_nvl(it.as_no, (String(it.doc_id || '').indexOf('AS-') === 0 ? String(it.doc_id).substring(3) : ''));
+		var asNo = cai_caseNo(it);
 		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 원본 접수건은 현재 AS를 유지하고 통합 AS 화면 새 탭으로 열기 */
 		if(asNo) h += '<button type="button" class="caws-send cai-primary" onclick="cai_openCase(\'' + cai_esc(asNo) + '\');" title="통합 AS 화면을 새 탭으로 열어 이 접수건을 선택합니다">원본 접수건 열기</button>';
 		/* [AX Lab] 수정 끝 */
@@ -407,7 +483,13 @@ function cai_detailHtml(it, idx){
 /* 답변 초안 삽입 : answer_text(원문)만 textarea 에 넣는다. HTML 은 절대 넣지 않는다. */
 function cai_insertDraft(idx){
 	var it = cai.items[idx]; if(!it) return;
-	var txt = String(cai_nvl(it.answer_text, '')).replace(/\r/g, '').trim();
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 과거사례는 원본 답변 전문 확인이 끝난 뒤 초안에 넣는다 */
+	if(Number(it.tier) === 2 && it._fullState !== 'done' && it._fullState !== 'fail'){
+		cai_loadFullAnswer(idx, function(){ cai_insertDraft(idx); });
+		return;
+	}
+	/* [AX Lab] 수정 끝 */
+	var txt = cai_answerText(it.answer_text);
 	if(txt === ''){ alert('붙여 넣을 답변 원문이 없습니다.'); return; }
 	if(typeof caws_openCompose === 'function') caws_openCompose();
 	var ta = cai_el('cawsText');

@@ -115,10 +115,13 @@
 #asWorkspace .cai-note{color:#8A5A00; background:#FFF8E6; padding:6px 8px; border-radius:6px;}
 
 /* ---- 마크다운 본문 (§8-5) ------------------------------------------------- */
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 긴 추천 답변이 COL3 전체를 밀어내지 않도록 본문만 세로 스크롤 */
 #asWorkspace .caws-aimd{
   padding:4px 12px 10px; font-size:12.5px; line-height:1.65; color:var(--ink);
+  max-height:280px; overflow-y:auto;
   word-break:break-word; overflow-wrap:anywhere;
 }
+/* [AX Lab] 수정 끝 */
 #asWorkspace .caws-aimd p{margin:0 0 8px;}
 #asWorkspace .caws-aimd p:last-child{margin-bottom:0;}
 #asWorkspace .caws-aimd ul, #asWorkspace .caws-aimd ol{margin:4px 0 8px; padding-left:22px;}
