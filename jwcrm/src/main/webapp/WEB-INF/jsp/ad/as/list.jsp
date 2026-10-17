@@ -1501,15 +1501,15 @@
      ② JS 는 combine-as.js 다음에 와야 asws_renderDetailRecord 의 위임 대상(caws_renderAll)이 준비된다. --%>
 <%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 접수처리정보 필수값 UX 수정 캐시 갱신 --%>
 <%-- [AX Lab] 수정 (2026-10-12 AX Lab): 전화부재중 횟수 비활성 음영 스타일 캐시 갱신 --%>
-<%-- [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 높이 조절 스타일 캐시 갱신 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261014-1" />
+<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261017-2" />
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 기능 수정 후 브라우저가 이전 JS를 재사용하지 않도록 버전 고정 --%>
 <%-- [AX Lab] 수정 (2026-10-12 AX Lab): 처리상태별 담당자/조치의견/전화부재중 규칙 반영 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 높이 조절 스크립트 캐시 갱신 --%>
-<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 본인 답변 삭제 기능 반영 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261017-1"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 기능 반영 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261017-4"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>

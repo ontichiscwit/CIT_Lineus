@@ -78,36 +78,86 @@
 <%-- ============================================================
      4-3. 게시물 링크 삽입
      본문에 '공지사항(12345)' 같은 토큰을 텍스트로 넣고, 타임라인 렌더 시 링크로 변환한다.
-     존재확인 URL(/ad/board/getNotice*exist.do) 도 MenuAuthFilter 대상이라
-     게시판 메뉴 권한이 없으면 403 이 난다. 그때는 검증만 건너뛰고 삽입은 허용한다.
+     게시물 목록은 권한 등록된 /ad/as/getAsInfo.do의 pageType 분기로 조회한다.
      ============================================================ --%>
-<div class="caws-modal" id="cawsLink" style="display:none;">
+<div class="caws-modal caws-link-modal" id="cawsLink" style="display:none;">
   <div class="caws-mh">
     <h3>게시물 링크 삽입</h3>
     <button type="button" class="caws-mx" onclick="caws_closeModal('cawsLink');" title="닫기 (ESC)">&times;</button>
   </div>
   <div class="caws-mb">
+    <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 번호 직접입력/존재확인을 게시물 선택 목록으로 변경 --%>
     <div class="caws-fld">
       <label>게시판 종류</label>
-      <select id="cawsLnGbn"></select>
+      <select id="cawsLnGbn" onchange="caws_linkLoad(1);"></select>
     </div>
-    <div class="caws-fld">
-      <label>게시물 번호<span class="caws-req">*</span></label>
-      <div class="caws-frow">
-        <input type="text" id="cawsLnNum" maxlength="10" placeholder="숫자만 입력" style="flex:1;"
-               oninput="this.value=this.value.replace(/[^0-9]/g,'');" />
-        <button type="button" class="btn-s" onclick="caws_checkLink();">존재 확인</button>
-      </div>
-      <div class="caws-mnote" id="cawsLnMsg"></div>
+    <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물번호/제목/내용/작성자 통합검색 --%>
+    <div class="caws-link-search">
+      <input type="text" id="cawsLnSearch" maxlength="100"
+             placeholder="게시물번호, 제목, 내용, 작성자 검색"
+             onkeydown="if(event.keyCode===13){caws_linkSearch();return false;}" />
+      <button type="button" class="btn-s" onclick="caws_linkSearch();">검색</button>
+      <button type="button" class="btn-s" onclick="caws_linkClearSearch();">초기화</button>
     </div>
-    <div class="caws-mnote">본문에는 <b>공지사항(12345)</b> 형태의 텍스트로 삽입되고, 타임라인에서 클릭 가능한 링크로 표시됩니다.</div>
+    <%-- [AX Lab] 수정 끝 --%>
+    <div class="caws-link-list" role="region" aria-label="게시물 목록" tabindex="0">
+      <table>
+        <colgroup>
+          <col class="caws-link-no" />
+          <col class="caws-link-date" />
+          <col />
+          <col class="caws-link-writer" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">게시물번호</th>
+            <th scope="col">작성일</th>
+            <th scope="col">제목</th>
+            <th scope="col">작성자</th>
+          </tr>
+        </thead>
+        <tbody id="cawsLnList">
+          <tr><td colspan="4" class="caws-link-empty">게시물을 불러오는 중입니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="caws-link-nav">
+      <span class="caws-link-count" id="cawsLnCount"></span>
+      <div class="caws-link-pages" id="cawsLnPages"></div>
+    </div>
+    <div class="caws-mnote" id="cawsLnMsg">목록에서 본문에 연결할 게시물을 선택해주세요.</div>
+    <%-- [AX Lab] 수정 끝 --%>
   </div>
   <div class="caws-mf">
     <div class="caws-sp"></div>
     <button type="button" class="btn-s" onclick="caws_closeModal('cawsLink');">취소</button>
-    <button type="button" class="btn-s primary" onclick="caws_insertLink();">삽입</button>
+    <button type="button" class="btn-s primary" id="cawsLnInsert" onclick="caws_insertLink();" disabled="disabled">삽입</button>
   </div>
 </div>
+
+<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 본문 미리보기 팝업 --%>
+<div class="caws-modal wide caws-link-preview" id="cawsLinkPreview" style="display:none;">
+  <div class="caws-mh">
+    <h3>게시물 미리보기</h3>
+    <span class="caws-msub" id="cawsLnPvBoard"></span>
+    <button type="button" class="caws-mx" onclick="caws_closeModal('cawsLinkPreview');" title="닫기 (ESC)">&times;</button>
+  </div>
+  <div class="caws-mb">
+    <div class="caws-link-preview-meta">
+      <span><b>게시물번호</b><em id="cawsLnPvNum">-</em></span>
+      <span><b>작성일</b><em id="cawsLnPvDate">-</em></span>
+      <span><b>작성자</b><em id="cawsLnPvWriter">-</em></span>
+    </div>
+    <div class="caws-link-preview-title" id="cawsLnPvTitle">게시물을 불러오는 중입니다.</div>
+    <div class="caws-link-preview-content" id="cawsLnPvContent"></div>
+  </div>
+  <div class="caws-mf">
+    <div class="caws-sp"></div>
+    <button type="button" class="btn-s" onclick="caws_closeModal('cawsLinkPreview');">닫기</button>
+    <button type="button" class="btn-s primary" id="cawsLnPvInsert" onclick="caws_linkPreviewInsert();" disabled="disabled">이 게시물 삽입</button>
+  </div>
+</div>
+<%-- [AX Lab] 수정 끝 --%>
 
 <%-- ============================================================
      4-4. 접수 등록 모달 (신규작업 / 복사 / 하위작업) — combine-as-form.js (cafm_*)

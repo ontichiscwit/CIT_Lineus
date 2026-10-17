@@ -67,7 +67,10 @@ var caws = {
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의유형별 시스템유형 필수 표시/검증용 VAL2 */
 	reqVal2: '',
 	/* [AX Lab] 수정 끝 */
-	ai:{ target:'', src:'', out:'', tone:'polite' }
+	ai:{ target:'', src:'', out:'', tone:'polite' },
+	/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 링크 목록/선택/페이징 상태 */
+	link:{ page:1, pageCount:0, totalCount:0, selectedNum:'', keyword:'', request:null, previewRequest:null }
+	/* [AX Lab] 수정 끝 */
 };
 
 /* 이관 코멘트 식별 접두어. AdAsController.ASWS_TRANSFER_PREFIX 와 반드시 같아야 한다. */
@@ -98,11 +101,11 @@ var CAWS_CH_DETAIL_MIN = 120;	/* 높이 조절 후에도 타임라인에 남겨 
    ※ 공지사항만 본문에 적는 번호가 NOTICE_NUM 이라 SEQ 로 변환(getNoticenum.do)해야 이동된다.
      나머지 게시판은 본문 번호가 곧 SEQ 다. (notice/form.jsp faqlistDetail / noticelistDetail 비교) */
 var CAWS_BOARDS = [
-	{ gbn:'0000', token:'공지사항',   label:'공지사항',       url:'/ad/notice/form.do',   numConv:true,  exist:'/ad/board/getNoticeexist.do' },
-	{ gbn:'0001', token:'상담사례',   label:'상담사례(FAQ)',  url:'/ad/faq/form.do',      numConv:false, exist:'/ad/board/getFaqexist.do' },
-	{ gbn:'0002', token:'다운로드',   label:'다운로드',       url:'/ad/down/form.do',     numConv:false, exist:'/ad/board/getDownexist.do' },
-	{ gbn:'0005', token:'마약류보고', label:'마약류보고',     url:'/ad/drugfaq/form.do',  numConv:false, exist:'/ad/board/getDrugfaqexist.do' },
-	{ gbn:'0006', token:'동영상',     label:'동영상',         url:'/ad/videofaq/form.do', numConv:false, exist:'/ad/board/getVideofaqexist.do' }
+	{ gbn:'0000', token:'공지사항',   label:'공지사항',       url:'/ad/notice/form.do',   numConv:true },
+	{ gbn:'0001', token:'상담사례',   label:'상담사례(FAQ)',  url:'/ad/faq/form.do',      numConv:false },
+	{ gbn:'0002', token:'다운로드',   label:'다운로드',       url:'/ad/down/form.do',     numConv:false },
+	{ gbn:'0005', token:'마약류보고', label:'마약류보고',     url:'/ad/drugfaq/form.do',  numConv:false },
+	{ gbn:'0006', token:'동영상',     label:'동영상',         url:'/ad/videofaq/form.do', numConv:false }
 ];
 
 /* ===== 유틸 ===== */
@@ -2951,42 +2954,226 @@ function caws_openLink(){
 		s += '<option value="'+CAWS_BOARDS[i].gbn+'">'+caws_esc(CAWS_BOARDS[i].label)+'</option>';
 	}
 	caws_html('cawsLnGbn', s);
-	var num = caws_el('cawsLnNum'); if(num) num.value = '';
-	caws_html('cawsLnMsg', '');
+	caws.link.page = 1;
+	caws.link.pageCount = 0;
+	caws.link.totalCount = 0;
+	caws.link.selectedNum = '';
+	caws.link.keyword = '';
+	var search = caws_el('cawsLnSearch'); if(search) search.value = '';
+	caws_linkSetInsert(false);
+	caws_html('cawsLnList', '<tr><td colspan="4" class="caws-link-empty">게시물을 불러오는 중입니다.</td></tr>');
+	caws_html('cawsLnCount', '');
+	caws_html('cawsLnPages', '');
+	caws_html('cawsLnMsg', '목록에서 본문에 연결할 게시물을 선택해주세요.');
 	caws_openModal('cawsLink');
-	if(num) num.focus();
+	caws_linkLoad(1);
 }
 function caws_board(gbn){
 	for(var i=0; i<CAWS_BOARDS.length; i++){ if(CAWS_BOARDS[i].gbn === gbn) return CAWS_BOARDS[i]; }
 	return null;
 }
-/* 존재 확인. 게시판 메뉴 권한이 없으면 이 URL 도 403 이 되므로 실패해도 링크 삽입은 막지 않는다. */
-function caws_checkLink(){
-	var g = caws_el('cawsLnGbn'), n = caws_el('cawsLnNum');
-	var b = caws_board(g ? g.value : '');
-	var num = n ? String(n.value||'').replace(/[^0-9]/g,'') : '';
-	if(!b || num === ''){ caws_html('cawsLnMsg','게시물 번호를 입력해주세요.'); return; }
 
-	$.ajax({
-		type:'POST', url:b.exist, dataType:'json', async:false, data:{ seq:num },
+/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 번호 직접입력 대신 게시물 목록에서 단일 선택 */
+function caws_linkSetInsert(enabled){
+	var btn = caws_el('cawsLnInsert');
+	if(btn) btn.disabled = !enabled;
+}
+function caws_linkSearch(){
+	var search = caws_el('cawsLnSearch');
+	caws.link.keyword = search ? String(search.value || '').replace(/^\s+|\s+$/g, '') : '';
+	caws_linkLoad(1);
+}
+function caws_linkClearSearch(){
+	var search = caws_el('cawsLnSearch');
+	if(search) search.value = '';
+	caws.link.keyword = '';
+	caws_linkLoad(1);
+	if(search) search.focus();
+}
+function caws_linkLoad(page){
+	var g = caws_el('cawsLnGbn');
+	var b = caws_board(g ? g.value : '');
+	if(!b) return;
+
+	page = parseInt(page, 10);
+	if(!page || page < 1) page = 1;
+	caws.link.selectedNum = '';
+	caws_linkSetInsert(false);
+	caws_html('cawsLnList', '<tr><td colspan="4" class="caws-link-empty">게시물을 불러오는 중입니다.</td></tr>');
+	caws_html('cawsLnCount', '');
+	caws_html('cawsLnPages', '');
+	caws_html('cawsLnMsg', '목록에서 본문에 연결할 게시물을 선택해주세요.');
+
+	if(caws.link.request && caws.link.request.readyState !== 4){
+		try{ caws.link.request.abort(); }catch(e){}
+	}
+	caws.link.request = $.ajax({
+		type:'POST',
+		url:'/ad/as/getAsInfo.do',
+		dataType:'json',
+		data:{ pageType:'boardLinkList', board_gbn:b.gbn, page:page, search_text:caws.link.keyword },
 		success:function(d){
-			var l = (d && d.resultList) ? d.resultList : [];
-			var cnt = (l.length && typeof l[0].CNT != 'undefined') ? Number(l[0].CNT) : 0;
-			caws_html('cawsLnMsg', cnt > 0
-				? b.label + ' ' + num + '번 게시물을 찾았습니다.'
-				: b.label + ' ' + num + '번 게시물을 찾을 수 없습니다. 번호를 확인해주세요.');
+			var list = (d && d.resultList) ? d.resultList : [];
+			caws.link.page = Number(d && d.page) || page;
+			caws.link.pageCount = Number(d && d.pageCount) || 0;
+			caws.link.totalCount = Number(d && d.totalCount) || 0;
+			caws_linkRender(list, b);
 		},
-		error:function(){
-			/* 403(게시판 메뉴 권한 없음) 등. 검증만 건너뛰고 삽입은 허용한다. */
-			caws_html('cawsLnMsg', '존재 확인 권한이 없어 검증을 건너뜁니다. 번호를 직접 확인해주세요.');
+		error:function(xhr, status){
+			if(status === 'abort') return;
+			caws.link.page = 1;
+			caws.link.pageCount = 0;
+			caws.link.totalCount = 0;
+			caws_html('cawsLnList', '<tr><td colspan="4" class="caws-link-empty error">게시물 목록을 불러오지 못했습니다.</td></tr>');
+			caws_html('cawsLnCount', '');
+			caws_html('cawsLnPages', '');
+			caws_html('cawsLnMsg', xhr && xhr.status === 403
+				? '게시물 목록 조회 권한이 없습니다.'
+				: '목록 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
 		}
 	});
 }
+function caws_linkRender(list, board){
+	var s = '';
+	for(var i=0; i<list.length; i++){
+		var row = list[i] || {};
+		var num = caws_nvl(typeof row.LINK_NUM != 'undefined' ? row.LINK_NUM : row.link_num, '');
+		var date = caws_nvl(typeof row.REG_DATE != 'undefined' ? row.REG_DATE : row.reg_date, '');
+		var title = caws_nvl(typeof row.TITLE != 'undefined' ? row.TITLE : row.title, '');
+		var writer = caws_nvl(typeof row.EMP_NM != 'undefined' ? row.EMP_NM : row.emp_nm, '');
+		s += '<tr tabindex="0" data-num="'+caws_esc(num)+'"'
+		  +  ' onclick="caws_linkSelect(this);"'
+		  +  ' onkeydown="if(event.keyCode===13||event.keyCode===32){caws_linkSelect(this);event.preventDefault();}">'
+		  +  '<td class="caws-link-num">'+caws_esc(num)+'</td>'
+		  +  '<td>'+caws_esc(date)+'</td>'
+		  +  '<td class="caws-link-title" title="'+caws_esc(title)+'"><button type="button"'
+		  +  ' onclick="event.stopPropagation();caws_linkPreview(this.parentNode.parentNode);">'+caws_esc(title || '-')+'</button></td>'
+		  +  '<td class="caws-link-writer">'+caws_esc(writer || '-')+'</td>'
+		  +  '</tr>';
+	}
+	if(s === ''){
+		s = '<tr><td colspan="4" class="caws-link-empty">조회된 게시물이 없습니다.</td></tr>';
+	}
+	caws_html('cawsLnList', s);
+	caws_html('cawsLnCount', '총 '+caws.link.totalCount+'건');
+	caws_linkRenderPages();
+	caws_html('cawsLnMsg', board.label+' 목록에서 본문에 연결할 게시물을 선택해주세요.');
+}
+function caws_linkRenderPages(){
+	var page = caws.link.page, count = caws.link.pageCount;
+	if(count < 1){ caws_html('cawsLnPages', ''); return; }
+	var start = Math.floor((page - 1) / 10) * 10 + 1;
+	var end = Math.min(start + 9, count);
+	var s = '<button type="button" onclick="caws_linkLoad('+(page-1)+');"'+(page <= 1 ? ' disabled="disabled"' : '')+'>이전</button>';
+	for(var i=start; i<=end; i++){
+		s += '<button type="button"'+(i === page ? ' class="on" aria-current="page"' : '')
+		  + ' onclick="caws_linkLoad('+i+');">'+i+'</button>';
+	}
+	s += '<button type="button" onclick="caws_linkLoad('+(page+1)+');"'+(page >= count ? ' disabled="disabled"' : '')+'>다음</button>';
+	caws_html('cawsLnPages', s);
+}
+function caws_linkSelect(tr){
+	var rows = document.querySelectorAll('#cawsLnList tr.on');
+	for(var i=0; i<rows.length; i++) rows[i].className = rows[i].className.replace(/\bon\b/g, '').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+	if(!tr) return;
+	var num = String(tr.getAttribute('data-num') || '');
+	if(num === '') return;
+	tr.className = (tr.className ? tr.className+' ' : '')+'on';
+	caws.link.selectedNum = num;
+	caws_linkSetInsert(true);
+	var b = caws_board(caws_el('cawsLnGbn') ? caws_el('cawsLnGbn').value : '');
+	caws_html('cawsLnMsg', (b ? b.label+' ' : '')+num+'번 게시물을 선택했습니다.');
+}
+function caws_safeBoardHtml(raw){
+	var box = document.createElement('div');
+	box.innerHTML = String(caws_nvl(raw, ''));
+	var blocked = box.querySelectorAll('script,style,iframe,object,embed,form,input,button,textarea,select,link,meta,base');
+	for(var i=blocked.length-1; i>=0; i--){
+		if(blocked[i].parentNode) blocked[i].parentNode.removeChild(blocked[i]);
+	}
+	var all = box.querySelectorAll('*');
+	for(var j=0; j<all.length; j++){
+		var attrs = all[j].attributes;
+		for(var k=attrs.length-1; k>=0; k--){
+			var name = String(attrs[k].name || '').toLowerCase();
+			var value = String(attrs[k].value || '');
+			if(/^on/.test(name) || name === 'srcdoc' || name === 'formaction'
+					|| ((name === 'href' || name === 'src') && /^\s*javascript\s*:/i.test(value))){
+				all[j].removeAttribute(attrs[k].name);
+			}
+		}
+		if(String(all[j].tagName || '').toLowerCase() === 'a'){
+			all[j].setAttribute('target', '_blank');
+			all[j].setAttribute('rel', 'noopener noreferrer');
+		}
+	}
+	return box.innerHTML;
+}
+function caws_linkPreview(tr){
+	if(!tr) return;
+	var num = String(tr.getAttribute('data-num') || '');
+	var b = caws_board(caws_el('cawsLnGbn') ? caws_el('cawsLnGbn').value : '');
+	if(!b || num === '') return;
+	caws_linkSelect(tr);
+
+	caws_html('cawsLnPvBoard', caws_esc(b.label));
+	caws_html('cawsLnPvNum', caws_esc(num));
+	caws_html('cawsLnPvDate', '-');
+	caws_html('cawsLnPvWriter', '-');
+	caws_html('cawsLnPvTitle', '게시물을 불러오는 중입니다.');
+	caws_html('cawsLnPvContent', '<div class="caws-link-preview-wait">본문을 불러오는 중입니다.</div>');
+	var insertBtn = caws_el('cawsLnPvInsert'); if(insertBtn) insertBtn.disabled = true;
+	caws_openModal('cawsLinkPreview');
+
+	if(caws.link.previewRequest && caws.link.previewRequest.readyState !== 4){
+		try{ caws.link.previewRequest.abort(); }catch(e){}
+	}
+	caws.link.previewRequest = $.ajax({
+		type:'POST',
+		url:'/ad/as/getAsInfo.do',
+		dataType:'json',
+		data:{ pageType:'boardLinkInfo', board_gbn:b.gbn, link_num:num },
+		success:function(d){
+			var row = d ? d.resultVO : null;
+			if(!row){
+				caws_html('cawsLnPvTitle', '게시물을 찾을 수 없습니다.');
+				caws_html('cawsLnPvContent', '<div class="caws-link-preview-wait error">삭제되었거나 조회할 수 없는 게시물입니다.</div>');
+				return;
+			}
+			var rowNum = caws_nvl(
+				typeof row.LINK_NUM != 'undefined' ? row.LINK_NUM
+					: (typeof row.link_num != 'undefined' ? row.link_num : row.seq),
+				num
+			);
+			var date = caws_nvl(typeof row.REG_DATE != 'undefined' ? row.REG_DATE : row.reg_date, '');
+			var title = caws_nvl(typeof row.TITLE != 'undefined' ? row.TITLE : row.title, '');
+			var writer = caws_nvl(typeof row.EMP_NM != 'undefined' ? row.EMP_NM : row.emp_nm, '');
+			var content = caws_nvl(typeof row.CONTENT != 'undefined' ? row.CONTENT : row.content, '');
+			caws_html('cawsLnPvNum', caws_esc(rowNum));
+			caws_html('cawsLnPvDate', caws_esc(date || '-'));
+			caws_html('cawsLnPvWriter', caws_esc(writer || '-'));
+			caws_html('cawsLnPvTitle', caws_esc(title || '-'));
+			caws_html('cawsLnPvContent', content ? caws_safeBoardHtml(content) : '<div class="caws-link-preview-wait">등록된 본문 내용이 없습니다.</div>');
+			if(insertBtn) insertBtn.disabled = false;
+		},
+		error:function(xhr, status){
+			if(status === 'abort') return;
+			caws_html('cawsLnPvTitle', '게시물을 불러오지 못했습니다.');
+			caws_html('cawsLnPvContent', '<div class="caws-link-preview-wait error">본문 조회 중 오류가 발생했습니다.</div>');
+		}
+	});
+}
+function caws_linkPreviewInsert(){
+	caws_closeModal('cawsLinkPreview');
+	caws_insertLink();
+}
+/* [AX Lab] 수정 끝 */
+
 function caws_insertLink(){
-	var g = caws_el('cawsLnGbn'), n = caws_el('cawsLnNum');
+	var g = caws_el('cawsLnGbn');
 	var b = caws_board(g ? g.value : '');
-	var num = n ? String(n.value||'').replace(/[^0-9]/g,'') : '';
-	if(!b || num === ''){ alert('게시물 번호를 입력해주세요.'); if(n) n.focus(); return; }
+	var num = String(caws.link.selectedNum || '').replace(/[^0-9]/g,'');
+	if(!b || num === ''){ alert('삽입할 게시물을 목록에서 선택해주세요.'); return; }
 
 	var token = b.token + '(' + num + ')';
 	var ta = caws_el('cawsText');
