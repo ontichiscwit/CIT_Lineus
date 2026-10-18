@@ -848,6 +848,7 @@
 		f.submit() ; 
 	}
 	
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 숨김 iframe에서 첨부 응답이 다운로드로 전달되지 않는 문제 수정 */
 	function goExl() {
 		
 		var totalCnt = Number($('#count').html().replace(/,/g, ""));
@@ -861,21 +862,26 @@
 			return ;
 		}else{
 			if (confirm(totalCnt + "건의 데이터를 다운로드 받으시겠습니까?")) {
-				var f = document.listFrm ; 
-				
-				try{
-					$("#exlFrame").remove() ;
-				}catch(e){}
-				
-				var downFrame = $('<iframe id="exlFrame" name="exlFrame" style="width:0px; height=0px ; display:none;"></iframe>') ; 
-				downFrame.appendTo("body") ;
-				
-				f.target = "exlFrame" ; 
-				f.action = "/ad/as/exl.do" ; 
-				f.submit() ; 
+				var f = document.listFrm ;
+
+				/* 비동기 목록에 적용된 최신 처리상태/처리담당자 조건을 다운로드 요청에도 반영한다. */
+				if(typeof procSelect !== 'undefined' && procSelect && procSelect.sumo){
+					$("#procSelect").val(procSelect.sumo.getSelStr());
+				}
+				if(typeof asws_assignFlush === 'function') asws_assignFlush();
+
+				/*
+				 * 첨부 응답을 display:none iframe으로 받으면 일부 브라우저가 다운로드를 시작하지 않거나
+				 * 실패 응답을 사용자에게 숨긴다. 현재 창이 직접 attachment 응답을 받게 하면 화면 이동 없이
+				 * 브라우저 다운로드 관리자가 파일을 정상 처리한다.
+				 */
+				f.target = "_self";
+				f.action = "/ad/as/exl.do";
+				f.submit();
 			}
 		}
 	}
+	/* [AX Lab] 수정 끝 */
 	
 	function goView(pageType , as_no, cn_as_no){
 		var f = document.listFrm ; 
