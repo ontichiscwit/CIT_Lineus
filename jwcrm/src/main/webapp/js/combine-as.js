@@ -501,6 +501,10 @@ function asws_advRenderVal($row, field, value, value2){
 	var m = asws_advMeta(field);
 	value = asws_nvl(value,''); value2 = asws_nvl(value2,'');
 
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 행의 퇴사자 옵션을 다른 값 UI로 교체하기 전에 보관 */
+	if($val.find('#advRetireWrap').length) asws_advParkRetireChk();
+	/* [AX Lab] 수정 끝 */
+
 	if(!m){
 		$val.html('<input type="hidden" name="adv_value" value=""><input type="hidden" name="adv_value2" value="">');
 		return;
@@ -543,6 +547,9 @@ function asws_advRenderVal($row, field, value, value2){
 			captionFormatAllSelected:'전체 담당자', selectAll:true, search:true,
 			searchText:'담당자 검색', noMatch:'검색 결과 없음', locale:['확인','취소','전체선택']
 		});
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 담당자 선택창만 컴팩트 폭을 적용할 수 있도록 식별 클래스 부여 */
+		$assign.closest('.SumoSelect').addClass('adv-assign-sumo');
+		/* [AX Lab] 수정 끝 */
 		$assign.on('change', function(){ asws_assignSync($row); });
 		asws_assignSync($row);
 		if(assignEl && assignEl.sumo) assignEl.sumo.setText();
@@ -583,20 +590,30 @@ function asws_advRenderVal($row, field, value, value2){
    처리담당자 조건과 함께 쓸 때만 의미가 있다. 단독으로 켜면 "퇴사자 담당 건 전체"가 나와
    사용자가 의도를 알기 어려운 조회결과가 됐다.
    → EMP_NM 행이 없으면 숨기고, 숨길 때는 체크도 해제해서 "보이지 않는 조건"이 남지 않게 한다. */
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 퇴사자 옵션을 처리담당자 선택창 우측에 고정.
+   별도 조건행 아래에 두면 조건을 추가할 때마다 화면 맨 아래로 밀리므로, ASSIGN_ID 행의 값 영역으로 옮긴다.
+   행 변경·삭제·전체 초기화 시 DOM에서 사라지지 않도록 영구 보관소(#advRetireHome)로 먼저 되돌린다. */
+function asws_advParkRetireChk(){
+	var $wrap = $('#advRetireWrap');
+	var $home = $('#advRetireHome');
+	if($wrap.length && $home.length) $wrap.detach().appendTo($home).hide();
+}
+
 function asws_advSyncRetireChk(){
-	var wrap = document.getElementById('advRetireWrap');
-	if(!wrap) return;
-	var hasEmp = false;
+	var $wrap = $('#advRetireWrap');
+	if(!$wrap.length) return;
+	var $assignRow = $();
 	$('#advRows .adv-row').each(function(){
-		if($(this).find('.adv-field').val() === 'ASSIGN_ID') hasEmp = true;
+		if(!$assignRow.length && $(this).find('.adv-field').val() === 'ASSIGN_ID') $assignRow = $(this);
 	});
-	if(hasEmp){
-		wrap.style.display = '';
+	if($assignRow.length){
+		$wrap.detach().appendTo($assignRow.find('.adv-val')).css('display', 'inline-flex');
 	}else{
-		wrap.style.display = 'none';
+		asws_advParkRetireChk();
 		$('#search_type17').prop('checked', false);
 	}
 }
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 고급필터가 접혀 있어도 적용중인 조건 개수를 '고급' 칩 배지로 노출.
@@ -632,7 +649,12 @@ function asws_advAddRow(field, value, value2){
 	var $del = $('<button type="button" class="adv-del" title="조건 삭제">&#8722;</button>');
 
 	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 행 추가/삭제/변경 시 '고급' 칩 배지 개수 갱신 */
-	$del.on('click', function(){ $row.remove(); asws_advRefreshFieldOptions(); asws_advUpdateCount(); });
+	$del.on('click', function(){
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 행과 함께 퇴사자 체크박스가 삭제되지 않도록 보관 */
+		if($row.find('#advRetireWrap').length) asws_advParkRetireChk();
+		/* [AX Lab] 수정 끝 */
+		$row.remove(); asws_advRefreshFieldOptions(); asws_advUpdateCount();
+	});
 	$field.on('change', function(){ asws_advRenderVal($row, this.value, '', ''); asws_advRefreshFieldOptions(); asws_advUpdateCount(); });
 
 	$row.append($field).append($val).append($del);
@@ -645,7 +667,12 @@ function asws_advAddRow(field, value, value2){
 }
 
 /* 전체 비우기 */
-function asws_advClear(){ $('#advRows').empty(); asws_advUpdateCount(); /* [AX Lab] (2026-07-28) 배지 초기화 */ }
+function asws_advClear(){
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 동적 행 삭제 전에 퇴사자 체크박스를 영구 보관소로 이동 */
+	asws_advParkRetireChk();
+	/* [AX Lab] 수정 끝 */
+	$('#advRows').empty(); asws_advUpdateCount(); /* [AX Lab] (2026-07-28) 배지 초기화 */
+}
 
 /* 리로드 후 저장된 고급조건 복원 (ASWS_ADV_INIT) */
 function asws_advInit(){

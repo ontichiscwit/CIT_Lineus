@@ -1488,13 +1488,17 @@
 
 <%-- [AX Lab] 수정 시작 (2026-07-23 AX Lab): AS 통합 워크스페이스(3분할) 화면 리뉴얼 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스타일 캐시 갱신 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as.css?v=20261016-2" />
+<%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 필터 UI 배치 수정 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as.css?v=20261018-1" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): AS 목록의 현재 페이지를 굵게 강조 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-pagination.css" />
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스크립트 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as.js?v=20261016-3"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 필터 UI 배치 수정 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as.js?v=20261018-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-open-choice.css?v=20261016-1" />
@@ -1893,11 +1897,16 @@
                  ③ 라벨: '퇴사자 포함' → '퇴사자만'. 쿼리 조건이 RETIRE_DATE IS NOT NULL 이라
                     실제 동작은 "퇴사한 처리담당자의 건만" 조회하는 것이어서 '포함' 이라는 표현이 사실과 달랐다.
                     (name/id/value = search_type17/Y 는 그대로 → 서버·쿼리 영향 없음) --%>
-            <div class="bf-line" id="advRetireWrap" style="display:none; gap:16px; margin:2px 0 7px;">
-              <label class="bf-chk" title="체크하면 퇴사한 처리담당자가 담당했던 건만 조회합니다.">
-                <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자만
-              </label>
+            <%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): JS가 체크박스를 처리담당자 행 우측으로 옮기며,
+                 행 변경·삭제 시에도 유실되지 않도록 이 영구 보관소로 되돌린다. --%>
+            <div id="advRetireHome" style="display:none;">
+              <div id="advRetireWrap" style="display:none;">
+                <label class="bf-chk" title="체크하면 퇴사한 처리담당자가 담당했던 건만 조회합니다.">
+                  <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자만
+                </label>
+              </div>
             </div>
+            <%-- [AX Lab] 수정 끝 --%>
             <%-- [AX Lab] 수정 끝 --%>
             <button type="button" class="btn-s" id="advAddBtn" onclick="asws_advAddRow();" style="margin-top:4px;">+ 조건 추가</button>
           </div>

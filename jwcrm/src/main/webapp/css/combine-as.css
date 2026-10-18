@@ -477,6 +477,20 @@
 #asWorkspace .adv-row .adv-val .SumoSelect > .CaptionCont > span{padding-right:22px; font-size:11.5px;}
 #asWorkspace .adv-row .adv-val .SumoSelect.open > .optWrapper{top:30px;}
 /* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 선택창 축소 + 퇴사자 옵션을 같은 행 우측에 배치 */
+#asWorkspace .adv-row .adv-val .SumoSelect.adv-assign-sumo{
+  flex:0 1 260px;
+  width:260px;
+  min-width:180px;
+}
+#asWorkspace #advRetireWrap{
+  flex:0 0 auto;
+  align-items:center;
+  margin-left:8px;
+  white-space:nowrap;
+}
+#asWorkspace #advRetireWrap .bf-chk{margin:0;}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 #asWorkspace .adv-row .adv-del:hover{border-color:var(--red); color:var(--red);}
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건행(모달 조회 방식) 값 UI.
