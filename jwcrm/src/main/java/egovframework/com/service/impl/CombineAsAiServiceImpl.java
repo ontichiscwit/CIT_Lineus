@@ -76,6 +76,8 @@ public class CombineAsAiServiceImpl implements CombineAsAiService {
 
 		CombineAsAiClient.recommend(req);
 
+		// [AX Lab] 수정 (2026-10-16 AX Lab): 추천 서버의 부가 필드(재촉 문의 follow_up 등)를 먼저 담고, 아래 고정 키가 덮는다
+		if (req.getExtra() != null) returnMap.putAll(req.getExtra());
 		returnMap.put("result", req.getResult());
 		returnMap.put("elapsed_ms", req.getElapsed_ms());
 		returnMap.put("items", req.getItems());

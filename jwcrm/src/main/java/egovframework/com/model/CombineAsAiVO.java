@@ -2,6 +2,7 @@ package egovframework.com.model;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +49,10 @@ public class CombineAsAiVO implements Serializable {
 	private long elapsed_ms = 0L;
 	private List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
 	private String message = "";                             // 실패 사유(운영 로그용 요약). 브라우저에는 노출하지 않아도 된다
+	// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 응답 최상위 부가 필드(follow_up · confidence …) 통과용.
+	//   items 와 같은 이유로 그대로 통과시킨다 — 필드가 늘어도 CRM 을 다시 컴파일하지 않게.
+	private Map<String, Object> extra = new HashMap<String, Object>();
+	// [AX Lab] 수정 끝
 
 	public String getAs_no() { return as_no; }
 	public void setAs_no(String as_no) { this.as_no = as_no; }
@@ -93,4 +98,8 @@ public class CombineAsAiVO implements Serializable {
 	public void setItems(List<Map<String, Object>> items) { this.items = items; }
 	public String getMessage() { return message; }
 	public void setMessage(String message) { this.message = message; }
+	// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 응답 최상위 부가 필드
+	public Map<String, Object> getExtra() { return extra; }
+	public void setExtra(Map<String, Object> extra) { this.extra = extra == null ? new HashMap<String, Object>() : extra; }
+	// [AX Lab] 수정 끝
 }

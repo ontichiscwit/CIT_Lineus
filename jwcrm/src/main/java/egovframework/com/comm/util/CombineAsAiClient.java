@@ -156,6 +156,15 @@ public class CombineAsAiClient {
 			String result = String.valueOf(res.get("result") == null ? "" : res.get("result"));
 			vo.setResult(result.isEmpty() ? RESULT_PARSE : result);
 			vo.setItems(asItemList(res.get("items")));
+			// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 최상위 부가 필드(follow_up · follow_up_detail · confidence · best_sim …) 통과.
+			//   result · items · elapsed_ms 는 위에서 따로 다루고, index(색인 내부 정보)는 화면에 필요 없어 뺀다.
+			Map<String, Object> extra = new HashMap<String, Object>(res);
+			extra.remove("result");
+			extra.remove("items");
+			extra.remove("elapsed_ms");
+			extra.remove("index");
+			vo.setExtra(extra);
+			// [AX Lab] 수정 끝
 			Object em = res.get("elapsed_ms");
 			vo.setElapsed_ms(System.currentTimeMillis() - t0);
 			if (em != null) vo.setMessage("server_elapsed_ms=" + em);

@@ -8,6 +8,8 @@
 <!-- [AX Lab] 수정 (2026-10-16 AX Lab): 관련 없는 추천 제외(항상 5건 → 0~5건) 내용 반영 — #s-filter 섹션 신설 외 -->
 <!-- [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거(겹친 단어·일치 사유) 표시 — #s-screen 하단 -->
 <!-- [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어 형태소 분석기(Kiwi) 적용 이유·방식 — #s-morph -->
+<!-- [AX Lab] 수정 (2026-10-16 AX Lab): 노란 칩 의미 #s-synchip · 형식어 거르기 #s-formal · 재문의·연락 요청 문의 #s-followup -->
+<!-- [AX Lab] 수정 (2026-10-18 AX Lab): #s-morph 에 Kiwi 쓰임 확대(형식어 통계·문장 단위 판정·재문의 판정) 반영 -->
 
 
 <style>
@@ -546,11 +548,59 @@
       <p class="muted small">추천 항목마다 아래 칩이 붙습니다. 목록에는 3개, 항목을 눌러 여는 상세 패널의 "겹친 단어" 줄에는 4개까지 보입니다.</p>
       <div class="whyk">
         <div><span class="kw">시술확인서</span><br><b>겹친 단어</b><br>문의와 이 자료에 함께 들어 있는 말입니다. 드문 말부터 보여 주고, "문의"·"확인"처럼 어디에나 나오는 말은 뺍니다. <span class="t" data-term="morph">형태소 분석</span>으로 명사만 골라 "진단서를"은 "진단서"로, 붙여 쓴 "시술확인서"는 한 단어로 보여 줍니다(<a href="#s-morph">아래</a>).</div>
-        <div><span class="kw syn">≈ 산재조합</span><br><b>동의어로 찾은 말</b><br>문의에는 없었지만 <span class="t" data-term="qexpand">쿼리 확장</span>으로 덧붙인 같은 뜻의 다른 표현이 걸린 경우입니다. 예) "산재 지사"로 물었는데 "산재조합" 자료를 찾음.</div>
+        <div><span class="kw syn">≈ 산재조합</span><br><b>동의어로 찾은 말 (노란 칩)</b><br>문의에는 없었지만 <span class="t" data-term="qexpand">쿼리 확장</span>으로 덧붙인 같은 뜻의 다른 표현이 걸린 경우입니다. 예) "산재 지사"로 물었는데 "산재조합" 자료를 찾음. 동의어는 <strong>통째로 일치할 때만</strong> 보여 주고, 문의에 있던 말 뒤에 놓습니다(<a href="#s-synchip">아래</a>).</div>
         <div><span class="kw sem">뜻으로 찾음</span><br><b>겹친 단어 없음</b><br>같은 단어는 없지만 <span class="t" data-term="vector">벡터 검색</span>·<span class="t" data-term="rerank">리랭킹</span>이 문장 뜻이 비슷하다고 판단한 경우입니다. 예) "결제가 취소가 안 돼요" ↔ "수납 취소 불가".</div>
         <div><span class="kw rsn">같은 업무분류</span><br><b>일치 사유</b><br>업무분류(원무 등)가 같으면 "같은 업무분류", 프로그램·화면이 같으면 "같은 프로그램·화면", 문의유형만 같으면 "같은 문의유형"이 붙습니다.</div>
       </div>
-      <div class="note">겹친 단어는 <strong>단어 검색(<span class="t" data-term="bm25">BM25</span>) 쪽 근거</strong>입니다. 실제 순위는 리랭킹(문장 뜻)을 함께 보고 정하므로, 겹친 단어가 많다고 1등은 아닙니다. 대신 엉뚱한 추천의 이유를 드러내 줍니다. 예를 들어 "담당자 휴무라 4시 전에 연락 달라" 문의에 "그 전에 연락바랍니다" 사례가 뜬다면 칩에 <span class="kw">퇴근</span> <span class="kw">담당자</span> <span class="kw">긴급</span>이 보여, 업무 내용이 아니라 연락 요청 문구가 겹쳐서 올라왔다는 걸 바로 알 수 있습니다.</div>
+      <div class="note">겹친 단어는 <strong>단어 검색(<span class="t" data-term="bm25">BM25</span>) 쪽 근거</strong>입니다. 실제 순위는 리랭킹(문장 뜻)을 함께 보고 정하므로, 겹친 단어가 많다고 1등은 아닙니다. 대신 엉뚱한 추천의 이유를 드러내 줍니다. 예전에는 "담당자 휴무라 4시 전에 연락 달라" 문의에 <span class="kw">퇴근</span> <span class="kw">담당자</span> <span class="kw">긴급</span> 같은 칩이 떠서, 업무 내용이 아니라 연락 요청 문구가 겹쳐 올라왔다는 게 드러났습니다. 지금은 이런 말을 칩에서 빼고(<a href="#s-formal">아래</a>), 이런 문의 자체를 "재문의·연락 요청"으로 알아봐 상담원이 이전 접수부터 보게 합니다(<a href="#s-followup">아래</a>).</div>
+      <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 노란 칩(동의어) 칩별 의미 · 동의어는 통째로만 -->
+      <h3 id="s-synchip" style="margin-top:30px">노란 칩(≈)은 무엇을 뜻하나요? <small class="muted" style="font-weight:400">· 2026-10-16</small></h3>
+      <p>노란 칩은 <strong>문의에 직접 쓰이지 않은 말</strong>입니다. 현장에서 쓰는 말과 CRM 화면에 적힌 말이 달라 검색이 빗나가지 않도록, 동의어 사전(<code>combine_synonyms.py</code>)이 문의에 시스템 용어를 덧붙이는데, 그 덧붙인 말이 자료에서 발견됐다는 표시입니다. 예를 들어 문의에 "보험회사", "산재 지사"가 있으면 다음 말이 덧붙습니다.</p>
+      <table class="cmp">
+        <thead><tr><th>칩</th><th>뜻</th><th>왜 덧붙나</th></tr></thead>
+        <tbody>
+          <tr><td><span class="kw syn">≈ 보험거래처코드</span></td><td>보험회사·산재·자보 기관을 등록하는 기초코드 화면 「기관조합/보험거래처코드」의 이름</td><td>현장은 "보험회사", "보험사"라고 묻고 화면·매뉴얼은 "보험거래처코드"라고 씀</td></tr>
+          <tr><td><span class="kw syn">≈ 기관조합</span></td><td>같은 화면 「기관조합/보험거래처코드」의 앞쪽 이름</td><td>"보험회사", "산재 조합"으로 물어도 그 설정 화면 사례를 찾게 함</td></tr>
+          <tr><td><span class="kw syn">≈ 산재조합</span></td><td>그 화면에서 하는 "산재조합 등록"(매뉴얼 p.14)</td><td>"산재 지사"로 물었는데 겹치는 단어가 0개라 정답을 못 찾던 실제 사례(2026-10-12)에서 추가</td></tr>
+        </tbody>
+      </table>
+      <div class="note">고친 문제: 예전에는 동의어 "보험회사"의 조각 <span class="kw syn">≈ 회사</span>까지 칩으로 떴습니다. "회사"는 문의에도 동의어 사전에도 없는 말이라 근거가 될 수 없습니다. 이제 <strong>동의어는 통째로 일치할 때만</strong> 칩이 되고, 칩 순서도 <strong>문의에 있던 말 먼저, 노란 칩은 뒤</strong>로 바꿨습니다.</div>
+
+      <h3 id="s-formal" style="margin-top:30px">"안녕", "연락" 같은 말은 왜 칩에서 빠지나요? <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
+      <p>"안녕하세요", "빠른 연락 부탁드립니다", "담당자분 퇴근 전에" 같은 말은 문의 내용이 아니라 <strong>인사·연락 요청 문구</strong>입니다. 이런 말이 겹친 단어로 뜨면 근거처럼 보여 오히려 헷갈립니다. 금지어 목록을 사람이 계속 늘리면 새 말이 나올 때마다 뒤처지므로, <strong>색인에 들어 있는 과거 문의 약 1만 건에서 단어마다 성격을 자동으로 재서</strong> 정합니다.</p>
+      <div class="why2">
+        <div class="card"><h4>① 글의 맨 앞·맨 끝에 몰리는 말 = 인사·맺음말</h4><p>단어가 문의 글의 어디쯤 나오는지 평균을 냅니다(0 = 맨 앞/끝, 0.5 = 한가운데). <span class="kw">안녕</span> 0.04 · <span class="kw">수고</span> 0.04 · <span class="kw">긴급</span> 0.07 · <span class="kw">감사</span> 0.09는 맨 앞·끝에 몰리고, 삭제·오류·처방 같은 업무 말은 0.22~0.27로 본문 가운데에 나옵니다. 기준: 0.10 이하.</p></div>
+        <div class="card"><h4>② 재문의 문의에 몰리는 말 = 연락 요청 문구</h4><p>과거 문의 중 "처리현황 독촉"(재문의·연락 요청)으로 분류된 72건에 유독 많이 나오는 말을 찾습니다. 표본이 작아 우연을 걸러 내는 통계 하한(Wilson)을 써서 평소의 2배 이상인 말만 고릅니다. 결과: <span class="kw">담당자</span> <span class="kw">연락</span> <span class="kw">전화</span> <span class="kw">답변</span> <span class="kw">처리</span> <span class="kw">진행</span> <span class="kw">상황</span> 등. 미수·서버·경과기록지 같은 업무 말은 걸리지 않습니다.</p></div>
+      </div>
+      <div class="rule3" style="grid-template-columns:repeat(2,1fr)">
+        <div class="card"><b>드문 말은 같은 문장을 봅니다</b><p>"퇴근", "휴무"처럼 과거 문의에 20번도 안 나온 말은 통계를 믿을 수 없습니다. 그래서 <strong>같은 문장</strong>에 연락 요청 문구가 있고 업무 말이 하나도 없으면 같은 성격으로 봅니다. "퇴근 전에 연락 부탁드립니다" → 퇴근 제외.</p></div>
+        <div class="card"><b>업무 말은 지켜집니다</b><p>같은 문장에 연락 문구가 있어도 업무 말은 남깁니다. "시술확인서 연락 부탁드립니다" → <span class="kw">시술확인서</span> 유지(안의 "시술"이 업무 말). 영문(BIXOLON·EDI)과 업무 조각이 든 합성어도 업무 말로 봅니다.</p></div>
+      </div>
+      <table class="cmp" style="margin-top:14px">
+        <thead><tr><th>검증 (실제 문의 40건 + 연락 요청 문장 17개)</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td>칩에서 빠진 말</td><td><span class="kw">연락</span> 21회 · <span class="kw">담당자</span> 14 · <span class="kw">답변</span> 7 · <span class="kw">통화</span> 4 · <span class="kw">긴급</span> 3 · <span class="kw">접수번호</span> 2 · <span class="kw">상황</span> 1</td></tr>
+          <tr><td>잘못 빠진 업무 말</td><td>없음 (시술확인서·보험회사·EDI·런타임·처방전 등 그대로)</td></tr>
+        </tbody>
+      </table>
+      <div class="note">시도했다가 버린 방법: ① 드문 말일수록 중요하다는 기준(IDF) — "안녕"도 드문 말이라 못 거름. ② 단어 뜻(벡터)으로 분류 — "수고·회사"를 업무 말로, "삭제·변경"을 인사말로 잘못 봄. ③ 문의에서 그 단어를 지웠을 때 뜻이 얼마나 변하나 — "원외약국·환경설정값" 같은 정상 칩까지 지움. 위의 두 기준이 실측에서 가장 정확했습니다.<br>통계는 서버를 켤 때 뒤에서 한 번 계산(약 1분)해 <code>data/combine_wordstats.json</code>에 저장하고, 다음부터는 바로 읽습니다. 계산이 끝나기 전에는 거르기 없이 예전처럼 보입니다.</div>
+
+      <h3 id="s-followup" style="margin-top:30px">"연락 달라", "재문의 드립니다"는 어떻게 보이나요? <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
+      <p>이런 문의에는 비슷한 사례(AI 추천)보다 <strong>"앞서 접수한 건이 무엇이었나"</strong>가 먼저 필요합니다. 그래서 AI 추천 서버가 재문의·연락 요청 문의로 판단하면, 접수·처리 정보의 <strong>「문의 내용 키워드 · 연관 이력」 블록을 맨 위로 올리고</strong> 안내 한 줄을 붙입니다. 이 블록에는 문의에 적힌 접수번호를 직접 찾은 결과와 같은 고객의 최근 1년 접수가 있습니다.</p>
+      <div class="whyk" style="grid-template-columns:repeat(2,1fr)">
+        <div><b>판단 ① 비슷한 과거 문의</b><br>뜻이 가장 가까운 과거 문의 10건 중 "처리현황 독촉" 문의가 2건 이상이면 재문의로 봅니다. 이런 문의는 전체의 0.6%뿐이라 10건 중 2건이면 평소의 30배입니다.</div>
+        <div><b>판단 ② 내용 없는 문의</b><br>문의의 모든 말이 위의 인사·연락 요청 문구이고 업무 말이 하나도 없으면 재문의·연락 요청으로 봅니다. 예) "담당자분 통화 원하십니다".</div>
+      </div>
+      <table class="cmp" style="margin-top:14px">
+        <thead><tr><th>검증</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td>연락 요청·재문의 문장 11개</td><td>8개 알아봄 ("앞전 ta청구관련 재문의 드립니다 … 연락이 없어 재문의 남깁니다", "어제 남긴 문의 아직 답변이 없습니다" 등)</td></tr>
+          <tr><td>일반 실제 문의 40건 + 업무 문의 문장</td><td>잘못 알아본 것 0건 ("안녕하세요 수납 화면에서 카드 취소가 안됩니다 빠른 연락 부탁" 같은 업무 문의는 일반 추천 그대로)</td></tr>
+          <tr><td>놓친 경우</td><td>"전화 부탁드립니다"(내용 없음으로는 잡힘), "고객이 콜백 요청함"(콜백·고객이 통계에 없음), 업무 내용이 함께 있는 재촉 문의 — 이때는 일반 추천 화면 그대로입니다</td></tr>
+        </tbody>
+      </table>
+      <div class="note">AI 추천 팝업에도 "재문의·연락 요청으로 보이는 문의입니다. 우측 「문의 내용 키워드 · 연관 이력」에서 앞서 접수한 건을 먼저 확인해주세요."가 표시되고, 안내에 마우스를 올리면 판단 근거(비슷한 과거 문의 몇 건이 독촉 문의였는지 등)가 보입니다. 이 표시는 CRM Java(<code>CombineAsAiClient</code>·<code>CombineAsAiVO</code>·<code>CombineAsAiServiceImpl</code>)를 다시 컴파일하고 WAS를 재기동한 뒤부터 나타납니다.</div>
+      <!-- [AX Lab] 수정 끝 -->
       <!-- [AX Lab] 수정 끝 -->
 
       <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 겹친 단어 — 형태소 분석기(Kiwi) 적용 -->
@@ -592,7 +642,13 @@
         <div><b>업무 용어 사전을 넣을 수 있음</b><br>동의어 사전 용어와 화면명·프로그램명(여러 문서에 반복되는 것, 약 330개)을 사용자 사전에 넣습니다. 예를 들어 사전이 없으면 문장 첫머리 "D/C오더"를 "C + 이오 + 더"로 잘못 읽는데, "오더"를 넣으면 바로 고쳐집니다.</div>
         <div><b>빠름</b><br>실측 결과 문장 하나에 약 1ms가 걸립니다. 모델을 불러오는 데 약 4초가 걸리지만, 서버를 켤 때 한 번만 뒤에서 불러오므로 추천 응답 시간에는 영향이 없습니다.</div>
       </div>
-      <div class="note">안전장치: Kiwi는 <strong>화면에 보여 줄 칩을 고를 때만</strong> 씁니다. 검색(BM25)과 색인은 그대로라 색인을 다시 만들 필요가 없습니다. 서버를 켠 직후 Kiwi를 불러오는 몇 초 동안이나 Kiwi가 설치되지 않은 PC에서는 이전 규칙 방식으로 자동 전환되고, 추천 자체는 멈추지 않습니다. 상태는 추천 서버 <code>/health</code>의 <code>morph</code>에서 확인합니다.</div>
+      <!-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): Kiwi 쓰임 확대(형식어 통계·재문의 판정) 반영 -->
+      <div class="whyk" style="grid-template-columns:repeat(2,1fr)">
+        <div><b>과거 문의 통계에도 씁니다</b><br>서버를 켤 때 색인의 과거 문의(Tier2) 약 1만 건을 Kiwi로 나눠 명사·영문 단어만 뽑고, 단어마다 글 안의 위치와 재문의 문의 쏠림을 잽니다(<a href="#s-formal">형식어 판정</a>). 사용자 사전 단어(예: 외래접수수납)는 단어 전체와 기본 조각(외래·접수·수납)을 함께 셉니다.</div>
+        <div><b>문장 번호도 함께 넘깁니다</b><br>명사 덩어리마다 몇 번째 문장에서 나왔는지 함께 넘깁니다. "퇴근"처럼 드문 말을 <strong>같은 문장</strong>의 다른 말로 판단하고, 문의 전체가 인사·연락 문구뿐인지(<a href="#s-followup">재문의 판정</a>) 보는 데 씁니다.</div>
+      </div>
+      <div class="note">안전장치: Kiwi는 <strong>화면 표시용</strong>(칩 고르기, 형식어 거르기, 재문의 안내)으로만 씁니다. 검색(BM25)·리랭킹·점수와 색인은 그대로라 색인을 다시 만들 필요가 없습니다. 서버를 켠 직후 Kiwi를 불러오는 몇 초 동안이나 Kiwi가 설치되지 않은 PC에서는 칩이 이전 규칙 방식으로 자동 전환되고 형식어 거르기·"내용 없는 문의" 판정은 쉬고, 추천 자체는 멈추지 않습니다. 상태는 추천 서버 <code>/health</code>의 <code>morph</code>·<code>wordstats</code>에서 확인합니다.</div>
+      <!-- [AX Lab] 수정 끝 -->
       <!-- [AX Lab] 수정 끝 -->
     </section>
 
@@ -654,13 +710,18 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
                        재정렬 폴백: cosine &lt; 0.55 (COMBINE_FALLBACK_MIN_SIM)  → 건수 0~top_k
 제한                 = CRM readTimeout 2.5s · 재정렬 0.9s (COMBINE_RERANK_TIMEOUT_MS) · 실패 시 30초 회로 차단
 겹친 단어(10-16)     = Kiwi 명사 덩어리(붙어 있던 NNG/NNP/SL 재결합, 끝 의존명사 제거) ∩ embed_text, IDF ≥ 1.5, 최대 4개
-                       사용자 사전 = 동의어 용어 + 화면명/프로그램명(3건↑, 명사만) + SEED_WORDS · Kiwi 준비 전/미설치 → 어절 규칙</pre>
+                       사용자 사전 = 동의어 용어 + 화면명/프로그램명(3건↑, 명사만) + SEED_WORDS · Kiwi 준비 전/미설치 → 어절 규칙
+                       동의어 덩어리는 통째로만 · 정렬 = (동의어 여부, -IDF)                                         (10-16)
+형식어(10-16)        = Tier2 question_text 기준. 위치: 평균 가장자리 거리 ≤ 0.10 (25건↑)
+                       또는 처리현황독촉 쏠림: Wilson 하한(z=1.645) / 기준비율 ≥ 2.0 이고 3건↑     (문서 20건↑ 단어만)
+                       드문 말·중립 말: 같은 문장에 형식어 있고 업무어(서비스구분 KL ≥ 0.08 · 문제유형 KL ≥ 0.15) 없으면 형식어
+재촉 문의(10-16)     = follow_up = (최근접 Tier2 10건 중 처리현황독촉 ≥ 2) or content_free(형식어만 있는 문의)</pre>
           <table>
             <thead><tr><th>위치</th><th>구성 요소</th><th>파일</th></tr></thead>
             <tbody>
               <tr><td>상담원 PC</td><td>AI 추천 버튼·팝업·상세</td><td>jwcrm/.../js/combine-as-ai.js, css/combine-as-ai.css</td></tr>
               <tr><td>CRM 서버 PC</td><td>WAS → 추천 API 호출</td><td>CombineAsAiServiceImpl.java, CombineAsAiClient.java, combine-ai.properties</td></tr>
-              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_live_index.py, combine_morph.py(Kiwi, 겹친 단어)</td></tr>
+              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_live_index.py, combine_morph.py(Kiwi, 겹친 단어), combine_wordstats.py(형식어·재촉 문의)</td></tr>
               <tr><td>AI PC :11434</td><td>Ollama 임베딩</td><td>combine_embed_client.py (호출 측)</td></tr>
               <tr><td>AI PC :8766</td><td>리랭킹 서버</td><td>combine-rerank-server.py, combine-rerank-run.bat</td></tr>
               <tr><td>AX Lab PC</td><td>색인 배치·준실시간 동기화</td><td>analysis/combine_refresh.py, analysis/combine_live.py (저장소 미포함)</td></tr>
@@ -678,11 +739,12 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
               <tr><td>match_reason</td><td>같은 업무분류 / 같은 프로그램·화면 / 같은 문의유형 / null</td><td>화면 일치 사유 칩</td></tr>
               <tr><td>score</td><td>최종 합산 점수</td><td>정렬</td></tr>
               <tr><td>confidence</td><td>high / mid / low</td><td>일반 추천 또는 참고 사례 표시</td></tr>
+              <tr><td>follow_up (응답 상단)</td><td>재문의·연락 요청 문의 여부 + follow_up_detail{nag_near, near_k, content_free}</td><td>「문의 내용 키워드 · 연관 이력」 맨 위로 (10-16)</td></tr>
             </tbody>
           </table>
         </div>
       </details>
-      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine_morph.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-16). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
+      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine_morph.py · combine_wordstats.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-16). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
     </section>
   </main>
 </div>

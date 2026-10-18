@@ -14,6 +14,7 @@ except ModuleNotFoundError:
 from combine_recommend import (FALLBACK_MIN_SIM, RERANK_MIN_SCORE, RERANK_TOP, Recommender,
                                match_terms, product_match_detail)
 import combine_morph
+import combine_wordstats                            # [AX Lab] 2026-10-16
 
 
 def _doc(doc_id, relevance, cos=0.65):
@@ -163,6 +164,17 @@ class MatchTermsTest(unittest.TestCase):
                                                 "", "첨부 사진과 같이 신규오더시 진료과 변경", idf)]
         self.assertEqual(["신규오더", "진료과", "사진"], terms)
 
+    # [AX Lab] 2026-10-16 동의어는 통째로만 · 문의에 있던 말 먼저
+    def test_synonym_pieces_are_not_shown(self):
+        idf = dict(self.IDF, 보험회사=6.0, 보험거래처코드=8.0, 회사=3.0)
+        terms = [(m["term"], m["synonym"]) for m in self._match(
+            "산재 지사 코드 보험회사 보험거래처코드", "보험회사 보험거래처코드", "회사 지급 보험거래처코드", idf)]
+        self.assertEqual([("보험거래처코드", True)], terms)
+
+    def test_query_terms_come_before_synonyms(self):
+        self.assertEqual([("출력", False), ("산재조합", True)],
+                         self._terms("출력 산재조합", "산재조합 출력", synonyms="산재조합"))
+
     def test_product_match_detail_labels(self):
         self.assertEqual((1.0, "같은 업무분류"), product_match_detail({"service_cate": "원무"}, {"service_cate": "원무", "tier": 2}))
         self.assertEqual((0.0, None), product_match_detail({"service_cate": "원무"}, {"service_cate": "진료", "tier": 2}))
@@ -205,6 +217,69 @@ class KiwiMatchTermsTest(unittest.TestCase):
 
     def test_trims_trailing_dependent_words(self):
         self.assertEqual(["환자"], self._terms("환자분 입원중", "환자 정보"))
+
+
+# [AX Lab] 2026-10-16 형식어 판정(combine_wordstats) — 색인 통계 대신 작은 가짜 통계를 넣어 규칙만 검증한다
+class WordStatsTest(unittest.TestCase):
+    WORDS = {"연락": {"c": "f"}, "담당자": {"c": "f"}, "안녕": {"c": "f"}, "내일": {"c": "n"}, "부탁": {"c": "n"},
+             "처방전": {"c": "c"}, "출력": {"c": "c"}, "시술": {"c": "c"}}
+
+    @classmethod
+    def setUpClass(cls):
+        if not combine_morph.warmup(wait=True):
+            raise unittest.SkipTest("kiwipiepy 미설치")
+
+    def setUp(self):
+        self._saved = combine_wordstats._state["words"]
+        combine_wordstats._state["words"] = dict(self.WORDS)
+
+    def tearDown(self):
+        combine_wordstats._state["words"] = self._saved
+
+    def _judge(self, q):
+        return combine_wordstats.judge(combine_morph.units(q, with_sentence=True))
+
+    def test_rare_words_in_formal_sentence_are_formal(self):
+        formal, content_free = self._judge("담당자분 내일 휴무고 4시 퇴근이라 그 전에 연락 달라고 합니다")
+        self.assertTrue({"담당자", "내일", "휴무", "퇴근", "연락"} <= formal)
+        self.assertTrue(content_free)
+
+    def test_content_sentence_keeps_rare_words(self):
+        formal, content_free = self._judge("시술확인서 출력이 안됩니다. 퇴근 전에 연락 부탁드립니다.")
+        self.assertNotIn("시술확인서", formal)
+        self.assertTrue({"퇴근", "연락"} <= formal)
+        self.assertFalse(content_free)
+
+    def test_compound_with_content_piece_survives_formal_sentence(self):
+        formal, _ = self._judge("시술확인서 연락 부탁드립니다")
+        self.assertNotIn("시술확인서", formal)
+        self.assertIn("연락", formal)
+
+    def test_match_terms_drops_formal_words(self):
+        q = "안녕하세요 처방전 출력 안됩니다 연락 부탁"
+        formal, _ = self._judge(q)
+        idf = {"처방전": 3.0, "출력": 2.0, "연락": 3.0, "안녕": 3.0}
+        terms = [m["term"] for m in match_terms(q, "", "안녕하세요 처방전 출력 연락 주세요", idf, None, formal)]
+        self.assertEqual(["처방전", "출력"], terms)
+
+    def test_no_stats_means_no_filtering(self):
+        combine_wordstats._state["words"] = None
+        self.assertEqual((set(), False), self._judge("담당자 연락 요청"))
+
+
+class FollowUpTest(unittest.TestCase):
+    def test_counts_nag_neighbours_and_excludes_self(self):
+        if not hasattr(np, "asarray"):
+            raise unittest.SkipTest("numpy 미설치")
+        idx = types.SimpleNamespace()
+        idx.doc_ids = [f"d{i}" for i in range(4)]
+        idx.vectors = np.asarray([[1, 0], [0.9, 0.1], [0.8, 0.2], [0, 1]], dtype=np.float32)
+        idx.tiers = np.asarray([2, 2, 2, 2])
+        idx.as_nos = np.asarray(["a0", "a1", "a2", "a3"])
+        topics = ["처리현황독촉", "처리현황독촉", "시스템오류", "처리현황독촉"]
+        idx.meta = {d: {"topic": t} for d, t in zip(idx.doc_ids, topics)}
+        self.assertEqual(3, combine_wordstats.follow_up(idx, [1.0, 0.0]))          # 4건뿐이라 전부 이웃
+        self.assertEqual(2, combine_wordstats.follow_up(idx, [1.0, 0.0], {"a0"}))  # 자기 자신 제외
 
 
 if __name__ == "__main__":
