@@ -308,6 +308,11 @@ public class AdAsController {
 		
 		String[] procSelectArray =  vo.getProcSelect().split(",");
 		vo.setProcSelectArray(procSelectArray);
+		// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 체크박스로 선택한 재직 처리담당자 다중검색
+		String assignSelect = SsStringUtil.normalizeNull(vo.getAssignSelect());
+		/* normalizeNullArray()가 array[0]을 확인하므로 미선택도 길이 1의 빈 문자열 배열로 전달한다. */
+		vo.setAssignSelectArray(assignSelect.split(","));
+		// [AX Lab] 수정 끝
 		
 		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 처리구분(나의 A/S) + 고급 동적필터(AND 중복) 조건 조립
 		// 나의 A/S(asGubunFlag="2")이면 로그인 사용자 사번을 담당자(ASSIGN_ID) 필터로 사용
@@ -1254,6 +1259,11 @@ public class AdAsController {
 		
 		String[] procSelectArray =  vo.getProcSelect().split(",");
 		vo.setProcSelectArray(procSelectArray);
+		// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 엑셀에도 재직 처리담당자 다중검색 적용
+		String assignSelect = SsStringUtil.normalizeNull(vo.getAssignSelect());
+		/* normalizeNullArray()가 array[0]을 확인하므로 미선택도 길이 1의 빈 문자열 배열로 전달한다. */
+		vo.setAssignSelectArray(assignSelect.split(","));
+		// [AX Lab] 수정 끝
 	
 		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 엑셀도 목록과 동일하게 처리구분(나의 A/S)+고급 동적필터 적용
 		if ("2".equals(SsStringUtil.normalizeNull(vo.getAsGubunFlag())) && userInfo != null) {
@@ -1521,7 +1531,30 @@ public class AdAsController {
 	    } else if ("update".equals(vo.getPageType())) {
 	        returnValue = asService.updateAws(vo, request);
 	    } else if ("delete".equals(vo.getPageType())) {
-	        returnValue = asService.deleteAws(vo, request);
+	        // [AX Lab] 수정 시작 (2026-10-17 AX Lab): 답변 삭제 시 작성자 또는 관리자 권한을 서버에서 재검증
+	        // 화면의 삭제 버튼 노출 여부만 신뢰하면 요청을 직접 조작해 다른 직원의 답변을 삭제할 수 있다.
+	        boolean canDelete = false;
+	        String loginEmpNo = adUserInfo != null && adUserInfo.getEmp_no() != null
+	                ? adUserInfo.getEmp_no() : "";
+	        String targetSeq = vo.getSeq() != null ? vo.getSeq() : "";
+	        boolean isAdmin = adUserInfo != null && "C001".equals(adUserInfo.getEmp_grade());
+
+	        if (!"".equals(loginEmpNo) && !"".equals(targetSeq)) {
+	            List<AsVO> awsList = asService.getList(vo, "asDAO.getAwsList");
+	            if (awsList != null) {
+	                for (AsVO awsVO : awsList) {
+	                    if (targetSeq.equals(awsVO.getSeq())) {
+	                        canDelete = loginEmpNo.equals(awsVO.getW_id()) || isAdmin;
+	                        break;
+	                    }
+	                }
+	            }
+	        }
+
+	        if (canDelete) {
+	            returnValue = asService.deleteAws(vo, request);
+	        }
+	        // [AX Lab] 수정 끝
 	    }
 
 	    // 1건이라도 성공하면 성공 코드
@@ -1722,6 +1755,69 @@ public class AdAsController {
 		UserVO userInfo = session.getAttribute("adUserInfo") != null ? (UserVO) session.getAttribute("adUserInfo") : null ;
 		vo.setReg_id(userInfo.getEmp_no());
 		
+		// [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 링크 삽입 모달용 게시물 목록 조회.
+		// 신규 URL은 MenuAuthFilter의 완전일치 권한 검사에서 403이 되므로, 권한이 이미 등록된
+		// getAsInfo.do에 pageType 분기로 격리한다. 공지사항은 NOTICE_NUM, 나머지는 SEQ를 화면 번호로 사용한다.
+		String boardLinkPageType = SsStringUtil.normalizeNull(vo.getPageType()).trim() ;
+		if("boardLinkList".equals(boardLinkPageType) || "boardLinkInfo".equals(boardLinkPageType)) {
+			String boardGbn = SsStringUtil.normalizeNull(request.getParameter("board_gbn")).trim() ;
+			List<String> allowedBoardGbns = Arrays.asList("0000", "0001", "0002", "0005", "0006") ;
+			if(!allowedBoardGbns.contains(boardGbn)) {
+				response.setStatus(HttpServletResponse.SC_BAD_REQUEST) ;
+				returnMap.put("message", "지원하지 않는 게시판 종류입니다.") ;
+				CommonExecute.returnJson(response, returnMap) ;
+				return ;
+			}
+
+			// [AX Lab] 수정 시작 (2026-10-17 AX Lab): 제목 클릭 시 게시물 본문 미리보기.
+			if("boardLinkInfo".equals(boardLinkPageType)) {
+				String linkNum = SsStringUtil.normalizeNull(request.getParameter("link_num")).trim() ;
+				if(!linkNum.matches("^[0-9]+$")) {
+					response.setStatus(HttpServletResponse.SC_BAD_REQUEST) ;
+					returnMap.put("message", "게시물 번호가 올바르지 않습니다.") ;
+					CommonExecute.returnJson(response, returnMap) ;
+					return ;
+				}
+
+				Map<String, Object> infoParam = new HashMap<String, Object>() ;
+				infoParam.put("board_gbn", boardGbn) ;
+				infoParam.put("link_num", linkNum) ;
+				infoParam.put("reg_id", userInfo.getEmp_no()) ;
+				returnMap.put("resultVO", commonDAO.selectOne(infoParam, "asDAO.getBoardLinkInfo")) ;
+				CommonExecute.returnJson(response, returnMap) ;
+				return ;
+			}
+			// [AX Lab] 수정 끝
+
+			int page = SsStringUtil.parseInt(SsStringUtil.normalizeNull(request.getParameter("page")), 1) ;
+			if(page < 1) page = 1 ;
+			final int pageSize = 10 ;
+			String searchText = SsStringUtil.normalizeNull(request.getParameter("search_text")).trim() ;
+			if(searchText.length() > 100) searchText = searchText.substring(0, 100) ;
+
+			Map<String, Object> param = new HashMap<String, Object>() ;
+			param.put("board_gbn", boardGbn) ;
+			param.put("reg_id", userInfo.getEmp_no()) ;
+			param.put("search_text", "".equals(searchText) ? null : searchText) ;
+
+			int totalCount = commonDAO.selectOneInt(param, "asDAO.getBoardLinkListCnt") ;
+			int pageCount = totalCount == 0 ? 0 : (totalCount + pageSize - 1) / pageSize ;
+			if(pageCount > 0 && page > pageCount) page = pageCount ;
+
+			param.put("start_row", ((page - 1) * pageSize) + 1) ;
+			param.put("end_row", page * pageSize) ;
+
+			returnMap.put("resultList", totalCount > 0
+					? commonDAO.list(param, "asDAO.getBoardLinkList") : new ArrayList<Object>()) ;
+			returnMap.put("totalCount", totalCount) ;
+			returnMap.put("page", page) ;
+			returnMap.put("pageSize", pageSize) ;
+			returnMap.put("pageCount", pageCount) ;
+			CommonExecute.returnJson(response, returnMap) ;
+			return ;
+		}
+		// [AX Lab] 수정 끝
+
 		// [AX Lab] 수정 시작 (2026-10-06 AX Lab): AS 통합화면 AI 추천 (설계서 mdfile/AS통합화면_AI추천_통합설계.md §5·§6).
 		//   pageType=aiRecommend 이면 상세 응답 대신 추천 API 결과만 돌려주고 끝낸다.
 		//   ★ 신규 URL(/ad/as/aiRecommend.do 등)을 만들지 않는 이유: MenuAuthFilter.isAccept() 가 세션 acceptUrlList 와

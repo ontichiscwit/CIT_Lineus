@@ -161,25 +161,12 @@ function asws_listErr(xhr, textStatus){
 }
 
 /* ---- 4) 빈 결과 안내 ----------------------------------------------------- */
-/* 0건의 원인을 두 가지로 나눠 안내한다.
-     (가) 처리구분이 '나의 A/S' → 나에게 배정된 건만 보고 있다. 이게 압도적으로 많은 원인이며,
-          AS 처리담당자가 아닌 계정은 무엇을 검색해도 항상 0건이 된다.
-     (나) '전체 A/S' 인데도 0건 → 순수하게 검색조건에 걸리는 건이 없는 경우. */
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 나의/전체 A/S 처리구분 제거에 맞춰 검색조건 안내로 통일 */
 function asws_emptyHtml(){
-	var isMine = ($('#asGubunFlag').val() === '2');
-	var sub, btn;
-
-	if(isMine){
-		sub = '지금은 처리구분이 <b>나의 A/S</b> 라서 <b>나에게 배정된 접수건</b>만 조회합니다.<br>'
-		    + 'A/S 처리담당자로 지정된 건이 없으면 검색조건과 상관없이 0건으로 나옵니다.';
-		btn = '<button type="button" class="asws-empty-btn" onclick="asws_emptySwitchAll();">'
-		    + '전체 A/S로 다시 조회</button>';
-	}else{
-		sub = '처리구분은 <b>전체 A/S</b> 입니다. 접수일·처리상태·통합검색 등<br>'
-		    + '검색조건에 해당하는 접수건이 없습니다.';
-		btn = '<button type="button" class="asws-empty-btn" onclick="searchReset();">'
-		    + '검색조건 초기화</button>';
-	}
+	var sub = '접수일·처리상태·처리담당자·통합검색 등<br>'
+	        + '검색조건에 해당하는 접수건이 없습니다.';
+	var btn = '<button type="button" class="asws-empty-btn" onclick="searchReset();">'
+	        + '검색조건 초기화</button>';
 
 	return '<tr><td colspan="' + asws_listColspan() + '" class="asws-empty">'
 	     + '<div class="asws-empty-tit">조회된 데이터가 없습니다.</div>'
@@ -187,18 +174,15 @@ function asws_emptyHtml(){
 	     + btn
 	     + '</td></tr>';
 }
+/* [AX Lab] 수정 끝 */
 
-/* '전체 A/S로 다시 조회' 버튼.
-   처리구분 select 는 listFrm 안에 있으므로 값만 바꾸고 재조회하면 그대로 전송된다.
-   ※ 처리상태(SumoSelect)는 화면 위젯과 hidden(#procSelect)이 따로 놀 수 있어,
-     getAsList() 와 동일하게 조회 직전에 위젯 값으로 hidden 을 동기화한다.
-     (이걸 빼면 사용자가 방금 바꾼 처리상태가 조회에 반영되지 않는다) */
-function asws_emptySwitchAll(){
-	$('#asGubunFlag').val('1');
-	try{
-		if(typeof procSelect !== 'undefined' && procSelect){
-			$('#procSelect').val(procSelect.sumo.getSelStr());
-		}
-	}catch(e){}
-	asws_listLoad();
-}
+// [AX Lab] 삭제 (2026-10-18 AX Lab): 나의/전체 A/S 처리구분 및 전체 A/S 재조회 버튼 제거
+// function asws_emptySwitchAll(){
+// 	$('#asGubunFlag').val('1');
+// 	try{
+// 		if(typeof procSelect !== 'undefined' && procSelect){
+// 			$('#procSelect').val(procSelect.sumo.getSelStr());
+// 		}
+// 	}catch(e){}
+// 	asws_listLoad();
+// }

@@ -449,6 +449,10 @@
 #asWorkspace .bf-line .SumoSelect > .CaptionCont{display:flex; align-items:center; height:28px; min-height:28px; padding:0 8px; border-radius:6px; font-size:11.5px;}
 #asWorkspace .bf-line .SumoSelect > .CaptionCont > span{padding-right:22px; font-size:11.5px;}
 #asWorkspace .bf-line .SumoSelect.open > .optWrapper{top:30px;}
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 기본필터로 이동한 처리담당자 선택창 폭 */
+#asWorkspace .bf-line .SumoSelect.base-assign-sumo{flex:0 1 190px; width:190px; min-width:145px;}
+#asWorkspace .bf-line #advRetireWrap{display:inline-flex; flex:0 0 auto; align-items:center; margin-left:3px; white-space:nowrap;}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 처리상태 드롭다운 맨 위 '전체선택' 칸이 잘려 보이는 문제 수정.
    원인: 플러그인 CSS(sumoselect.css)는 이 행을 content-box 기준으로 만들어 뒀다.
@@ -471,6 +475,26 @@
 #asWorkspace .adv-row .adv-val .adv-date{flex:1 1 0;}
 #asWorkspace .adv-row .adv-val .dwave{color:var(--ink-3); font-size:11px; flex-shrink:0;}
 #asWorkspace .adv-row .adv-del{flex:0 0 26px; height:28px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--ink-3); font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;}
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 SumoSelect를 고급필터 행 폭·높이에 맞춤 */
+#asWorkspace .adv-row .adv-val .SumoSelect{flex:1; width:100%; min-width:0;}
+#asWorkspace .adv-row .adv-val .SumoSelect > .CaptionCont{display:flex; align-items:center; height:28px; min-height:28px; padding:0 7px; border-radius:6px; font-size:11.5px;}
+#asWorkspace .adv-row .adv-val .SumoSelect > .CaptionCont > span{padding-right:22px; font-size:11.5px;}
+#asWorkspace .adv-row .adv-val .SumoSelect.open > .optWrapper{top:30px;}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 선택창 축소 + 퇴사자 옵션을 같은 행 우측에 배치 */
+#asWorkspace .adv-row .adv-val .SumoSelect.adv-assign-sumo{
+  flex:0 1 260px;
+  width:260px;
+  min-width:180px;
+}
+#asWorkspace #advRetireWrap{
+  flex:0 0 auto;
+  align-items:center;
+  margin-left:8px;
+  white-space:nowrap;
+}
+#asWorkspace #advRetireWrap .bf-chk{margin:0;}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 #asWorkspace .adv-row .adv-del:hover{border-color:var(--red); color:var(--red);}
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건행(모달 조회 방식) 값 UI.

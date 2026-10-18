@@ -130,4 +130,98 @@
 	]]>
 	</update>
 
+	<!-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 링크 삽입 모달 목록/페이징.
+	     공지사항은 사용자에게 노출하는 번호가 NOTICE_NUM이고, 그 외 게시판은 SEQ이다.
+	     일반 게시판의 나만보기 글은 작성자 본인에게만 노출해 기존 게시판 목록 정책을 유지한다. -->
+	<select id="getBoardLinkListCnt" parameterType="map" resultType="java.lang.Integer">
+	<![CDATA[
+		SELECT COUNT(*)
+		FROM CRM_BOARD_MGT A
+		LEFT OUTER JOIN CRM_EMP_MGT B ON A.REG_ID = B.EMP_NO
+		WHERE A.BOARD_GBN = #{board_gbn, jdbcType=VARCHAR}
+		  AND (
+		        A.BOARD_GBN = '0000'
+		        OR A.ONLYME_OPEN_YN = 'N'
+		        OR A.ONLYME_OPEN_YN IS NULL
+		        OR (A.ONLYME_OPEN_YN = 'Y' AND A.REG_ID = #{reg_id, jdbcType=VARCHAR})
+		      )
+		  AND (
+		        #{search_text, jdbcType=VARCHAR} IS NULL
+		        OR CASE WHEN A.BOARD_GBN = '0000' THEN TO_CHAR(A.NOTICE_NUM) ELSE TO_CHAR(A.SEQ) END
+		           LIKE '%' || #{search_text, jdbcType=VARCHAR} || '%'
+		        OR UPPER(REPLACE(A.TITLE, ' ', ''))
+		           LIKE '%' || UPPER(REPLACE(#{search_text, jdbcType=VARCHAR}, ' ', '')) || '%'
+		        OR UPPER(REPLACE(A.CONTENT, ' ', ''))
+		           LIKE '%' || UPPER(REPLACE(#{search_text, jdbcType=VARCHAR}, ' ', '')) || '%'
+		        OR UPPER(A.REG_ID) LIKE '%' || UPPER(#{search_text, jdbcType=VARCHAR}) || '%'
+		        OR UPPER(B.EMP_NM) LIKE '%' || UPPER(#{search_text, jdbcType=VARCHAR}) || '%'
+		      )
+	]]>
+	</select>
+
+	<select id="getBoardLinkList" parameterType="map" resultType="map">
+	<![CDATA[
+		SELECT
+			LINK_NUM,
+			REG_DATE,
+			TITLE,
+			EMP_NM
+		FROM (
+			SELECT
+				CASE WHEN A.BOARD_GBN = '0000' THEN TO_CHAR(A.NOTICE_NUM) ELSE TO_CHAR(A.SEQ) END AS LINK_NUM,
+				TO_CHAR(A.REG_DATE, 'YYYY-MM-DD') AS REG_DATE,
+				A.TITLE,
+				NVL(B.EMP_NM, A.REG_ID) AS EMP_NM,
+				ROW_NUMBER() OVER (ORDER BY A.REG_DATE DESC, A.SEQ DESC) AS RN
+			FROM CRM_BOARD_MGT A
+			LEFT OUTER JOIN CRM_EMP_MGT B ON A.REG_ID = B.EMP_NO
+			WHERE A.BOARD_GBN = #{board_gbn, jdbcType=VARCHAR}
+			  AND (
+			        A.BOARD_GBN = '0000'
+			        OR A.ONLYME_OPEN_YN = 'N'
+			        OR A.ONLYME_OPEN_YN IS NULL
+			        OR (A.ONLYME_OPEN_YN = 'Y' AND A.REG_ID = #{reg_id, jdbcType=VARCHAR})
+			      )
+			  AND (
+			        #{search_text, jdbcType=VARCHAR} IS NULL
+			        OR CASE WHEN A.BOARD_GBN = '0000' THEN TO_CHAR(A.NOTICE_NUM) ELSE TO_CHAR(A.SEQ) END
+			           LIKE '%' || #{search_text, jdbcType=VARCHAR} || '%'
+			        OR UPPER(REPLACE(A.TITLE, ' ', ''))
+			           LIKE '%' || UPPER(REPLACE(#{search_text, jdbcType=VARCHAR}, ' ', '')) || '%'
+			        OR UPPER(REPLACE(A.CONTENT, ' ', ''))
+			           LIKE '%' || UPPER(REPLACE(#{search_text, jdbcType=VARCHAR}, ' ', '')) || '%'
+			        OR UPPER(A.REG_ID) LIKE '%' || UPPER(#{search_text, jdbcType=VARCHAR}) || '%'
+			        OR UPPER(B.EMP_NM) LIKE '%' || UPPER(#{search_text, jdbcType=VARCHAR}) || '%'
+			      )
+		)
+		WHERE RN BETWEEN #{start_row, jdbcType=INTEGER} AND #{end_row, jdbcType=INTEGER}
+		ORDER BY RN
+	]]>
+	</select>
+
+	<!-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 링크 제목 클릭 본문 미리보기 -->
+	<select id="getBoardLinkInfo" parameterType="map" resultType="boardVO">
+	<![CDATA[
+		SELECT
+			CASE WHEN A.BOARD_GBN = '0000' THEN TO_CHAR(A.NOTICE_NUM) ELSE TO_CHAR(A.SEQ) END AS SEQ,
+			TO_CHAR(A.REG_DATE, 'YYYY-MM-DD') AS REG_DATE,
+			A.TITLE,
+			NVL(B.EMP_NM, A.REG_ID) AS EMP_NM,
+			A.CONTENT
+		FROM CRM_BOARD_MGT A
+		LEFT OUTER JOIN CRM_EMP_MGT B ON A.REG_ID = B.EMP_NO
+		WHERE A.BOARD_GBN = #{board_gbn, jdbcType=VARCHAR}
+		  AND CASE WHEN A.BOARD_GBN = '0000' THEN TO_CHAR(A.NOTICE_NUM) ELSE TO_CHAR(A.SEQ) END
+		      = #{link_num, jdbcType=VARCHAR}
+		  AND (
+		        A.BOARD_GBN = '0000'
+		        OR A.ONLYME_OPEN_YN = 'N'
+		        OR A.ONLYME_OPEN_YN IS NULL
+		        OR (A.ONLYME_OPEN_YN = 'Y' AND A.REG_ID = #{reg_id, jdbcType=VARCHAR})
+		      )
+	]]>
+	</select>
+	<!-- [AX Lab] 수정 끝 -->
+	<!-- [AX Lab] 수정 끝 -->
+
 </mapper>

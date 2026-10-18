@@ -148,6 +148,10 @@ public class AsVO extends PagingVO implements Serializable {
 	
 	private String[] procSelectArray = null ; 
 	private String procSelect;
+	// [AX Lab] 수정 시작 (2026-10-16 AX Lab): AS 목록 처리담당자 체크박스 다중검색
+	private String[] assignSelectArray = null ;
+	private String assignSelect = "";
+	// [AX Lab] 수정 끝
 		
 	
 	
@@ -1299,6 +1303,24 @@ public class AsVO extends PagingVO implements Serializable {
 	public void setProcSelect(String procSelect) {
 		this.procSelect = procSelect;
 	}
+
+	// [AX Lab] 수정 시작 (2026-10-16 AX Lab): AS 목록 처리담당자 체크박스 다중검색
+	public String[] getAssignSelectArray() {
+		return assignSelectArray;
+	}
+
+	public void setAssignSelectArray(String[] assignSelectArray) {
+		this.assignSelectArray = assignSelectArray;
+	}
+
+	public String getAssignSelect() {
+		return assignSelect;
+	}
+
+	public void setAssignSelect(String assignSelect) {
+		this.assignSelect = assignSelect;
+	}
+	// [AX Lab] 수정 끝
 
 	public String getChange_yn() {
 		return change_yn;

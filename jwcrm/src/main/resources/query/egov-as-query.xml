@@ -152,6 +152,14 @@
 			test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type13) == 'Y'.toString() ">
 			AND IN_TB.PROC_STATUS IN ('C001','C004')
 		</if>
+		<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 처리담당자 체크박스 다중검색 (사번 기준) -->
+		<if test="@egovframework.com.comm.util.SsStringUtil@normalizeNullArray(assignSelectArray) != ''">
+			AND IN_TB.ASSIGN_ID IN
+			<foreach collection="assignSelectArray" item="assignId" open="(" close=")" separator=",">
+				#{assignId}
+			</foreach>
+		</if>
+		<!-- [AX Lab] 수정 끝 -->
 		<if
 			test="@egovframework.com.comm.util.SsStringUtil@normalizeNull(search_type2) != ''">
 			AND IN_TB.CAUSE_TYPE = #{search_type2}
@@ -245,6 +253,10 @@
 			UPPER(IN_TB.CUST_KOR_NAME) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
 			UPPER(IN_TB.CUST_CODE) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
 			UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+			/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 통합검색에 A/S신청자 이름·연락처 추가 (연락처 하이픈 무시) */
+			UPPER(IN_TB.RL_APPLY_NM) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
+			REPLACE(IN_TB.APPLY_TEL, '-', '') LIKE '%'|| REPLACE(#{search_text}, '-', '') ||'%' OR
+			/* [AX Lab] 수정 끝 */
 			UPPER(IN_TB.CALL_CONTENT) LIKE '%'|| UPPER(#{search_text}) ||'%' OR
 			UPPER(IN_TB.ACTION_CONTENT) LIKE '%'|| UPPER(#{search_text}) ||'%'
 			)
@@ -267,6 +279,14 @@
 					<when test="af.field == 'CUST_CODE'">
 						AND UPPER(IN_TB.CUST_CODE) LIKE '%'|| UPPER(#{af.value}) ||'%'
 					</when>
+					<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): A/S신청자 이름·연락처 고급검색 (연락처 하이픈 무시) -->
+					<when test="af.field == 'RL_APPLY_NM'">
+						AND UPPER(IN_TB.RL_APPLY_NM) LIKE '%'|| UPPER(#{af.value}) ||'%'
+					</when>
+					<when test="af.field == 'APPLY_TEL'">
+						AND REPLACE(IN_TB.APPLY_TEL, '-', '') LIKE '%'|| REPLACE(#{af.value}, '-', '') ||'%'
+					</when>
+					<!-- [AX Lab] 수정 끝 -->
 					<when test="af.field == 'EMP_NM'">
 						AND UPPER(IN_TB.EMP_NM) LIKE '%'|| UPPER(#{af.value}) ||'%'
 					</when>
@@ -342,6 +362,9 @@
 	            ,A.CALL_CONTENT
 	            ,A.ACTION_CONTENT
 	            ,E.RETIRE_DATE
+	            /* [AX Lab] 수정 시작 (2026-10-16 AX Lab): A/S신청자 검색용 연락처 */
+	            ,A.APPLY_TEL
+	            /* [AX Lab] 수정 끝 */
 	            ,A.RL_APPLY_NM
 	            ,(SELECT REG_DATE FROM CRM_AS_MGT_HIST WHERE SEQ = ( SELECT MAX(SEQ) FROM CRM_AS_MGT_HIST WHERE AS_NO = A.AS_NO AND PROC_STATUS = 'C005') AND AS_NO = A.AS_NO) REG_DATE
 	        FROM         
@@ -419,6 +442,9 @@
 		a.cn_as_no, 
 		a.as_no_link,
 		a.apply_nm, 
+		/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): A/S신청자 검색용 연락처 */
+		a.apply_tel,
+		/* [AX Lab] 수정 끝 */
 		a.proc_status, /* 처리상태 C */ 
 		a.cust_code, /* 거래처 코드 (cust_code) */ 
 		b.cust_kor_name, /* 거래처명 */ 
@@ -532,6 +558,12 @@
             ,A.REQUEST_CONTENT		,A.ATTACH_SEQ2			,A.WORK_TIME	,A.RL_APPLY_NM		,A.SEND_SMS					,B.CUST_KOR_NAME
             ,A.REQUEST_TYPE			,A.CHATBOT_ID			,A.AS_NO_LINK
             ,A.PROC_GUBUN
+			/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거·연관 이력 미리보기에 시스템유형(대/소) 명칭 제공 */
+			,(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z
+			    WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = 'CD03' AND Z.CODE = A.SERVICE_CATE) AS SERVICE_CATE_NM
+			,(SELECT Z.CODE_NAME FROM CRM_CODE_DETAIL Z
+			    WHERE Z.CODE_GROUP = 'AS' AND Z.P_CODE = A.SERVICE_CATE AND Z.CODE = A.INQUIRY_TYPE) AS INQUIRY_TYPE_NM
+			/* [AX Lab] 수정 끝 */
 			,A.PROC_BUILD_INFO
 			,A.PROC_TEST_INFO
 			,A.PROC_PROCESS_SP
@@ -2634,6 +2666,9 @@ SELECT OUT_TB3.EMP_NO,
 		WHERE 
 				 AS_NO = #{as_no, jdbcType=VARCHAR}
 			AND SEQ = #{seq, jdbcType=INTEGER}
+			/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 본인이 작성한 조치이력만 수정 허용 */
+			AND REG_ID = #{reg_id, jdbcType=VARCHAR}
+			/* [AX Lab] 수정 끝 */
 	]]>
 	</update>
 
