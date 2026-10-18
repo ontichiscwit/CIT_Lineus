@@ -348,9 +348,8 @@ var ASWS_ADV_CATALOG = [
 	{ key:'RL_APPLY_NM',    label:'A/S신청자 이름', type:'keyword' },
 	{ key:'APPLY_TEL',      label:'A/S신청자 연락처', type:'keyword' },
 	/* [AX Lab] 수정 끝 */
-	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 처리담당자를 체크박스로 다중선택 */
-	{ key:'ASSIGN_ID',      label:'처리담당자',    type:'assignee' },
-	/* [AX Lab] 수정 끝 */
+	// [AX Lab] 삭제 (2026-10-18 AX Lab): 처리담당자는 기본필터로 이동
+	// { key:'ASSIGN_ID',      label:'처리담당자',    type:'assignee' },
 	{ key:'DEPT',          label:'부서명/코드',   type:'keyword' },
 	{ key:'REQUEST_TYPE',  label:'문의유형',      type:'select', cg:'AS',     pc:'CD07' },
 	{ key:'SERVICE_CATE',  label:'시스템유형',    type:'select', cg:'AS',     pc:'CD03' },
@@ -413,6 +412,76 @@ function asws_loadAssignees(){
 	return out;
 }
 
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자를 기본필터로 이동하고 AS 담당자는 본인을 기본 선택
+   - 현직 ROLE_AS_MANAGER 목록(getAsEmpList2)에 로그인 사번이 있으면 최초 진입/초기화 시 본인을 선택한다.
+   - 목록에 없으면 아무도 선택하지 않아 전체 담당자를 조회한다.
+   - 검색 후 재진입 때는 서버가 돌려준 assignSelect를 우선해 사용자가 선택한 값을 보존한다. */
+var ASWS_BASE_ASSIGN = null;
+function asws_baseAssignSync(){
+	var $sel = $('#baseAssignSelect');
+	if(!$sel.length) return;
+	var v = $sel.val() || [];
+	if(typeof v === 'string') v = [v];
+	$('#assignSelect').val(v.join(','));
+	if(v.length > 0 && !ASWS_ASSIGN_CLEARING) $('#search_type17').prop('checked', false);
+}
+
+function asws_baseAssignDefault(){
+	var loginNo = (typeof CAWS_LOGIN_EMP_NO !== 'undefined') ? $.trim(String(CAWS_LOGIN_EMP_NO || '')) : '';
+	if(loginNo === '') return '';
+	var emps = asws_loadAssignees();
+	for(var i=0;i<emps.length;i++){
+		if(emps[i].id === loginNo) return loginNo;
+	}
+	return '';
+}
+
+function asws_baseAssignInit(){
+	var $sel = $('#baseAssignSelect');
+	if(!$sel.length) return;
+	var emps = asws_loadAssignees();
+	var selectedCsv = $.trim(String($('#assignSelect').val() || ''));
+	if(selectedCsv === '' && typeof ASWS_IS_FIRST_ENTRY !== 'undefined' && ASWS_IS_FIRST_ENTRY){
+		selectedCsv = asws_baseAssignDefault();
+	}
+	var selected = {};
+	var selectedArr = selectedCsv.split(',');
+	for(var i=0;i<selectedArr.length;i++){
+		var id = $.trim(selectedArr[i]);
+		if(id !== '') selected[id] = true;
+	}
+	var html = '';
+	for(var j=0;j<emps.length;j++){
+		html += '<option value="'+asws_esc(emps[j].id)+'"'+(selected[emps[j].id] ? ' selected' : '')+'>'
+		     + asws_esc(emps[j].name)+'</option>';
+	}
+	$sel.html(html);
+	ASWS_BASE_ASSIGN = $sel.SumoSelect({
+		placeholder:'전체 담당자', csvDispCount:2, captionFormat:'{0}명 선택',
+		captionFormatAllSelected:'전체 담당자', selectAll:true, search:true,
+		searchText:'담당자 검색', noMatch:'검색 결과 없음', locale:['확인','취소','전체선택']
+	});
+	$sel.closest('.SumoSelect').addClass('base-assign-sumo');
+	$sel.on('change', asws_baseAssignSync);
+	asws_baseAssignSync();
+	if(ASWS_BASE_ASSIGN && ASWS_BASE_ASSIGN.sumo) ASWS_BASE_ASSIGN.sumo.setText();
+}
+
+function asws_baseAssignReset(){
+	var $sel = $('#baseAssignSelect');
+	if(!$sel.length) return;
+	ASWS_ASSIGN_CLEARING = true;
+	try{
+		if($sel[0].sumo) $sel[0].sumo.unSelectAll();
+		var defaultId = asws_baseAssignDefault();
+		if(defaultId !== '' && $sel[0].sumo) $sel[0].sumo.selectItem(defaultId);
+	}finally{
+		ASWS_ASSIGN_CLEARING = false;
+	}
+	asws_baseAssignSync();
+}
+/* [AX Lab] 수정 끝 */
+
 /* SumoSelect의 실제 선택값을 검색용 CSV hidden 두 곳에 동기화한다.
    adv_value는 검색 후 조건행 복원용, assignSelect는 MyBatis IN 조건용이다. */
 var ASWS_ASSIGN_CLEARING = false;
@@ -426,6 +495,7 @@ function asws_assignSync($row){
 	if(csv !== '' && !ASWS_ASSIGN_CLEARING) $('#search_type17').prop('checked', false);
 }
 function asws_assignFlush(){
+	asws_baseAssignSync();
 	$('#advRows .adv-row').each(function(){
 		if($(this).find('.adv-field').val() === 'ASSIGN_ID') asws_assignSync($(this));
 	});
@@ -433,6 +503,11 @@ function asws_assignFlush(){
 function asws_assignClear(){
 	ASWS_ASSIGN_CLEARING = true;
 	try{
+		var $base = $('#baseAssignSelect');
+		if($base.length){
+			try{ if($base[0].sumo) $base[0].sumo.unSelectAll(); }catch(e){}
+			$base.val([]);
+		}
 		$('#advRows .adv-assign-multi').each(function(){
 			try{ if(this.sumo) this.sumo.unSelectAll(); }catch(e){}
 			$(this).val([]);
@@ -443,6 +518,7 @@ function asws_assignClear(){
 	$('#advRows input[name=assignSelect], #advRows .adv-row input[name=adv_value]').filter(function(){
 		return $(this).closest('.adv-row').find('.adv-field').val() === 'ASSIGN_ID';
 	}).val('');
+	$('#assignSelect').val('');
 }
 /* [AX Lab] 수정 끝 */
 
@@ -594,24 +670,13 @@ function asws_advRenderVal($row, field, value, value2){
    별도 조건행 아래에 두면 조건을 추가할 때마다 화면 맨 아래로 밀리므로, ASSIGN_ID 행의 값 영역으로 옮긴다.
    행 변경·삭제·전체 초기화 시 DOM에서 사라지지 않도록 영구 보관소(#advRetireHome)로 먼저 되돌린다. */
 function asws_advParkRetireChk(){
-	var $wrap = $('#advRetireWrap');
-	var $home = $('#advRetireHome');
-	if($wrap.length && $home.length) $wrap.detach().appendTo($home).hide();
+	/* 처리담당자가 기본필터로 이동해 퇴사자 옵션도 기본필터 자리에 고정한다. */
 }
 
 function asws_advSyncRetireChk(){
 	var $wrap = $('#advRetireWrap');
 	if(!$wrap.length) return;
-	var $assignRow = $();
-	$('#advRows .adv-row').each(function(){
-		if(!$assignRow.length && $(this).find('.adv-field').val() === 'ASSIGN_ID') $assignRow = $(this);
-	});
-	if($assignRow.length){
-		$wrap.detach().appendTo($assignRow.find('.adv-val')).css('display', 'inline-flex');
-	}else{
-		asws_advParkRetireChk();
-		$('#search_type17').prop('checked', false);
-	}
+	$wrap.css('display', 'inline-flex');
 }
 /* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
@@ -627,7 +692,13 @@ function asws_advUpdateCount(){
 	if(!badge) return;
 	var n = 0;
 	$('#advRows .adv-row').each(function(){
-		if(asws_nvl($(this).find('.adv-field').val(),'') !== '') n++;
+		var $row = $(this);
+		var field = asws_nvl($row.find('.adv-field').val(),'');
+		if(field === 'CUST'){
+			if(asws_nvl($row.find('#cust_kor_name').val(),'') !== '' || asws_nvl($row.find('#cust_code').val(),'') !== '') n++;
+		}else if(asws_nvl($row.find('[name=adv_value]').val(),'') !== '' || asws_nvl($row.find('[name=adv_value2]').val(),'') !== ''){
+			n++;
+		}
 	});
 	/* [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스가 처리상태 기본 체크로 대체되어 제거됨.
 	   search_type13 은 hidden(value='N')으로만 남아 있어 고급조건 개수에서 세지 않는다.
@@ -660,6 +731,8 @@ function asws_advAddRow(field, value, value2){
 	$row.append($field).append($val).append($del);
 	$('#advRows').append($row);
 	asws_advRenderVal($row, field, value, value2);
+	/* 값이 실제로 입력된 조건만 고급필터 배지에 집계한다. */
+	$row.on('change.aswsAdvCnt input.aswsAdvCnt', '.adv-val input, .adv-val select', asws_advUpdateCount);
 	asws_advRefreshFieldOptions();
 	asws_advUpdateCount();
 	/* [AX Lab] 수정 끝 */
@@ -674,6 +747,14 @@ function asws_advClear(){
 	$('#advRows').empty(); asws_advUpdateCount(); /* [AX Lab] (2026-07-28) 배지 초기화 */
 }
 
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 자주 쓰는 고급필터 기본행 */
+function asws_advAddDefaults(){
+	asws_advAddRow('CUST', '', '');
+	asws_advAddRow('REQUEST_TYPE', '', '');
+	asws_advAddRow('SERVICE_CATE', '', '');
+}
+/* [AX Lab] 수정 끝 */
+
 /* 리로드 후 저장된 고급조건 복원 (ASWS_ADV_INIT) */
 function asws_advInit(){
 	asws_advClear();
@@ -684,6 +765,11 @@ function asws_advInit(){
 		var m  = asws_advMeta(f);
 		var v  = asws_nvl(it.value,'');
 		var v2 = asws_nvl(it.value2,'');
+		/* 구 화면에서 저장된 처리담당자 고급조건은 새 기본필터로 승계한다. */
+		if(f === 'ASSIGN_ID'){
+			if($('#assignSelect').val() === '') $('#assignSelect').val(v);
+			continue;
+		}
 		if(m && m.type==='date'){ v = asws_fmtDateInput(v); v2 = asws_fmtDateInput(v2); }
 		asws_advAddRow(f, v, v2);
 	}
@@ -695,6 +781,11 @@ function asws_advInit(){
 		var ciNm = asws_nvl($ci.attr('data-name'), '');
 		var ciCd = asws_nvl($ci.attr('data-code'), '');
 		if(ciNm !== '' || ciCd !== '') asws_advAddRow('CUST', ciNm, ciCd);
+	}
+	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 최초 고급필터에는 자주 쓰는 세 항목을 빈 기본행으로 제공 */
+	if($('#advRows .adv-row').length === 0 && typeof ASWS_IS_FIRST_ENTRY !== 'undefined' && ASWS_IS_FIRST_ENTRY){
+		asws_advAddDefaults();
 	}
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 복원 후 배지 갱신 + 체크박스형 고급조건 변경 감지
@@ -741,11 +832,15 @@ function asws_advRestoreOpen(isFirstEntry){
 		try{ saved = sessionStorage.getItem(ASWS_ADV_OPEN_KEY); }catch(e){}
 	}
 	var open;
-	if(saved === 'Y' || saved === 'N'){
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 최초 기본 고급필터 3행은 준비하되 패널은 기존처럼 접힌 상태 유지 */
+	if(isFirstEntry){
+		open = false;
+	}else if(saved === 'Y' || saved === 'N'){
 		open = (saved === 'Y');
 	}else{
 		open = ($('#advRows .adv-row').length > 0);	/* 저장값 없음(첫 진입 등): 복원된 조건이 있으면 펼침 */
 	}
+	/* [AX Lab] 수정 끝 */
 	if(open !== b.classList.contains('open')) asws_advToggle();
 }
 /* [AX Lab] 수정 끝 */
