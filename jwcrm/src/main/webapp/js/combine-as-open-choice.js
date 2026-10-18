@@ -1,38 +1,67 @@
-/* [AX Lab] 신규 파일 (2026-10-16 AX Lab): AS 목록에서 다른 접수건 선택 시 새 탭/현재 화면 선택
-   - 아직 열린 접수건이 없거나 같은 건을 누르면 기존처럼 현재 화면에서 바로 연다.
-   - 다른 건을 누르면 선택 모달을 표시하며, 행 선택 상태는 실제 열기 전까지 바꾸지 않는다.
-   - 새 탭은 list.jsp 가 이미 지원하는 as_no/cn_as_no 쿼리 진입 방식을 재사용한다. */
+/* [AX Lab] 신규 파일 (2026-10-16 AX Lab): AS 목록에서 다른 접수건 선택 시 새 탭/현재 화면 선택 */
 (function(){
 	'use strict';
 
-	var pending = null;
 	var modal = null;
 	var previousFocus = null;
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 평소 즉시 전환, 미저장 변경만 보호하고 브라우저 뒤로가기로 이전 AS 복원 */
+	var historyReady = false;
+	var historyIndex = 0;
 
-	function currentAsNo(){
-		if(typeof asws !== 'undefined' && asws) return String(asws.asNo || '');
-		return '';
+	function currentSelection(){
+		return {
+			asNo:(typeof asws !== 'undefined' && asws) ? String(asws.asNo || '') : '',
+			cnAsNo:(typeof asws !== 'undefined' && asws) ? String(asws.cnAsNo || '') : ''
+		};
 	}
 
-	function hasUnsavedChanges(){
+	function liveRecordChanged(){
+		if(typeof caws === 'undefined' || !caws || !caws.fld) return false;
+		var key = String(caws.fld);
+		var vo = caws.vo || {};
+		if(key === 'systype'){
+			var cate = document.getElementById('cawsFldCate');
+			var sub = document.getElementById('cawsFldSub');
+			return String(cate ? cate.value : '') !== String(vo.service_cate || '')
+				|| String(sub ? sub.value : '') !== String(vo.inquiry_type || '');
+		}
+		var el = document.getElementById('cawsFldIn');
+		if(!el) return false;
+		var field = (key === 'assign') ? 'assign_id' : key;
+		var live = String(el.value || '').trim();
+		var saved = String(vo[field] || '');
+		if(key === 'proc_dt' || key === 'complete_dt' || key === 'proc_time'){
+			live = live.replace(/[^0-9]/g,'');
+			saved = saved.replace(/[^0-9]/g,'');
+		}
+		return live !== saved;
+	}
+
+	function dirtyState(){
+		var state = { answer:false, record:false };
 		var answer = document.getElementById('cawsText');
-		if(answer && String(answer.value || '').replace(/\s/g, '') !== '') return true;
+		if(answer && String(answer.value || '').replace(/\s/g, '') !== '') state.answer = true;
 
 		if(typeof caws_slots === 'function'){
 			var slots = caws_slots();
 			for(var i=0; i<slots.length; i++){
-				if(slots[i].files && slots[i].files.length) return true;
+				if(slots[i].files && slots[i].files.length){ state.answer = true; break; }
 			}
 		}
 
-		if(typeof caws !== 'undefined' && caws){
-			if(caws.batchFiles && caws.batchFiles.length) return true;
-			if(String(caws.batchMemo || '').replace(/\s/g, '') !== '') return true;
-			if(caws.batch && typeof caws_batchHasChanges === 'function'){
-				try{ if(caws_batchHasChanges()) return true; }catch(e){}
-			}
+		/* 접수·처리 정보의 전체 편집 필드, 조치이력, 첨부 변경을 기존 비교 함수로 한 번에 확인한다. */
+		if(typeof caws !== 'undefined' && caws && caws.batch
+		   && typeof caws_batchHasChanges === 'function'){
+			try{ state.record = caws_batchHasChanges(); }catch(e){}
 		}
-		return false;
+		/* 날짜를 아직 완성하지 않은 상태처럼 vo에 반영되기 전인 현재 입력값도 놓치지 않는다. */
+		if(!state.record) state.record = liveRecordChanged();
+		return state;
+	}
+
+	function hasUnsavedChanges(){
+		var state = dirtyState();
+		return state.answer || state.record;
 	}
 
 	function closeModal(){
@@ -40,7 +69,6 @@
 		document.removeEventListener('keydown', onKeyDown);
 		if(modal.parentNode) modal.parentNode.removeChild(modal);
 		modal = null;
-		pending = null;
 		if(previousFocus && typeof previousFocus.focus === 'function'){
 			try{ previousFocus.focus(); }catch(e){}
 		}
@@ -55,84 +83,167 @@
 		}
 	}
 
-	function openCurrent(){
-		if(!pending) return;
-		var target = pending;
-		closeModal();
-		asws_openDetail(target.asNo, target.cnAsNo);
+	function queryValue(name){
+		var m = new RegExp('(?:^|[?&])'+name+'=([^&]*)').exec(window.location.search || '');
+		if(!m) return '';
+		try{ return decodeURIComponent(String(m[1]).replace(/\+/g,' ')); }catch(e){ return ''; }
 	}
 
-	function openNewTab(){
-		if(!pending) return;
-		var url = '/ad/as/list.do?as_no=' + encodeURIComponent(pending.asNo);
-		if(pending.cnAsNo !== '') url += '&cn_as_no=' + encodeURIComponent(pending.cnAsNo);
-		/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 브라우저별 window.open 반환값 차이로
-		   정상 오픈을 팝업 차단으로 오인하지 않도록 링크 방식으로 연다.
-		   기존 탭은 이동시키지 않고 선택 모달만 즉시 닫는다. */
-		var link = document.createElement('a');
-		link.href = url;
-		link.target = '_blank';
-		link.rel = 'noopener noreferrer';
-		link.style.display = 'none';
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
-		closeModal();
-		/* [AX Lab] 수정 끝 */
+	function historyUrl(asNo, cnAsNo){
+		var url = '/ad/as/list.do';
+		if(asNo !== ''){
+			url += '?as_no='+encodeURIComponent(asNo);
+			if(cnAsNo !== '') url += '&cn_as_no='+encodeURIComponent(cnAsNo);
+		}
+		return url;
 	}
 
-	function showModal(asNo, cnAsNo){
+	function historyState(asNo, cnAsNo, index){
+		return { asoc:true, asNo:String(asNo||''), cnAsNo:String(cnAsNo||''), index:index };
+	}
+
+	function initHistory(){
+		if(historyReady) return;
+		var asNo = queryValue('as_no');
+		var cnAsNo = queryValue('cn_as_no');
+		var old = window.history.state;
+		if(old && old.asoc === true){
+			historyIndex = Number(old.index) || 0;
+		}else{
+			try{ window.history.replaceState(historyState(asNo,cnAsNo,0),'',window.location.href); }catch(e){}
+			historyIndex = 0;
+		}
+		historyReady = true;
+	}
+
+	function rememberCurrent(){
+		initHistory();
+		var current = currentSelection();
+		var state = window.history.state;
+		if(!state || state.asoc !== true
+		   || String(state.asNo||'') !== current.asNo
+		   || String(state.cnAsNo||'') !== current.cnAsNo){
+			try{
+				window.history.replaceState(
+					historyState(current.asNo,current.cnAsNo,historyIndex),
+					'', historyUrl(current.asNo,current.cnAsNo)
+				);
+			}catch(e){}
+		}
+	}
+
+	function openDetail(asNo, cnAsNo, addHistory){
+		if(addHistory){
+			rememberCurrent();
+			historyIndex++;
+			try{
+				window.history.pushState(
+					historyState(asNo,cnAsNo,historyIndex),
+					'', historyUrl(asNo,cnAsNo)
+				);
+			}catch(e){}
+		}
+		asws_openDetail(asNo, cnAsNo);
+	}
+
+	function saveDirty(){
+		var state = dirtyState();
+		if(!state.answer && !state.record){ closeModal(); return; }
+
+		/* 저장 함수의 자체 검증 메시지와 입력 포커스가 가려지지 않도록 선택창부터 닫는다.
+		   답변과 접수처리정보가 모두 변경됐으면 서로 다른 기존 저장 API를 각각 호출한다. */
+		closeModal();
+		if(state.answer && typeof caws_send === 'function') caws_send();
+		if(state.record && typeof caws_batchSave === 'function') caws_batchSave();
+	}
+
+	function showDirtyModal(){
 		closeModal();
 		var workspace = document.getElementById('asWorkspace');
-		if(!workspace){
-			asws_openDetail(asNo, cnAsNo);
-			return;
-		}
+		if(!workspace) return;
 
-		pending = { asNo:asNo, cnAsNo:cnAsNo };
 		previousFocus = document.activeElement;
 		modal = document.createElement('div');
 		modal.className = 'asoc-backdrop';
 		modal.setAttribute('role', 'presentation');
 		modal.innerHTML = ''
 			+ '<div class="asoc-dialog" role="dialog" aria-modal="true" aria-labelledby="asocTitle" aria-describedby="asocMessage">'
-			+   '<h3 class="asoc-title" id="asocTitle">다른 접수건을 여시겠습니까?</h3>'
-			+   '<p class="asoc-message" id="asocMessage">현재 접수건을 유지한 채 새 탭으로 열거나, 현재 화면의 접수건을 변경할 수 있습니다.</p>'
-			+   '<div class="asoc-case">선택한 접수번호: <span id="asocTargetNo"></span></div>'
-			+   (hasUnsavedChanges() ? '<div class="asoc-warning">현재 화면에 저장하지 않은 입력 내용이 있습니다. 현재 화면에서 열면 입력 내용이 사라집니다.</div>' : '')
+			+   '<h3 class="asoc-title" id="asocTitle">저장하지 않은 내용이 있습니다.</h3>'
+			+   '<p class="asoc-message" id="asocMessage">변경한 내용을 저장하거나 취소한 후 다시 선택해 주세요.</p>'
 			+   '<div class="asoc-actions">'
 			+     '<button type="button" data-asoc="cancel">취소</button>'
-			+     '<button type="button" data-asoc="new">새 탭으로 열기</button>'
-			+     '<button type="button" class="asoc-current" data-asoc="current">현재 화면에서 열기</button>'
+			+     '<button type="button" class="asoc-current" data-asoc="save">저장</button>'
 			+   '</div>'
 			+ '</div>';
 
-		modal.querySelector('#asocTargetNo').textContent = asNo;
 		modal.addEventListener('click', function(e){
 			if(e.target === modal){ closeModal(); return; }
 			var action = e.target.getAttribute ? e.target.getAttribute('data-asoc') : '';
 			if(action === 'cancel') closeModal();
-			else if(action === 'new') openNewTab();
-			else if(action === 'current') openCurrent();
+			else if(action === 'save') saveDirty();
 		});
 		workspace.appendChild(modal);
 		document.addEventListener('keydown', onKeyDown);
 
-		var currentBtn = modal.querySelector('[data-asoc="current"]');
-		if(currentBtn) currentBtn.focus();
+		var saveBtn = modal.querySelector('[data-asoc="save"]');
+		if(saveBtn) saveBtn.focus();
 	}
 
-	/* 목록 행 클릭 전용 진입점. 페이징/검색/등록 후 재조회 같은 기존 상세 유지 흐름은 건드리지 않는다. */
+	function clearDetail(){
+		if(typeof asws !== 'undefined' && asws){
+			asws.asNo = ''; asws.cnAsNo = ''; asws.curRow = null;
+		}
+		try{ $('#asList tr').removeClass('on'); $('#pinlabel').text(''); }catch(e){}
+		if(typeof caws_clear === 'function') caws_clear('왼쪽 목록에서 접수건을 선택하세요.');
+	}
+
+	/* 목록 행 클릭 전용 진입점. 검색·페이징처럼 현재 상세를 유지하는 흐름은 건드리지 않는다. */
 	window.asoc_selectFromList = function(asNo, cnAsNo){
 		asNo = String(asNo || '');
 		cnAsNo = String(cnAsNo || '');
 		if(asNo === '') return;
 
-		var current = currentAsNo();
-		if(current === '' || current === asNo){
-			asws_openDetail(asNo, cnAsNo);
+		var current = currentSelection();
+		if(current.asNo === asNo && current.cnAsNo === cnAsNo){
+			openDetail(asNo, cnAsNo, false);
 			return;
 		}
-		showModal(asNo, cnAsNo);
+		if(current.asNo !== '' && hasUnsavedChanges()){
+			showDirtyModal();
+			return;
+		}
+		openDetail(asNo, cnAsNo, true);
 	};
+
+	window.addEventListener('popstate', function(e){
+		var state = e.state;
+		if(!state || state.asoc !== true) return;
+
+		/* 뒤로가기 자체도 미저장 내용을 잃게 할 수 있으므로 현재 AS를 이력에 복원하고 동일 경고를 표시한다. */
+		if(hasUnsavedChanges()){
+			var current = currentSelection();
+			historyIndex = (Number(state.index) || 0) + 1;
+			try{
+				window.history.pushState(
+					historyState(current.asNo,current.cnAsNo,historyIndex),
+					'', historyUrl(current.asNo,current.cnAsNo)
+				);
+			}catch(ignore){}
+			showDirtyModal();
+			return;
+		}
+
+		historyIndex = Number(state.index) || 0;
+		var asNo = String(state.asNo || '');
+		var cnAsNo = String(state.cnAsNo || '');
+		if(asNo === '') clearDetail();
+		else openDetail(asNo, cnAsNo, false);
+	});
+
+	if(document.readyState === 'loading'){
+		document.addEventListener('DOMContentLoaded', initHistory);
+	}else{
+		initHistory();
+	}
+	/* [AX Lab] 수정 끝 */
 })();

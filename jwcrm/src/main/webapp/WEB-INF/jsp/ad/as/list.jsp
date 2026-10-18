@@ -1505,8 +1505,9 @@
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-open-choice.css?v=20261016-1" />
-<%-- [AX Lab] 수정 (2026-10-16 AX Lab): 새 탭 링크 방식 적용 및 선택창 즉시 닫기 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-open-choice.js?v=20261016-4"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 미저장 변경 보호·즉시 전환·브라우저 뒤로가기 반영 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-open-choice.js?v=20261018-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면(통합 타임라인 / 작성영역 / 모달 / 아코디언 / 과거이력).
      combine-as.css / combine-as.js 를 고치지 않고 "뒤에 추가"하는 방식이라 로드 순서가 중요하다.
