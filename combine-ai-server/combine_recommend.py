@@ -57,6 +57,7 @@ from combine_lexical import BM25Index, surface_words           # noqa: E402  어
 from combine_synonyms import expand as expand_synonyms         # noqa: E402  [AX Lab] 2026-10-12 질의 도메인 동의어 확장
 import combine_morph                                           # noqa: E402  [AX Lab] 2026-10-16 겹친 단어 형태소 분석 (Kiwi)
 from combine_morph import units as morph_units                 # noqa: E402
+import combine_wordstats                                       # noqa: E402  [AX Lab] 2026-10-16 형식어·재촉 문의 판정
 
 BASE_DIR = Path(__file__).resolve().parent
 # 색인 데이터 위치. 기본은 이 패키지의 data/ (analysis/combine_embed.py 가 색인을 만들고 여기로 복사한다).
@@ -406,10 +407,11 @@ def _match_stem(s):
     return s
 
 
-def match_terms(q_lex, synonyms, doc_text, idf, q_units=None):
+def match_terms(q_lex, synonyms, doc_text, idf, q_units=None, formal=None):
     """질의의 말 중 후보 본문(embed_text — BM25 가 보는 본문)에 실제로 들어 있는 것 → [{"term", "synonym"}].
 
-    드문 말(IDF 큰 것) 순으로 MATCH_MAX 개, 서로 포함 관계인 말은 긴 쪽 하나만.
+    문의에 있던 말 먼저, 그 안에서 드문 말(IDF 큰 것) 순으로 MATCH_MAX 개, 서로 포함 관계인 말은 긴 쪽 하나만.
+    formal: combine_wordstats.judge() 의 형식어 집합(소문자). 이 말과 통계상 형식어(안녕·연락·담당자 …)는 빼고 보여 준다.
     synonym=True 는 질의에 없고 동의어 확장(combine_synonyms)으로 덧붙인 말이 걸렸다는 뜻이다.
     벡터 검색·재정렬은 문장 뜻으로 판단하므로 이 목록이 비어 있어도 추천될 수 있다 (화면에는 '뜻으로 찾음').
     q_units: combine_morph.units(q_lex) 결과 (요청당 한 번 계산해 넘긴다). None 이면 여기서 구하고,
@@ -417,8 +419,9 @@ def match_terms(q_lex, synonyms, doc_text, idf, q_units=None):
     """
     if q_units is None:
         q_units = morph_units(q_lex)
+    formal = formal or set()
     if q_units is None or q_units is False:
-        return _match_terms_rule(q_lex, synonyms, doc_text, idf)
+        return _match_terms_rule(q_lex, synonyms, doc_text, idf, formal)
     # [AX Lab] 수정 시작 (2026-10-16 AX Lab): Kiwi 명사 덩어리 기준 (combine_morph 참조)
     #   "시술확인서" 처럼 붙어 있던 명사는 한 덩어리로, "신규및"·"신규오더시" 는 명사만 남긴다.
     #   덩어리 전체가 본문에 없으면 그 안의 더 짧은 연속 조각(신규오더 → 신규)을 긴 것부터 찾는다.
@@ -428,13 +431,22 @@ def match_terms(q_lex, synonyms, doc_text, idf, q_units=None):
     found = {}
     for parts in q_units:
         whole = "".join(p[0] for p in parts)
+        # [AX Lab] 수정 시작 (2026-10-16 AX Lab): 형식어 제외 · 동의어는 통째로만
+        #   동의어(보험회사)의 조각(회사)은 문의에도 동의어 사전에도 없는 말이라 근거가 될 수 없다.
+        if whole.lower() in formal:
+            continue
+        is_syn_unit = whole in syn
         taken = []
-        spans = sorted(((i, j) for i in range(len(parts)) for j in range(i + 1, len(parts) + 1)),
-                       key=lambda ij: (ij[0] - ij[1], ij[0]))
+        spans = [(0, len(parts))] if is_syn_unit else sorted(
+            ((i, j) for i in range(len(parts)) for j in range(i + 1, len(parts) + 1)),
+            key=lambda ij: (ij[0] - ij[1], ij[0]))
         for i, j in spans:
             if parts[i][1] == "J" or parts[j - 1][1] == "J" or any(i < b and a < j for a, b in taken):
                 continue
             s = "".join(p[0] for p in parts[i:j])
+            if s.lower() in formal or combine_wordstats.word_class(s) == "f":
+                continue
+            # [AX Lab] 수정 끝
             if not _match_present(s, text, flat):
                 continue
             taken.append((i, j))
@@ -445,7 +457,7 @@ def match_terms(q_lex, synonyms, doc_text, idf, q_units=None):
             if weight < MATCH_MIN_IDF:
                 continue
             if key not in found or weight > found[key][0]:
-                found[key] = (weight, s in syn or whole in syn, s)
+                found[key] = (weight, s in syn or is_syn_unit, s)
     return _match_pick(found)
 
 
@@ -465,7 +477,8 @@ def _match_present(s, text, flat):
 
 def _match_pick(found):
     out = []
-    for key, (_w, is_syn, s) in sorted(found.items(), key=lambda kv: -kv[1][0]):
+    # [AX Lab] 수정 (2026-10-16 AX Lab): 문의에 있던 말 먼저, 동의어로 찾은 말은 뒤에
+    for key, (_w, is_syn, s) in sorted(found.items(), key=lambda kv: (kv[1][1], -kv[1][0])):
         if any(key in o["term"].lower() for o in out):
             continue
         shorter = next((o for o in out if o["term"].lower() in key), None)
@@ -479,7 +492,7 @@ def _match_pick(found):
 # [AX Lab] 수정 끝
 
 
-def _match_terms_rule(q_lex, synonyms, doc_text, idf):
+def _match_terms_rule(q_lex, synonyms, doc_text, idf, formal=frozenset()):
     """Kiwi 없이 어절 규칙으로 계산 (폴백). 질의 어절의 앞부분 중 본문에 있는 가장 긴 것에서 조사·어미를 뗀다."""
     text = (doc_text or "").lower()
     syn = set((synonyms or "").split())
@@ -488,7 +501,9 @@ def _match_terms_rule(q_lex, synonyms, doc_text, idf):
         if w.isdigit():
             continue                                    # 날짜·번호 조각은 근거로 의미가 없다
         if "가" <= w[0] <= "힣":
-            s = next((w[:n] for n in range(len(w), 1, -1) if w[:n] in text), None)
+            # [AX Lab] 수정 (2026-10-16 AX Lab): 동의어는 통째로만 (보험회사 → 회사 X)
+            lens = (len(w),) if w in syn else range(len(w), 1, -1)
+            s = next((w[:n] for n in lens if w[:n] in text), None)
             if s:
                 s = _match_stem(s)
                 if _MATCH_PREDICATE.search(s) or s in _MATCH_KO_STOP:
@@ -501,6 +516,8 @@ def _match_terms_rule(q_lex, synonyms, doc_text, idf):
         if not s:
             continue
         key = s.lower()
+        if key in formal or combine_wordstats.word_class(s) == "f":   # [AX Lab] 2026-10-16 형식어 제외
+            continue
         weight = idf.get(key) or idf.get(key[:2]) or 0.0
         if weight < MATCH_MIN_IDF:
             continue
@@ -535,10 +552,11 @@ def prepare_query(raw):
     # [AX Lab] 수정 시작 (2026-10-12 AX Lab): 도메인 동의어 확장 (combine_synonyms.RULES).
     #   현장어(산재 지사) ↔ 시스템어(산재조합/보험거래처코드) 격차로 정답이 후보에도 못 들던 문제. 질의에만 적용한다.
     syn_dense, syn_lex = expand_synonyms(q_text + " " + names)
+    q_body = q_text                                     # [AX Lab] 2026-10-16 동의어 덧붙이기 전 본문 (형식어 판정용)
     if syn_dense:
         q_text = q_text + "\n" + syn_dense
     q_lex = " ".join(x for x in (q_text, names, syn_lex) if x).strip()
-    meta = dict(meta, synonyms=(syn_dense + " " + syn_lex).strip())
+    meta = dict(meta, synonyms=(syn_dense + " " + syn_lex).strip(), q_body=q_body)
     # [AX Lab] 수정 끝
     return q_text, q_lex, meta
 
@@ -600,6 +618,7 @@ class Recommender:
         #   서버는 Recommender(None) 뒤에 색인을 읽으므로 거기서(combine_recommend_server.main) 따로 부른다.
         if index is not None:
             combine_morph.warmup(combine_morph.domain_words(getattr(index, "meta", None)))
+            combine_wordstats.warmup(index)                 # [AX Lab] 2026-10-16 Kiwi 적재 후 백그라운드 계산 (캐시 있으면 즉시)
 
     def recommend(self, query, *, as_no=None, exclude_as_no=None, service_cate=None, inquiry_type=None,
                   request_type=None, program_nm=None, screen_nm=None, top_k=5, tiers=(1, 2, 3)):
@@ -675,16 +694,25 @@ class Recommender:
         q_units = morph_units(q_lex)                        # [AX Lab] 2026-10-16 질의 형태소 분석은 요청당 1회
         if q_units is None:
             q_units = False
+        # [AX Lab] 수정 시작 (2026-10-16 AX Lab): 형식어(안녕·연락·담당자·퇴근 …) 판정 + 재촉 문의 판정 (combine_wordstats)
+        combine_wordstats.warmup(index)                     # 기본 색인이 바뀌었을 때만 백그라운드 재계산 (평소엔 즉시 반환)
+        formal, content_free = combine_wordstats.judge(morph_units(qm.get("q_body") or q_text, with_sentence=True))
+        nag_near = combine_wordstats.follow_up(index, qvec, excl)
+        # [AX Lab] 수정 끝
         for it in items:
             it.pop("product_match", None)
             d = index.get(it["doc_id"])
             body = d.get("embed_text") or " ".join(str(d.get(k) or "") for k in ("title", "question_text", "answer_text"))
-            it["match_terms"] = match_terms(q_lex, qm.get("synonyms"), body, idf, q_units)
+            it["match_terms"] = match_terms(q_lex, qm.get("synonyms"), body, idf, q_units, formal)
         # [AX Lab] 수정 시작 (2026-10-12 AX Lab): 결과 전체 확신도 = 노출 항목 중 가장 높은 절대 코사인 기준
         best_sim = max((it["semantic_sim"] for it in items), default=0.0)
         # [AX Lab] 수정 끝
         return {"result": "000", "elapsed_ms": int((time.time() - t0) * 1000), "items": items,
                 "confidence": confidence_of(best_sim), "best_sim": round(best_sim, 4),
+                # [AX Lab] 2026-10-16 재촉·연락 요청 문의 — CRM 이 '문의 내용 키워드·연관 이력' 을 위로 올린다
+                "follow_up": nag_near >= combine_wordstats.FOLLOW_MIN or content_free,
+                "follow_up_detail": {"nag_near": nag_near, "near_k": combine_wordstats.FOLLOW_K,
+                                     "content_free": content_free},
                 "index": index_info(index)}
 
     @staticmethod

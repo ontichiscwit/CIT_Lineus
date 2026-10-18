@@ -20,6 +20,7 @@ CRM(Java, `CombineAsAiClient`) 이 이 서버에 문의 원문을 보내면, 표
 | `combine_lexical.py` | BM25 어휘 색인 (한글 어절 + 2-gram, 형태소 분석기 불필요) |
 | `combine_textprep.py` | 접수 템플릿 파싱 · 첨부 상투어 제거 · 1겹 정규식 마스킹 — **적재 파이프라인(`analysis/`) 과 공용** |
 | `combine_morph.py` | **추천 근거(겹친 단어) 표시용 형태소 분석** — Kiwi로 명사 덩어리 추출, 사용자 사전(동의어·화면명). 화면 표시 전용, 미설치 시 규칙 방식 폴백 (2026-10-16) |
+| `combine_wordstats.py` | **칩 형식어 판정 + 재촉 문의 판정** — 색인의 과거 문의에서 단어별 위치·재촉 문의 쏠림을 자동 계산(약 1분, `data/combine_wordstats.json` 캐시). 화면 표시 전용 (2026-10-16) |
 | `combine_synonyms.py` | 질의 도메인 동의어 확장 (현장어 ↔ 시스템어, 예: 산재 지사 → 산재조합/보험거래처코드). **질의에만** 적용, 색인 재생성 불필요 (2026-10-12) |
 | `combine_embed_client.py` | Ollama `bge-m3` 임베딩 호출 — 적재와 공용 |
 | `combine_live_index.py` | **색인 준실시간 반영** (2026-10-15) — 백그라운드 스레드가 `data/` 를 30초마다 보고 ① 배치가 새 색인을 배포하면 재기동 없이 다시 읽고 ② `data/combine_live.jsonl` 의 델타(종결 건 upsert/delete) 를 메모리 색인에 반영 |
@@ -33,6 +34,7 @@ CRM(Java, `CombineAsAiClient`) 이 이 서버에 문의 원문을 보내면, 표
 | `data/combine_unified.jsonl` | 문서 본문·메타 (마스킹 완료. `cust_code`/`cust_nm` 없음) — 기본 색인 (git 커밋) |
 | `data/combine_live.jsonl` | 라이브 델타 — `analysis/combine_live.py` 가 append, 배치가 비움 (git 제외) |
 | `data/combine_live_state.json` | 동기화기 상태(워터마크·마지막 폴링·오류) — `/health` 의 `live.sync` 로 노출 (git 제외) |
+| `data/combine_wordstats.json` | 단어 통계 캐시 (JSON — 단어별 분류 `f`형식어/`c`업무/`n`중립 · 문서 수 · 형식어 사유). 기본 색인 `built_at` 이 바뀌면 자동 재계산. 지워도 다음 기동 때 다시 만든다 (2026-10-16) |
 | `requirements.txt` | `numpy` 하나 |
 <!-- [AX Lab] 수정 끝 -->
 
@@ -67,7 +69,7 @@ listening on http://127.0.0.1:8765  (X-Api-Key=dev-key)
 <!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): health 재정렬 상태 추가 -->
 ```
 curl http://127.0.0.1:8765/health
-→ {"status":"ok","index":{...},"live":{...},"embed":{"ok":true,...},"rerank":{"enabled":true,"last_ok":...,"fallbacks":0,"circuit_open":false},"morph":{"available":true,"ready":true,"user_words":327,"error":null}}
+→ {"status":"ok","index":{...},"live":{...},"embed":{"ok":true,...},"rerank":{"enabled":true,"last_ok":...,"fallbacks":0,"circuit_open":false},"morph":{"available":true,"ready":true,"user_words":327,"error":null},"wordstats":{"ready":true,"words":774,"formal":18,"error":null}}
    status 가 embed_down 이면 Ollama 연결 문제 · index.built_at 이 배치 시각과 다르면 아직 재적재 전(30초 대기) · live.sync 가 null 이면 동기화기 미기동
 ```
 <!-- [AX Lab] 수정 끝 -->
@@ -232,6 +234,7 @@ Content-Type: application/json
 }
 
 200 {"result":"000","elapsed_ms":300,"confidence":"high|mid|low","best_sim":0.69,
+     "follow_up":false, "follow_up_detail":{"nag_near":0,"near_k":10,"content_free":false},   ← 재촉·연락 요청 문의 (2026-10-16)
      "items":[{ doc_id, tier, tier_label, title, answer_text, answer_html,
       relevance(0~1, 후보 안 상대값 — 화면 표시용), semantic_sim(코사인 원값), lexical_score(BM25 원값), score,
       rerank_score(재정렬 성공 시에만 0~1), rerank_raw(재정렬 성공 시에만 원점수 logit — 2026-10-16),
@@ -245,7 +248,7 @@ Content-Type: application/json
 
 `confidence` (2026-10-12 추가): `relevance` 는 후보 60건 안에서 min-max 한 값이라 전부 무관한 결과여도 1위는 항상 100% 로 보입니다.
 그래서 bge-m3 절대 코사인으로 `high ≥ 0.62 / mid / low < 0.58` 을 따로 내려줍니다 (임계는 `combine_recommend.py` 의 `CONF_*_SIM`,
-실측 근거는 그 주석 참조). 응답 상단 `confidence` 는 Java `CombineAsAiVO` 를 거치지 않으므로 CRM 화면은 항목별 `confidence` 만 씁니다.
+실측 근거는 그 주석 참조). CRM 화면은 항목별 `confidence` 를 씁니다. (2026-10-16부터 Java 프록시가 응답 상단 필드도 그대로 넘깁니다 — 아래 `follow_up` 참조)
 <!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): low 사용자 표시 정책 -->
 CRM 화면은 `low`를 오류나 실패로 단정하지 않습니다. 상대값인 관련도 퍼센트 대신 `참고 사례`로 표시하고,
 전부 low이면 “직접 일치하는 답변 대신 유사한 업무 사례”라는 중립 안내와 함께 목록을 그대로 제공합니다.
@@ -277,6 +280,30 @@ CRM 화면은 목록에 칩 3개, 상세 패널 "겹친 단어" 줄에 4개까�
 - 비용: 기동 시 모델 적재 약 4초(백그라운드 스레드), 문장당 약 1ms. 요청당 질의 1회만 분석합니다.
 - 화면 표시에만 씁니다. 검색(BM25)·색인은 그대로라 **색인 재생성 불필요**. Kiwi 적재 전이거나 `kiwipiepy` 미설치면 어절 규칙으로 자동 폴백합니다.
   상태는 `GET /health` 의 `morph` (`ready`, `user_words`, `error`). `run.bat` 은 기존 가상환경에 `kiwipiepy` 가 없으면 설치를 시도합니다(실패해도 기동).
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 칩 형식어 거르기 · 동의어 통째로만 · 재촉 문의 -->
+**칩에서 형식어 빼기** (2026-10-16, `combine_wordstats.py`): "안녕"·"연락"·"담당자"·"퇴근"처럼 문의 내용과 무관한 말이 칩에 섞이던 문제.
+금지어 목록을 손으로 늘리지 않고, 색인의 Tier2 과거 문의(`question_text`)에서 단어마다 두 가지를 재서 **자동으로** 형식어를 정합니다.
+- 인사·맺음말 위치: 글 맨 앞/끝에 몰리는 말(평균 가장자리 거리 ≤ 0.10, 25건 이상) — 안녕 0.037 · 수고 0.043 · 긴급 0.071 · 감사 0.093 (삭제·오류·처방은 0.22~0.27).
+- 재촉 문의 쏠림: `topic=처리현황독촉` 문의(72건)에 몰리는 말. 표본이 작아 단순 배율은 우연에 흔들리므로(0건인 '경과기록지'도 3.4배)
+  Wilson 하한(90%)이 기준 비율의 2배 이상이고 3건 이상 나온 말만 — 담당자 · 전화(번호) · 연락 · 답변 · 처리 · 진행 · 상황 · 신청 · 어제 · 월요일 · 지연.
+- 드문 말(문서 20건 미만 — 퇴근·휴무)은 통계를 믿을 수 없으므로 **같은 문장**을 봅니다. 형식어가 있고 업무 용어(서비스구분·문제유형에 쏠리는 말,
+  영문, 업무 조각이 든 합성어)가 없는 문장의 말은 형식어로 봅니다. "퇴근 전에 연락 부탁" → 퇴근 제외 / "시술확인서 연락 부탁" → 시술확인서 유지.
+- 실측(실제 문의 40건 + 연락 요청 문장 17개): 빠진 칩 연락 21 · 담당자 14 · 답변 7 · 통화 4 · 긴급 3 · 접수번호 2 · 상황 1, 업무 칩은 빠진 것 없음.
+- 따져 본 다른 방법: IDF(안녕도 드문 말이라 실패), 단어 벡터 분류(수고·회사를 업무어로, 삭제·변경을 형식어로 오판), 문의에서 단어를 지웠을 때의
+  의미 변화(원외약국·환경설정값 같은 정상 칩까지 지움) — 모두 버렸습니다.
+- 통계는 기동 후 백그라운드에서 계산(약 1분, Kiwi 적재 후)하고 `data/combine_wordstats.json` 에 저장해 다음 기동부터는 즉시 읽습니다.
+  준비 전에는 거르기 없이 기존대로 동작합니다. 상태는 `/health` 의 `wordstats`.
+
+**동의어 칩은 통째로만** (2026-10-16): 동의어 "보험회사" 의 조각 "회사" 가 `≈ 회사` 로 뜨던 문제. 동의어는 문의에도 사전에도 없는 조각을
+근거로 보여 주지 않습니다. 칩 순서도 **문의에 있던 말 먼저, 동의어(≈)는 뒤**로 바꿨습니다.
+
+**재촉·연락 요청 문의** (2026-10-16): `follow_up=true` 는 "연락 달라", "재문의 드립니다" 처럼 앞선 접수를 재촉하는 문의라는 뜻입니다.
+판정: 질의 벡터와 가장 가까운 Tier2 문의 10건(자기·연결건 제외) 중 `처리현황독촉` 이 2건 이상(`nag_near` — 전체의 0.6% 라 평소의 30배), 또는
+문의에 형식어만 있고 업무 내용이 없음(`content_free`). 실측: 연락 요청·재문의 문장 11개 중 8개 탐지, 일반 실제 문의 40건 오탐 0건.
+CRM 화면은 이때 「문의 내용 키워드 · 연관 이력」 블록을 접수·처리 정보 맨 위로 올리고 안내 한 줄을 붙입니다(`combine-as-ai.js`).
+**이 필드가 화면까지 가려면 CRM Java 3개 파일(`CombineAsAiClient`·`CombineAsAiVO`·`CombineAsAiServiceImpl`) 재컴파일·WAS 재기동이 필요합니다**
+(그 전에는 필드가 걸러져 기존 화면 그대로).
 <!-- [AX Lab] 수정 끝 -->
 
 응답에는 고객사 식별 정보(`cust_code`/`cust_nm`) 가 들어가지 않습니다. 질의는 1겹 정규식 마스킹 후 임베딩하며 **저장·로그하지 않습니다**(접속 로그에도 본문 없음).

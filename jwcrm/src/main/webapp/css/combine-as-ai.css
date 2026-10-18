@@ -157,3 +157,10 @@
 #asWorkspace .cai-act .cai-primary{height:26px; padding:0 12px; font-size:11.5px;}
 #asWorkspace .cai-act .btn-s{height:26px; line-height:24px; padding:0 10px; font-size:11px;}
 #asWorkspace .cai-act a.cai-pub{display:inline-flex; align-items:center; text-decoration:none;}
+
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재촉·연락 요청 문의 — 팝오버 안내 · 접수·처리 정보 맨 위 안내줄 · 올라온 키워드 블록 */
+#asWorkspace .cai-funote{display:block; padding:6px 11px; background:#FFF8E8; border-bottom:1px solid #F1E2BC; font-size:9.5px; color:#7A5B12; line-height:1.45;}
+#asWorkspace .cai-funote.panel{margin:0 0 6px; padding:6px 10px; border:1px solid #F1E2BC; border-radius:8px; font-size:11px;}
+#asWorkspace .cai-funote.panel b{margin-right:6px; color:#8A6410;}
+#asWorkspace .ckw-box.cai-fu{border-color:#E6CF95; box-shadow:0 0 0 2px #FFF3D6;}
+/* [AX Lab] 수정 끝 */
