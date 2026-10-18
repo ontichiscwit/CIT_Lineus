@@ -419,6 +419,30 @@ function asws_loadAssignees(){
    - 목록에 없으면 아무도 선택하지 않아 전체 담당자를 조회한다.
    - 검색 후 재진입 때는 서버가 돌려준 assignSelect를 우선해 사용자가 선택한 값을 보존한다. */
 var ASWS_BASE_ASSIGN = null;
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 선택한 담당자명을 우선 표시하고 칸을 넘을 때만 '첫 이름 외 n명'으로 축약 */
+function asws_baseAssignCaption(){
+	var $sel = $('#baseAssignSelect');
+	if(!$sel.length) return;
+	var $caption = $sel.closest('.SumoSelect').children('.CaptionCont').children('span');
+	if(!$caption.length) return;
+
+	var names = [];
+	$sel.find('option:selected').not(':disabled').each(function(){
+		names.push($(this).text());
+	});
+	var total = $sel.find('option').not(':disabled').length;
+	var text = names.length === 0 || names.length === total ? '전체 담당자' : names.join(', ');
+	$caption.text(text).toggleClass('placeholder', names.length === 0);
+	$caption.attr('title', text);
+
+	var caption = $caption[0];
+	if(names.length > 1 && names.length < total && caption.clientWidth > 0 && caption.scrollWidth > caption.clientWidth){
+		text = names[0]+' 외 '+(names.length-1)+'명';
+		$caption.text(text).attr('title', names.join(', '));
+	}
+}
+/* [AX Lab] 수정 끝 */
+
 function asws_baseAssignSync(){
 	var $sel = $('#baseAssignSelect');
 	if(!$sel.length) return;
@@ -426,6 +450,9 @@ function asws_baseAssignSync(){
 	if(typeof v === 'string') v = [v];
 	$('#assignSelect').val(v.join(','));
 	if(v.length > 0 && !ASWS_ASSIGN_CLEARING) $('#search_type17').prop('checked', false);
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 선택 변경 때 담당자 캡션을 실제 너비에 맞춰 갱신 */
+	asws_baseAssignCaption();
+	/* [AX Lab] 수정 끝 */
 }
 
 function asws_baseAssignDefault(){
@@ -459,14 +486,19 @@ function asws_baseAssignInit(){
 	}
 	$sel.html(html);
 	ASWS_BASE_ASSIGN = $sel.SumoSelect({
-		placeholder:'전체 담당자', csvDispCount:2, captionFormat:'{0}명 선택',
+		/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 플러그인의 고정 인원수 축약을 끄고 너비 기반 캡션을 사용 */
+		placeholder:'전체 담당자', csvDispCount:0, captionFormat:'{0}명 선택',
+		/* [AX Lab] 수정 끝 */
 		captionFormatAllSelected:'전체 담당자', selectAll:true, search:true,
 		searchText:'담당자 검색', noMatch:'검색 결과 없음', locale:['확인','취소','전체선택']
 	});
 	$sel.closest('.SumoSelect').addClass('base-assign-sumo');
 	$sel.on('change', asws_baseAssignSync);
-	asws_baseAssignSync();
 	if(ASWS_BASE_ASSIGN && ASWS_BASE_ASSIGN.sumo) ASWS_BASE_ASSIGN.sumo.setText();
+	asws_baseAssignSync();
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 화면 폭 변경 시에도 캡션 축약 여부를 다시 계산 */
+	$(window).off('resize.aswsBaseAssignCaption').on('resize.aswsBaseAssignCaption', asws_baseAssignCaption);
+	/* [AX Lab] 수정 끝 */
 }
 
 function asws_baseAssignReset(){

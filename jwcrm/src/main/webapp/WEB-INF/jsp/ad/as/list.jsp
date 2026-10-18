@@ -1500,7 +1500,9 @@
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스크립트 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 필터 UI 배치 수정 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as.js?v=20261018-4"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 우선 표시 캡션 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
