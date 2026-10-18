@@ -568,6 +568,10 @@
 #asWorkspace .caws-pit .caws-pith{display:flex; align-items:center; gap:6px; margin-bottom:3px;}
 #asWorkspace .caws-pit .caws-pdate{font-size:10.5px; color:var(--ink-3); white-space:nowrap;}
 #asWorkspace .caws-pit .caws-pno{font-size:10.5px; color:var(--ink-3); margin-left:auto; white-space:nowrap;}
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 과거 상담이력 시스템유형(대/소) 표시 */
+#asWorkspace .caws-pit .caws-psys{margin-bottom:3px; font-size:10.5px; color:var(--ink-2); line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-pit .caws-psys span{margin-right:5px; color:var(--ink-3); font-weight:600;}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .caws-pit .caws-ptxt{font-size:11.5px; color:var(--ink); line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
 #asWorkspace .caws-pempty{padding:16px 10px; text-align:center; font-size:11.5px; color:var(--ink-3);}
 

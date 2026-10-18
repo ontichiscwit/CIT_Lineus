@@ -1516,14 +1516,18 @@
 <%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 접수처리정보 필수값 UX 수정 캐시 갱신 --%>
 <%-- [AX Lab] 수정 (2026-10-12 AX Lab): 전화부재중 횟수 비활성 음영 스타일 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 스타일 캐시 갱신 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261017-2" />
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261019-1" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 기능 수정 후 브라우저가 이전 JS를 재사용하지 않도록 버전 고정 --%>
 <%-- [AX Lab] 수정 (2026-10-12 AX Lab): 처리상태별 담당자/조치의견/전화부재중 규칙 반영 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 높이 조절 스크립트 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 기능 반영 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261017-4"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
@@ -1552,7 +1556,9 @@
      ★ 로드 순서 : combine-as.js(asws_stClass) + combine-as-thread.js(caws_* 유틸) 뒤여야 한다. --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-keyword.css" />
 <%-- [AX Lab] 수정 (2026-10-12 AX Lab): 연관 이력 항목 클릭 동작 변경(ckw_listHtml) 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-keyword.js?v=20261012-1"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 연관 이력 시스템유형 표시 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-keyword.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-06 AX Lab): AI 추천 (유사 상담사례 / 과거사례 / 공지) 실제 연동.
      설계서 mdfile/AS통합화면_AI추천_통합설계.md §8. 문의 카드의 [✦ AI 추천] 팝오버가 추천 "목록"을,
@@ -1581,7 +1587,9 @@
      ★ 원복 : 아래 두 줄만 지우면 두 목록의 onclick 이 typeof cpi_toggle 폴백을 타서 기존 caws_pastOpen 으로 돌아간다. --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-past-inline.css" />
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 통합 AS 화면 새 탭에서 이 건으로 이동 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-past-inline.js?v=20261012-3"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 미리보기 시스템유형 명칭 표시 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-past-inline.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>

@@ -1333,6 +1333,14 @@ function ckw_listHtml(){
 		var r  = ckw.ranked[i], it = r.d.it;
 		var no = r.d.no;
 		var txt = ckw_nvl(it.call_content,'');
+		/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 연관 이력 목록에 시스템유형(대/소) 표시 */
+		var sysLarge = ckw_nvl(it.service_cate_nm,'');
+		var sysSmall = ckw_nvl(it.inquiry_type_nm,'');
+		if(sysLarge === '' && ckw_nvl(it.service_cate,'') !== '') sysLarge = caws_codeNm('AS','CD03',it.service_cate);
+		if(sysSmall === '' && ckw_nvl(it.inquiry_type,'') !== '') sysSmall = caws_codeNm('AS',ckw_nvl(it.service_cate,''),it.inquiry_type);
+		var sysType = sysLarge;
+		if(sysSmall !== '') sysType += (sysType !== '' ? ' / ' : '') + sysSmall;
+		/* [AX Lab] 수정 끝 */
 		/* 막대는 1위 대비 상대값이다. 절대 점수를 %로 보여주면 근거 없는 확신을 준다. */
 		var pct = r.d.ref ? 100 : Math.max(8, Math.round((r.raw / (top || 1)) * 100));
 
@@ -1355,6 +1363,9 @@ function ckw_listHtml(){
 		  +      '<span class="ckw-ino">' + ckw_esc(no) + '</span>'
 		  +    '</div>'
 		  +    '<div class="ckw-ibar"><i style="width:' + pct + '%"></i></div>'
+		/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 시스템유형이 있는 연관 건은 대/소분류를 함께 표시 */
+		  +    (sysType !== '' ? '<div class="ckw-irs">시스템유형 · ' + ckw_esc(sysType) + '</div>' : '')
+		/* [AX Lab] 수정 끝 */
 		  +    '<div class="ckw-itxt">' + (txt ? ckw_esc(txt) : '<span class="none">요청내용 없음</span>') + '</div>'
 		  +    '<div class="ckw-irs">' + ckw_esc(ckw_reason(r)) + '</div>'
 		  +  '</button>';

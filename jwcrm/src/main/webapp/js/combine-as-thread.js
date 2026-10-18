@@ -3670,6 +3670,14 @@ function caws_pastListHtml(){
 		if(no === caws.asNo) continue;					/* 지금 보고 있는 건은 제외 */
 		n++;
 		var txt = caws_nvl(it.call_content,'');
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 과거 상담이력 목록에 시스템유형(대/소) 표시 */
+		var sysLarge = caws_nvl(it.service_cate_nm,'');
+		var sysSmall = caws_nvl(it.inquiry_type_nm,'');
+		if(sysLarge === '' && caws_nvl(it.service_cate,'') !== '') sysLarge = caws_codeNm('AS','CD03',it.service_cate);
+		if(sysSmall === '' && caws_nvl(it.inquiry_type,'') !== '') sysSmall = caws_codeNm('AS',caws_nvl(it.service_cate,''),it.inquiry_type);
+		var sysType = sysLarge;
+		if(sysSmall !== '') sysType += (sysType !== '' ? ' / ' : '') + sysSmall;
+		/* [AX Lab] 수정 끝 */
 		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 항목 클릭 시 현재 접수건을 갈아끼우지 않고(caws_pastOpen)
 		   그 항목 바로 아래에 과거 건 내용을 펼친다(combine-as-past-inline.js / cpi_toggle).
 		   보던 문의가 사라지는 문제 해결. 그 건으로 완전히 넘어가는 것은 펼친 패널의 [이 건으로 이동].
@@ -3685,6 +3693,9 @@ function caws_pastListHtml(){
 		  +      '<span class="st '+asws_stClass(caws_nvl(it.proc_status,''))+'">'+caws_esc(caws_nvl(it.proc_status_nm,'-'))+'</span>'
 		  +      '<span class="caws-pno">'+caws_esc(no)+'</span>'
 		  +    '</div>'
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템유형이 있는 과거 건은 대/소분류를 함께 표시 */
+		  +    (sysType !== '' ? '<div class="caws-psys"><span>시스템유형</span>'+caws_esc(sysType)+'</div>' : '')
+		/* [AX Lab] 수정 끝 */
 		  +    '<div class="caws-ptxt">'+(txt ? caws_esc(txt) : '<span class="none">요청내용 없음</span>')+'</div>'
 		  +  '</button>';
 	}

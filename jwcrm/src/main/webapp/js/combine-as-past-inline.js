@@ -246,11 +246,15 @@ function cpi_html(){
 	if(tm !== '') when += ' ' + tm;
 	var stNm  = cpi_codeNm('CD01', vo.proc_status);
 	var reqNm = cpi_codeNm('CD07', vo.request_type);
-	var sysNm = cpi_codeNm('CD03', vo.service_cate);
-	if(sysNm !== '' && cpi_nvl(vo.inquiry_type,'') !== ''){
-		var sub = cpi_codeNm(cpi_nvl(vo.service_cate,''), vo.inquiry_type);
-		if(sub !== '') sysNm += ' / ' + sub;
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 서버가 제공한 시스템유형 명칭을 우선 사용하고 코드 조회는 폴백으로 유지 */
+	var sysNm = cpi_nvl(vo.service_cate_nm,'');
+	if(sysNm === '' && cpi_nvl(vo.service_cate,'') !== '') sysNm = cpi_codeNm('CD03', vo.service_cate);
+	if(cpi_nvl(vo.inquiry_type,'') !== ''){
+		var sub = cpi_nvl(vo.inquiry_type_nm,'');
+		if(sub === '') sub = cpi_codeNm(cpi_nvl(vo.service_cate,''), vo.inquiry_type);
+		if(sub !== '') sysNm += (sysNm !== '' ? ' / ' : '') + sub;
 	}
+	/* [AX Lab] 수정 끝 */
 	var doneDt = cpi_date(cpi_nvl(vo.complete_dt,''));
 
 	h += '<div class="cpi-meta">'
@@ -258,7 +262,9 @@ function cpi_html(){
 	  +    (stNm !== '' ? '<span class="st ' + cpi_stClass(vo.proc_status) + '">' + cpi_esc(stNm) + '</span>' : '')
 	  +    '<span class="cpi-mi"><em>담당</em>' + cpi_esc(cpi_nvl(vo.assign_nm, cpi_nvl(vo.assign_id,'-'))) + '</span>'
 	  +    (reqNm !== '' ? '<span class="cpi-mi"><em>문의유형</em>' + cpi_esc(reqNm) + '</span>' : '')
-	  +    (sysNm !== '' ? '<span class="cpi-mi"><em>시스템</em>' + cpi_esc(sysNm) + '</span>' : '')
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 목록과 같은 명칭으로 시스템유형 표시 */
+	  +    (sysNm !== '' ? '<span class="cpi-mi"><em>시스템유형</em>' + cpi_esc(sysNm) + '</span>' : '')
+	/* [AX Lab] 수정 끝 */
 	  +    (doneDt !== '' && doneDt !== '-' ? '<span class="cpi-mi"><em>완료</em>' + cpi_esc(doneDt) + '</span>' : '')
 	  +  '</div>';
 
