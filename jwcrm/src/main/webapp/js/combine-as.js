@@ -352,7 +352,9 @@ var ASWS_ADV_CATALOG = [
 	// { key:'ASSIGN_ID',      label:'처리담당자',    type:'assignee' },
 	{ key:'DEPT',          label:'부서명/코드',   type:'keyword' },
 	{ key:'REQUEST_TYPE',  label:'문의유형',      type:'select', cg:'AS',     pc:'CD07' },
-	{ key:'SERVICE_CATE',  label:'시스템유형',    type:'select', cg:'AS',     pc:'CD03' },
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템(대)/시스템(소) 연동 선택 */
+	{ key:'SERVICE_CATE',  label:'시스템유형',    type:'system', cg:'AS',     pc:'CD03' },
+	/* [AX Lab] 수정 끝 */
 	{ key:'CAUSE_TYPE',    label:'원인유형',      type:'select', cg:'AS',     pc:'CD05' },
 	{ key:'ACTION_TYPE',   label:'조치유형',      type:'select', cg:'AS',     pc:'CD06' },
 	{ key:'INPORTANCE',    label:'중요도',        type:'select', cg:'AS',     pc:'CD04' },
@@ -533,7 +535,7 @@ function asws_fmtDateInput(v){
    - select : 등호(=) 조건이라 같은 항목을 2개 걸면 결과가 없거나 의미가 없다.
    - cust   : 정확일치(=) 조건 + 값 UI 가 고정 id(cust_kor_name/cust_code)를 쓰는 기존 모달 콜백
               (makeCustInfo)에 의존하므로 화면에 1개만 존재해야 한다. */
-function asws_advIsSingleUse(type){ return type==='select' || type==='cust' || type==='assignee'; }
+function asws_advIsSingleUse(type){ return type==='select' || type==='cust' || type==='assignee' || type==='system'; }
 /* [AX Lab] 수정 끝 */
 
 /* 이미 사용 중인 1회성 검색구분 키 목록 (중복 방지용) */
@@ -597,6 +599,36 @@ function asws_advRenderVal($row, field, value, value2){
 		h += '</select><input type="hidden" name="adv_value2" value="">';
 		$val.html(h);
 		$val.find('select[name=adv_value]').val(value);
+
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템유형은 원본과 동일하게 대분류/소분류 두 선택창으로 표시.
+	   기존 검색 파라미터(search_type7/search_type8)를 재사용해 서버·쿼리 변경 없이 적용한다. */
+	}else if(m.type==='system'){
+		var parents = asws_loadCodes(m.cg, m.pc);
+		var sh = '<select class="adv-input adv-system-parent" name="search_type7" title="시스템(대) 선택">'
+		       + '<option value="">전체</option>';
+		for(var si=0;si<parents.length;si++){
+			sh += '<option value="'+asws_esc(parents[si].code)+'">'+asws_esc(parents[si].name)+'</option>';
+		}
+		sh += '</select>'
+		    + '<select class="adv-input adv-system-child" name="search_type8" title="시스템(소) 선택">'
+		    + '<option value="">전체</option></select>'
+		    + '<input type="hidden" name="adv_value" value="">'
+		    + '<input type="hidden" name="adv_value2" value="">';
+		$val.html(sh);
+		var $parent = $val.find('.adv-system-parent');
+		var $child = $val.find('.adv-system-child');
+		function fillSystemChildren(parentCode, selectedChild){
+			var children = parentCode ? asws_loadCodes('AS', parentCode) : [];
+			var ch = '<option value="">전체</option>';
+			for(var sj=0;sj<children.length;sj++){
+				ch += '<option value="'+asws_esc(children[sj].code)+'">'+asws_esc(children[sj].name)+'</option>';
+			}
+			$child.html(ch).val(selectedChild || '');
+		}
+		$parent.val(value);
+		fillSystemChildren(value, value2);
+		$parent.on('change', function(){ fillSystemChildren(this.value, ''); asws_advUpdateCount(); });
+	/* [AX Lab] 수정 끝 */
 
 	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 처리담당자 체크박스형 다중선택 */
 	}else if(m.type==='assignee'){
@@ -696,6 +728,8 @@ function asws_advUpdateCount(){
 		var field = asws_nvl($row.find('.adv-field').val(),'');
 		if(field === 'CUST'){
 			if(asws_nvl($row.find('#cust_kor_name').val(),'') !== '' || asws_nvl($row.find('#cust_code').val(),'') !== '') n++;
+		}else if(field === 'SERVICE_CATE'){
+			if(asws_nvl($row.find('[name=search_type7]').val(),'') !== '' || asws_nvl($row.find('[name=search_type8]').val(),'') !== '') n++;
 		}else if(asws_nvl($row.find('[name=adv_value]').val(),'') !== '' || asws_nvl($row.find('[name=adv_value2]').val(),'') !== ''){
 			n++;
 		}
@@ -781,6 +815,16 @@ function asws_advInit(){
 		var ciNm = asws_nvl($ci.attr('data-name'), '');
 		var ciCd = asws_nvl($ci.attr('data-code'), '');
 		if(ciNm !== '' || ciCd !== '') asws_advAddRow('CUST', ciNm, ciCd);
+	}
+	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템 대/소분류 직접 파라미터 복원 */
+	var $si = $('#advSystemInit');
+	if($si.length && $('#advRows .adv-row').filter(function(){
+		return $(this).find('.adv-field').val() === 'SERVICE_CATE';
+	}).length === 0){
+		var siParent = asws_nvl($si.attr('data-parent'), '');
+		var siChild = asws_nvl($si.attr('data-child'), '');
+		if(siParent !== '' || siChild !== '') asws_advAddRow('SERVICE_CATE', siParent, siChild);
 	}
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 최초 고급필터에는 자주 쓰는 세 항목을 빈 기본행으로 제공 */

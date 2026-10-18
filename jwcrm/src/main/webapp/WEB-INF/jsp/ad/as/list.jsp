@@ -1500,7 +1500,7 @@
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스크립트 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 필터 UI 배치 수정 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as.js?v=20261018-2"></script>
+<script type="text/javascript" src="/js/combine-as.js?v=20261018-4"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
@@ -1898,6 +1898,11 @@
             <span id="advCustInit" style="display:none;"
                   data-name="<c:out value='${vo.cust_kor_name}'/>"
                   data-code="<c:out value='${vo.cust_code}'/>"></span>
+            <%-- [AX Lab] 수정 끝 --%>
+            <%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템 대/소분류 검색조건 화면복원용 초기값 --%>
+            <span id="advSystemInit" style="display:none;"
+                  data-parent="<c:out value='${vo.search_type7}'/>"
+                  data-child="<c:out value='${vo.search_type8}'/>"></span>
             <%-- [AX Lab] 수정 끝 --%>
             <div id="advRows"></div>
             <%-- [AX Lab] 삭제 (2026-10-18 AX Lab): 퇴사자만 옵션은 처리담당자와 함께 기본필터 2행으로 이동 --%>
