@@ -1526,7 +1526,11 @@
 <%-- [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 높이 조절 스크립트 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 기능 반영 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 처리담당자 표시 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-3"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
@@ -1557,7 +1561,11 @@
 <link rel="stylesheet" type="text/css" href="/css/combine-as-keyword.css" />
 <%-- [AX Lab] 수정 (2026-10-12 AX Lab): 연관 이력 항목 클릭 동작 변경(ckw_listHtml) 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 연관 이력 시스템유형 표시 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-keyword.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 연관 이력 처리담당자 표시 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-keyword.js?v=20261019-3"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-06 AX Lab): AI 추천 (유사 상담사례 / 과거사례 / 공지) 실제 연동.

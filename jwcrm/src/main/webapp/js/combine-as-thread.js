@@ -3677,6 +3677,9 @@ function caws_pastListHtml(){
 		if(sysSmall === '' && caws_nvl(it.inquiry_type,'') !== '') sysSmall = caws_codeNm('AS',caws_nvl(it.service_cate,''),it.inquiry_type);
 		var sysType = sysLarge;
 		if(sysSmall !== '') sysType += (sysType !== '' ? ' / ' : '') + sysSmall;
+		/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 항목을 열지 않아도 처리담당자를 확인할 수 있게 표시 */
+		var assignNm = caws_nvl(it.emp_nm, caws_nvl(it.assign_nm, caws_nvl(it.assign_id,'미배정')));
+		/* [AX Lab] 수정 끝 */
 		/* [AX Lab] 수정 끝 */
 		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 항목 클릭 시 현재 접수건을 갈아끼우지 않고(caws_pastOpen)
 		   그 항목 바로 아래에 과거 건 내용을 펼친다(combine-as-past-inline.js / cpi_toggle).
@@ -3691,7 +3694,10 @@ function caws_pastListHtml(){
 		  +    '<div class="caws-pith">'
 		  +      '<span class="caws-pdate">'+caws_esc(caws_date(it.accept_dt))+'</span>'
 		  +      '<span class="st '+asws_stClass(caws_nvl(it.proc_status,''))+'">'+caws_esc(caws_nvl(it.proc_status_nm,'-'))+'</span>'
-		  +      '<span class="caws-pno">'+caws_esc(no)+'</span>'
+		/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 문구를 없애고 이름을 접수번호 좌측으로 이동 */
+		  +      '<span class="caws-pno">'+caws_esc(assignNm)+'</span>'
+		  +      '<span class="caws-pdate">'+caws_esc(no)+'</span>'
+		/* [AX Lab] 수정 끝 */
 		  +    '</div>'
 		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템유형이 있는 과거 건은 대/소분류를 함께 표시 */
 		  +    (sysType !== '' ? '<div class="caws-psys"><span>시스템유형</span>'+caws_esc(sysType)+'</div>' : '')
