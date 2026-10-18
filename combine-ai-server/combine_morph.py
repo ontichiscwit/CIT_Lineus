@@ -131,9 +131,10 @@ def status():
                 "user_words": _state["user_words"], "error": _state["error"]}
 
 
-def units(text):
+def units(text, with_sentence=False):
     """문장 → 명사 덩어리 목록. 각 덩어리는 [(표시 문자열, 품사), ...] 조각 리스트 (붙어 있던 명사 순서대로).
 
+    with_sentence=True 면 [(문장 번호, 덩어리), ...] — 형식어 판정(combine_wordstats)이 같은 문장의 말을 본다.
     Kiwi 가 준비되지 않았으면 None (호출 쪽이 규칙 방식으로 폴백).
     """
     k, split = _state["kiwi"], _state["split"]
@@ -142,20 +143,42 @@ def units(text):
     text = _MASK_TOKEN.sub(" ", text or "")
     with _lock:                         # Kiwi 객체 공유 — 문장당 1ms 미만이라 직렬화해도 지연 없음
         toks = k.tokenize(text)
-    out, cur, end = [], [], -1
+    out, cur, end, sent = [], [], -1, 0
     for t in toks:
         form = text[t.start:t.start + t.len]
         joiner = t.tag in ("SP", "SO", "SW") and t.form in _JOINER
         if (t.tag in _NOUNISH or (joiner and cur)) and (not cur or t.start == end):
+            if not cur:
+                sent = t.sent_position
             cur += split.get(form) or [(form, "J" if joiner else t.tag)]
         else:
             if cur:
-                out.append(cur)
+                out.append((sent, cur))
             cur = (split.get(form) or [(form, t.tag)]) if t.tag in _NOUNISH else []
+            sent = t.sent_position
         end = t.start + t.len
     if cur:
-        out.append(cur)
-    return [p for p in (_trim(u) for u in out) if p]
+        out.append((sent, cur))
+    out = [(s, p) for s, p in ((s, _trim(u)) for s, u in out) if p]
+    return out if with_sentence else [p for _s, p in out]
+
+
+def nouns(text):
+    """색인 통계용: 일반명사·고유명사·영문 토큰 [(표시 문자열, 원문 시작 위치), ...]. 준비 전이면 None.
+    사용자 사전 단어(외래접수수납)는 그 자체와 기본 분석 조각(외래·접수·수납)을 모두 낸다."""
+    k, split = _state["kiwi"], _state["split"]
+    if k is None:
+        return None
+    text = text or ""
+    with _lock:
+        toks = k.tokenize(text)
+    out = []
+    for t in toks:
+        if t.tag in ("NNG", "NNP", "SL"):
+            form = text[t.start:t.start + t.len]
+            out.append((form, t.start))
+            out.extend((p, t.start) for p, tag in (split.get(form) or ()) if tag in ("NNG", "NNP", "SL"))
+    return out
 
 
 def _trim(parts):

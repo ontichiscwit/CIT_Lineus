@@ -37,7 +37,8 @@ var cai = {
 	result:'',
 	cache:{},                /* as_no → {status, items, result} */
 	sel:-1,                  /* COL3 상세에 열린 항목 index (-1 = 닫힘) */
-	seq:0                    /* 응답 순서 꼬임 방지용 요청 일련번호 */
+	seq:0,                   /* 응답 순서 꼬임 방지용 요청 일련번호 */
+	fu:null                  /* [AX Lab] 2026-10-16 재촉·연락 요청 문의 판정 {on, nag, k, empty} (구 서버면 null) */
 };
 
 var CAI_URL = '/ad/as/getAsInfo.do';
@@ -173,11 +174,13 @@ function cai_load(asNo){
 	asNo = cai_nvl(asNo, '');
 	cai.asNo = asNo;
 	cai.sel = -1;
+	cai.fu = null;		/* [AX Lab] 2026-10-16 */
 	cai_unmount();
 	if(asNo === ''){ cai.status = 'idle'; cai.items = []; cai_syncButton(); return; }
 
 	var c = cai.cache[asNo];
-	if(c){ cai.status = c.status; cai.items = c.items; cai.result = c.result; cai_syncButton(); return; }
+	/* [AX Lab] 수정 (2026-10-16 AX Lab): 재촉 판정도 캐시에서 복원. 키워드 블록이 그려진 뒤(setTimeout) 위로 옮긴다 */
+	if(c){ cai.status = c.status; cai.items = c.items; cai.result = c.result; cai.fu = c.fu || null; cai_syncButton(); cai_fuLater(); return; }
 
 	cai.status = 'loading'; cai.items = []; cai.result = '';
 	cai_syncButton();
@@ -195,8 +198,10 @@ function cai_load(asNo){
 			/* result 키 자체가 없으면 서버가 pageType=aiRecommend 분기를 모르는 것 — 즉 CombineAsAi* 클래스가
 			 * 아직 컴파일/배포되지 않아 일반 getAsInfo 응답(resultVO…)이 돌아온 경우다. 900 으로 구분한다. */
 			cai.result = (data && data.result != null) ? String(data.result) : '900';
-			cai.cache[asNo] = { status:cai.status, items:items, result:cai.result };
+			cai.fu = ok ? cai_fuOf(data) : null;	/* [AX Lab] 2026-10-16 */
+			cai.cache[asNo] = { status:cai.status, items:items, result:cai.result, fu:cai.fu };
 			cai_syncButton();
+			cai_fuApply();							/* [AX Lab] 2026-10-16 응답 시점엔 키워드 블록이 이미 그려져 있다 */
 		},
 		error:function(xhr){
 			if(mySeq !== cai.seq || cai.asNo !== asNo) return;
@@ -235,10 +240,12 @@ function cai_popHtml(){
 		/* [AX Lab] 수정 (2026-10-15 AX Lab): 전부 low여도 목록은 유지하되 중립적인 참고 사례로 안내한다 */
 		var allLow = cai_allLow(cai.items);
 		h += '<span class="caws-aiphd"><strong><span class="caws-aiico">✦</span> AI 추천</strong><em class="cai-tag' + (allLow ? ' ref' : ' on') + '">' + (allLow ? '참고 사례 ' : '') + cai.items.length + '건</em></span>';
+		if(!cai.items.length && cai.fu && cai.fu.on){ h += cai_fuPopHtml(); return h; }	/* [AX Lab] 2026-10-16 */
 		if(!cai.items.length){
 			h += '<span class="cai-empty">문의 내용과 관련도가 충분한 사례가 없어 추천하지 않았습니다.</span>';	/* [AX Lab] 2026-10-16 문구: 관련 없는 후보 제외 */
 			return h;
 		}
+		if(cai.fu && cai.fu.on) h += cai_fuPopHtml();	/* [AX Lab] 2026-10-16 재촉·연락 요청 문의 안내 */
 		if(allLow) h += '<span class="cai-lownote">직접 일치하는 답변 대신 유사한 업무 사례를 함께 보여드립니다. 내용을 확인한 후 활용해주세요.</span>';
 		for(var j=0; j<cai.items.length; j++){
 			var it = cai.items[j], t = cai_tier(it);
@@ -477,6 +484,53 @@ function cai_detailHtml(it, idx){
 	return h;
 }
 
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재촉·연락 요청 문의 ("연락 달라", "재문의 드립니다")
+ * 이런 문의는 비슷한 사례(AI 추천)보다 "앞서 접수한 건이 무엇이었나" 가 먼저 필요하다. 그래서 추천 서버가
+ * follow_up=true 를 주면 combine-as-keyword.js 의 「문의 내용 키워드 · 연관 이력」 블록(#ckwBox — 접수번호
+ * 직접 참조·같은 고객 1년 이력)을 접수·처리 정보 맨 위로 올리고 안내 한 줄을 붙인다.
+ * 판정은 서버(combine_wordstats.py)가 한다: 비슷한 과거 문의 10건 중 '처리현황독촉' 문의가 2건 이상이거나,
+ * 문의에 인사·연락 표현만 있고 업무 내용이 없을 때. 구 서버 응답(follow_up 없음)이면 아무것도 하지 않는다.
+ * combine-as-keyword.js 는 고치지 않는다 — ckw_mount() 가 블록이 #asRecord 안에 있으면 위치를 건드리지 않으므로
+ * 한 번 옮기면 키워드 재조회(ckw_render)에도 그 자리에 남고, #asRecord 를 통째로 다시 그릴 때만 다시 옮긴다. */
+function cai_fuOf(data){
+	if(!data || typeof data.follow_up === 'undefined') return null;
+	var d = data.follow_up_detail || {};
+	return { on:!!data.follow_up, nag:Number(d.nag_near || 0), k:Number(d.near_k || 10), empty:!!d.content_free };
+}
+function cai_fuReason(){
+	var f = cai.fu || {}, r = [];
+	if(f.empty) r.push('문의에 업무 내용 없이 인사·연락 표현만 있습니다');
+	if(f.nag >= 2) r.push('비슷한 과거 문의 ' + f.k + '건 중 ' + f.nag + '건이 처리현황 독촉(재문의·연락 요청) 문의였습니다');
+	return r.join(' · ');
+}
+function cai_fuPopHtml(){
+	return '<span class="cai-funote" title="' + cai_esc(cai_fuReason()) + '">재문의·연락 요청으로 보이는 문의입니다. '
+	     + '우측 「문의 내용 키워드 · 연관 이력」에서 앞서 접수한 건을 먼저 확인해주세요.'
+	     + (cai.fu.empty ? ' 문의에 구체적인 내용이 없어 아래 추천은 참고용입니다.' : '') + '</span>';
+}
+function cai_fuLater(){ setTimeout(function(){ try{ cai_fuApply(); }catch(e){} }, 0); }
+function cai_fuApply(){
+	var rec = cai_el('asRecord'), box = cai_el('ckwBox'), note = cai_el('caiFuNote');
+	if(!cai.fu || !cai.fu.on || !rec || !box || box.parentNode !== rec || cai.asNo !== ((typeof caws !== 'undefined' && caws) ? caws.asNo : '')){
+		if(note && note.parentNode) note.parentNode.removeChild(note);
+		return;
+	}
+	if(!note){
+		note = document.createElement('div');
+		note.id = 'caiFuNote';
+		note.className = 'cai-funote panel';
+	}
+	note.innerHTML = '<b>↻ 재문의·연락 요청</b> 앞서 접수한 건을 먼저 확인하세요. 아래 연관 이력에 같은 고객의 이전 접수가 있습니다.';
+	note.title = cai_fuReason();
+	/* AI 추천 상세(#caiBox)가 열려 있으면 그 아래, 아니면 맨 위 */
+	var cb = cai_el('caiBox');
+	var anchor = (cb && cb.parentNode === rec) ? cb.nextSibling : rec.firstChild;
+	if(anchor !== note) rec.insertBefore(note, anchor);
+	if(note.nextSibling !== box) rec.insertBefore(box, note.nextSibling);
+	box.classList.add('cai-fu');
+}
+/* [AX Lab] 수정 끝 */
+
 /* =============================================================================
  * 4) 액션
  * ========================================================================== */
@@ -549,7 +603,7 @@ function cai_openLink(idx){
 		var _renderRecord = window.caws_renderRecord;
 		window.caws_renderRecord = function(){
 			var r = _renderRecord.apply(this, arguments);
-			try{ setTimeout(function(){ cai_remount(); }, 0); }catch(e){}
+			try{ setTimeout(function(){ cai_remount(); cai_fuApply(); /* [AX Lab] 2026-10-16 */ }, 0); }catch(e){}
 			return r;
 		};
 	}
@@ -557,7 +611,7 @@ function cai_openLink(idx){
 		var _clear = window.caws_clear;
 		window.caws_clear = function(){
 			var r = _clear.apply(this, arguments);
-			try{ cai.asNo = ''; cai.sel = -1; cai.status = 'idle'; cai.items = []; cai.seq++; }catch(e){}
+			try{ cai.asNo = ''; cai.sel = -1; cai.status = 'idle'; cai.items = []; cai.fu = null; cai.seq++; }catch(e){}	/* [AX Lab] 2026-10-16 fu */
 			return r;
 		};
 	}

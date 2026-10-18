@@ -40,6 +40,7 @@ from combine_recommend import (LocalIndex, Recommender, OUT_DIR, index_info,  # 
 # [AX Lab] 수정 끝
 from combine_embed_client import OLLAMA_HOST, EMBED_MODEL, ping  # noqa: E402
 import combine_morph  # noqa: E402  [AX Lab] 2026-10-16 /health 의 morph 상태
+import combine_wordstats  # noqa: E402  [AX Lab] 2026-10-16 /health 의 wordstats 상태 · 기동 시 통계 준비
 # [AX Lab] 수정 (2026-10-15 AX Lab): 준실시간 반영 — 색인 핫리로드·라이브 델타 적용 스레드
 from combine_live_index import IndexKeeper  # noqa: E402
 
@@ -78,7 +79,9 @@ class Handler(BaseHTTPRequestHandler):
                                # [AX Lab] 수정 (2026-10-15 AX Lab): 장애여도 기존 검색으로 폴백하므로 전체 status는 유지
                                "rerank": rerank_status(),
                                # [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어 형태소 분석(Kiwi) 준비 상태. 준비 전·미설치면 규칙 방식
-                               "morph": combine_morph.status()})
+                               "morph": combine_morph.status(),
+                               # [AX Lab] 수정 (2026-10-16 AX Lab): 칩 형식어 통계 준비 상태. 준비 전이면 거르기 없이 동작
+                               "wordstats": combine_wordstats.status()})
         self._json(404, {"result": "404", "message": "not found"})
 
     def do_POST(self):
@@ -137,6 +140,7 @@ def main():
     # [AX Lab] 수정 끝
     # [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어용 Kiwi 백그라운드 적재 (사용자 사전 = 동의어 + 색인 화면명/프로그램명)
     combine_morph.warmup(combine_morph.domain_words(idx.meta))
+    combine_wordstats.warmup(idx)   # [AX Lab] 2026-10-16 형식어 통계 (캐시 있으면 즉시, 없으면 Kiwi 적재 후 약 1분)
     if idx.model != EMBED_MODEL:
         log(f"[오류] 색인 모델({idx.model}) 과 질의 임베딩 모델({EMBED_MODEL}) 이 다릅니다. COMBINE_EMBED_MODEL 을 맞추거나 색인을 다시 만드세요.")
         sys.exit(2)
