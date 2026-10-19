@@ -40,37 +40,41 @@
 </div>
 
 <%-- ============================================================
-     4-2. AI 문장 다듬기 (★ 화면만 / 실제 호출은 caws_aiPolish 목업)
+     4-2. AI 문장 다듬기
      ※ 상태변경 모달(cawsStatus)과 이관 모달(cawsTransfer)은 처리 탭으로 통합되어 제거됨.
         (2026-07-31 AX Lab)
+     [AX Lab] 수정 (2026-10-19 AX Lab): 화면 목업 → 실제 AI 연동 (combine-as-thread.js 섹션 7 참고).
+       - 배지(#cawsAiBadge)·안내문(#cawsAiNote)은 결과 출처(AI / 기본 규칙 폴백)에 따라 JS 가 바꿔 쓴다.
+       - 실행 버튼(#cawsAiRunBtn)은 진행 중 비활성. 닫기는 caws_closeAi() — 진행 중 요청을 취소(응답 무시)한다.
+       - 원문/결과 영역은 단어 단위 비교 결과(<del>/<ins>)를 그린다.
      ============================================================ --%>
 <div class="caws-modal wide" id="cawsAi" style="display:none;">
   <div class="caws-mh">
     <h3>AI 문장 다듬기</h3>
-    <span class="caws-aibadge">시범 기능</span>
-    <button type="button" class="caws-mx" onclick="caws_closeModal('cawsAi');" title="닫기 (ESC)">&times;</button>
+    <span class="caws-aibadge" id="cawsAiBadge" style="display:none;"></span>
+    <button type="button" class="caws-mx" onclick="caws_closeAi();" title="닫기 (ESC)">&times;</button>
   </div>
   <div class="caws-mb">
     <div class="caws-aitone">
-      <button type="button" class="caws-pchip on" data-tone="polite" onclick="caws_aiTone('polite');">정중하게</button>
-      <button type="button" class="caws-pchip" data-tone="brief"  onclick="caws_aiTone('brief');">간결하게</button>
-      <button type="button" class="caws-pchip" data-tone="typo"   onclick="caws_aiTone('typo');">오탈자만</button>
+      <button type="button" class="caws-pchip on" data-tone="polite" onclick="caws_aiTone('polite');" title="격식 있는 존댓말로 바꾸고, 없으면 인사말·맺음말을 넣습니다">정중하게</button>
+      <button type="button" class="caws-pchip" data-tone="brief"  onclick="caws_aiTone('brief');" title="뜻과 절차·숫자는 그대로 두고 군더더기만 줄입니다">간결하게</button>
+      <button type="button" class="caws-pchip" data-tone="typo"   onclick="caws_aiTone('typo');" title="맞춤법·띄어쓰기·오타·문장부호만 고칩니다 (문체 유지)">오탈자만</button>
       <div class="caws-sp"></div>
-      <button type="button" class="btn-s primary" onclick="caws_aiRun();">문장 다듬기</button>
+      <button type="button" class="btn-s primary" id="cawsAiRunBtn" onclick="caws_aiRun();">문장 다듬기</button>
     </div>
     <div class="caws-fld">
       <label>원문 (작성 중인 내용)</label>
-      <div class="caws-aiout" id="cawsAiSrc" style="background:var(--surface-1); border-color:var(--line);"></div>
+      <div class="caws-aiout caws-aisrc" id="cawsAiSrc"></div>
     </div>
     <div class="caws-fld">
       <label>다듬은 결과</label>
       <div class="caws-aiout wait" id="cawsAiOut"></div>
     </div>
-    <div class="caws-mnote">AI 연동 전이라 현재는 기본 문장 정리 규칙으로 예시 결과를 보여줍니다. 내용은 반드시 직접 확인 후 사용해주세요.</div>
+    <div class="caws-mnote caws-ainote" id="cawsAiNote">AI가 다듬은 결과는 반드시 직접 확인 후 사용해주세요.</div>
   </div>
   <div class="caws-mf">
     <div class="caws-sp"></div>
-    <button type="button" class="btn-s" onclick="caws_closeModal('cawsAi');">취소</button>
+    <button type="button" class="btn-s" onclick="caws_closeAi();">취소</button>
     <button type="button" class="btn-s primary" onclick="caws_aiApply();">이 문장으로 교체</button>
   </div>
 </div>

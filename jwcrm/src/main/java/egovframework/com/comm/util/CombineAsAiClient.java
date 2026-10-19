@@ -35,6 +35,10 @@ import egovframework.com.model.CombineAsAiVO;
  * result 코드 (챗봇 서버 "000" 외에 CRM 쪽에서 붙이는 코드):
  *   "901" 비활성(combine.ai.enabled=N)   "902" 설정 누락(URL 없음)   "903" 타임아웃
  *   "904" 네트워크/IO 오류                "905" HTTP 상태 오류          "906" 응답 파싱 실패
+ *
+ * [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기(polish) 호출 추가. 같은 서버의 POST /api/polish.
+ *   추천과 같은 HTTP 코드/실패 코드 체계를 쓰되, LLM 생성 시간 때문에 타임아웃 설정(combine.ai.polish.*)만 따로 읽는다.
+ *   "910" 입력 오류(빈 본문 · 길이 초과 · 톤 값 오류) 는 CRM 에서 호출 전에 거른다.
  */
 public class CombineAsAiClient {
 
@@ -47,6 +51,11 @@ public class CombineAsAiClient {
 	public static final String RESULT_IO        = "904";
 	public static final String RESULT_HTTP      = "905";
 	public static final String RESULT_PARSE     = "906";
+	// [AX Lab] 수정 시작 (2026-10-19 AX Lab): 문장 다듬기 입력 오류 코드 · 상한
+	public static final String RESULT_BAD_INPUT = "910";
+	/** 다듬기 본문 상한. 추천 서버 combine_polish.MAX_CHARS 와 같다 */
+	public static final int POLISH_MAX_CHARS = 4000;
+	// [AX Lab] 수정 끝
 
 	private static final String PROP_FILE = "combine-ai.properties";
 	private static volatile Properties props = null;
@@ -199,6 +208,120 @@ public class CombineAsAiClient {
 		if (vo.getTiers() != null && !vo.getTiers().isEmpty()) req.put("tiers", vo.getTiers());
 		return req;
 	}
+
+	// [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 문장 다듬기 — POST /api/polish
+	/**
+	 * 작성 중인 고객 답변 본문을 추천 서버의 LLM 으로 다듬는다. 예외를 던지지 않는다.
+	 *
+	 * @param text  다듬을 본문 (브라우저 textarea 값 그대로)
+	 * @param tone  polite | brief | typo
+	 * @param asNo  로그용 접수번호 (본문은 로그에 남기지 않는다)
+	 * @return 브라우저로 그대로 내려보낼 Map — result / text / tone / model / elapsed_ms / warnings / message
+	 */
+	public static Map<String, Object> polish(String text, String tone, String asNo) {
+		long t0 = System.currentTimeMillis();
+		Map<String, Object> out = new HashMap<String, Object>();
+		String t = text == null ? "" : text;
+		String tn = tone == null ? "" : tone.trim().toLowerCase();
+
+		if (!"Y".equalsIgnoreCase(conf("combine.ai.enabled", "Y")) || !"Y".equalsIgnoreCase(conf("combine.ai.polish.enabled", "Y"))) {
+			return polishFail(out, RESULT_DISABLED, "combine.ai.polish.enabled=N", asNo, tn, t.length(), t0);
+		}
+		if (t.trim().isEmpty() || t.length() > POLISH_MAX_CHARS || !("polite".equals(tn) || "brief".equals(tn) || "typo".equals(tn))) {
+			return polishFail(out, RESULT_BAD_INPUT, "본문 없음/길이 초과/톤 오류", asNo, tn, t.length(), t0);
+		}
+		String urlStr = conf("combine.ai.polish.url", "");
+		if (urlStr.isEmpty()) {
+			/* 비워 두면 추천 URL 의 경로만 바꿔 같은 서버를 쓴다 */
+			String base = conf("combine.ai.url", "");
+			if (base.endsWith("/api/recommend")) urlStr = base.substring(0, base.length() - "/api/recommend".length()) + "/api/polish";
+		}
+		String apiKey = conf("combine.ai.key", "");
+		if (urlStr.isEmpty()) {
+			return polishFail(out, RESULT_NO_CONFIG, "combine.ai.polish.url 미설정", asNo, tn, t.length(), t0);
+		}
+		int connectTimeout = confInt("combine.ai.polish.connectTimeoutMs", 1000);
+		int readTimeout    = confInt("combine.ai.polish.readTimeoutMs", 25000);
+
+		HttpURLConnection conn = null;
+		try {
+			Map<String, Object> req = new HashMap<String, Object>();
+			req.put("text", t);
+			req.put("tone", tn);
+			req.put("as_no", nvl(asNo));
+			byte[] body = om.writeValueAsBytes(req);
+
+			conn = (HttpURLConnection) new URL(urlStr).openConnection();
+			conn.setRequestMethod("POST");
+			conn.setConnectTimeout(connectTimeout);
+			conn.setReadTimeout(readTimeout);
+			conn.setDoOutput(true);
+			conn.setDoInput(true);
+			conn.setUseCaches(false);
+			conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+			conn.setRequestProperty("Accept", "application/json");
+			if (!apiKey.isEmpty()) conn.setRequestProperty("X-Api-Key", apiKey);
+
+			OutputStream os = conn.getOutputStream();
+			os.write(body);
+			os.flush();
+			os.close();
+
+			int status = conn.getResponseCode();
+			InputStream is = (status >= 200 && status < 300) ? conn.getInputStream() : conn.getErrorStream();
+			String resText = readAll(is);
+
+			if (status < 200 || status >= 300) {
+				return polishFail(out, RESULT_HTTP, "HTTP " + status + " " + abbreviate(resText, 200), asNo, tn, t.length(), t0);
+			}
+
+			Map<String, Object> res;
+			try {
+				@SuppressWarnings("unchecked")
+				Map<String, Object> parsed = om.readValue(resText, Map.class);
+				res = parsed;
+			} catch (Exception pe) {
+				return polishFail(out, RESULT_PARSE, "JSON 파싱 실패: " + pe.getMessage(), asNo, tn, t.length(), t0);
+			}
+			String result = String.valueOf(res.get("result") == null ? "" : res.get("result"));
+			Object polished = res.get("text");
+			if (!RESULT_OK.equals(result) || !(polished instanceof String) || ((String) polished).trim().isEmpty()) {
+				return polishFail(out, RESULT_PARSE, "result=" + result + " text 없음", asNo, tn, t.length(), t0);
+			}
+			out.put("result", RESULT_OK);
+			out.put("text", polished);
+			out.put("tone", res.get("tone") == null ? tn : res.get("tone"));
+			out.put("model", nvl(res.get("model") == null ? null : String.valueOf(res.get("model"))));
+			out.put("warnings", res.get("warnings") instanceof List ? res.get("warnings") : new ArrayList<Object>());
+			out.put("elapsed_ms", System.currentTimeMillis() - t0);
+			out.put("message", "server_elapsed_ms=" + res.get("elapsed_ms"));
+			if (logger.isInfoEnabled()) {
+				logger.info("[AX Lab] AI 다듬기 호출 as_no={} tone={} inLen={} outLen={} elapsed={}ms",
+						asNo, tn, t.length(), ((String) polished).length(), out.get("elapsed_ms"));
+			}
+			return out;
+
+		} catch (SocketTimeoutException te) {
+			return polishFail(out, RESULT_TIMEOUT, "timeout(" + connectTimeout + "/" + readTimeout + "ms)", asNo, tn, t.length(), t0);
+		} catch (Exception e) {
+			return polishFail(out, RESULT_IO, e.getClass().getSimpleName() + ": " + e.getMessage(), asNo, tn, t.length(), t0);
+		} finally {
+			if (conn != null) { try { conn.disconnect(); } catch (Exception ignore) {} }
+		}
+	}
+
+	private static Map<String, Object> polishFail(Map<String, Object> out, String code, String reason, String asNo, String tone, int len, long t0) {
+		out.put("result", code);
+		out.put("text", "");
+		out.put("tone", tone);
+		out.put("warnings", new ArrayList<Object>());
+		out.put("elapsed_ms", System.currentTimeMillis() - t0);
+		out.put("message", reason);
+		/* 실패는 경고 1줄. 본문은 남기지 않는다. */
+		logger.warn("[AX Lab] AI 다듬기 호출 실패 as_no={} tone={} inLen={} code={} reason={} elapsed={}ms", asNo, tone, len, code, reason, out.get("elapsed_ms"));
+		return out;
+	}
+	// [AX Lab] 수정 끝
 
 	/* ------------------------------------------------------------------ 보조 */
 

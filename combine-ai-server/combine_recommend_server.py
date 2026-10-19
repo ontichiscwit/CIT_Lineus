@@ -16,6 +16,13 @@ CRM(WAS) 과 같은 PC 또는 같은 망에 띄운다. CRM 의 `combine-ai.prope
   503 {"result":"503","message":"embedding unavailable"}    Ollama 다운 등
   GET  /health → {"status":"ok","index":{...},"live":{...},"embed":{...}}
 
+  [AX Lab] 2026-10-19 AI 문장 다듬기 (combine_polish.py)
+  POST /api/polish
+  X-Api-Key: <키>
+  {"text": "<상담원이 작성 중인 답변 초안>", "tone": "polite|brief|typo", "as_no": "..."}
+  200 {"result":"000","text":"<다듬은 글>","tone":"polite","model":"gemma4:26b","elapsed_ms":4200,"warnings":[]}
+  400 잘못된 요청 · 401 키 불일치 · 503 {"result":"503","message":"polish unavailable: ..."} (LLM 장애·비활성)
+
 실행:  run.bat                                   (Windows — 가상환경 생성·의존성 설치·기동까지)
        python combine_recommend_server.py --host 127.0.0.1 --port 8765
 환경변수: COMBINE_API_KEY · COMBINE_OLLAMA_HOST · COMBINE_EMBED_MODEL · COMBINE_DATA_DIR · COMBINE_LIVE_POLL_SEC  (README.md 참조)
@@ -41,6 +48,7 @@ from combine_recommend import (LocalIndex, Recommender, OUT_DIR, index_info,  # 
 from combine_embed_client import OLLAMA_HOST, EMBED_MODEL, ping  # noqa: E402
 import combine_morph  # noqa: E402  [AX Lab] 2026-10-16 /health 의 morph 상태
 import combine_wordstats  # noqa: E402  [AX Lab] 2026-10-16 /health 의 wordstats 상태 · 기동 시 통계 준비
+import combine_polish  # noqa: E402  [AX Lab] 2026-10-19 AI 문장 다듬기 (/api/polish · /health 의 polish 상태 · 기동 시 워밍업)
 # [AX Lab] 수정 (2026-10-15 AX Lab): 준실시간 반영 — 색인 핫리로드·라이브 델타 적용 스레드
 from combine_live_index import IndexKeeper  # noqa: E402
 
@@ -81,12 +89,16 @@ class Handler(BaseHTTPRequestHandler):
                                # [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어 형태소 분석(Kiwi) 준비 상태. 준비 전·미설치면 규칙 방식
                                "morph": combine_morph.status(),
                                # [AX Lab] 수정 (2026-10-16 AX Lab): 칩 형식어 통계 준비 상태. 준비 전이면 거르기 없이 동작
-                               "wordstats": combine_wordstats.status()})
+                               "wordstats": combine_wordstats.status(),
+                               # [AX Lab] 수정 (2026-10-19 AX Lab): 문장 다듬기 LLM 상태 (ready · last_error · avg_ms). 장애여도 추천은 영향 없음
+                               "polish": combine_polish.status()})
         self._json(404, {"result": "404", "message": "not found"})
 
     def do_POST(self):
-        if self.path != "/api/recommend":
+        # [AX Lab] 수정 시작 (2026-10-19 AX Lab): /api/polish 분기 추가. 인증·본문 파싱은 추천과 공유한다.
+        if self.path not in ("/api/recommend", "/api/polish"):
             return self._json(404, {"result": "404", "message": "not found"})
+        # [AX Lab] 수정 끝
         if self.headers.get("X-Api-Key") != API_KEY:
             return self._json(401, {"result": "401", "message": "invalid api key"})
         try:
@@ -96,6 +108,11 @@ class Handler(BaseHTTPRequestHandler):
             req = json.loads(self.rfile.read(n).decode("utf-8"))
         except Exception:
             return self._json(400, {"result": "400", "message": "invalid json"})
+
+        # [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 문장 다듬기. ThreadingHTTPServer 라 LLM 생성이 길어도 추천 요청을 막지 않는다.
+        if self.path == "/api/polish":
+            return self._polish(req)
+        # [AX Lab] 수정 끝
 
         query = (req.get("query") or "").strip()
         if not query:
@@ -116,6 +133,28 @@ class Handler(BaseHTTPRequestHandler):
             traceback.print_exc()
             return self._json(503, {"result": "503", "message": f"embedding unavailable: {type(e).__name__}"})
         self._json(200 if res["result"] == "000" else 400, res)
+
+    # [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 문장 다듬기 처리. 본문은 로그에 남기지 않는다(길이·톤·소요시간만).
+    def _polish(self, req):
+        text = req.get("text") or ""
+        tone = req.get("tone") or "polite"
+        as_no = str(req.get("as_no") or "")
+        try:
+            res = combine_polish.polish(text, tone)
+        except combine_polish.PolishError as e:
+            sys.stderr.write("polish fail as_no=%s tone=%s len=%d code=%s\n" % (as_no, tone, len(text), e.code))
+            if e.code == "bad_request":
+                return self._json(400, {"result": "400", "message": str(e)})
+            return self._json(503, {"result": "503", "message": "polish unavailable: %s" % e.code})
+        except Exception as e:  # 예상 밖 오류 — 추천 쪽과 같이 503
+            traceback.print_exc()
+            return self._json(503, {"result": "503", "message": "polish unavailable: %s" % type(e).__name__})
+        sys.stderr.write("polish ok as_no=%s tone=%s len=%d->%d %dms%s\n" % (
+            as_no, res["tone"], res["in_len"], res["out_len"], res["elapsed_ms"],
+            (" warnings=%s" % ",".join(res["warnings"])) if res["warnings"] else ""))
+        res.pop("lost", None)   # 되돌리지 못한 링크 원문 — 본문 조각이므로 응답에만 두지 않고 지운다 (warnings 로 충분)
+        return self._json(200, res)
+    # [AX Lab] 수정 끝
 
 
 def main():
@@ -150,6 +189,8 @@ def main():
     rr_ok, rr_msg = ping_rerank()
     log(("rerank ok · " if rr_ok else "[경고] rerank 연결 실패 — 기존 하이브리드로 동작합니다 · ") + rr_msg)
     # [AX Lab] 수정 끝
+    # [AX Lab] 수정 (2026-10-19 AX Lab): 문장 다듬기 모델 워밍업(백그라운드). 26B 모델 첫 적재가 수 초라 첫 사용자가 기다리지 않게 한다.
+    combine_polish.warmup(log)
     log(f"listening on http://{args.host}:{args.port}  (X-Api-Key={'***' if API_KEY != 'dev-key' else 'dev-key'})")
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
 
