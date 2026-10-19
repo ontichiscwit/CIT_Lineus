@@ -38,6 +38,23 @@ public class CommonFileController {
 	
 	@Autowired CommonFileService commonFileService ;
 	@Autowired BoardService boardService ; 
+
+	// [AX Lab] 수정 시작 (2026-10-19 AX Lab): 일반 이미지에 한해 브라우저 inline 미리보기 허용
+	private static boolean isInlinePreviewImage(String fileName) {
+		if (fileName == null) return false;
+		String lower = fileName.toLowerCase();
+		return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")
+				|| lower.endsWith(".gif") || lower.endsWith(".webp");
+	}
+
+	private static String inlinePreviewContentType(String fileName) {
+		String lower = fileName == null ? "" : fileName.toLowerCase();
+		if (lower.endsWith(".png")) return "image/png";
+		if (lower.endsWith(".gif")) return "image/gif";
+		if (lower.endsWith(".webp")) return "image/webp";
+		return "image/jpeg";
+	}
+	// [AX Lab] 수정 끝
 	
 	@RequestMapping(value = "/comm/fileDown.do")
 	public void fileDown(ModelMap model, @ModelAttribute("vo") FileVO vo, HttpServletRequest request, HttpServletResponse response,  HttpSession session){
@@ -50,14 +67,24 @@ public class CommonFileController {
 			FileVO fileDetail = commonFileService.fileInfo(vo) ;
 			
 			if(fileDetail != null){
+				// [AX Lab] 수정 시작 (2026-10-19 AX Lab): 명시적 inline=Y 요청이며 허용 이미지인 경우에만 저장창 없이 표시
+				boolean inlinePreview = "Y".equalsIgnoreCase(request.getParameter("inline"))
+						&& isInlinePreviewImage(fileDetail.getAttach_ori_nm());
+				// [AX Lab] 수정 끝
 				
 				File f = new File(fileDetail.getAttach_path_dtl() + fileDetail.getAttach_save_nm()) ; 
 				
 				if(f.exists()){
 					byte[] b = new byte[4096] ;
 					
-					response.setHeader("Content-Type", "application/octet-stream") ;
-					response.setHeader("Content-Transfer-Encoding", "binary") ; 
+					// [AX Lab] 수정 시작 (2026-10-19 AX Lab): 미리보기는 이미지 MIME/inline, 기존 다운로드는 종전 헤더 유지
+					if(inlinePreview){
+						response.setHeader("Content-Type", inlinePreviewContentType(fileDetail.getAttach_ori_nm())) ;
+					}else{
+						response.setHeader("Content-Type", "application/octet-stream") ;
+						response.setHeader("Content-Transfer-Encoding", "binary") ;
+					}
+					// [AX Lab] 수정 끝
 					
 					//response.setHeader("Content-Disposition", "attachment;filename=" + new String(SsStringUtil.normalize(fileDetail.getAttach_ori_nm(), "파일 다운로드").getBytes("EUC-KR"), "8859_1") + ";") ; 
 					
@@ -72,13 +99,16 @@ public class CommonFileController {
 					
 					
 					String fileName ="";
+					// [AX Lab] 수정 시작 (2026-10-19 AX Lab): inline 요청은 저장 대화상자를 띄우지 않음
+					String disposition = inlinePreview ? "inline" : "attachment";
 					if (request.getHeader("User-Agent").contains("MSIE") || request.getHeader("User-Agent").contains("Trident") ) {
 					    fileName = URLEncoder.encode(fileDetail.getAttach_ori_nm(),"UTF-8").replaceAll("\\+", "%20");
-					    response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ";");
+					    response.setHeader("Content-Disposition", disposition + ";filename=" + fileName + ";");
 					} else {
 					    fileName = new String(fileDetail.getAttach_ori_nm().getBytes("UTF-8"), "8859_1");
-					    response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+					    response.setHeader("Content-Disposition", disposition + "; filename=\"" + fileName + "\"");
 					}
+					// [AX Lab] 수정 끝
 					
 					
 					response.setHeader("Pragma", "no-cache;") ; 
@@ -102,7 +132,8 @@ public class CommonFileController {
 					// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 복제 DB(NEWCIT) 를 쓰는 로컬 PC 에는 첨부 물리파일이 없어
 					//   기존 첨부 다운로드가 빈 응답으로 조용히 실패한다. 로컬에 파일이 없으면 운영 웹서버의 /upload/** 에서
 					//   받아 그대로 전달한다(classpath:combine-attach.properties). 폴백 미설정/실패 시 기존 동작(빈 응답) 그대로.
-					if (!CombineAttachFallback.stream(fileDetail, request, response, false)) {
+					// [AX Lab] 수정 (2026-10-19 AX Lab): 이미지 미리보기 요청은 원격 파일도 inline으로 전달
+					if (!CombineAttachFallback.stream(fileDetail, request, response, inlinePreview)) {
 						logger.info("File DOWN Fail :: fallback not available ({}{})", fileDetail.getAttach_path_dtl(), fileDetail.getAttach_save_nm());
 					}
 					// [AX Lab] 수정 끝

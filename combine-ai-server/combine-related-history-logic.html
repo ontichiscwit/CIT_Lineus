@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AS 통합화면 연관 이력 — 어떻게 동작하나요?</title>
+<!-- [AX Lab] 신규 파일 (2026-10-19 AX Lab): 「문의 내용 키워드 · 연관 이력」 로직 설명용 독립 HTML (비전공자 대상).
+     짝 문서: combine-ai-recommend-logic.html (AI 추천). 기준 코드: jwcrm/src/main/webapp/js/combine-as-keyword.js -->
+
+<style>
+  :root{
+    --bg:#f6f7f9; --surface:#fff; --ink:#1b2430; --ink2:#3d4957; --muted:#6b7684; --line:#e2e6eb; --line2:#eef1f4;
+    --brand:#1f6f9a; --brand-soft:#e9f3f9; --brand-line:#c9e0ee;
+    --teal:#1f7a70; --teal-soft:#e8f5f3;
+    --blue:#2a6496; --blue-soft:#eaf2fa;
+    --amber:#94661a; --amber-soft:#fdf5e4;
+    --red:#a8433a; --red-soft:#fbeceb;
+    --violet:#5b45c6; --violet-soft:#f1eeff;
+    --c-ov:#1f6f9a; --c-rec:#7fb3d1; --c-iq:#1f7a70; --c-sc:#6fb3a9; --c-pg:#94661a; --c-sy:#d2a85a; --c-ap:#5b45c6;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;font-size:15px;line-height:1.7;word-break:keep-all}
+  .page{display:grid;grid-template-columns:200px minmax(0,1fr);gap:40px;max-width:1240px;margin:0 auto;padding:32px 28px 80px}
+
+  .toc{position:sticky;top:24px;align-self:start}
+  .toc b{display:block;margin-bottom:10px;font-size:12px;color:var(--muted)}
+  .toc a{display:block;padding:7px 10px;border-left:2px solid var(--line);color:var(--ink2);text-decoration:none;font-size:13px}
+  .toc a.sub{padding-left:20px;font-size:12px;color:var(--muted)}
+  .toc a:hover{color:var(--brand);border-left-color:var(--brand)}
+  .toc a.on{color:var(--brand);border-left-color:var(--brand);font-weight:700}
+
+  section{margin-bottom:64px;scroll-margin-top:24px}
+  .kicker{margin:0 0 6px;font-size:12px;font-weight:800;color:var(--brand);letter-spacing:.04em}
+  h1{margin:0;font-size:30px;line-height:1.35;letter-spacing:-.03em}
+  h2{margin:0 0 6px;font-size:22px;letter-spacing:-.02em}
+  h3{margin:0 0 6px;font-size:16px;scroll-margin-top:24px}
+  h4{margin:0 0 8px;font-size:14px}
+  .desc{margin:0 0 22px;color:var(--muted)}
+  p{margin:0}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+  main a{color:var(--brand)}
+  .sub-h{margin-top:34px}
+  code{font-family:Consolas,monospace;font-size:.92em;padding:0 4px;border-radius:4px;background:var(--line2)}
+
+  /* 용어 툴팁 */
+  .t{border-bottom:1px dashed var(--brand);cursor:help;color:inherit;border-radius:2px;transition:background .15s}
+  .t:hover,.t:focus,.t.on{background:var(--brand-soft);outline:none}
+  #tip{position:fixed;left:0;top:0;z-index:100;width:max-content;max-width:310px;padding:12px 14px;border-radius:10px;
+    background:#222b36;color:#e8edf3;font-size:12.5px;font-weight:400;line-height:1.6;text-align:left;
+    box-shadow:0 8px 24px rgba(20,28,40,.22);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s}
+  #tip.show{opacity:1;visibility:visible}
+  #tip::after{content:"";position:absolute;left:var(--ax,50%);bottom:-5px;width:10px;height:10px;margin-left:-5px;background:#222b36;transform:rotate(45deg)}
+  #tip.below::after{bottom:auto;top:-5px}
+  #tip .tip-h{margin-bottom:3px;color:#fff;font-size:13.5px;font-weight:800}
+  #tip .tip-h small{margin-left:6px;color:#9aa6b4;font-size:11px;font-weight:400}
+  #tip .tip-eg{margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.14);color:#b9c3cf;font-size:12px}
+
+  /* 히어로 */
+  .hero{padding:34px 36px;background:var(--surface);border:1px solid var(--line);border-radius:18px;margin-bottom:56px}
+  .hero .lead{margin-top:12px;font-size:16px;color:var(--ink2);max-width:780px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
+  .summary div{padding:16px 18px;background:var(--bg);border-radius:12px}
+  .summary b{display:block;font-size:13px;color:var(--brand);margin-bottom:4px}
+  .summary span{font-size:14px;color:var(--ink2)}
+  .howto{margin-top:20px;font-size:13px;color:var(--muted)}
+  .reading{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:18px;font-size:13px;color:var(--ink2)}
+  .reading b{margin-right:4px;font-size:12px;color:var(--muted)}
+  .reading a{padding:3px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink2);text-decoration:none;font-size:12.5px}
+  .reading a:hover{border-color:var(--brand-line);color:var(--brand)}
+  .reading i{font-style:normal;color:var(--muted)}
+
+  /* 비교표 · 공통 표 */
+  .cmp{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:13px}
+  .cmp th,.cmp td{padding:12px 16px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
+  .cmp th{background:var(--bg);color:var(--muted);font-size:12px}
+  .cmp td b{color:var(--brand)}
+  .cmp tr:last-child td{border-bottom:0}
+  .cmp tr.hl td{background:var(--brand-soft)}
+  .cmp td.num{font-family:Consolas,monospace;white-space:nowrap}
+  .cmp td .grp{display:inline-block;padding:0 7px;border-radius:6px;background:var(--line2);color:var(--ink2);font-size:11px;font-weight:700}
+
+  /* 위치 그림 */
+  .where{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:stretch}
+  .where .zone{padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+  .where .zone.main{border-color:var(--brand);background:var(--brand-soft)}
+  .where .zone b{display:block;font-size:14px}
+  .where .zone small{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}
+  .where .zone p{font-size:12.5px;color:var(--ink2)}
+  .where .ar{display:flex;flex-direction:column;justify-content:center;align-items:center;color:var(--brand);font-weight:800;font-size:18px;min-width:84px}
+  .where .ar small{font-size:10px;font-weight:400;color:var(--muted);text-align:center;line-height:1.35}
+  .where .zone.off{background:#fbfbfd;border-style:dashed;opacity:.75}
+
+  /* 단계 */
+  .stages{display:grid;gap:12px}
+  .stage{display:grid;grid-template-columns:56px 1fr 250px;gap:20px;padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .stage.side{background:#fbfbfd;border-style:dashed}
+  .stage .no{font-size:26px;font-weight:800;color:var(--brand-line);line-height:1}
+  .stage p{color:var(--ink2);font-size:14px}
+  .stage .more{display:block;margin-top:6px;font-size:12px}
+  .stage .eg{padding:12px 14px;border-radius:10px;background:var(--bg);font-size:12px;color:var(--ink2);line-height:1.6}
+  .stage .eg b{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+  .funnel{display:flex;align-items:center;gap:8px;margin:18px 0 0;font-size:13px;color:var(--muted);flex-wrap:wrap}
+  .funnel span{padding:6px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+  .funnel span b{color:var(--brand)}
+
+  /* 카드 묶음 */
+  .rule3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}
+  .rule3 > div{padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .rule3 .v{display:block;margin:2px 0 6px;font-size:22px;font-weight:800;color:var(--brand);line-height:1.2}
+  .rule3 p{font-size:12.5px;color:var(--ink2)}
+  .why2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+  .why2 > div{padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .why2 p{font-size:13px;color:var(--ink2)}
+  .lbl{display:inline-block;margin-bottom:8px;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:800}
+  .st-bad{background:var(--red-soft);color:var(--red)} .st-ok{background:var(--teal-soft);color:var(--teal)} .st-mid{background:var(--amber-soft);color:var(--amber)}
+
+  .note{margin-top:14px;padding:14px 18px;border-left:3px solid var(--blue);background:var(--blue-soft);color:#2f5170;font-size:13px;border-radius:0 10px 10px 0}
+  .note.warn{border-left-color:var(--amber);background:var(--amber-soft);color:#6b4a12}
+  .note.brand{border-left-color:var(--violet);background:var(--violet-soft);color:#3f2f99}
+
+  /* 칩 (CRM 화면 모양을 흉내) */
+  .chip{display:inline-flex;align-items:stretch;margin:2px 3px 2px 0;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:11.5px;line-height:20px;overflow:hidden;vertical-align:middle}
+  .chip .ck{padding:0 6px;border-right:1px solid var(--line);background:var(--line2);color:var(--ink2);font-size:10.5px;font-weight:700}
+  .chip .cv{padding:0 7px;font-weight:600}
+  .chip .cn{padding:0 6px 0 0;color:var(--brand);font-weight:800}
+  .chip.k-prog .ck{background:var(--brand-soft);color:var(--brand)}
+  .chip.k-sym .ck,.chip.k-tel .ck,.chip.k-err .ck{background:var(--amber-soft);color:var(--amber)}
+  .chip.k-asno{border-color:var(--brand-line)} .chip.k-asno .ck{background:var(--brand);color:#fff;border-right-color:var(--brand)}
+  .chip.k-emp .ck{background:var(--blue-soft);color:var(--blue)}
+  .chip.dim{opacity:.45}
+  .chip.on{border-color:var(--brand);background:var(--brand-soft)}
+
+  /* 점수판 */
+  .ex-q{display:flex;gap:14px;align-items:center;padding:16px 20px;background:var(--ink);color:#fff;border-radius:14px;margin-bottom:16px}
+  .ex-q small{display:block;color:#aab4c0;font-size:11px}
+  .ex-q b{font-size:17px}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+  .tabs button{padding:8px 14px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink2);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .tabs button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .weights{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+  .w{padding:13px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .w .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:0}
+  .w b{font-size:13px}
+  .w .pct{float:right;font-weight:800;color:var(--ink);font-size:12px}
+  .w.off{opacity:.35}
+  .w p{margin-top:6px;font-size:12px;color:var(--muted);line-height:1.55}
+  .board{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 22px 18px}
+  .row{display:grid;grid-template-columns:34px 250px 1fr 64px;gap:16px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line2)}
+  .row:last-child{border-bottom:0}
+  .rank{font-size:20px;font-weight:800;color:var(--brand)}
+  .row .nm b{display:block;font-size:13.5px}
+  .row .nm span{font-size:12px;color:var(--muted)}
+  .stack{display:flex;height:22px;border-radius:6px;overflow:hidden;background:var(--line2)}
+  .stack i{display:block;height:100%;transition:width .45s}
+  .total{text-align:right;font-size:18px;font-weight:800}
+  .why{margin-top:6px;font-size:12px;color:var(--ink2)}
+  .row.cut{opacity:.5}
+  .row.cut .rank{color:var(--red);font-size:12px}
+  .row.axis{padding:8px 0 0;border-bottom:0}
+  .ax{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+  .insight{margin-top:14px;padding:14px 18px;border-radius:12px;background:var(--brand-soft);color:#174e6d;font-size:14px}
+  .apb{display:inline-block;margin-right:5px;padding:0 6px;border-radius:5px;background:var(--violet-soft);color:var(--violet);font-size:10px;font-weight:800;vertical-align:1px}
+
+  /* 화면 목업 */
+  .screen{display:grid;grid-template-columns:360px 1fr;gap:28px;align-items:start}
+  .mock{background:var(--surface);border:1px solid #cfe0ea;border-radius:12px;overflow:hidden;font-size:12px}
+  .mock-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:9px 14px;background:#eaf3f9;border-bottom:1px solid #d6e6f0;font-weight:800}
+  .mock-h small{font-weight:400;color:var(--muted);font-size:10.5px}
+  .mock-h em{margin-left:auto;font-style:normal;color:var(--muted);font-weight:400;font-size:11px}
+  .mock-chips{padding:9px 14px;border-bottom:1px solid var(--line2)}
+  .mock-chips .gl{display:inline-block;width:56px;color:var(--muted);font-size:10.5px}
+  .mock-it{position:relative;padding:10px 14px 11px;border-bottom:1px solid var(--line2)}
+  .mock-it.ref{background:var(--brand-soft)}
+  .mock-it .ith{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted)}
+  .mock-it .ith .ino{margin-left:auto}
+  .mock-it .badge{padding:0 6px;border-radius:5px;background:var(--brand);color:#fff;font-weight:800;font-size:10px}
+  .stt{padding:0 8px;border-radius:999px;font-size:10.5px;font-weight:800}
+  .stt.done{background:#e3f3ea;color:#2a7a4c} .stt.ing{background:#fff1dc;color:#9a5b0b} .stt.wd{background:#fbeceb;color:#a8433a}
+  .mock-it .bar{height:3px;margin:6px 0 5px;border-radius:2px;background:var(--line2);overflow:hidden}
+  .mock-it .bar i{display:block;height:100%;background:var(--brand)}
+  .mock-it .sys{font-size:10.5px;color:var(--brand);font-weight:700}
+  .mock-it .txt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11.5px;color:var(--ink2)}
+  .mock-it .rs{margin-top:3px;font-size:10.5px;color:var(--brand)}
+  .mock-f{padding:8px 14px;background:#f7fafc;color:var(--muted);font-size:10.5px;text-align:center}
+  .callout{position:absolute;right:-10px;top:8px;width:20px;height:20px;border-radius:50%;background:var(--violet);color:#fff;font-size:11px;font-weight:800;line-height:20px;text-align:center;box-shadow:0 0 0 3px #fff}
+  .legend{display:grid;gap:10px}
+  .legend > div{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--ink2)}
+  .legend .n{width:22px;height:22px;border-radius:50%;background:var(--violet);color:#fff;font-size:11px;font-weight:800;line-height:22px;text-align:center}
+  .legend b{color:var(--ink)}
+
+  .guards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .g{padding:18px 20px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .g p{font-size:13px;color:var(--muted)}
+
+  details{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  details + details{margin-top:12px}
+  summary{padding:16px 20px;font-weight:800;cursor:pointer}
+  .dev{padding:0 20px 20px}
+  .dev pre{margin:0 0 14px;padding:14px 16px;background:#202733;color:#e8edf3;border-radius:10px;font:12px/1.75 Consolas,monospace;white-space:pre-wrap}
+  .dev table{width:100%;border-collapse:collapse;font-size:12px}
+  .dev th,.dev td{padding:9px 10px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
+  .dev th{color:var(--muted);font-weight:700}
+  .dev td:first-child{font-family:Consolas,monospace;color:var(--brand);white-space:nowrap}
+  .dev table.plain td:first-child{font-family:inherit;color:inherit}
+  .foot{margin-top:30px;font-size:11px;color:var(--muted)}
+
+  @media(max-width:1000px){
+    .page{grid-template-columns:1fr;gap:0}.toc{display:none}
+    .summary,.guards,.rule3,.why2,.screen{grid-template-columns:1fr}
+    .where{grid-template-columns:1fr}.where .ar{transform:rotate(90deg);min-height:50px}
+    .weights{grid-template-columns:1fr 1fr}.stage{grid-template-columns:1fr}
+    .row{grid-template-columns:28px 1fr 56px}.row .stack{grid-column:1 / -1}.row.axis{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <nav class="toc" id="toc">
+    <b>목차</b>
+    <a href="#s-overview">한눈에 보기</a>
+    <a href="#s-vsai">AI 추천과 무엇이 다른가</a>
+    <a href="#s-where">어디서 계산하나</a>
+    <a href="#s-steps">연관 이력이 만들어지는 과정</a>
+    <a href="#s-chips" class="sub">① 키워드 칩 뽑기</a>
+    <a href="#s-score" class="sub">② 순위는 어떻게 정하나</a>
+    <a href="#s-applicant" class="sub">③ 같은 신청자 가점</a>
+    <a href="#s-cut" class="sub">④ 근거 없는 건 빼기 · 건수</a>
+    <a href="#s-screen">화면에서는 어떻게 보이나</a>
+    <a href="#s-guard">안전장치 · 한계</a>
+    <a href="#s-measure">이 공식을 고른 근거</a>
+    <a href="#s-dev">개발자용 상세 · 변경 이력</a>
+  </nav>
+
+  <main>
+    <!-- 0. 히어로 -->
+    <header class="hero" id="s-overview">
+      <p class="kicker">AS 통합화면 · 문의 내용 키워드 · 연관 이력</p>
+      <h1>문의를 열면, 같은 병원이 예전에 올린<br>관련 접수건을 먼저 찾아 보여 줍니다</h1>
+      <p class="lead">접수·처리 정보의 「과거 상담이력」 위에 있는 블록입니다. 지금 문의의 본문에서 프로그램·증상·접수번호 같은 <strong>키워드 칩</strong>을 뽑고, 같은 <span class="t" data-term="cust">거래처</span>가 이 건 접수일 <strong>이전 1년</strong> 동안 올린 접수건 중에서 관련 있는 것을 <strong>최대 5건</strong> 골라 보여 줍니다. 각 건에는 "왜 위에 떴는지" 한 줄 설명이 붙습니다.</p>
+      <div class="summary">
+        <div><b>무엇을 찾나요?</b><span><strong>같은 병원</strong>의 과거 접수건 중 지금 문의와 관련 있는 것 (재문의·이어지는 문의 확인용)</span></div>
+        <div><b>어떻게 찾나요?</b><span>본문 단어 겹침 + 최근성 + 분류·프로그램·증상 일치 + 같은 신청자를 점수로 더해 줄 세움</span></div>
+        <div><b>몇 건을 보여 주나요?</b><span>근거가 있는 건만 골라 <strong>상위 5건</strong>. 본문에 적힌 접수번호는 항상 맨 위</span></div>
+        <div><b>얼마나 걸리나요?</b><span>AI 서버 없이 <strong>브라우저 안에서</strong> 계산. 조회 1회 + 계산 약 25ms</span></div>
+      </div>
+      <div class="reading">
+        <b>읽는 순서</b>
+        <a href="#s-vsai">AI 추천과 차이</a><i>→</i>
+        <a href="#s-steps">만들어지는 7단계</a><i>→</i>
+        <a href="#s-chips">단계별 자세히 (①②③④)</a><i>→</i>
+        <a href="#s-screen">화면</a><i>→</i>
+        <a href="#s-measure">근거 · 개발자용</a>
+      </div>
+      <p class="howto">점선 밑줄이 있는 <span class="t" data-term="demo">개발 용어</span>에 마우스를 올리면(모바일은 누르면) 쉬운 설명이 나옵니다. AI 추천은 짝 문서 <a href="combine-ai-recommend-logic.html">AI 추천 — 어떻게 동작하나요?</a>를 보세요.</p>
+    </header>
+
+    <!-- 1. AI 추천과 차이 -->
+    <section id="s-vsai">
+      <p class="kicker">먼저 구분하기</p>
+      <h2>AI 추천과 무엇이 다른가요?</h2>
+      <p class="desc">두 기능 모두 "참고할 과거 자료"를 보여 주지만 묻는 질문이 다릅니다. AI 추천은 <strong>"이 문제를 어떻게 해결했었나"</strong>, 연관 이력은 <strong>"이 병원이 이 얘기를 전에도 했었나"</strong>를 답합니다.</p>
+      <table class="cmp">
+        <thead><tr><th style="width:150px"></th><th>연관 이력 (이 문서)</th><th>AI 추천</th></tr></thead>
+        <tbody>
+          <tr><td>찾는 범위</td><td><b>같은 거래처</b>의 접수건, 이 건 접수일 이전 1년, 최대 200건. 처리 상태 무관(접수·처리중·철회 포함)</td><td>전 거래처의 <b>처리 끝난</b> 사례 + 표준답변 + 공지 약 1만 1천 건</td></tr>
+          <tr><td>주로 쓰는 때</td><td>재촉·재문의("지난번 그 건 어떻게 됐나요"), 같은 문제가 반복되는지 확인</td><td>처음 보는 문제의 해결 방법·답변 초안 찾기</td></tr>
+          <tr><td>계산 위치</td><td>상담원 <b>브라우저</b> 안 (<code>combine-as-keyword.js</code>)</td><td>AI 추천 서버 + AI PC (임베딩·리랭킹)</td></tr>
+          <tr><td>비교 방법</td><td>본문 <span class="t" data-term="token">토큰</span> 겹침(<span class="t" data-term="idf">IDF</span> 가중) + 최근성 + 코드·프로그램·증상·신청자 일치</td><td>문장 뜻(임베딩) + 단어(BM25) + AI 재채점(리랭킹)</td></tr>
+          <tr><td>서버가 꺼지면</td><td>CRM만 살아 있으면 동작 (AI PC와 무관)</td><td>AI 추천만 건너뜀</td></tr>
+          <tr><td>서로 연결</td><td colspan="2">AI 추천 서버가 문의를 <a href="combine-ai-recommend-logic.html#s-followup">재문의·연락 요청</a>으로 판정하면, 이 블록이 접수·처리 정보 <b>맨 위로 올라가고</b> 안내 한 줄이 붙습니다(<a href="#s-screen">화면</a>).</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 2. 어디서 -->
+    <section id="s-where">
+      <p class="kicker">아키텍처</p>
+      <h2>어디서 계산하나요?</h2>
+      <p class="desc">연관 이력에는 새 서버도, 새 <span class="t" data-term="api">API</span>도, 새 쿼리도 없습니다. 기존 AS 목록 조회를 한 번 더 부르고, 받은 목록을 브라우저가 직접 채점합니다.</p>
+      <div class="where">
+        <div class="zone main"><small>상담원 PC</small><b>웹 브라우저</b><p>키워드 칩 추출 · 토큰화 · 점수 계산 · 정렬 · 화면 그리기를 모두 여기서 합니다. 후보 200건 기준 약 25ms.</p></div>
+        <div class="ar">→<small>거래처 코드<br>기간(접수일-365일 ~ 접수일)<br>200건</small></div>
+        <div class="zone"><small>CRM 서버 PC</small><b>CRM 웹 서버 (WAS)</b><p>기존 <code>/ad/as/getAsList.do</code> 를 그대로 씁니다. AS 목록 화면이 쓰는 바로 그 조회입니다.</p></div>
+        <div class="ar">→<small>기존 쿼리<br>asDAO.getAsList</small></div>
+        <div class="zone"><small>DB 서버</small><b>CRM DB (Oracle)</b><p>접수 원문(요청내용), 분류 코드, 신청자, 처리상태, 처리담당자를 돌려줍니다.</p></div>
+      </div>
+      <div class="note"><b>왜 서버를 고치지 않았나요?</b> ① CRM의 <span class="t" data-term="menuauth">권한 필터</span>는 등록된 주소만 통과시켜서 새 <code>/ad/as/*.do</code> 주소를 만들면 403으로 막힙니다. ② 핵심인 <span class="t" data-term="idf">IDF</span>(단어 희소성)를 전사 2만 6천 건으로 계산하든 화면에 내려온 후보 200건으로 계산하든 성능이 사실상 같았습니다(MRR 0.434 vs 0.431). 그래서 서버에 사전·배치·신규 쿼리가 필요 없습니다. 직원 명단(담당자 칩용)도 기존 <code>/ad/as/getAsEmpList.do</code>를 재사용합니다.</div>
+    </section>
+
+    <!-- 3. 단계 -->
+    <section id="s-steps">
+      <p class="kicker">처리 과정</p>
+      <h2>연관 이력이 만들어지는 7단계</h2>
+      <p class="desc">상담원이 접수건을 열면 아래 순서로 진행됩니다. 1단계의 칩은 바로 그려지고, 목록은 조회가 끝난 뒤 채워집니다. 네 군데(①②③④)는 다음 섹션에서 자세히 설명합니다.</p>
+      <div class="stages">
+        <div class="stage">
+          <div class="no">01</div>
+          <div><h3>문의 본문 정리 + 키워드 칩 뽑기</h3><p>요청내용에서 챗봇 접수 양식의 <span class="t" data-term="boiler">안내문구</span>를 지우고 표기를 맞춘 뒤(챠트→차트, 메세지→메시지 …), <strong>어디서</strong>(프로그램·화면) · <strong>무슨 문제</strong>(증상) · <strong>식별</strong>(접수번호·연락처·환자·버전·오류코드·담당자) 칩을 뽑습니다.<a class="more" href="#s-chips">① 칩은 어떻게 뽑나 →</a></p></div>
+          <div class="eg"><b>예</b>"외래접수수납 화면에서 카드 영수증 재발행이 안 됩니다"<br>→ <span class="chip k-prog"><span class="ck">프로그램</span><span class="cv">외래접수수납</span></span><span class="chip k-sym"><span class="ck">증상</span><span class="cv">안됨/실패</span></span></div>
+        </div>
+        <div class="stage">
+          <div class="no">02</div>
+          <div><h3>같은 거래처의 과거 접수건 조회</h3><p>기존 AS 목록 조회로 <strong>같은 거래처</strong>, <strong>이 건 접수일 기준 이전 365일</strong>, 처리상태 전체, 최대 <strong>200건</strong>을 <span class="t" data-term="async">비동기</span>로 받습니다. 화면 왼쪽 목록의 기간 필터와는 무관합니다.</p></div>
+          <div class="eg"><b>왜 1년 · 200건인가</b>실측에서 이 범위면 정답 건이 후보에 포함될 확률이 100%였습니다. 같은 거래처 과거건은 평균 95.9건, 200건을 넘는 거래처는 9.8%입니다.</div>
+        </div>
+        <div class="stage">
+          <div class="no">03</div>
+          <div><h3>자기 자신과 "미래" 건 빼기</h3><p>지금 보고 있는 접수건을 빼고, 이 건보다 <strong>나중에 접수된 건</strong>도 뺍니다. 과거 접수건을 다시 열었을 때 그보다 뒤에 들어온 건이 "과거 이력"으로 섞이지 않게 하기 위해서입니다.</p></div>
+          <div class="eg"><b>고친 사례 (2026-10-12)</b>테스터: 2026-05-30 접수건의 연관 이력에 2026-07-10 건이 보임 → 기준일을 "오늘"에서 "이 건 접수일"로 바꿈</div>
+        </div>
+        <div class="stage">
+          <div class="no">04</div>
+          <div><h3>후보마다 단어 자르기 + 희소성 계산</h3><p>후보 본문도 1단계와 똑같이 정리해 <span class="t" data-term="token">토큰</span>으로 자르고, 이 병원이 쓰는 프로그램·화면 이름 <span class="t" data-term="placedict">사전</span>을 후보에서 모읍니다. 단어마다 후보 중 몇 건에 나오는지 세어 <span class="t" data-term="idf">IDF</span>를 냅니다. 이 병원에서 드문 단어일수록 겹쳤을 때 점수가 큽니다.</p></div>
+          <div class="eg"><b>예</b>"영수증"은 이 병원 접수 30건에 나오면 가볍고, "IE204"는 1건에만 나오면 무겁습니다.</div>
+        </div>
+        <div class="stage">
+          <div class="no">05</div>
+          <div><h3>점수 매기기</h3><p>본문 겹침 점수에 <strong>최근성</strong>, <strong>같은 업무분류·시스템 코드</strong>, <strong>같은 프로그램·증상</strong>, <strong>같은 신청자(최근일수록 큼)</strong> 가점을 더합니다. 본문에 접수번호가 적힌 건은 점수와 상관없이 맨 위입니다.<a class="more" href="#s-score">② 순위는 어떻게 정하나 →</a><a class="more" href="#s-applicant">③ 같은 신청자 가점 →</a></p></div>
+          <div class="eg"><b>칩을 누르면</b>그 칩에 걸리는 건만 남기고 그 칩의 단어로만 다시 채점합니다. 여러 개를 누르면 합집합(OR)입니다.</div>
+        </div>
+        <div class="stage">
+          <div class="no">06</div>
+          <div><h3>근거 없는 건 빼기</h3><p>본문 단어도 하나 안 겹치고, 분류 코드도 프로그램도 같지 않은 건은 <strong>"왜 떴는지" 설명할 수 없으므로</strong> 목록에서 뺍니다. 최근성이나 같은 신청자만으로는 목록에 들어오지 않습니다.<a class="more" href="#s-cut">④ 근거 없음 기준 · 머리말 건수 →</a></p></div>
+          <div class="eg"><b>예</b>지금 문의 "영수증 재발행" ↔ 과거 건 "전산실 프린터 토너 교체" → 같은 신청자여도 제외</div>
+        </div>
+        <div class="stage side">
+          <div class="no">07</div>
+          <div><h3>상위 5건 그리기 <small class="muted" style="font-weight:400">(순위에는 영향 없음)</small></h3><p>점수 높은 순으로 5건을 그리고, 각 건에 접수일·처리상태·처리담당자·접수번호·관련도 막대·시스템유형·본문·<strong>설명 한 줄</strong>을 붙입니다. 동점이면 접수번호가 큰(최신) 건이 위입니다. 항목을 누르면 <strong>그 자리에서</strong> 과거 건 전문이 펼쳐집니다.<a class="more" href="#s-screen">화면 설명 →</a></p></div>
+          <div class="eg"><b>설명 줄 예</b>같은 신청자(홍길동) · 같은 외래접수수납 · 안됨/실패 · 영수증, 재발행</div>
+        </div>
+      </div>
+      <div class="funnel">
+        <span>같은 거래처 1년 <b>최대 200건</b></span>→
+        <span>자기 자신·미래 건 제외</span>→
+        <span>근거 있는 후보 <b>0~200건</b></span>→
+        <span>화면 표시 <b>0~5건</b></span>
+      </div>
+    </section>
+
+    <!-- 4. ① 칩 -->
+    <section id="s-chips">
+      <p class="kicker">단계별 자세히 ① · 1단계 키워드 칩</p>
+      <h2>키워드 칩은 어떻게 뽑나요?</h2>
+      <p class="desc">칩은 상담원이 문의를 받을 때 확인하는 순서대로 세 줄로 나뉩니다. 칩 옆의 숫자는 <strong>그 키워드가 나온 과거 건 수</strong>이고, 누르면 그 건들만 남습니다. 과거에 0건인 칩은 "이 병원에선 처음 나온 키워드"라는 뜻으로 흐리게 보이고 누를 수 없습니다.</p>
+      <table class="cmp">
+        <thead><tr><th style="width:110px">줄</th><th style="width:300px">칩</th><th>어떻게 찾나</th></tr></thead>
+        <tbody>
+          <tr><td><b>어디서</b></td><td><span class="chip k-prog"><span class="ck">프로그램</span><span class="cv">외래접수수납</span><span class="cn">7</span></span><span class="chip k-prog"><span class="ck">화면</span><span class="cv">진료비세부산정내역</span></span></td><td>챗봇 양식의 「1. 프로그램명 :」「2. 화면명 :」 칸 값 + 본문에서 <span class="t" data-term="placedict">이 병원 프로그램 사전</span>에 있는 이름. 양식 칸이 채워진 건은 25.9%뿐이라 본문 대조로 커버리지를 늘렸습니다(26.1% → 37.0%). 띄어쓰기·기호가 달라도 같은 이름으로 봅니다("외래 접수/수납" = "외래접수수납").</td></tr>
+          <tr><td><b>무슨 문제</b></td><td><span class="chip k-sym"><span class="ck">증상</span><span class="cv">안됨/실패</span><span class="cn">22</span></span><span class="chip k-sym"><span class="ck">증상</span><span class="cv">오류/에러</span></span></td><td>본문 표현을 12가지 증상으로 분류: 안됨/실패 · 오류/에러 · 안보임/누락 · 지워짐/소실 · 느림/멈춤 · 종료/다운 · 틀림/차이 · 중복 · 팝업/메시지 · 자료/양식 · 요청/개선 · 설치/버전. 문의의 49.2%에서 하나 이상 잡힙니다.</td></tr>
+          <tr><td><b>식별</b></td><td><span class="chip k-asno"><span class="ck">접수번호</span><span class="cv">20260530013</span><span class="cn">1</span></span><span class="chip k-tel"><span class="ck">연락처</span><span class="cv">031-201-0736</span></span><span class="chip"><span class="ck">환자</span><span class="cv">홍길동(12345)</span></span><span class="chip"><span class="ck">버전</span><span class="cv">2025.822.1400</span></span><span class="chip k-err"><span class="ck">오류코드</span><span class="cv">-2147217900</span></span><span class="chip k-emp"><span class="ck">담당자</span><span class="cv">김OO</span></span></td><td><strong>접수번호</strong>: 11자리(YYYYMMDD+3자리), 고객 추가답변까지 훑음 · <strong>연락처</strong>: 0으로 시작하는 전화·내선 · <strong>환자</strong>: 양식 칸 또는 "이름(번호)" · <strong>버전</strong>: 날짜와 헷갈리지 않는 모양이거나 "ver/버전" 표시가 있을 때만 · <strong>오류코드</strong>: "오류 코드" 말이 있을 때만 · <strong>담당자</strong>: 우리 쪽 직원 명단과 대조</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub-h">반드시 먼저 하는 일 — 챗봇 안내문구 지우기</h3>
+      <div class="why2">
+        <div><span class="lbl st-bad">안 지우면</span><h4>관련 없는 건끼리 유사도가 만점</h4><p>전체 접수의 <strong>38%</strong>가 "※ 요청 내용이 구체적이지 않을 경우, 접수 및 처리가 지연될 수 있으니…" 같은 <strong>완전히 같은 문장</strong>을 공유합니다. 지우기 전에는 단어 빈도 1~20위가 전부 이 템플릿 문구였고, 증상 '느림/멈춤'이 "지연될 수 있으니" 때문에 38.9%로 부풀었습니다(실제 1.0%).</p></div>
+        <div><span class="lbl st-ok">지우는 방법</span><h4>값은 살리고 안내문·라벨만 지운다</h4><p>「1. 프로그램명 : 청구심사」 같은 라벨은 <strong>값을 먼저 뽑은 뒤</strong> 지웁니다. 지운 뒤 같은 표기로 맞추고(챠트→차트, 메뉴얼→매뉴얼, 셋팅→세팅 등 사람이 확인한 19쌍), 단어를 자르고 <span class="t" data-term="josa">조사</span>를 뗍니다. "지금 문의"와 "과거 문의"에 똑같은 정리를 해야 같은 표기로 비교됩니다.</p></div>
+      </div>
+      <div class="rule3">
+        <div><b>버리는 말</b><p>"확인 부탁드립니다"·"안녕하세요" 같은 상투어, "없는·되는·있는지" 같은 용언 활용형, "2026년·3번" 같은 숫자+단위. 단, "1인실·7병동·24시간"은 남깁니다.</p></div>
+        <div><b>자동 오타 교정은 하지 않음</b><p>내원환자↔재원환자, 처방전↔처방건, 진료실↔진료일처럼 한 글자 차이로 뜻이 정반대인 업무 용어가 너무 많아서, 사람이 눈으로 확인한 쌍만 고칩니다.</p></div>
+        <div><b>"그 외 키워드" 줄은 내림 (10-01)</b><p>형태소 분석기 없이 뽑다 보니 "마취"·"수술실"(쪼개진 조각), "업무"·"이유"(흔한 말)가 올라와 판단에 도움이 안 됐습니다. 순위 계산은 칩이 아니라 <strong>본문 전체 단어</strong>로 하므로 영향이 없습니다.</p></div>
+      </div>
+      <div class="note">칩이 하나도 없는 문의도 약 27.6%로 흔합니다(공지·고시 문의 등). 이때는 "문의 내용에서 프로그램·증상을 찾지 못했습니다. 아래 연관 이력은 본문 전체를 기준으로 찾았습니다."라고 안내하고, 목록은 그대로 나옵니다.</div>
+    </section>
+
+    <!-- 5. ② 점수 -->
+    <section id="s-score">
+      <p class="kicker">단계별 자세히 ② · 5단계 순위 결정</p>
+      <h2>순위는 어떻게 정하나요? — 예시로 보기</h2>
+      <p class="desc">후보마다 아래 항목 점수를 <strong>그대로 더한 값</strong>으로 줄을 세웁니다(AI 추천처럼 합이 1이 되는 비율이 아니라, 항목마다 정해진 크기의 가점). 막대가 길수록 위입니다. 위쪽 버튼으로 같은 신청자 가점을 껐다 켜 보면 순서가 어떻게 바뀌는지 볼 수 있습니다.</p>
+
+      <div class="ex-q">
+        <div><small>예시 문의 · 2026-10-19 접수 · 신청자 홍길동 (설명용으로 만든 수치입니다)</small><b>"외래접수수납 화면에서 카드결제 영수증 재발행이 안 됩니다"</b></div>
+      </div>
+
+      <div class="tabs">
+        <button type="button" class="on" data-mode="on">현재 (같은 신청자 가점 포함)</button>
+        <button type="button" data-mode="off">같은 신청자 가점이 없다면</button>
+      </div>
+
+      <div class="weights" id="weights"></div>
+      <div class="board" id="board"></div>
+      <div class="insight" id="insight"></div>
+
+      <h3 class="sub-h">항목별 크기와 이유</h3>
+      <table class="cmp">
+        <thead><tr><th style="width:170px">항목</th><th style="width:150px">점수</th><th>뜻 · 왜 이 크기인가</th></tr></thead>
+        <tbody>
+          <tr><td>본문 겹침</td><td class="num">보통 0 ~ 4</td><td>지금 문의와 과거 건에 함께 나온 단어의 <span class="t" data-term="idf">IDF</span> 합을 두 글의 단어 수로 나눈 값. 드문 단어가 많이 겹칠수록 큽니다. 다른 항목과 달리 상한이 없어 <strong>본문이 확실히 가까우면 가점들을 이깁니다.</strong></td></tr>
+          <tr><td>최근성</td><td class="num">1.0 × e<sup>-경과일/45</sup></td><td>오늘 1.0 · 30일 0.51 · 90일 0.14 · 1년 0.0003. 최신순(개편 전 화면)이 꽤 강한 기준이라(Top5 64%) 그 장점을 섞었습니다. <span class="t" data-term="decay">감쇠</span> 계수 45일.</td></tr>
+          <tr><td>같은 업무분류</td><td class="num">+1.5</td><td>시스템(소) 코드가 같음. 측정한 신호 중 단독 성능이 가장 높았습니다(MRR 0.563).</td></tr>
+          <tr><td>같은 시스템</td><td class="num">+0.8</td><td>시스템(대) 코드가 같음.</td></tr>
+          <tr><td>같은 프로그램·화면</td><td class="num">+0.5</td><td>지금 문의에서 찾은 프로그램/화면 이름이 과거 건 본문에 있음. 켜지면 정답일 확률이 13.9배로 가장 정확하지만, 올리면 "우연히 같은 프로그램인 무관한 건"이 올라와서 0.5가 최적이었습니다.</td></tr>
+          <tr><td>같은 증상</td><td class="num">+0.5</td><td>12가지 증상 중 하나라도 같음. 같은 이유로 0.5.</td></tr>
+          <tr class="hl"><td>같은 신청자 <span class="apb">10-19 추가</span></td><td class="num">0.5 × e<sup>-경과일/90</sup></td><td>같은 A/S 신청자가 올린 건. 오늘 0.5 · 30일 0.36 · 90일 0.18 · 1년 0.01. <a href="#s-applicant">③에서 자세히</a></td></tr>
+          <tr><td>본문이 직접 지목</td><td class="num">항상 맨 위</td><td>문의(또는 고객 추가답변)에 과거 접수번호가 적혀 있고 그 건이 후보 안에 있으면 점수와 상관없이 1위로 고정하고 <strong>직접 참조</strong> 배지를 붙입니다.</td></tr>
+        </tbody>
+      </table>
+      <div class="note warn"><b>넣어 봤다가 뺀 것</b> — 숫자 토큰 추가 가점(MRR 0.607 → 0.600), 미해결 상태 가점(→ 0.594). 둘 다 오히려 나빠져서 쓰지 않습니다. 다시 넣지 마세요. (<a href="#s-measure">측정표</a>)</div>
+    </section>
+
+    <!-- 6. ③ 같은 신청자 -->
+    <section id="s-applicant">
+      <p class="kicker">단계별 자세히 ③ · 2026-10-19 추가</p>
+      <h2>같은 신청자의 최근 건은 왜, 얼마나 올리나요?</h2>
+      <p class="desc">같은 사람이 최근에 올린 건은 <strong>이어지는 문의(재촉·후속)</strong>일 가능성이 높다는 현업 요청으로 넣었습니다. 단, 오래된 건까지 올리면 의미가 없으므로 가점이 시간에 따라 줄어듭니다.</p>
+      <div class="rule3">
+        <div><b>누구를 같은 사람으로 보나</b><span class="v">실제 신청자명</span><p>화면과 같은 기준으로 <code>rl_apply_nm</code>(A/S 신청자 이름·실명)을 먼저 보고, 비어 있으면 <code>apply_nm</code>(로그인 회원명)을 씁니다. 공백·대소문자·끝의 "님/선생님"은 무시합니다. 이름이 없거나 "-"면 비교하지 않습니다.</p></div>
+        <div><b>얼마나 올리나</b><span class="v">최대 +0.5</span><p>0.5 × e<sup>-경과일/90</sup>. 오늘 +0.50, 30일 +0.36, 90일 +0.18, 1년 +0.01. "같은 시스템(+0.8)"보다 작게 잡아, 본문이 비슷한 건끼리는 같은 신청자가 이기고 본문이 확실히 가까운 건은 그대로 이기게 했습니다.</p></div>
+        <div><b>이것만으로는 안 띄움</b><span class="v">순서만 조정</span><p>본문·코드·프로그램 근거가 없으면 같은 신청자여도 목록에 넣지 않습니다(<a href="#s-cut">④</a>). 가점을 받은 건은 설명 줄 맨 앞에 <strong>같은 신청자(이름)</strong>가 붙습니다.</p></div>
+      </div>
+
+      <h3>0.5는 어떻게 정했나 — 실제 접수 60건 비교</h3>
+      <p class="muted small" style="margin-bottom:12px">개발 서버에서 2026-09~10 실제 접수 60건을 골라, 가점 크기마다 "가점이 없을 때와 비교해 1위가 바뀐 건"과 "그중 본문 근거가 약한 건(겹친 단어 2개 이하, 프로그램·증상·업무분류 불일치)이 1위로 올라온 건"을 셌습니다.</p>
+      <table class="cmp">
+        <thead><tr><th style="width:120px">가점 크기</th><th style="width:150px">1위가 바뀐 건</th><th style="width:220px">그중 근거 약한 건이 1위로</th><th>판단</th></tr></thead>
+        <tbody>
+          <tr><td class="num">0.3</td><td>1건</td><td>1건</td><td>효과가 거의 없음</td></tr>
+          <tr class="hl"><td class="num"><b>0.5 (채택)</b></td><td><b>4건</b></td><td><b>1건</b></td><td>"환불 청구" 문의에서 같은 사람의 6월 건 대신 9월 건이 1위가 되는 식의 개선이 대부분</td></tr>
+          <tr><td class="num">0.7</td><td>5건</td><td>2건</td><td></td></tr>
+          <tr><td class="num">1.0</td><td>8건</td><td>3건</td><td>"도수치료 조회 팝업이 안 뜬다" 문의에서 <em>도수치료, 조회 · 안보임</em>으로 맞던 1위가 같은 신청자의 <em>"중외" 한 단어</em> 일치 건에 밀리는 역전 발생</td></tr>
+        </tbody>
+      </table>
+      <p class="small" style="margin-top:10px;color:var(--ink2)">같은 표본에서 상위 5건 안의 같은 신청자 건 수는 107건 → 140건(가점 1.0 기준)으로 늘었고, 목록에 보이는 건수는 60건 모두 그대로였습니다(순서만 바뀜). 정답 데이터가 없어 "1위가 맞았는지"는 설명 줄을 보고 판단한 것이며, 정확도를 수치로 증명한 것은 아닙니다.</p>
+      <div class="note warn"><b>알아둘 점 — 신청자명의 약 21.6%는 사람이 아닙니다.</b> 최근 1,990건 중 "전산실"(30) · "심사과"(26) · "전산과장"(16) · "원무과장"(14) · "OO병원"(병원명) 같은 부서·직함·병원명이 많았습니다. 이런 거래처는 그 병원 건 대부분이 "같은 신청자"가 되어, 가점이 사실상 "그 병원의 최근 건 가점"처럼 동작하고 설명 줄에도 <em>같은 신청자(전산실)</em>로 보입니다. <strong>같은 창구에서 온 문의도 이어지는 문의로 본다</strong>는 현업 판단으로 그대로 두었습니다.</div>
+    </section>
+
+    <!-- 7. ④ 근거 없음 컷 -->
+    <section id="s-cut">
+      <p class="kicker">단계별 자세히 ④ · 6단계</p>
+      <h2>근거 없는 건은 왜 빼고, 머리말 건수는 무엇을 세나요?</h2>
+      <div class="why2">
+        <div><span class="lbl st-bad">빼는 건</span><h4>"왜 떴는지" 한 줄도 못 대는 건</h4><p>아래가 <strong>모두</strong> 해당하면 목록에서 뺍니다. ① 본문에 겹치는 단어가 없음 ② 업무분류(소) 코드 다름 ③ 시스템(대) 코드 다름 ④ 같은 프로그램·화면 아님. 최근성·같은 증상·같은 신청자만으로는 남지 않습니다. 설명 못 하는 추천은 상담원이 믿지 않기 때문입니다. 접수번호로 직접 지목된 건은 항상 남습니다.</p></div>
+        <div><span class="lbl st-ok">칩을 눌렀을 때</span><h4>고른 칩에 걸리는 것 자체가 근거</h4><p>칩을 누르면 위 기준 대신 "고른 칩 중 하나라도 걸리는가"로 남깁니다. 증상 칩은 단어가 아니라 코드로 비교해서 위 기준을 타면 "안됨/실패 4"를 눌렀는데 1건만 나오는 일이 생겼기 때문입니다. <strong>칩 옆 숫자와 눌렀을 때 나오는 건수는 항상 같습니다</strong>(같은 판정 함수를 씀).</p></div>
+      </div>
+      <h3>머리말의 "연관 이력 N건"</h3>
+      <p class="small" style="color:var(--ink2)">점수를 매겨 줄 세운 후보 전체(많으면 100건 넘음)를 세지 않고, <strong>본문에 실제 근거가 있는 건</strong>만 셉니다: 직접 참조 · 겹친 단어 있음 · 같은 프로그램 · 같은 증상. 분류 코드만 같아서 남은 건은 목록에는 나올 수 있어도 숫자에는 넣지 않습니다. 예전에 화면에는 5건만 보이는데 머리말이 "122건"이라 "관련 건이 122개나 있다"로 읽히는 문제가 있었습니다. 컷 자체를 좁히는 것도 재 봤지만 정답을 놓쳐서(MRR 0.564 → 0.464) <strong>세는 기준만</strong> 바꿨습니다.</p>
+      <div class="note">항목의 <strong>막대</strong>는 1위 대비 상대 길이입니다(최소 8%, 직접 참조는 100%). 절대 점수를 %로 보여 주면 근거 없는 확신을 주기 때문입니다.</div>
+    </section>
+
+    <!-- 8. 화면 -->
+    <section id="s-screen">
+      <p class="kicker">사용자 화면</p>
+      <h2>화면에서는 어떻게 보이나요?</h2>
+      <p class="desc">접수·처리 정보(오른쪽 칸)의 「과거 상담이력」 바로 위에 붙습니다. 기존 기간별(1주/1개월/3개월/전체) 과거 상담이력은 그대로 아래에 남습니다.</p>
+      <div class="screen">
+        <div class="mock" aria-label="연관 이력 블록 예시">
+          <div class="mock-h"><span>문의 내용 키워드</span></div>
+          <div class="mock-chips">
+            <div><span class="gl">어디서</span><span class="chip k-prog"><span class="ck">프로그램</span><span class="cv">외래접수수납</span><span class="cn">7</span></span></div>
+            <div><span class="gl">무슨 문제</span><span class="chip k-sym"><span class="ck">증상</span><span class="cv">안됨/실패</span><span class="cn">22</span></span><span class="chip k-sym dim"><span class="ck">증상</span><span class="cv">중복</span></span></div>
+          </div>
+          <div class="mock-h"><span>연관 이력 <small>접수일 기준 이전 1년 · 기간필터 무관</small></span><em>4건</em></div>
+          <div class="mock-it ref"><span class="callout">1</span>
+            <div class="ith"><span class="badge">직접 참조</span><span>2026-09-30</span><span class="stt ing">처리중</span><span class="ino">김OO</span><span>20260930021</span></div>
+            <div class="bar"><i style="width:100%"></i></div>
+            <div class="txt">카드결제 영수증 재발행 시 금액이 0원으로 출력됩니다.</div>
+            <div class="rs">문의 내용이 이 접수번호를 직접 언급했습니다</div>
+          </div>
+          <div class="mock-it"><span class="callout">2</span>
+            <div class="ith"><span>2026-10-15</span><span class="stt done">처리완료</span><span class="ino">이OO</span><span>20261015044</span></div>
+            <div class="bar"><i style="width:100%"></i></div>
+            <div class="sys">시스템유형 · 원무 / 외래접수 및 수납</div>
+            <div class="txt">외래 카드결제 영수증 재발행 문의드립니다. 재발행 버튼이 회색으로 …</div>
+            <div class="rs">같은 신청자(홍길동) · 같은 외래접수수납 · 안됨/실패 · 재발행, 카드결제</div>
+          </div>
+          <div class="mock-it"><span class="callout">3</span>
+            <div class="ith"><span>2026-09-19</span><span class="stt wd">철회</span><span class="ino">미배정</span><span>20260919008</span></div>
+            <div class="bar"><i style="width:72%"></i></div>
+            <div class="sys">시스템유형 · 원무 / 외래접수 및 수납</div>
+            <div class="txt">영수증 재출력 시 카드 승인번호 오류가 납니다.</div>
+            <div class="rs">안됨/실패 · 영수증, 카드</div>
+          </div>
+          <div class="mock-f">관련도 높은 순 상위 5건입니다. 나머지는 아래 기간별 이력에서 확인할 수 있습니다.</div>
+        </div>
+        <div class="legend">
+          <div><span class="n">1</span><div><b>직접 참조</b> — 문의에 이 접수번호가 적혀 있어 맨 위에 고정. 파란 바탕과 배지로 구분합니다.</div></div>
+          <div><span class="n">2</span><div><b>한 줄 머리</b> — 접수일 · 처리상태 · 처리담당자(없으면 "미배정") · 접수번호. 항목을 열지 않아도 누가 처리했는지 보입니다(10-19).</div></div>
+          <div><span class="n">3</span><div><b>시스템유형</b> — 그 건의 시스템(대) / 시스템(소) 이름(10-19). 코드가 없으면 줄이 생략됩니다.</div></div>
+          <div><span class="n">·</span><div><b>설명 줄 우선순위</b> — 직접 참조 → [같은 신청자] + 같은 프로그램 · 증상 · 겹친 단어 3개 → [같은 신청자] + "일치 : 겹친 단어" → 같은 업무분류 · 소분류명 → 같은 시스템 · 대분류명 → 최근 접수.</div></div>
+          <div><span class="n">·</span><div><b>누르면 그 자리에서 펼침</b> — 항목 바로 아래에 과거 건의 문의 전문 · 첨부 · 고객/담당자 답변 · 조치이력이 열립니다. 지금 보던 접수건은 그대로이고, 완전히 그 건으로 넘어가려면 펼친 패널의 <b>[이 건으로 이동]</b>을 누릅니다(10-12, <code>combine-as-past-inline.js</code>).</div></div>
+        </div>
+      </div>
+
+      <h3 class="sub-h">화면이 달라지는 경우</h3>
+      <table class="cmp">
+        <thead><tr><th style="width:200px">경우</th><th>화면</th></tr></thead>
+        <tbody>
+          <tr><td>조회 중</td><td>칩은 바로 보이고, 목록 자리에 "연관 이력을 찾는 중…"</td></tr>
+          <tr><td>근거 있는 과거 건 없음</td><td>"관련된 과거 상담이 없습니다. 아래 기간별 이력을 확인해 주세요."</td></tr>
+          <tr><td>거래처 정보 없음</td><td>"거래처 정보가 없어 연관 이력을 찾을 수 없습니다." (조회하지 않음)</td></tr>
+          <tr><td>조회 실패 · 60초 초과</td><td>"과거 이력을 불러오지 못했습니다 (HTTP …)" 또는 "조회가 오래 걸려 중단했습니다." + [다시 시도]</td></tr>
+          <tr><td>재문의·연락 요청 문의</td><td>AI 추천 서버가 재문의로 판정하면 이 블록이 접수·처리 정보 <b>맨 위로</b> 올라가고 "↻ 재문의·연락 요청 — 앞서 접수한 건을 먼저 확인하세요" 안내가 붙습니다(<code>combine-as-ai.js</code>, <a href="combine-ai-recommend-logic.html#s-followup">판정 방법</a>).</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 9. 안전장치 -->
+    <section id="s-guard">
+      <p class="kicker">안전장치 · 한계</p>
+      <h2>엉뚱한 결과와 화면 멈춤을 막는 규칙, 그리고 못 하는 것</h2>
+      <div class="guards">
+        <div class="g"><h3>과거만 본다</h3><p>조회 기간을 이 건 접수일로 자르고, 접수일이 비거나 형식이 달라 섞여 들어온 "나중 건"을 한 번 더 거릅니다.</p></div>
+        <div class="g"><h3>화면을 멈추지 않는다</h3><p>CRM 공통 조회 함수는 응답이 올 때까지 화면을 멈추는 동기 방식이라 쓰지 않고, <span class="t" data-term="async">비동기</span>로 조회합니다. 60초 넘게 걸리면 중단합니다.</p></div>
+        <div class="g"><h3>늦게 온 응답은 버린다</h3><p>다른 건으로 빨리 넘어가면 앞 건의 응답이 뒤늦게 올 수 있습니다. 요청마다 번호를 매겨 <span class="t" data-term="seq">최신 요청의 응답만</span> 그립니다.</p></div>
+        <div class="g"><h3>근거 없으면 안 띄운다</h3><p>설명 줄을 만들 수 없는 건은 빼고, 머리말 건수도 실제 근거가 있는 건만 셉니다(<a href="#s-cut">④</a>).</p></div>
+        <div class="g"><h3>기존 화면은 그대로</h3><p>기존 과거 상담이력 코드(<code>combine-as-thread.js</code>)를 고치지 않고 "감싸서" 덧붙였습니다. <code>list.jsp</code>의 script 한 줄만 지우면 원래대로 돌아갑니다.</p></div>
+        <div class="g"><h3>12자리 오타는 안 잡는다</h3><p>접수번호를 12자리로 잘못 적으면 앞 11자리를 잘라 엉뚱한 건에 연결할 수 있어서, 앞뒤에 숫자가 붙은 번호는 아예 잡지 않습니다.</p></div>
+      </div>
+      <h3 class="sub-h">한계</h3>
+      <table class="cmp">
+        <thead><tr><th style="width:220px">한계</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>200건을 넘는 거래처</td><td>최근 200건만 봅니다(거래처의 9.8%). 그 이전 건은 아래 기간별 이력에서 찾아야 합니다.</td></tr>
+          <tr><td>뜻은 같고 단어가 다른 경우</td><td>단어 겹침 기반이라 "결제 취소 안 됨" ↔ "수납 취소 불가"처럼 표현만 다른 건은 약합니다. 이런 건 AI 추천(문장 뜻 검색)이 맡습니다.</td></tr>
+          <tr><td>형태소 분석기 없음</td><td>조사를 끝 글자 모양으로 떼는 규칙 방식이라 "검사결과"가 "검사결"로 잘리는 식의 오차가 있습니다. 과거 건도 똑같이 잘려 비교 자체는 맞습니다. (AI 추천의 칩은 형태소 분석기 Kiwi를 씁니다)</td></tr>
+          <tr><td>본문이 빈 문의</td><td>요청내용이 비어 있으면 본문 겹침이 0이라 분류 코드 일치나 직접 참조로만 뜹니다.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 10. 측정 근거 -->
+    <section id="s-measure">
+      <p class="kicker">근거</p>
+      <h2>이 공식을 고른 근거 — 실측</h2>
+      <p class="desc">같은 거래처의 과거 건(평균 95.9건)을 후보로 놓고, <strong>"본문에 과거 접수번호를 직접 적은 593건"</strong>을 정답으로 삼아 정답 건이 몇 위에 오는지 쟀습니다. 데이터는 접수 25,963건입니다. <span class="t" data-term="topk">Top5</span>는 "정답이 상위 5건 안에 든 비율", <span class="t" data-term="mrr">MRR</span>은 순위를 한 숫자로 요약한 값(1이 만점)입니다.</p>
+      <table class="cmp">
+        <thead><tr><th>랭킹 방식</th><th class="num">Top1</th><th class="num">Top3</th><th class="num">Top5</th><th class="num">MRR</th></tr></thead>
+        <tbody>
+          <tr><td>최신순 (개편 전 과거 상담이력)</td><td class="num">21.2%</td><td class="num">47.7%</td><td class="num">64.1%</td><td class="num">0.396</td></tr>
+          <tr><td>단어 겹침만</td><td class="num">27.2%</td><td class="num">46.4%</td><td class="num">58.5%</td><td class="num">0.416</td></tr>
+          <tr><td>IDF 가중 겹침만</td><td class="num">29.2%</td><td class="num">47.9%</td><td class="num">60.4%</td><td class="num">0.434</td></tr>
+          <tr><td>분류 일치만</td><td class="num">42.0%</td><td class="num">64.2%</td><td class="num">74.5%</td><td class="num">0.563</td></tr>
+          <tr><td>IDF + 최근성</td><td class="num">38.4%</td><td class="num">60.5%</td><td class="num">72.8%</td><td class="num">0.536</td></tr>
+          <tr class="hl"><td><b>IDF + 최근성 + 분류 일치 (채택)</b></td><td class="num"><b>47.4%</b></td><td class="num"><b>67.1%</b></td><td class="num"><b>77.7%</b></td><td class="num"><b>0.607</b></td></tr>
+          <tr><td>위 + 숫자 토큰 가점</td><td class="num">46.4%</td><td class="num">66.6%</td><td class="num">77.6%</td><td class="num">0.600 ↓</td></tr>
+          <tr><td>위 + 미해결 상태 가점</td><td class="num">46.2%</td><td class="num">65.3%</td><td class="num">76.2%</td><td class="num">0.594 ↓</td></tr>
+        </tbody>
+      </table>
+      <h3 class="sub-h">실제 코드를 그대로 돌려 다시 잰 값</h3>
+      <table class="cmp">
+        <thead><tr><th>조건</th><th class="num">Top1</th><th class="num">Top3</th><th class="num">Top5</th><th class="num">Top10</th><th class="num">MRR</th></tr></thead>
+        <tbody>
+          <tr><td>실제 동작 (접수번호 직접 참조 포함)</td><td class="num">100%</td><td class="num">100%</td><td class="num">100%</td><td class="num">100%</td><td class="num">1.000</td></tr>
+          <tr class="hl"><td>접수번호를 지우고 본문 유사도만</td><td class="num">45.7%</td><td class="num">59.7%</td><td class="num">65.4%</td><td class="num">70.0%</td><td class="num">0.539</td></tr>
+          <tr><td>최신순 (개편 전)</td><td class="num">21.2%</td><td class="num">47.7%</td><td class="num">64.1%</td><td class="num">79.6%</td><td class="num">0.396</td></tr>
+        </tbody>
+      </table>
+      <div class="note">읽는 법: 정답을 "접수번호로 지목된 건"으로 정의했으므로 첫 줄(100%)은 순환 논리이고, "번호만 적어 주면 반드시 맨 위에 뜬다"는 기능 확인으로만 유효합니다. 실제 실력은 둘째 줄입니다. Top10이 최신순보다 낮은 것은 <a href="#s-cut">근거 없음 컷</a> 때문인데, 컷에 걸린 정답 148건은 본문이 비었거나(51건) "20250811013 요청건 어떻게 되어가나요" 같은 재촉 문의(97건)라 실제로는 접수번호 칩이 잡아 줍니다. 같은 신청자 가점(10-19)은 이 정답셋으로 잰 값이 아니라 <a href="#s-applicant">별도 60건 비교</a>로 정했습니다.</div>
+    </section>
+
+    <!-- 11. 개발자용 -->
+    <section id="s-dev">
+      <p class="kicker">개발자용</p>
+      <h2>상세 산식 · 설정값 · 변경 이력</h2>
+      <details>
+        <summary>개발자용 상세 — 점수 산식, 상수, 파일</summary>
+        <div class="dev">
+<pre>후보          = getAsList.do { cust_code, search_type10:'Y', search_start: 접수일-365, search_end: 접수일,
+                                procSelect:'', asGubunFlag:'1', page:1, pageSize:200 }   (async, timeout 60s)
+                제외: as_no == 현재 건 · accept_dt &gt; 현재 건 accept_dt
+토큰          = ckw_strip(보일러 7개 제거 → CKW_ALIAS 19쌍) → CKW_TOK_RX → 어미/조사/불용어/활용형/숫자+단위 제거 → 중복 제거
+IDF           = ln((M+1) / (df+0.5)),  M = 후보 수 + 1 (현재 문의 포함, 로컬 IDF)
+overlap       = Σ IDF(겹친 토큰) / sqrt(|q| × |d| + 1)
+score         = overlap
+              + 1.0 × exp(-gap/45)            (CKW_W.rec, half)
+              + 1.5 × [inquiry_type 같음]      (CKW_W.iq)
+              + 0.8 × [service_cate 같음]      (CKW_W.sc)
+              + 0.5 × [현재 문의 프로그램/화면명이 후보 본문에 있음]   (CKW_W.pg, 공백 무시는 4글자 이상)
+              + 0.5 × [증상 코드 하나 이상 같음] (CKW_W.sy)
+              + 0.5 × [신청자 같음] × exp(-gap/90)   (CKW_AP, 2026-10-19)
+직접 참조     = 본문(+고객 추가답변 w_gubun='U')의 11자리 접수번호가 후보에 있으면 score = 999 + rec
+근거 없음 컷  = !ref &amp;&amp; 겹친 토큰 0 &amp;&amp; iq 0 &amp;&amp; sc 0 &amp;&amp; pg 0  → 제외  (칩 선택 모드에서는 "선택 칩 중 하나라도 적중"으로 대체)
+정렬          = score DESC, as_no DESC · 표시 CKW_TOP_N = 5 · 막대 = max(8, raw/1위raw×100)
+머리말 건수   = ref || 겹친 토큰 || pg || sy 인 건 수
+신청자명      = rl_apply_nm || apply_nm → 공백 제거, 소문자, 끝 "선생님|님" 제거, 2자 미만·한글/영문 없음 → 비교 안 함</pre>
+          <table>
+            <thead><tr><th>상수</th><th>값</th><th>뜻</th></tr></thead>
+            <tbody>
+              <tr><td>CKW_PERIOD_DAYS</td><td>365</td><td>조회 기간(일). 응답이 무거우면 이 값과 아래 값만 줄이면 됨</td></tr>
+              <tr><td>CKW_PAGE_SIZE</td><td>200</td><td>후보 최대 건수</td></tr>
+              <tr><td>CKW_TOP_N</td><td>5</td><td>화면 표시 건수</td></tr>
+              <tr><td>CKW_W</td><td>{ rec:1.0, iq:1.5, sc:0.8, pg:0.5, sy:0.5, half:45 }</td><td>정답셋 593건으로 고른 가중치. pg·sy는 0.5 고정(올리면 하락)</td></tr>
+              <tr><td>CKW_AP</td><td>{ w:0.5, half:90 }</td><td>같은 신청자 가점. 실접수 60건 비교로 결정(10-19)</td></tr>
+              <tr><td>CKW_PLACE_MAX</td><td>4</td><td>한 문의에서 뽑는 프로그램/화면 칩 상한</td></tr>
+              <tr><td>CKW_FLAT_MIN</td><td>4</td><td>띄어쓰기 무시 이름 대조 최소 길이(3이면 "처방 전달" → 처방전 오탐)</td></tr>
+              <tr><td>CKW_EMP_KEY</td><td>ckw_emp_dict</td><td>직원 명단 sessionStorage 캐시 키(세션당 1회 조회)</td></tr>
+            </tbody>
+          </table>
+          <table style="margin-top:14px">
+            <thead><tr><th>파일</th><th>역할</th></tr></thead>
+            <tbody>
+              <tr><td>js/combine-as-keyword.js</td><td>칩 추출 · 후보 조회 · 점수 · 렌더 전부. <code>caws_pastReset</code>/<code>caws_renderRecord</code>를 감싸서 동작(원본 무수정)</td></tr>
+              <tr><td>css/combine-as-keyword.css</td><td>블록 · 칩 · 항목 스타일</td></tr>
+              <tr><td>js/combine-as-past-inline.js</td><td>항목 클릭 시 그 자리에서 펼쳐 보기(<code>cpi_toggle</code>, 기존 <code>/ad/as/getAsInfo.do</code> 재사용)</td></tr>
+              <tr><td>js/combine-as-ai.js</td><td>재문의 판정(follow_up) 시 <code>#ckwBox</code>를 접수·처리 정보 맨 위로 이동 + 안내</td></tr>
+              <tr><td>WEB-INF/jsp/ad/as/list.jsp</td><td>위 파일 로드 (combine-as-thread.js 뒤에)</td></tr>
+              <tr><td>query/egov-as-query.xml</td><td><code>getAsList</code>(후보 · rl_apply_nm/apply_nm · 분류명 · emp_nm 제공) — 연관 이력 전용 변경 없음</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <details>
+        <summary>변경 이력 — 언제 무엇이 바뀌었나</summary>
+        <div class="dev">
+          <table class="plain">
+            <thead><tr><th style="width:110px">날짜</th><th>변경</th><th style="width:28%">이 문서에서</th></tr></thead>
+            <tbody>
+              <tr><td>2026-09-30</td><td>「문의 내용 키워드 · 연관 이력」 신설 — 칩 추출, IDF + 최근성 + 분류 일치 랭킹, 직접 참조, 근거 없음 컷</td><td><a href="#s-steps">과정</a> · <a href="#s-measure">근거</a></td></tr>
+              <tr><td>2026-10-01</td><td>"그 외 키워드" 칩 줄 제거 · 칩을 어디서/무슨 문제/식별 줄로 나눔 · 증상 분류 추가 · 머리말 건수를 근거 있는 건만 세도록</td><td><a href="#s-chips">칩</a> · <a href="#s-cut">건수</a></td></tr>
+              <tr><td>2026-10-12</td><td>조회 기준일을 오늘 → 이 건 접수일로(나중 건 제외) · 항목 클릭 시 그 자리에서 펼쳐 보기</td><td><a href="#s-steps">3단계</a> · <a href="#s-screen">화면</a></td></tr>
+              <tr><td>2026-10-16</td><td>AI 추천의 재문의 판정 시 이 블록을 맨 위로 올리고 안내 표시(<code>combine-as-ai.js</code>)</td><td><a href="#s-screen">화면</a></td></tr>
+              <tr><td>2026-10-19</td><td>항목에 시스템유형(대/소) · 처리담당자 표시 · <b>같은 신청자 가점</b>(0.5 × e<sup>-경과일/90</sup>) 추가 · 이 문서 작성</td><td><a href="#s-applicant">같은 신청자</a> · <a href="#s-screen">화면</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p class="foot">기준: combine-as-keyword.js · combine-as-past-inline.js · combine-as-ai.js · egov-as-query.xml(getAsList) (2026-10-19). 「순위는 어떻게 정하나요?」의 예시 점수는 설명을 위해 만든 값이고, 「같은 신청자 가점」 표와 「근거」 표는 실측값입니다.</p>
+    </section>
+  </main>
+</div>
+
+<div id="tip" role="tooltip"></div>
+<script>
+(function(){
+  /* ---------- 용어 설명 (n: 이름, en: 원어, d: 설명, eg: 비유·예시) ---------- */
+  var TERMS = {
+    demo:     { n:'이렇게 설명이 나옵니다', d:'문서 곳곳의 개발 용어에 점선 밑줄이 있습니다. 마우스를 올리거나(모바일은 누르면) 뜻과 비유를 볼 수 있습니다.' },
+    cust:     { n:'거래처', en:'cust_code', d:'CRM에 등록된 고객 병원입니다. 연관 이력은 지금 접수건과 같은 거래처 코드의 접수건만 봅니다.' },
+    api:      { n:'API', en:'Application Programming Interface', d:'프로그램끼리 일을 부탁하고 결과를 받는 약속된 방법입니다. 여기서는 CRM의 기존 AS 목록 조회 주소(/ad/as/getAsList.do)를 그대로 씁니다.' },
+    menuauth: { n:'권한 필터', en:'MenuAuthFilter', d:'로그인한 사용자가 접근해도 되는 주소인지 검사하는 CRM 장치입니다. 미리 등록된 주소와 완전히 같아야 통과하므로, 새 주소를 만들면 권한 등록 전까지 403(접근 거부)이 납니다.' },
+    token:    { n:'토큰', en:'Token', d:'비교하기 좋게 잘라 낸 단어 조각입니다. 문장을 정리한 뒤 한글 2글자 이상, 영문·숫자 코드(IE204·V2301), 영문 약어(PC·DB) 등을 뽑고 조사·상투어를 뗍니다.', eg:'예: "수납에서 영수증이 안 나와요" → 수납 · 영수증' },
+    idf:      { n:'IDF', en:'Inverse Document Frequency · 희소성 가중치', d:'단어가 얼마나 드문지를 나타내는 점수입니다. 이 병원 후보 접수건 중 적은 건에만 나오는 단어일수록 큽니다. 드문 단어가 겹치면 "같은 얘기"일 가능성이 높기 때문입니다.', eg:'비유: 반 친구 30명 중 1명만 아는 별명이 겹치면 같은 사람일 확률이 높음' },
+    boiler:   { n:'챗봇 안내문구', en:'Boilerplate', d:'챗봇 접수 양식이 모든 문의에 자동으로 넣는 고정 문장입니다. "문의하실 내용을 입력해주시기 바랍니다", "※ 요청 내용이 구체적이지 않을 경우…" 등. 지우지 않으면 관련 없는 건끼리도 똑같이 보입니다.' },
+    josa:     { n:'조사 떼기', d:'"수납에서", "수납을"을 같은 "수납"으로 묶으려고 끝의 조사를 잘라 냅니다. 형태소 분석기 없이 끝 글자 모양으로 자르는 근사 방식이며, 조사가 겹쳐 붙으면 최대 3번까지 뗍니다.', eg:'예: 재원중에서는 → 재원중' },
+    placedict:{ n:'이 병원 프로그램 사전', d:'후보 접수건의 「프로그램명」「화면명」 칸에 적힌 값을 모은 목록입니다. 그 병원이 실제로 쓰는 프로그램 이름이라 코드에 박아 둘 필요가 없고, 새 프로그램이 생겨도 자동으로 따라갑니다. 과거 이력이 적은 거래처를 위해 기본 이름 몇십 개를 함께 넣습니다.' },
+    async:    { n:'비동기 조회', en:'async', d:'조회를 보내 놓고 응답을 기다리는 동안에도 화면을 계속 쓸 수 있게 하는 방식입니다. 응답이 오면 그때 목록을 채웁니다.' },
+    seq:      { n:'응답 역전 방지', d:'요청을 보낼 때마다 번호를 1씩 올려 두고, 응답이 왔을 때 번호가 최신이 아니면 버리는 장치입니다. 건을 빠르게 넘길 때 이전 건의 목록이 덮어쓰는 일을 막습니다.' },
+    decay:    { n:'감쇠', en:'Exponential decay', d:'시간이 지날수록 점수가 일정 비율로 줄어드는 방식입니다. e^(-경과일/45)이면 45일마다 약 37%로 줄어듭니다(오늘 1.0 · 45일 0.37 · 90일 0.14).', eg:'비유: 뉴스의 화제성. 어제 기사는 뜨겁고 석 달 전 기사는 거의 식음' },
+    topk:     { n:'Top1 · Top5', d:'정답 건이 1위(또는 상위 5건) 안에 든 비율입니다. 화면에 5건을 보여 주므로 Top5가 "상담원 눈에 정답이 보이는 비율"에 가깝습니다.' },
+    mrr:      { n:'MRR', en:'Mean Reciprocal Rank', d:'정답이 몇 위에 왔는지를 1/순위로 바꿔 평균 낸 값입니다. 1위면 1, 2위면 0.5, 5위면 0.2. 1에 가까울수록 정답이 위에 옵니다.' }
+  };
+  function termify(s){
+    return s.replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, '<span class="t" tabindex="0" data-term="$2">$1</span>');
+  }
+  var tip = document.getElementById('tip'), tipEl = null;
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function showTip(el){
+    var t = TERMS[el.getAttribute('data-term')];
+    if(!t) return;
+    if(tipEl && tipEl !== el) tipEl.classList.remove('on');
+    tipEl = el; el.classList.add('on');
+    tip.innerHTML = '<div class="tip-h">' + esc(t.n) + (t.en ? '<small>' + esc(t.en) + '</small>' : '') + '</div>'
+      + '<div>' + esc(t.d) + '</div>' + (t.eg ? '<div class="tip-eg">' + esc(t.eg) + '</div>' : '');
+    tip.className = 'show';
+    var r = el.getClientRects()[0] || el.getBoundingClientRect();
+    var tw = tip.offsetWidth, th = tip.offsetHeight, vw = document.documentElement.clientWidth;
+    var cx = r.left + r.width / 2;
+    var left = Math.max(10, Math.min(cx - tw / 2, vw - tw - 10));
+    var top = r.top - th - 10;
+    if(top < 10){ top = r.bottom + 10; tip.className = 'show below'; }
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+    tip.style.setProperty('--ax', Math.max(14, Math.min(cx - left, tw - 14)) + 'px');
+  }
+  function hideTip(){
+    tip.className = '';
+    if(tipEl){ tipEl.classList.remove('on'); tipEl = null; }
+  }
+  function termOf(node){ return node && node.closest ? node.closest('.t[data-term]') : null; }
+  document.addEventListener('mouseover', function(e){ var el = termOf(e.target); if(el && el !== tipEl) showTip(el); });
+  document.addEventListener('mouseout', function(e){
+    var el = termOf(e.target);
+    if(el && el === tipEl && !el.contains(e.relatedTarget)) hideTip();
+  });
+  document.addEventListener('focusin', function(e){ var el = termOf(e.target); if(el) showTip(el); });
+  document.addEventListener('focusout', function(e){ if(termOf(e.target) === tipEl) hideTip(); });
+  document.addEventListener('click', function(e){
+    var el = termOf(e.target);
+    if(el){ if(el === tipEl && e.pointerType !== 'mouse') hideTip(); else showTip(el); }
+    else hideTip();
+  });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') hideTip(); });
+  window.addEventListener('scroll', hideTip, { passive:true });
+  window.addEventListener('resize', hideTip);
+  var staticTerms = document.querySelectorAll('.t[data-term]');
+  for(var st=0; st<staticTerms.length; st++) staticTerms[st].setAttribute('tabindex', '0');
+
+  /* ---------- 점수 예시 (combine-as-keyword.js 의 CKW_W · CKW_AP 와 같은 식) ----------
+     ov: 본문 겹침 점수(설명용 가정값), days: 경과일, iq/sc/pg/sy/ap: 일치 여부 */
+  var CKW_W = { rec:1.0, iq:1.5, sc:0.8, pg:0.5, sy:0.5, half:45 }, CKW_AP = { w:0.5, half:90 };
+  var ITEMS = [
+    { no:'20261015044', nm:'홍길동', title:'카드결제 영수증 재발행 문의', days:4, ov:2.26, iq:0, sc:1, pg:0, sy:1, ap:1, hits:'재발행, 카드결제',
+      why:'4일 전 같은 신청자의 글. 본문 겹침은 아래 건과 비슷한데, [[최근성|decay]]이 높고 같은 신청자 가점이 더해져 앞섭니다.' },
+    { no:'20261010031', nm:'김철수', title:'외래수납 카드결제 영수증 재발행 출력 안됨', days:9, ov:3.00, iq:0, sc:1, pg:1, sy:1, ap:0, hits:'외래수납, 카드결제, 영수증',
+      why:'다른 신청자지만 본문이 거의 같아 겹침 점수가 가장 큽니다. 본문이 확실히 가까우면 같은 신청자 가점을 이깁니다.' },
+    { no:'20260919008', nm:'이영희', title:'외래접수수납 영수증 재출력 시 카드 승인번호 오류', days:30, ov:2.40, iq:0, sc:1, pg:1, sy:1, ap:0, hits:'영수증, 카드',
+      why:'본문 겹침과 같은 프로그램 가점은 위 건보다 크지만, 한 달 전이라 최근성이 절반으로 줄었습니다. 같은 신청자 가점이 없으면 이 건이 2위입니다.' },
+    { no:'20260401012', nm:'박민수', title:'수납 화면 영수증 양식 변경 요청', days:201, ov:1.10, iq:1, sc:1, pg:0, sy:0, ap:0, hits:'영수증',
+      why:'겹치는 단어는 적지만 업무분류·시스템 코드가 둘 다 같아 +2.3을 받았습니다. 반년 전이라 최근성은 거의 0입니다.' },
+    { no:'20261018002', nm:'홍길동', title:'전산실 프린터 토너 교체 문의', days:1, ov:0, iq:0, sc:0, pg:0, sy:0, ap:1, hits:'', cut:true,
+      why:'어제 같은 신청자가 올렸지만 본문·코드·프로그램 근거가 하나도 없어 근거 없음 기준에 걸려 목록에서 빠집니다. 최근성·같은 신청자만으로는 남지 않습니다.' }
+  ];
+  var PARTS = [
+    { k:'ov',  label:'본문 겹침',      c:'var(--c-ov)',  wtxt:'상한 없음', d:'함께 나온 단어의 [[IDF|idf]] 합 ÷ 단어 수. 드문 단어가 많이 겹칠수록 큼' },
+    { k:'rec', label:'최근성',         c:'var(--c-rec)', wtxt:'최대 1.0',  d:'1.0 × e^(-경과일/45). 오늘 1.0 · 30일 0.51 · 90일 0.14' },
+    { k:'iq',  label:'같은 업무분류',  c:'var(--c-iq)',  wtxt:'+1.5',      d:'시스템(소) 코드가 같음' },
+    { k:'sc',  label:'같은 시스템',    c:'var(--c-sc)',  wtxt:'+0.8',      d:'시스템(대) 코드가 같음' },
+    { k:'pg',  label:'같은 프로그램',  c:'var(--c-pg)',  wtxt:'+0.5',      d:'지금 문의의 프로그램·화면 이름이 과거 건 본문에 있음' },
+    { k:'sy',  label:'같은 증상',      c:'var(--c-sy)',  wtxt:'+0.5',      d:'안됨/실패·오류/에러 등 12가지 중 하나라도 같음' },
+    { k:'ap',  label:'같은 신청자',    c:'var(--c-ap)',  wtxt:'최대 0.5',  d:'0.5 × e^(-경과일/90). 오늘 0.5 · 30일 0.36 · 90일 0.18' }
+  ];
+  function partsOf(it, mode){
+    return {
+      ov: it.ov,
+      rec: CKW_W.rec * Math.exp(-it.days / CKW_W.half),
+      iq: CKW_W.iq * it.iq, sc: CKW_W.sc * it.sc, pg: CKW_W.pg * it.pg, sy: CKW_W.sy * it.sy,
+      ap: mode === 'on' ? CKW_AP.w * it.ap * Math.exp(-it.days / CKW_AP.half) : 0
+    };
+  }
+  var INSIGHT = {
+    on:'같은 신청자 가점(최대 0.5)은 <b>비슷한 건끼리의 순서</b>를 바꿉니다. 2위(4일 전, 같은 신청자)와 3위(한 달 전, 다른 신청자)는 점수가 비슷한데, 가점 덕분에 같은 사람의 최근 글이 앞섭니다. 반면 본문이 거의 같은 1위 건은 다른 신청자여도 그대로 1위입니다. 어제 같은 신청자가 올린 "프린터 토너" 건은 근거가 없어 아예 빠집니다.',
+    off:'가점이 없으면 순서는 본문 겹침 · 최근성 · 코드 일치만으로 정해집니다. 4일 전 같은 신청자의 글이 한 달 전 다른 신청자의 글보다 아래로 내려갑니다. 화면에 보이는 건(근거 있는 건)의 구성은 같고 <b>순서만</b> 달라집니다.'
+  };
+  function renderScore(mode){
+    var h = '';
+    PARTS.forEach(function(p){
+      var off = (p.k === 'ap' && mode === 'off');
+      h += '<div class="w' + (off ? ' off' : '') + '"><span class="sw" style="background:' + p.c + '"></span><b>' + p.label + '</b>'
+         + '<span class="pct">' + (off ? '꺼짐' : p.wtxt) + '</span><p>' + termify(p.d) + '</p></div>';
+    });
+    document.getElementById('weights').innerHTML = h;
+
+    var rows = ITEMS.map(function(it){
+      var v = partsOf(it, mode), total = 0;
+      PARTS.forEach(function(p){ total += v[p.k]; });
+      return { it:it, v:v, total:total };
+    });
+    var kept = rows.filter(function(r){ return !r.it.cut; }).sort(function(a, b){ return b.total - a.total || (b.it.no > a.it.no ? 1 : -1); });
+    var cut = rows.filter(function(r){ return r.it.cut; });
+    var max = 0; rows.forEach(function(r){ max = Math.max(max, r.total); });
+    max = Math.ceil(max);
+
+    function rowHtml(r, rank){
+      var segs = '';
+      PARTS.forEach(function(p){
+        var part = r.v[p.k];
+        if(part > 0.0005) segs += '<i style="width:' + (part / max * 100) + '%;background:' + p.c + '" title="' + p.label + ' ' + part.toFixed(2) + '"></i>';
+      });
+      var apOn = mode === 'on' && r.it.ap;
+      return '<div class="row' + (r.it.cut ? ' cut' : '') + '"><div class="rank">' + rank + '</div>'
+        + '<div class="nm"><b>' + (apOn ? '<span class="apb">같은 신청자</span>' : '') + esc(r.it.title) + '</b>'
+        + '<span>' + r.it.no + ' · ' + esc(r.it.nm) + ' · ' + r.it.days + '일 전' + (r.it.hits ? ' · 겹친 단어: ' + esc(r.it.hits) : '') + '</span></div>'
+        + '<div><div class="stack">' + segs + '</div><p class="why">' + termify(r.it.why) + '</p></div>'
+        + '<div class="total">' + (r.it.cut ? '—' : r.total.toFixed(2)) + '</div></div>';
+    }
+    var b = '';
+    kept.forEach(function(r, n){ b += rowHtml(r, n + 1); });
+    cut.forEach(function(r){ b += rowHtml(r, '제외'); });
+    b += '<div class="row axis"><div></div><div class="muted small">최종 점수 (막대 길이)</div><div class="ax"><span>0</span><span>' + (max / 2) + '</span><span>' + max + '</span></div><div></div></div>';
+    document.getElementById('board').innerHTML = b;
+    document.getElementById('insight').innerHTML = INSIGHT[mode];
+  }
+  var modeBtns = document.querySelectorAll('[data-mode]');
+  for(var m=0;m<modeBtns.length;m++){
+    modeBtns[m].onclick = function(){
+      for(var k=0;k<modeBtns.length;k++) modeBtns[k].classList.toggle('on', modeBtns[k] === this);
+      renderScore(this.getAttribute('data-mode'));
+    };
+  }
+  renderScore('on');
+
+  /* ---------- 목차 하이라이트 ---------- */
+  var links = document.querySelectorAll('#toc a');
+  var secs = [];
+  for(var l=0;l<links.length;l++) secs.push(document.querySelector(links[l].getAttribute('href')));
+  function onScroll(){
+    var cur = 0;
+    for(var i=0;i<secs.length;i++){ if(secs[i] && secs[i].getBoundingClientRect().top < 140) cur = i; }
+    for(var j=0;j<links.length;j++) links[j].classList.toggle('on', j === cur);
+  }
+  window.addEventListener('scroll', onScroll, { passive:true });
+  onScroll();
+})();
+</script>
+</body>
+</html>

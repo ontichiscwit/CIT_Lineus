@@ -18,10 +18,11 @@
 <%-- 공통 딤 : 클릭하면 열려 있는 모달을 모두 닫는다 --%>
 <div class="caws-dim" id="cawsDim" style="display:none;" onclick="caws_closeAll();"></div>
 
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 일반 이미지 첨부 전용 미리보기 뷰어로 범위 제한 --%>
 <%-- ============================================================
-     4-1. 첨부 미리보기 라이트박스 (이미지 img / PDF iframe)
-     서버 호출 없이 CRM_ATTACH_MGT.ATTACH_PATH(/upload/...) 를 직접 참조한다.
-     정적 경로가 서비스되지 않는 환경에서는 JS 의 onerror 가 안내문으로 대체한다.
+     4-1. 첨부 미리보기 라이트박스 (일반 이미지 img)
+     /comm/fileDown.do?inline=Y 로 이미지를 스트리밍하여 저장창 없이 표시한다.
+     로컬 물리파일이 없으면 서버의 운영 첨부 폴백을 사용하고, 실패 시 JS 안내문으로 대체한다.
      ============================================================ --%>
 <div class="caws-lb" id="cawsLb" style="display:none;">
   <div class="caws-mh">
@@ -38,6 +39,7 @@
     <button type="button" class="btn-s primary" onclick="caws_lbDown();">다운로드</button>
   </div>
 </div>
+<%-- [AX Lab] 수정 끝 --%>
 
 <%-- ============================================================
      4-2. AI 문장 다듬기

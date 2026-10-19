@@ -125,6 +125,19 @@ var CKW_TERM_MAX = 8;
      나왔으므로 0.5 로 고정한다. 더 올리면 우연히 같은 프로그램인 무관한 건이 올라온다. */
 var CKW_W = { rec:1.0, iq:1.5, sc:0.8, pg:0.5, sy:0.5, half:45 };
 
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 같은 A/S 신청자 가점 (최근일수록 크게)
+   가점 = w * exp(-경과일/half). 오늘 = +0.5 / 30일 +0.36 / 90일 +0.18 / 1년 +0.01.
+   같은 사람이 최근에 올린 건은 이어지는 문의(재촉·후속)일 가능성이 높다는 현업 요청으로 넣었다.
+   ★ 위 CKW_W 와 달리 정답셋으로 잰 값이 아니다. 실접수 60건 표본으로 w 별 "1위가 바뀐 건 /
+     그중 본문 근거가 약한 건" 을 쟀다: 0.3 → 1/1, 0.5 → 4/1, 0.7 → 5/2, 1.0 → 8/3.
+     1.0 에서는 "도수치료, 조회" 로 맞던 1위가 같은 신청자의 "중외" 한 단어 일치 건에 밀리는 식의
+     역전이 생겨 0.5 로 정했다. 올리면 그런 역전이 늘어난다.
+   ★ 신청자명의 약 21.6% 가 사람이 아니라 "전산실·심사과·원무과장·OO병원" 이다. 이 경우 그 병원
+     건 대부분이 같은 신청자가 되지만, 같은 창구의 문의도 이어지는 문의로 본다는 현업 판단으로 그대로 둔다.
+   ★ 이 신호만으로는 목록에 넣지 않는다(ckw_rescore 의 "근거 없음" 컷 그대로). 순서만 올린다. */
+var CKW_AP = { w:0.5, half:90 };
+/* [AX Lab] 수정 끝 */
+
 /* 직원명 사전 세션 캐시 키 */
 var CKW_EMP_KEY = 'ckw_emp_dict';
 
@@ -1034,6 +1047,18 @@ function ckw_gapDays(a, b){
 	return Math.abs(da.getTime() - db.getTime()) / 86400000;
 }
 
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 비교용 A/S 신청자 이름.
+   화면과 같은 기준(rl_apply_nm = 실제 신청자, 없으면 apply_nm = 로그인 회원명)을 쓴다.
+   "홍길동 님" / "홍길동님" / "홍길동 선생님" 을 같은 사람으로 본다. 값이 없거나 '-' 면 비교하지 않는다. */
+function ckw_applyNm(o){
+	o = o || {};
+	var s = String(ckw_nvl(o.rl_apply_nm, ckw_nvl(o.apply_nm,''))).replace(/\s+/g,'').toLowerCase();
+	s = s.replace(/(선생님|님)$/, '');
+	if(s.length < 2 || !/[가-힣a-z]/.test(s)) return '';
+	return s;
+}
+/* [AX Lab] 수정 끝 */
+
 /* 응답 목록을 토큰화해서 ckw.docs 에 담고 점수를 매긴다. */
 function ckw_rank(list){
 	var me = ckw.asNo, i, k;
@@ -1041,6 +1066,7 @@ function ckw_rank(list){
 	var myDt = ckw_nvl(vo.accept_dt, ckw_nvl(row.accept_dt,''));
 	var myIq = ckw_nvl(vo.inquiry_type, ckw_nvl(row.inquiry_type,''));
 	var mySc = ckw_nvl(vo.service_cate, ckw_nvl(row.service_cate,''));
+	var myAp = ckw_applyNm(vo) || ckw_applyNm(row);			/* [AX Lab] 2026-10-19 같은 신청자 가점 */
 
 	ckw.qset = ckw_set(ckw_tok(ckw_scoreText()));
 	ckw.docs = [];
@@ -1056,6 +1082,7 @@ function ckw_rank(list){
 		var body = ckw_nvl(it.call_content,'');
 		var norm = ckw_strip(body);							/* 표기 정규화까지 끝난 본문 (한 번만) */
 		var toks = ckw_tokOf(norm);
+		var gap  = ckw_gapDays(myDt, ckw_nvl(it.accept_dt,''));	/* [AX Lab] 2026-10-19 rec·ap 공용 */
 		ckw.docs.push({
 			it   : it,
 			no   : no,
@@ -1067,7 +1094,12 @@ function ckw_rank(list){
 			sym  : ckw_set(ckw_sympsOf(norm)),					/* 무슨 문제였나 */
 			iq   : (myIq !== '' && ckw_nvl(it.inquiry_type,'') === myIq) ? 1 : 0,
 			sc   : (mySc !== '' && ckw_nvl(it.service_cate,'') === mySc) ? 1 : 0,
-			rec  : Math.exp(-ckw_gapDays(myDt, ckw_nvl(it.accept_dt,'')) / CKW_W.half),
+			rec  : Math.exp(-gap / CKW_W.half),					/* [AX Lab] 2026-10-19 gap 변수로 (기존: 같은 식 인라인) */
+			/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 같은 A/S 신청자 + 최근일수록 큰 가점 */
+			ap   : (myAp !== '' && ckw_applyNm(it) === myAp) ? 1 : 0,
+			apRec: Math.exp(-gap / CKW_AP.half),
+			apNm : ckw_nvl(it.rl_apply_nm, ckw_nvl(it.apply_nm,'')),
+			/* [AX Lab] 수정 끝 */
 			pg   : 0,											/* 같은 프로그램/화면 (아래에서 채움) */
 			sy   : 0,											/* 같은 증상 (아래에서 채움) */
 			ref  : false
@@ -1189,7 +1221,8 @@ function ckw_rescore(){
 		            + CKW_W.iq  * d.iq
 		            + CKW_W.sc  * d.sc
 		            + CKW_W.pg  * d.pg
-		            + CKW_W.sy  * d.sy;
+		            + CKW_W.sy  * d.sy
+		            + CKW_AP.w  * d.ap * d.apRec;			/* [AX Lab] 2026-10-19 같은 신청자 가점 (최근일수록 큼) */
 
 		/* 칩 적중 수 집계 (선택 여부와 무관하게 "이 키워드가 과거에 있었나"를 보여주기 위함) */
 		for(j=0; j<ckw.chips.length; j++) if(ckw_chipHits(ckw.chips[j], d)) ckw.chips[j].hit++;
@@ -1303,6 +1336,12 @@ function ckw_chipsHtml(){
 	return s;
 }
 
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 같은 신청자 가점을 받은 건은 설명줄 앞에 이름을 붙인다 */
+function ckw_apTag(r){
+	return r.d.ap ? '같은 신청자(' + r.d.apNm + ') · ' : '';
+}
+/* [AX Lab] 수정 끝 */
+
 /* "왜 이게 위에 떴는지"를 한 줄로 설명한다. */
 function ckw_reason(r){
 	if(r.d.ref) return '문의 내용이 이 접수번호를 직접 언급했습니다';
@@ -1311,14 +1350,16 @@ function ckw_reason(r){
 	var head = [];
 	if(r.d.pg && r.place) head.push('같은 ' + r.place);
 	if(r.d.sy && r.sname) head.push(r.sname);
-	if(head.length && r.hits.length) return head.join(' · ') + ' · ' + r.hits.slice(0, 3).join(', ');
-	if(head.length) return head.join(' · ');
-	if(r.hits.length) return '일치 : ' + r.hits.join(', ');
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 각 설명 앞에 ckw_apTag(r) 추가 (기존: 같은 문구, 접두어 없음) */
+	if(head.length && r.hits.length) return ckw_apTag(r) + head.join(' · ') + ' · ' + r.hits.slice(0, 3).join(', ');
+	if(head.length) return ckw_apTag(r) + head.join(' · ');
+	if(r.hits.length) return ckw_apTag(r) + '일치 : ' + r.hits.join(', ');
 
 	var it = r.d.it;
-	if(r.d.iq) return '같은 업무분류 · ' + ckw_nvl(it.inquiry_type_nm, '소분류 동일');
-	if(r.d.sc) return '같은 시스템 · ' + ckw_nvl(it.service_cate_nm, '대분류 동일');
-	return '최근 접수';
+	if(r.d.iq) return ckw_apTag(r) + '같은 업무분류 · ' + ckw_nvl(it.inquiry_type_nm, '소분류 동일');
+	if(r.d.sc) return ckw_apTag(r) + '같은 시스템 · ' + ckw_nvl(it.service_cate_nm, '대분류 동일');
+	return ckw_apTag(r) + '최근 접수';
+	/* [AX Lab] 수정 끝 */
 }
 
 function ckw_listHtml(){
