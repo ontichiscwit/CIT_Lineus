@@ -1267,6 +1267,9 @@ function caws_lbDown(){
 /* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객 답변 작성영역 단색 SVG 아이콘 */
 var CAWS_CICO = {
 	ai:     '<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 기준 UI 도구 모음에서 AI 다듬기 취소 기능 유지 */
+	undo:   '<path d="M9 7H5V3"/><path d="M5 7c2-3 5-4 8-4 4.4 0 8 3.6 8 8s-3.6 8-8 8c-3.4 0-6.3-2.1-7.5-5"/>',
+	/* [AX Lab] 수정 끝 */
 	board:  '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/>',
 	clip:   '<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9"/>',
 	expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
@@ -1295,17 +1298,9 @@ function caws_renderCompose(){
 	+     'data-tip="한 줄로 줄이기 (작성 내용은 유지됩니다)" aria-label="한 줄로 줄이기">'+caws_cico('shrink')+'</button>'
 	+ '</div>'
 	+ '<div class="caws-cbody">'
-	+   '<div class="caws-cnote ans">이 글은 고객에게 그대로 노출됩니다.</div>'
-	+   '<div class="caws-tools">'
-	+     '<button type="button" class="btn-s" onclick="caws_openAi();" title="작성 중인 문장을 다듬습니다">AI 문장 다듬기</button>'
-	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 다듬기 결과로 교체한 뒤 1회 되돌리기 (교체 전 본문 복원) */
-	+     '<button type="button" class="btn-s caws-aiundo" id="cawsAiUndoBtn" style="display:none;" onclick="caws_aiUndo();" title="AI 문장 다듬기로 교체하기 전 내용으로 되돌립니다">다듬기 취소</button>'
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객답변 작성 UI를 53636c3 시점의 한 줄/넓게 구조로 반영 */
+	+   '<span class="caws-cbadge caws-cbadge-in caws-tip-l" data-tip="이 글은 고객에게 그대로 노출됩니다.">고객노출</span>'
 	/* [AX Lab] 수정 끝 */
-	+     '<button type="button" class="btn-s" onclick="caws_openLink();" title="본문에 게시물 링크를 삽입합니다">게시물 링크</button>'
-	/* [AX Lab] 수정 (2026-10-06 AX Lab): 고객 답변 첨부파일 개수 제한 안내 제거 */
-	+     '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다">파일 첨부</button>'
-	+     '<div class="caws-sp"></div>'
-	+   '</div>'
 	+   '<div class="caws-drop" id="cawsDrop">'
 	+     '<textarea class="caws-ta" id="cawsText" rows="1" oninput="caws_autoGrow(this);" placeholder="'+caws_composePh(open)+'"></textarea>'
 	+   '</div>'
@@ -1314,6 +1309,11 @@ function caws_renderCompose(){
 	+     '<div class="caws-tools">'
 	+       '<button type="button" class="caws-tool" onclick="caws_openAi();" data-tip="AI 문장 다듬기 – 작성 중인 문장을 다듬습니다" aria-label="AI 문장 다듬기">'
 	+         caws_cico('ai')+'<span class="caws-tlbl">AI 다듬기</span></button>'
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 최신 AI 교체 취소 기능을 기준 UI의 도구 모음에 유지 */
+	+       '<button type="button" class="caws-tool caws-aiundo" id="cawsAiUndoBtn" style="display:none;" onclick="caws_aiUndo();" '
+	+         'data-tip="AI 문장 다듬기 전 내용으로 되돌립니다" aria-label="AI 문장 다듬기 취소">'
+	+         caws_cico('undo')+'<span class="caws-tlbl">다듬기 취소</span></button>'
+	/* [AX Lab] 수정 끝 */
 	+       '<button type="button" class="caws-tool" onclick="caws_openLink();" data-tip="게시물 링크 삽입 – 공지·FAQ 등 게시물 링크를 본문에 넣습니다" aria-label="게시물 링크 삽입">'
 	+         caws_cico('board')+'<span class="caws-tlbl">게시물 링크</span></button>'
 	+       '<button type="button" class="caws-tool" onclick="caws_pickFile();" data-tip="파일 첨부 – 클릭하거나 입력창에 끌어다 놓으세요" aria-label="파일 첨부">'

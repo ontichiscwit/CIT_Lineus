@@ -1531,8 +1531,9 @@
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 처리담당자 표시 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신
-     [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(getAsInfo.do?pageType=aiPolish) 캐시 갱신 (기존 v=20261019-3) --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-4"></script>
+     [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(getAsInfo.do?pageType=aiPolish) 캐시 갱신 (기존 v=20261019-3)
+     [AX Lab] 수정 (2026-10-19 AX Lab): 고객답변 UI 기준 버전 반영 캐시 갱신 (기존 v=20261019-4) --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-5"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
