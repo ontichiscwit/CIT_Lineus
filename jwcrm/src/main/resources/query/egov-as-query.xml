@@ -3088,6 +3088,80 @@ SELECT OUT_TB3.EMP_NO,
 	]]>
 	</select>
 
+	<!-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): KPI 카드 클릭용 상세 목록.
+	     집계(getAswsKpi)와 조건을 반드시 동일하게 유지하며, kpiType은 컨트롤러 화이트리스트와 choose로 이중 제한한다. -->
+	<select id="getAswsKpiList" parameterType="map" resultType="map">
+	<![CDATA[
+	/*[egov-as-query.xml] asDAO.getAswsKpiList*/
+		SELECT
+		    A.AS_NO,
+		    A.CN_AS_NO,
+		    A.PROC_STATUS,
+		    (SELECT Z.CODE_NAME
+		       FROM CRM_CODE_DETAIL Z
+		      WHERE Z.CODE_GROUP = 'AS'
+		        AND Z.P_CODE = 'CD01'
+		        AND Z.CODE = A.PROC_STATUS) AS PROC_STATUS_NM,
+		    B.CUST_KOR_NAME,
+		    A.CALL_CONTENT,
+		    (SELECT Z.CODE_NAME
+		       FROM CRM_CODE_DETAIL Z
+		      WHERE Z.CODE_GROUP = 'AS'
+		        AND Z.P_CODE = 'CD07'
+		        AND Z.CODE = A.REQUEST_TYPE) AS REQUEST_TYPE_NM,
+		    (SELECT Z.CODE_NAME
+		       FROM CRM_CODE_DETAIL Z
+		      WHERE Z.CODE_GROUP = 'AS'
+		        AND Z.P_CODE = 'CD03'
+		        AND Z.CODE = A.SERVICE_CATE) AS SERVICE_CATE_NM,
+		    (SELECT Z.CODE_NAME
+		       FROM CRM_CODE_DETAIL Z
+		      WHERE Z.CODE_GROUP = 'AS'
+		        AND Z.P_CODE = A.SERVICE_CATE
+		        AND Z.CODE = A.INQUIRY_TYPE) AS INQUIRY_TYPE_NM,
+		    (SELECT Z.EMP_NM FROM CRM_EMP_MGT Z WHERE Z.EMP_NO = A.ASSIGN_ID) AS EMP_NM,
+		    TO_CHAR(TO_DATE(A.ACCEPT_DT, 'YYYYMMDD'), 'YYYY-MM-DD') AS ACCEPT_DT,
+		    CASE WHEN A.PROC_DT IS NOT NULL
+		         THEN TO_CHAR(TO_DATE(A.PROC_DT, 'YYYYMMDD'), 'YYYY-MM-DD') END AS PROC_DT,
+		    CASE WHEN A.COMPLETE_DT IS NOT NULL
+		         THEN TO_CHAR(TO_DATE(A.COMPLETE_DT, 'YYYYMMDD'), 'YYYY-MM-DD') END AS COMPLETE_DT
+		FROM CRM_AS_MGT A
+		LEFT OUTER JOIN CRM_CUST_MGT B ON A.CUST_CODE = B.CRM_CODE
+		WHERE (A.DEL_YN IS NULL OR A.DEL_YN = 'N')
+		  AND A.ASSIGN_ID = #{assignId, jdbcType=VARCHAR}
+	]]>
+		<choose>
+			<when test="kpiType == 'TODAY'">
+				AND A.ACCEPT_DT = TO_CHAR(SYSDATE, 'YYYYMMDD')
+			</when>
+			<when test="kpiType == 'OPEN'">
+				AND A.PROC_STATUS NOT IN ('C005', 'C006')
+			</when>
+			<when test="kpiType == 'URGENT'">
+				AND A.INPORTANCE = 'S'
+				AND A.PROC_STATUS NOT IN ('C005', 'C006')
+			</when>
+			<when test="kpiType == 'DUE_TODAY'">
+				AND A.PROC_DT = TO_CHAR(SYSDATE, 'YYYYMMDD')
+				AND A.PROC_STATUS NOT IN ('C005', 'C006')
+			</when>
+			<when test="kpiType == 'OVERDUE'">
+				AND A.PROC_DT IS NOT NULL
+				AND A.PROC_DT &lt; TO_CHAR(SYSDATE, 'YYYYMMDD')
+				AND A.PROC_STATUS NOT IN ('C005', 'C006')
+			</when>
+			<when test="kpiType == 'DONE_TODAY'">
+				AND A.PROC_STATUS = 'C005'
+				AND A.COMPLETE_DT = TO_CHAR(SYSDATE, 'YYYYMMDD')
+			</when>
+			<otherwise>
+				AND 1 = 0
+			</otherwise>
+		</choose>
+		ORDER BY A.AS_NO DESC
+	</select>
+	<!-- [AX Lab] 수정 끝 -->
+
 	<!-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): AS 통합화면(list.do) 상단 KPI 6종 집계 (나에게 배정된 건 기준) -->
 	<!--
 		KPI1: 오늘 나에게 배정된 접수 건수 (접수일=오늘)

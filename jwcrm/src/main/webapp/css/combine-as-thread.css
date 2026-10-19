@@ -281,26 +281,30 @@
  * 그대로 참조한다. 별도 API 를 만들지 않아 MenuAuthFilter 403 제약을 피한다.
  * (같은 방식의 선례: fr/videofaq/form.jsp 의 video src)
  * ========================================================================== */
-#asWorkspace .caws-files{display:flex; flex-wrap:wrap; gap:5px; margin-top:8px;}
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 상세내용의 첨부파일을 눈에 띄는 전체폭 행으로 확장 */
+#asWorkspace .caws-files{display:flex; flex-direction:column; gap:6px; margin-top:10px;}
 #asWorkspace .caws-file{
   display:inline-flex; align-items:center; gap:5px;
-  max-width:100%; padding:3px 8px; border-radius:8px;
-  border:1px solid var(--line); background:var(--surface);
-  font-size:11px; color:var(--ink-2);
+  width:100%; min-height:38px; box-sizing:border-box; padding:6px 9px; border-radius:8px;
+  border:1px solid #D5E2E8; background:#F8FBFC;
+  font-size:11.5px; color:var(--ink-2);
 }
 #asWorkspace .caws-file .caws-fext{
-  flex:0 0 auto; min-width:26px; padding:0 4px; border-radius:4px;
-  background:#E7EAEC; color:var(--ink-2);
-  font-size:9px; font-weight:700; line-height:14px; text-align:center; text-transform:uppercase;
+  flex:0 0 auto; min-width:32px; padding:0 5px; border-radius:4px;
+  background:#E5EEF2; color:#47616D;
+  font-size:9px; font-weight:700; line-height:18px; text-align:center; text-transform:uppercase;
 }
-#asWorkspace .caws-file .caws-fnm{flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-file .caws-fnm{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600;}
 #asWorkspace .caws-file .caws-fbtn{
-  flex:0 0 auto; border:none; background:none; padding:0 2px;
-  font-size:10.5px; font-weight:600; color:var(--accent);
+  flex:0 0 auto; height:25px; border:1px solid #CBD9DF; border-radius:5px; background:#fff; padding:0 8px;
+  font-size:10.5px; font-weight:600; color:var(--accent); cursor:pointer;
 }
-#asWorkspace .caws-file .caws-fbtn:hover{text-decoration:underline;}
+#asWorkspace .caws-file .caws-fbtn:hover{border-color:#91C5D5; background:#F3FAFC;}
 #asWorkspace .caws-file .caws-fbtn.dl{color:var(--ink-2);}
+#asWorkspace .caws-file .caws-fbtn.pv{border-color:#91C5D5; color:#1783A7; background:#F3FAFC;}
+#asWorkspace .caws-file .caws-fbtn.pv:hover{background:#E8F6FA;}
 #asWorkspace .caws-file .caws-fbtn[disabled]{color:var(--ink-3); cursor:default; text-decoration:none;}
+/* [AX Lab] 수정 끝 */
 
 /* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 첨부 추가·삭제 편집 영역 */
 #asWorkspace .caws-qfiles{
@@ -882,6 +886,12 @@
 #asWorkspace .caws-hfdown{
   flex-shrink:0; height:27px; color:#657781; background:#fff; border-color:#DCE4E8;
 }
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 조치이력 이미지 미리보기 버튼 */
+#asWorkspace .caws-hfpreview{
+  flex-shrink:0; height:27px; color:#1783A7; background:#F3FAFC; border-color:#91C5D5;
+}
+#asWorkspace .caws-hfpreview:hover{background:#E8F6FA;}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .caws-files-mode .caws-hfall:hover,
 #asWorkspace .caws-files-mode .caws-hfdown:hover{
   color:#1783A7; border-color:#91C5D5; background:#F3FAFC;

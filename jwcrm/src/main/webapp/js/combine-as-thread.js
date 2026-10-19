@@ -81,7 +81,9 @@ var CAWS_TR_PREFIX = '[이관] ';
 /* 파일별/요청 전체 용량 제한은 기존 multipart 설정을 그대로 적용한다. */
 /* [AX Lab] 수정 끝 */
 
-var CAWS_IMG_EXT = ['jpg','jpeg','png','gif','bmp','webp','svg'];
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 안전하게 직접 표시 가능한 일반 이미지 형식만 미리보기 */
+var CAWS_IMG_EXT = ['jpg','jpeg','png','gif','webp'];
+/* [AX Lab] 수정 끝 */
 var CAWS_PDF_EXT = ['pdf'];
 
 /* COL3 아코디언 펼침상태 저장키 (asws_restoreListWide 와 동일한 sessionStorage 패턴)
@@ -181,16 +183,17 @@ function caws_ext(nm){
 function caws_isImg(nm){ return CAWS_IMG_EXT.indexOf(caws_ext(nm)) >= 0; }
 function caws_isPdf(nm){ return CAWS_PDF_EXT.indexOf(caws_ext(nm)) >= 0; }
 
-/* 첨부 정적 URL. CRM_ATTACH_MGT.ATTACH_PATH 가 웹 상대경로(/upload/...)라 별도 API 없이 바로 참조한다.
-   (같은 방식의 선례: fr/videofaq/form.jsp 의 <video src="'+attach_path+attach_save_nm+'">)
-   경로가 환경에 따라 서비스되지 않을 수도 있어 미리보기에는 onerror 대체표시를 반드시 함께 둔다. */
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 로컬/운영 공통 이미지 inline 스트리밍 URL
+   로컬에는 운영 첨부 물리파일이 없어 /upload/** 직접 참조가 실패하므로, 기존 다운로드 URL에
+   inline=Y를 전달한다. 서버는 일반 이미지일 때만 저장창 없이 표시하고 파일이 없으면 운영 폴백을 사용한다. */
 function caws_fileUrl(f){
-	var p = caws_nvl(f.attach_path, caws_nvl(f.ATTACH_PATH,''));
-	var n = caws_nvl(f.attach_save_nm, caws_nvl(f.ATTACH_SAVE_NM,''));
-	if(p === '' || n === '') return '';
-	if(p.charAt(p.length-1) !== '/') p += '/';
-	return encodeURI(p + n);
+	var seq = caws_nvl(f.attach_seq, caws_nvl(f.ATTACH_SEQ,''));
+	var ord = caws_nvl(f.attach_ord, caws_nvl(f.ATTACH_ORD,''));
+	if(String(seq) === '' || String(seq) === '0' || String(ord) === '') return '';
+	return '/comm/fileDown.do?attach_seq='+encodeURIComponent(seq)
+	     + '&attach_ord='+encodeURIComponent(ord)+'&inline=Y';
 }
+/* [AX Lab] 수정 끝 */
 function caws_fileNm(f){ return caws_nvl(f.attach_ori_nm, caws_nvl(f.ATTACH_ORI_NM,'첨부파일')); }
 function caws_fileSeq(f){ return caws_nvl(f.attach_seq, caws_nvl(f.ATTACH_SEQ,'0')); }
 function caws_fileOrd(f){ return caws_nvl(f.attach_ord, caws_nvl(f.ATTACH_ORD,'0')); }
@@ -961,12 +964,16 @@ function caws_histFiles(seq){
 	for(var j=0; j<files.length; j++){
 		var f = files[j];
 		caws.lb.list.push({
-			nm:caws_fileNm(f), seq:caws_fileSeq(f), ord:caws_fileOrd(f)
+			nm:caws_fileNm(f), url:caws_fileUrl(f), seq:caws_fileSeq(f), ord:caws_fileOrd(f)
 		});
 		s += '<div class="caws-hfrow">'
 		  +    '<span class="caws-hfname" title="'+caws_esc(caws_fileNm(f))+'">'+caws_esc(caws_fileNm(f))+'</span>'
 		  +    '<button type="button" class="btn-s caws-hfdown" onclick="caws_histFileDown('+j+');">'
 		  +      '<span aria-hidden="true">&#8595;</span> 다운로드</button>'
+		  /* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 조치이력 이미지 첨부에 팝업 미리보기 제공 */
+		  +    (caws_isImg(caws_fileNm(f)) && caws_fileUrl(f) !== ''
+		        ? '<button type="button" class="btn-s caws-hfpreview" onclick="caws_histFilePreview('+j+');">미리보기</button>' : '')
+		  /* [AX Lab] 수정 끝 */
 		  +  '</div>';
 	}
 	s += '</div>';
@@ -997,6 +1004,11 @@ function caws_histFileDown(idx){
 	var f = caws.lb.list[idx];
 	if(f) fileDown(f.seq, f.ord);
 }
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 조치이력 첨부목록에서 선택한 이미지를 공통 뷰어로 표시 */
+function caws_histFilePreview(idx){
+	caws_openImagePreview(caws.lb.list, idx, true);
+}
+/* [AX Lab] 수정 끝 */
 function caws_histFileDownAll(){
 	for(var i=0; i<caws.lb.list.length; i++){
 		(function(f, idx){
@@ -1176,7 +1188,7 @@ function caws_linkify(text){
 function caws_filesHtml(files, evIdx){
 	if(!files || !files.length) return '';
 	var s = '<div class="caws-files">';
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부 미리보기 UI를 완전히 제거하고 다운로드만 제공 */
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 다운로드는 항상 유지하고 일반 이미지에만 팝업 미리보기 제공 */
 	for(var i=0; i<files.length; i++){
 		var f = files[i];
 		var nm = caws_fileNm(f);
@@ -1185,17 +1197,23 @@ function caws_filesHtml(files, evIdx){
 		  +    '<span class="caws-fext">'+caws_esc(ext)+'</span>'
 		  +    '<span class="caws-fnm" title="'+caws_esc(nm)+'">'+caws_esc(nm)+'</span>'
 		  +    '<button type="button" class="caws-fbtn dl" onclick="fileDown(\''+caws_fileSeq(f)+'\',\''+caws_fileOrd(f)+'\');">다운로드</button>'
+		  +    (caws_isImg(nm) && caws_fileUrl(f) !== ''
+		        ? '<button type="button" class="caws-fbtn pv" onclick="caws_preview('+evIdx+','+i+');">미리보기</button>' : '')
 		  +  '</span>';
 	}
 	/* [AX Lab] 수정 끝 */
 	return s + '</div>';
 }
 
-/* 같은 버블의 미리보기 가능한 첨부만 모아 라이트박스 목록으로 쓴다(좌우 이동 대상). */
+/* 같은 버블의 이미지 첨부만 모아 라이트박스 목록으로 쓴다(좌우 이동 대상). */
 function caws_preview(evIdx, fileIdx){
 	var ev = caws.events[evIdx];
 	if(!ev || !ev.files) return;
+	caws_openImagePreview(ev.files, fileIdx, false);
+}
 
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 문의·답변·조치이력 공통 이미지 전용 팝업 뷰어 */
+function caws_openImagePreview(files, fileIdx, normalized){
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부목록 팝업 사용 후 미리보기 모달 상태 복원 */
 	var modal = caws_el('cawsLb');
 	if(modal) modal.classList.remove('caws-files-mode');
@@ -1208,34 +1226,34 @@ function caws_preview(evIdx, fileIdx){
 	/* [AX Lab] 수정 끝 */
 
 	var list = [], start = 0;
-	for(var i=0; i<ev.files.length; i++){
-		var f = ev.files[i];
-		var nm = caws_fileNm(f);
-		if(!(caws_isImg(nm) || caws_isPdf(nm))) continue;
-		if(caws_fileUrl(f) === '') continue;
+	for(var i=0; i<files.length; i++){
+		var f = files[i];
+		var nm = normalized ? caws_nvl(f.nm,'첨부파일') : caws_fileNm(f);
+		var url = normalized ? caws_nvl(f.url,'') : caws_fileUrl(f);
+		if(!caws_isImg(nm) || url === '') continue;
 		if(i === fileIdx) start = list.length;
-		list.push({ nm:nm, url:caws_fileUrl(f), seq:caws_fileSeq(f), ord:caws_fileOrd(f) });
+		list.push({
+			nm:nm, url:url,
+			seq:normalized ? caws_nvl(f.seq,'0') : caws_fileSeq(f),
+			ord:normalized ? caws_nvl(f.ord,'0') : caws_fileOrd(f)
+		});
 	}
-	if(!list.length){ alert('미리볼 수 있는 첨부가 없습니다.'); return; }
+	if(!list.length){ alert('미리볼 수 있는 이미지가 없습니다.'); return; }
 
 	caws.lb.list = list;
 	caws.lb.idx = start;
 	caws_lbShow();
 	caws_openModal('cawsLb');
 }
+/* [AX Lab] 수정 끝 */
 
 function caws_lbShow(){
 	var it = caws.lb.list[caws.lb.idx];
 	if(!it) return;
-	var body = '';
-	if(caws_isPdf(it.nm)){
-		body = '<iframe src="'+it.url+'"></iframe>';
-	}else{
-		/* 정적 경로(/upload/...)가 서비스되지 않는 환경(업로드 물리경로가 웹루트 밖)에 대비해
-		   onerror 로 안내문으로 바꾼다. 인라인에 긴 HTML 문자열을 넣으면 따옴표 이스케이프가
-		   깨지기 쉬워 함수 호출(caws_lbFail)로 분리했다. */
-		body = '<img src="'+it.url+'" alt="'+caws_esc(it.nm)+'" onerror="caws_lbFail();" />';
-	}
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 뷰어 대상이 일반 이미지로 제한되어 img로만 출력 */
+	/* 정적 경로가 서비스되지 않는 환경에서는 onerror 안내로 대체하고 다운로드는 계속 제공한다. */
+	var body = '<img src="'+it.url+'" alt="'+caws_esc(it.nm)+'" onerror="caws_lbFail();" />';
+	/* [AX Lab] 수정 끝 */
 	caws_html('cawsLbBody', body);
 	caws_html('cawsLbNm', caws_esc(it.nm));
 	caws_html('cawsLbPos', (caws.lb.idx+1) + ' / ' + caws.lb.list.length);
@@ -1267,6 +1285,9 @@ function caws_lbDown(){
 /* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객 답변 작성영역 단색 SVG 아이콘 */
 var CAWS_CICO = {
 	ai:     '<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 기준 UI 도구 모음에서 AI 다듬기 취소 기능 유지 */
+	undo:   '<path d="M9 7H5V3"/><path d="M5 7c2-3 5-4 8-4 4.4 0 8 3.6 8 8s-3.6 8-8 8c-3.4 0-6.3-2.1-7.5-5"/>',
+	/* [AX Lab] 수정 끝 */
 	board:  '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/>',
 	clip:   '<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9"/>',
 	expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
@@ -1295,17 +1316,9 @@ function caws_renderCompose(){
 	+     'data-tip="한 줄로 줄이기 (작성 내용은 유지됩니다)" aria-label="한 줄로 줄이기">'+caws_cico('shrink')+'</button>'
 	+ '</div>'
 	+ '<div class="caws-cbody">'
-	+   '<div class="caws-cnote ans">이 글은 고객에게 그대로 노출됩니다.</div>'
-	+   '<div class="caws-tools">'
-	+     '<button type="button" class="btn-s" onclick="caws_openAi();" title="작성 중인 문장을 다듬습니다">AI 문장 다듬기</button>'
-	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 다듬기 결과로 교체한 뒤 1회 되돌리기 (교체 전 본문 복원) */
-	+     '<button type="button" class="btn-s caws-aiundo" id="cawsAiUndoBtn" style="display:none;" onclick="caws_aiUndo();" title="AI 문장 다듬기로 교체하기 전 내용으로 되돌립니다">다듬기 취소</button>'
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객답변 작성 UI를 53636c3 시점의 한 줄/넓게 구조로 반영 */
+	+   '<span class="caws-cbadge caws-cbadge-in caws-tip-l" data-tip="이 글은 고객에게 그대로 노출됩니다.">고객노출</span>'
 	/* [AX Lab] 수정 끝 */
-	+     '<button type="button" class="btn-s" onclick="caws_openLink();" title="본문에 게시물 링크를 삽입합니다">게시물 링크</button>'
-	/* [AX Lab] 수정 (2026-10-06 AX Lab): 고객 답변 첨부파일 개수 제한 안내 제거 */
-	+     '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다">파일 첨부</button>'
-	+     '<div class="caws-sp"></div>'
-	+   '</div>'
 	+   '<div class="caws-drop" id="cawsDrop">'
 	+     '<textarea class="caws-ta" id="cawsText" rows="1" oninput="caws_autoGrow(this);" placeholder="'+caws_composePh(open)+'"></textarea>'
 	+   '</div>'
@@ -1314,6 +1327,11 @@ function caws_renderCompose(){
 	+     '<div class="caws-tools">'
 	+       '<button type="button" class="caws-tool" onclick="caws_openAi();" data-tip="AI 문장 다듬기 – 작성 중인 문장을 다듬습니다" aria-label="AI 문장 다듬기">'
 	+         caws_cico('ai')+'<span class="caws-tlbl">AI 다듬기</span></button>'
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 최신 AI 교체 취소 기능을 기준 UI의 도구 모음에 유지 */
+	+       '<button type="button" class="caws-tool caws-aiundo" id="cawsAiUndoBtn" style="display:none;" onclick="caws_aiUndo();" '
+	+         'data-tip="AI 문장 다듬기 전 내용으로 되돌립니다" aria-label="AI 문장 다듬기 취소">'
+	+         caws_cico('undo')+'<span class="caws-tlbl">다듬기 취소</span></button>'
+	/* [AX Lab] 수정 끝 */
 	+       '<button type="button" class="caws-tool" onclick="caws_openLink();" data-tip="게시물 링크 삽입 – 공지·FAQ 등 게시물 링크를 본문에 넣습니다" aria-label="게시물 링크 삽입">'
 	+         caws_cico('board')+'<span class="caws-tlbl">게시물 링크</span></button>'
 	+       '<button type="button" class="caws-tool" onclick="caws_pickFile();" data-tip="파일 첨부 – 클릭하거나 입력창에 끌어다 놓으세요" aria-label="파일 첨부">'
