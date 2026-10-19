@@ -1344,15 +1344,21 @@ function caws_renderCompose(){
 
 	caws_html('asCompose', h);
 	var comp = caws_el('asCompose');
-	if(comp) comp.classList.toggle('off', !open);
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 넓게 열 때 저장된 작은 높이로 내용이 잘리지 않도록 자연 높이로 초기화 */
+	if(comp){
+		comp.style.height = '';
+		comp.classList.remove('caws-sized');
+		comp.classList.toggle('off', !open);
+	}
+	/* [AX Lab] 수정 끝 */
 	caws.cpPinLine = false;		/* [AX Lab] 2026-10-19 새로 그린 빈 입력창은 자동 넓히기 허용 */
 	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 최초 렌더링 때도 한 줄 모드 입력창 높이(32px)를 즉시 적용 */
 	var composeTa = caws_el('cawsText');
 	if(composeTa) caws_autoGrow(composeTa);
 	/* [AX Lab] 수정 끝 */
-	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 저장된 사용자 조절 높이 복원 */
+	/* [AX Lab] 삭제 (2026-10-19 AX Lab): 이전 화면의 사용자 조절 높이가 넓게 보기 내용을 자르므로 복원하지 않는다.
 	caws_composeHeightRestore();
-	/* [AX Lab] 수정 끝 */
+	*/
 	caws_bindDrop();
 	caws_renderThumbs();
 }
