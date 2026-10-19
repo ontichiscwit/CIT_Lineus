@@ -1495,6 +1495,9 @@
 <link rel="stylesheet" type="text/css" href="/css/combine-as.css?v=20261018-2" />
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): KPI 카드별 A/S 목록 팝업 스타일 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-kpi-popup.css?v=20261019-1" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): AS 목록의 현재 페이지를 굵게 강조 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-pagination.css" />
 <%-- [AX Lab] 수정 끝 --%>
@@ -1504,6 +1507,9 @@
 <script type="text/javascript" src="/js/combine-as.js?v=20261019-1"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): KPI 카드 클릭 시 해당 건 목록 팝업 표시 --%>
+<script type="text/javascript" src="/js/combine-as-kpi-popup.js?v=20261019-1"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-open-choice.css?v=20261016-1" />

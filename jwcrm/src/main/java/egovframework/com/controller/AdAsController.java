@@ -295,6 +295,27 @@ public class AdAsController {
 		List<AsVO> resultList = null ;
 		
 		UserVO adUserInfo = session.getAttribute("adUserInfo") != null ? (UserVO) session.getAttribute("adUserInfo") : null ;
+
+		// [AX Lab] 수정 시작 (2026-10-19 AX Lab): 상단 KPI 카드 클릭 시 해당 건 목록 조회
+		// 신규 URL은 MenuAuthFilter 권한 등록 없이 403이 발생하므로, 이미 허용된 getAsList.do에
+		// kpiType 모드를 추가한다. 화면값은 아래 6개 화이트리스트만 허용하고 로그인 담당건만 조회한다.
+		String kpiType = SsStringUtil.normalizeNull(request.getParameter("kpiType"));
+		if (!"".equals(kpiType)) {
+			boolean validKpiType = "TODAY".equals(kpiType) || "OPEN".equals(kpiType)
+					|| "URGENT".equals(kpiType) || "DUE_TODAY".equals(kpiType)
+					|| "OVERDUE".equals(kpiType) || "DONE_TODAY".equals(kpiType);
+			if (validKpiType && adUserInfo != null) {
+				Map<String, String> kpiParam = new HashMap<String, String>();
+				kpiParam.put("kpiType", kpiType);
+				kpiParam.put("assignId", SsStringUtil.normalizeNull(adUserInfo.getEmp_no()));
+				returnMap.put("resultList", commonDAO.list(kpiParam, "asDAO.getAswsKpiList"));
+			} else {
+				returnMap.put("resultList", new ArrayList<Object>());
+			}
+			CommonExecute.returnJson(response, returnMap);
+			return;
+		}
+		// [AX Lab] 수정 끝
 		
 		if(!"".equals(SsStringUtil.normalizeNull(vo.getSearch_start()))) vo.setSearch_start(vo.getSearch_start().replaceAll("/", "")) ;
 		if(!"".equals(SsStringUtil.normalizeNull(vo.getSearch_end()))) vo.setSearch_end(vo.getSearch_end().replaceAll("/", "")) ;
