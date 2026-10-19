@@ -79,11 +79,16 @@
 			var asNo = akpVal(row, 'AS_NO');
 			var cnAsNo = akpVal(row, 'CN_AS_NO');
 			var request = akpVal(row, 'CALL_CONTENT') || '(내용 없음)';
+			/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 기존 AS 목록과 동일한 처리상태 칩 색상 적용 */
+			var procStatus = akpVal(row, 'PROC_STATUS');
+			var statusClass = typeof window.asws_stClass === 'function'
+				? window.asws_stClass(procStatus) : '';
+			/* [AX Lab] 수정 끝 */
 			var targetDate = akpType === 'DONE_TODAY'
 				? akpVal(row, 'COMPLETE_DT') : akpVal(row, 'PROC_DT');
 			html += '<tr data-as-no="'+akpEsc(asNo)+'" data-cn-as-no="'+akpEsc(cnAsNo)+'">'
 				+ '<td class="akp-no">'+akpEsc(asNo)+'</td>'
-				+ '<td class="akp-no"><span class="akp-status">'+akpEsc(akpVal(row, 'PROC_STATUS_NM') || '-')+'</span></td>'
+				+ '<td class="akp-no"><span class="akp-status st '+akpEsc(statusClass)+'">'+akpEsc(akpVal(row, 'PROC_STATUS_NM') || '-')+'</span></td>'
 				+ '<td>'+akpEsc(akpVal(row, 'CUST_KOR_NAME') || '-')+'</td>'
 				+ '<td class="akp-request" title="'+akpEsc(request)+'"><div class="akp-request-text">'+akpEsc(request)+'</div></td>'
 				+ '<td class="akp-date">'+akpEsc(akpVal(row, 'ACCEPT_DT') || '-')+'</td>'
