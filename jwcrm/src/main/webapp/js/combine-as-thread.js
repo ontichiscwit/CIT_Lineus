@@ -67,7 +67,8 @@ var caws = {
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 문의유형별 시스템유형 필수 표시/검증용 VAL2 */
 	reqVal2: '',
 	/* [AX Lab] 수정 끝 */
-	ai:{ target:'', src:'', out:'', tone:'polite' },
+	/* [AX Lab] 수정 (2026-10-19 AX Lab): seq(요청 순번 — 늦게 온 응답 무시) · timer(경과시간 표시) · prev(교체 전 본문, 되돌리기) · meta(결과 출처) 추가 */
+	ai:{ target:'', src:'', out:'', tone:'polite', seq:0, timer:null, prev:null, meta:null },
 	/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 링크 목록/선택/페이징 상태 */
 	link:{ page:1, pageCount:0, totalCount:0, selectedNum:'', keyword:'', request:null, previewRequest:null }
 	/* [AX Lab] 수정 끝 */
@@ -1294,7 +1295,17 @@ function caws_renderCompose(){
 	+     'data-tip="한 줄로 줄이기 (작성 내용은 유지됩니다)" aria-label="한 줄로 줄이기">'+caws_cico('shrink')+'</button>'
 	+ '</div>'
 	+ '<div class="caws-cbody">'
-	+   '<span class="caws-cbadge caws-cbadge-in caws-tip-l" data-tip="이 글은 고객에게 그대로 노출됩니다.">고객노출</span>'
+	+   '<div class="caws-cnote ans">이 글은 고객에게 그대로 노출됩니다.</div>'
+	+   '<div class="caws-tools">'
+	+     '<button type="button" class="btn-s" onclick="caws_openAi();" title="작성 중인 문장을 다듬습니다">AI 문장 다듬기</button>'
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 다듬기 결과로 교체한 뒤 1회 되돌리기 (교체 전 본문 복원) */
+	+     '<button type="button" class="btn-s caws-aiundo" id="cawsAiUndoBtn" style="display:none;" onclick="caws_aiUndo();" title="AI 문장 다듬기로 교체하기 전 내용으로 되돌립니다">다듬기 취소</button>'
+	/* [AX Lab] 수정 끝 */
+	+     '<button type="button" class="btn-s" onclick="caws_openLink();" title="본문에 게시물 링크를 삽입합니다">게시물 링크</button>'
+	/* [AX Lab] 수정 (2026-10-06 AX Lab): 고객 답변 첨부파일 개수 제한 안내 제거 */
+	+     '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다">파일 첨부</button>'
+	+     '<div class="caws-sp"></div>'
+	+   '</div>'
 	+   '<div class="caws-drop" id="cawsDrop">'
 	+     '<textarea class="caws-ta" id="cawsText" rows="1" oninput="caws_autoGrow(this);" placeholder="'+caws_composePh(open)+'"></textarea>'
 	+   '</div>'
@@ -2902,6 +2913,8 @@ function caws_afterAnswer(){
 	caws.cpPinLine = false;							/* [AX Lab] 2026-10-19 새 답변은 다시 자동 넓히기 허용 */
 	if(ta){ ta.value = ''; caws_autoGrow(ta); }		/* [AX Lab] 2026-10-19 비운 뒤 입력창 높이 원복 */
 	caws_clearFiles();
+	/* [AX Lab] 수정 (2026-10-19 AX Lab): 답변 등록 후에는 AI 다듬기 되돌리기 대상이 없다 */
+	caws.ai.prev = null; var aiUndo = caws_el('cawsAiUndoBtn'); if(aiUndo) aiUndo.style.display = 'none';
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 답변 필수 경고 후 작성한 경우 접수처리정보 임시값 유지 */
 	if(caws.batch){
 		caws.answerBatchDraft = {
@@ -2964,7 +2977,15 @@ function caws_closeAll(){
 	for(var i=0; i<ms.length; i++) ms[i].style.display = 'none';
 	var dim = caws_el('cawsDim');
 	if(dim) dim.style.display = 'none';
+	/* [AX Lab] 수정 (2026-10-19 AX Lab): AI 다듬기 진행 중 닫으면 경과시간 타이머를 멈추고 늦게 올 응답을 버린다 */
+	caws_aiStopTimer(); caws.ai.seq++; caws_aiRunBtn(false);
 }
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 다듬기 모달 닫기 — 진행 중 요청 취소(응답 무시) 포함 */
+function caws_closeAi(){
+	caws_aiStopTimer(); caws.ai.seq++; caws_aiRunBtn(false);
+	caws_closeModal('cawsAi');
+}
+/* [AX Lab] 수정 끝 */
 
 /* select 옵션 만들기 (공통코드) */
 function caws_codeOptions(cg, pc, sel, placeholder){
@@ -2978,7 +2999,19 @@ function caws_codeOptions(cg, pc, sel, placeholder){
 }
 
 /* =============================================================================
- * 7) AI 문장 다듬기 모달 (★ 화면만)
+ * 7) AI 문장 다듬기 모달
+ * -----------------------------------------------------------------------------
+ * [AX Lab] 수정 (2026-10-19 AX Lab): 화면 목업 → 실제 AI 연동.
+ *   - 호출 : /ad/as/getAsInfo.do?pageType=aiPolish (text, tone, as_no) — 추천(aiRecommend)과 같은 이유로
+ *            신규 URL 대신 기존 URL + pageType 을 쓴다(MenuAuthFilter 완전일치 권한).
+ *            서버: AdAsController → CombineAsAiServiceImpl.polish → CombineAsAiClient.polish → 추천 서버 POST /api/polish
+ *            → Ollama gemma4:26b (combine-ai-server/combine_polish.py).
+ *   - 비동기 $.ajax : LLM 생성은 수 초가 걸리므로 동기 common.ajaxCall 로 화면을 멈추지 않는다.
+ *            요청 순번(caws.ai.seq)으로 늦게 온 응답·모달을 닫은 뒤 온 응답은 버린다.
+ *   - 실패(result != 000 · HTTP 오류) 는 예전 정규식 규칙(caws_aiPolishLocal)으로 조용히 대체하고 안내문에 표시한다.
+ *   - 결과는 원문과 단어 단위로 비교해 바뀐 곳을 색으로 표시한다(원문: 지워진 말, 결과: 새로 들어간 말).
+ *            이 글은 고객에게 그대로 나가므로 숫자·날짜·링크가 바뀌었는지 담당자가 바로 확인할 수 있어야 한다.
+ *   - [이 문장으로 교체] 전 본문을 caws.ai.prev 에 보관하고 작성영역 툴바 [다듬기 취소] 로 1회 되돌린다.
  * ========================================================================== */
 function caws_openAi(){
 	var ta = caws_el('cawsText');
@@ -2988,9 +3021,15 @@ function caws_openAi(){
 	}
 	caws.ai.src = src;
 	caws.ai.out = '';
+	caws.ai.meta = null;
+	caws_aiStopTimer();
 	caws_html('cawsAiSrc', caws_esc(src));
 	caws_html('cawsAiOut', '<span class="none">아래 톤을 고르고 [문장 다듬기] 를 누르세요.</span>');
+	var o = caws_el('cawsAiOut'); if(o) o.className = 'caws-aiout wait';
+	caws_aiSetNote('', 'AI가 다듬은 결과는 반드시 직접 확인 후 사용해주세요. 숫자·날짜·메뉴 경로·게시물 링크가 그대로인지 확인하세요.');
+	caws_aiSetBadge('');
 	caws_syncAiTone();
+	caws_aiRunBtn(false);
 	caws_openModal('cawsAi');
 }
 function caws_aiTone(t){ caws.ai.tone = t; caws_syncAiTone(); }
@@ -3000,53 +3039,182 @@ function caws_syncAiTone(){
 		btns[i].classList.toggle('on', btns[i].getAttribute('data-tone') === caws.ai.tone);
 	}
 }
+function caws_aiRunBtn(busy){
+	var b = caws_el('cawsAiRunBtn');
+	if(b){ b.disabled = !!busy; b.innerHTML = busy ? '다듬는 중...' : '문장 다듬기'; }
+}
+function caws_aiSetNote(cls, html){
+	var n = caws_el('cawsAiNote');
+	if(n){ n.className = 'caws-mnote caws-ainote' + (cls ? ' ' + cls : ''); n.innerHTML = html; }
+}
+function caws_aiSetBadge(kind){
+	var b = caws_el('cawsAiBadge');
+	if(!b) return;
+	if(kind === 'ai'){ b.style.display = ''; b.className = 'caws-aibadge ai'; b.innerHTML = 'AI'; }
+	else if(kind === 'local'){ b.style.display = ''; b.className = 'caws-aibadge local'; b.innerHTML = '기본 규칙'; }
+	else { b.style.display = 'none'; }
+}
+function caws_aiStopTimer(){
+	if(caws.ai.timer){ clearInterval(caws.ai.timer); caws.ai.timer = null; }
+}
 function caws_aiRun(){
+	var seq = ++caws.ai.seq;
+	var t0 = new Date().getTime();
+	caws.ai.out = '';
+	caws.ai.meta = null;
+	caws_aiRunBtn(true);
+	caws_aiSetBadge('');
+	caws_html('cawsAiSrc', caws_esc(caws.ai.src));
 	var out = caws_el('cawsAiOut');
-	if(out){ out.className = 'caws-aiout wait'; out.innerHTML = '문장을 다듬고 있습니다...'; }
-	caws_aiPolish(caws.ai.src, caws.ai.tone, function(text){
+	if(out){ out.className = 'caws-aiout wait'; out.innerHTML = '<span class="asws-spin" aria-hidden="true"></span> 문장을 다듬고 있습니다... <span id="cawsAiSec"></span>'; }
+	caws_aiStopTimer();
+	caws.ai.timer = setInterval(function(){
+		var s = caws_el('cawsAiSec');
+		if(s) s.innerHTML = '(' + Math.round((new Date().getTime() - t0) / 1000) + '초)';
+	}, 500);
+
+	caws_aiPolish(caws.ai.src, caws.ai.tone, function(text, meta){
+		/* 그 사이 다시 실행했거나 모달을 닫았으면 버린다 */
+		var m = caws_el('cawsAi');
+		if(seq !== caws.ai.seq || !m || m.style.display === 'none') return;
+		caws_aiStopTimer();
+		caws_aiRunBtn(false);
 		caws.ai.out = text;
-		var o = caws_el('cawsAiOut');
-		if(o){ o.className = 'caws-aiout'; o.innerHTML = caws_esc(text); }
+		caws.ai.meta = meta || {};
+		caws_aiRenderResult(caws.ai.src, text, caws.ai.meta);
 	});
+}
+/* 결과 표시 : 원문(지워진 말 표시) / 결과(새로 들어간 말 표시) + 출처 안내 */
+function caws_aiRenderResult(src, out, meta){
+	var d = caws_aiDiff(src, out);
+	caws_html('cawsAiSrc', d ? d.src : caws_esc(src));
+	var o = caws_el('cawsAiOut');
+	if(o){ o.className = 'caws-aiout'; o.innerHTML = d ? d.out : caws_esc(out); }
+
+	var warns = (meta && meta.warnings) ? meta.warnings : [];
+	var warnHtml = '';
+	if(warns.indexOf('link_lost') >= 0) warnHtml += '<b class="warn">게시물 링크 또는 URL 이 결과에서 빠졌습니다. 원문을 확인한 뒤 사용하세요.</b><br>';
+	if(warns.indexOf('too_long') >= 0)  warnHtml += '<b class="warn">결과가 원문보다 많이 길어졌습니다. 없던 내용이 추가되지 않았는지 확인하세요.</b><br>';
+	if(warns.indexOf('not_shorter') >= 0) warnHtml += '간결하게를 골랐지만 더 짧아지지 않았습니다.<br>';
+
+	if(meta && meta.source === 'ai'){
+		caws_aiSetBadge('ai');
+		caws_aiSetNote(warnHtml ? 'has-warn' : '', warnHtml
+			+ 'AI(' + caws_esc(caws_nvl(meta.model,'LLM')) + ')가 ' + (meta.elapsed ? (Math.round(meta.elapsed/100)/10) + '초 만에 ' : '')
+			+ '다듬은 결과입니다. <span class="caws-aidel">빨간 줄</span>은 지워진 말, <span class="caws-aiins">초록 바탕</span>은 새로 들어간 말입니다. '
+			+ '숫자·날짜·메뉴 경로·게시물 링크가 그대로인지 확인 후 사용해주세요.');
+	}else{
+		caws_aiSetBadge('local');
+		caws_aiSetNote('has-warn', 'AI 서버 응답을 받지 못해' + (meta && meta.code ? ' (' + caws_esc(meta.code) + ')' : '')
+			+ ' 브라우저 안의 기본 문장 정리 규칙으로 만든 결과입니다. 맞춤법·문맥 교정은 되지 않았으니 내용을 직접 확인해주세요. '
+			+ '<a href="javascript:void(0);" onclick="caws_aiRun();">다시 시도</a>');
+	}
 }
 function caws_aiApply(){
 	if(caws_nvl(caws.ai.out,'') === ''){ alert('먼저 [문장 다듬기] 를 실행해주세요.'); return; }
 	caws_openCompose();		/* [AX Lab] 2026-10-19 AI 결과 반영 시 넓게 모드로 보여준다 */
 	var ta = caws_el('cawsText');
-	if(ta){ ta.value = caws.ai.out; caws_autoGrow(ta); ta.focus(); }
+	if(ta){
+		caws.ai.prev = ta.value;			/* 되돌리기용 */
+		ta.value = caws.ai.out; caws_autoGrow(ta); ta.focus();
+		var u = caws_el('cawsAiUndoBtn'); if(u) u.style.display = '';
+	}
 	caws_closeModal('cawsAi');
 }
+/* [이 문장으로 교체] 전 본문으로 되돌린다. 교체 후 직접 고친 내용이 있으면 확인을 받는다. */
+function caws_aiUndo(){
+	var ta = caws_el('cawsText');
+	var u = caws_el('cawsAiUndoBtn');
+	if(!ta || caws.ai.prev == null){ if(u) u.style.display = 'none'; return; }
+	if(ta.value !== caws.ai.out && !confirm('교체 후 직접 수정한 내용이 있습니다. 다듬기 전 내용으로 되돌리면 수정한 내용은 사라집니다. 되돌릴까요?')) return;
+	ta.value = caws.ai.prev; caws_autoGrow(ta); ta.focus();
+	caws.ai.prev = null;
+	if(u) u.style.display = 'none';
+}
 
-/* ★★★ AI 호출부 격리 지점 ★★★
-   TODO: 프로젝트에 AI/LLM 연동이 도입되면 이 함수 "내부만" 교체한다.
-         (예: common.ajaxCall({text:text, tone:tone}, '<AI 엔드포인트>', '<콜백>'))
-         화면(caws_openAi / caws_aiRun / caws_aiApply)은 손대지 않아도 되도록
-         [입력 text, 톤 tone, 콜백 cb(결과문자열)] 계약만 지키면 된다.
-         ※ 신규 URL 은 MenuAuthFilter 에 걸리므로, 실제 연동 시에도 기존 URL + pageType 방식을
-           쓸지 메뉴권한(CRM_ROLE_PROG)에 URL 을 등록할지 먼저 정해야 한다.
-   지금은 서버 호출 없이 화면 확인용 목업 결과를 만든다. */
+/* ★★★ AI 호출부 ★★★
+   계약 : [입력 text, 톤 tone, 콜백 cb(결과문자열, meta)] — meta = {source:'ai'|'local', code, model, elapsed, warnings}
+   서버 응답 result 가 000 이 아니거나 HTTP 오류면 caws_aiPolishLocal 결과로 콜백한다(실패해도 결과는 항상 나온다).
+   result 키 자체가 없으면(900) CombineAsAi* Java 가 아직 컴파일/배포되지 않아 일반 getAsInfo 응답이 돌아온 것이다. */
 function caws_aiPolish(text, tone, cb){
+	var t = String(caws_nvl(text,''));
+	var done = function(out, meta){ if(typeof cb === 'function') cb(out, meta); };
+	var local = function(code){ done(caws_aiPolishLocal(t, tone), { source:'local', code:code }); };
+
+	if(t.length > 4000){ local('길이 초과'); return; }	/* 서버 상한(CombineAsAiClient.POLISH_MAX_CHARS)과 같다 */
+
+	$.ajax({
+		type:'POST', url:'/ad/as/getAsInfo.do', dataType:'json', async:true,
+		data:{ as_no:caws_nvl(caws.asNo,''), pageType:'aiPolish', text:t, tone:tone },
+		success:function(data){
+			var ok = data && String(data.result) === '000' && typeof data.text === 'string' && data.text.replace(/\s/g,'') !== '';
+			if(!ok){ local((data && data.result != null) ? String(data.result) : '900'); return; }
+			done(String(data.text), { source:'ai', model:data.model, elapsed:data.elapsed_ms, warnings:data.warnings || [] });
+		},
+		error:function(xhr){ local('HTTP ' + (xhr ? xhr.status : '')); }
+	});
+}
+
+/* 폴백 : 서버 없이 쓰는 기본 문장 정리 규칙 (2026-10-19 이전의 목업 로직).
+   [AX Lab] 수정 (2026-10-19 AX Lab): 반복 적용 시 인사말·맺음말이 겹치던 문제 수정 — 이미 있으면 붙이지 않는다. */
+function caws_aiPolishLocal(text, tone){
 	var t = String(caws_nvl(text,''));
 	var out = t;
 
 	if(tone === 'brief'){
-		/* 간결하게 : 빈 줄/중복 공백 정리 + 군더더기 표현 제거 */
-		out = t.replace(/[ \t]+/g,' ').replace(/\n{2,}/g,'\n').replace(/(그래서|그러니까|일단|좀)\s*/g,'').trim();
+		/* 간결하게 : 빈 줄/중복 공백 정리 + 군더더기 표현 제거 (단어 경계에서만) */
+		out = t.replace(/[ \t]+/g,' ').replace(/\n{2,}/g,'\n').replace(/(^|\s)(그래서|그러니까|일단|좀)(?=\s)/g,'$1').replace(/[ \t]{2,}/g,' ').trim();
 	}else if(tone === 'typo'){
-		/* 오탈자만 : 공백/문장부호 정리 (실제 교정은 AI 연동 후) */
-		out = t.replace(/[ \t]+/g,' ').replace(/\s+([.,!?])/g,'$1').replace(/([.,!?])(?=[^\s.,!?])/g,'$1 ').trim();
+		/* 오탈자만 : 공백/문장부호 정리 */
+		out = t.replace(/[ \t]+/g,' ').replace(/\s+([.,!?])/g,'$1').replace(/([.,!?])(?=[^\s.,!?\d)\]])/g,'$1 ').trim();
 	}else{
-		/* 정중하게 : 반말/구어 종결을 격식체로 바꾸고 인사말을 덧붙인다. */
+		/* 정중하게 : 반말/구어 종결을 격식체로 바꾸고, 없을 때만 인사말·맺음말을 붙인다. */
 		out = t.replace(/[ \t]+/g,' ').trim()
 		       .replace(/했어요?\./g,'하였습니다.').replace(/했어\b/g,'하였습니다')
 		       .replace(/해요\./g,'합니다.').replace(/해줘\b/g,'해주시기 바랍니다')
-		       .replace(/됐어요?\./g,'되었습니다.').replace(/줄게\b/g,'드리겠습니다')
-		       .replace(/^\s*/,'안녕하세요. 문의 주신 내용 확인하였습니다.\n\n');
-		if(!/(습니다|입니다)[.!]?\s*$/.test(out)) out += '\n\n추가로 궁금한 점이 있으시면 언제든 문의해주시기 바랍니다.';
-		else out += '\n\n추가로 궁금한 점이 있으시면 언제든 문의해주시기 바랍니다.';
+		       .replace(/됐어요?\./g,'되었습니다.').replace(/줄게\b/g,'드리겠습니다');
+		if(!/^\s*안녕하(세요|십니까)/.test(out)) out = '안녕하세요. 문의 주신 내용 확인하였습니다.\n\n' + out;
+		if(!/(문의해\s*주시기 바랍니다|문의\s*바랍니다|감사합니다)[.!]?\s*$/.test(out)) out += '\n\n추가로 궁금한 점이 있으시면 언제든 문의해주시기 바랍니다.';
 	}
+	return out;
+}
 
-	if(typeof cb === 'function') cb(out);
+/* 단어 단위 비교 (LCS). 공백·줄바꿈을 토큰으로 유지해 줄 구조를 그대로 그린다.
+   반환 {src: 원문 HTML(지워진 말 <del>), out: 결과 HTML(새 말 <ins>)} — 토큰이 너무 많으면 null(그냥 이스케이프해서 표시). */
+function caws_aiDiff(a, b){
+	var ta = caws_aiTokens(a), tb = caws_aiTokens(b);
+	if(ta.length * tb.length > 2500000) return null;		/* 약 1,500 × 1,600 토큰 상한 */
+	var n = ta.length, m = tb.length, i, j;
+	var L = new Array(n + 1);
+	for(i = 0; i <= n; i++){ L[i] = new Array(m + 1); for(j = 0; j <= m; j++) L[i][j] = 0; }
+	for(i = n - 1; i >= 0; i--){
+		for(j = m - 1; j >= 0; j--){
+			L[i][j] = (ta[i] === tb[j]) ? L[i+1][j+1] + 1 : Math.max(L[i+1][j], L[i][j+1]);
+		}
+	}
+	var sa = '', sb = '';
+	i = 0; j = 0;
+	var delBuf = '', insBuf = '';
+	var flush = function(){
+		if(delBuf !== ''){ sa += '<del class="caws-aidel">' + caws_esc(delBuf) + '</del>'; delBuf = ''; }
+		if(insBuf !== ''){ sb += '<ins class="caws-aiins">' + caws_esc(insBuf) + '</ins>'; insBuf = ''; }
+	};
+	while(i < n && j < m){
+		if(ta[i] === tb[j]){ flush(); var e = caws_esc(ta[i]); sa += e; sb += e; i++; j++; }
+		else if(L[i+1][j] >= L[i][j+1]){ delBuf += ta[i]; i++; }
+		else { insBuf += tb[j]; j++; }
+	}
+	while(i < n){ delBuf += ta[i]; i++; }
+	while(j < m){ insBuf += tb[j]; j++; }
+	flush();
+	return { src:sa, out:sb };
+}
+function caws_aiTokens(s){
+	/* 단어 / 공백 묶음 / 줄바꿈 하나 를 각각 토큰으로. 공백 토큰은 비교 시 같은 것으로 취급되도록 정규화한다. */
+	var out = [], re = /\n|[ \t]+|[^\s]+/g, m;
+	s = String(caws_nvl(s,'')).replace(/\r\n?/g,'\n');
+	while((m = re.exec(s)) !== null){ out.push(/^[ \t]+$/.test(m[0]) ? ' ' : m[0]); }
+	return out;
 }
 
 /* =============================================================================
