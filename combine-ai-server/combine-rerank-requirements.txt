@@ -1,0 +1,4 @@
+# [AX Lab] AI PC 전용 재정렬 서버 의존성. 기존 추천 서버의 경량 requirements.txt와 분리한다.
+torch>=2.1
+transformers>=4.56
+sentencepiece>=0.2

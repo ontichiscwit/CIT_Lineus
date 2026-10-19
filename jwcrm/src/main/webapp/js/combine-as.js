@@ -98,12 +98,27 @@ function asws_openDetail(asNo, cnAsNo){
 	$('#asRecord').html('<div class="none" style="padding:14px">불러오는 중...</div>');
 
 	var pt = (asws.cnAsNo!=='') ? 'subUpdate' : 'update';
+	/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 - 조회 1회로 통합.
+	   기존에는 getAsInfo.do(상세+조치이력) 와 getAwsList.do(답변) 를 각각 호출했는데,
+	   통합 타임라인은 [문의 + 답변 + 조치이력 + 이관] 을 한 배열로 머지해야 해서 두 응답이 모두 필요하다.
+	   응답이 따로 도착하면 렌더 순서에 따라 타임라인이 두 번 그려지고 정렬이 어긋난다.
+	   그래서 AdAsController.getAsInfo 응답에 awsList 를 동봉하도록 확장하고 호출을 1회로 줄였다.
+	   ※ getAwsList.do 자체는 신규답변 팝업(makeAwsList)에서 계속 쓰이므로 그대로 남겨둔다. */
 	common.ajaxCall({ as_no:asNo, cn_as_no:asws.cnAsNo, pageType:pt }, '/ad/as/getAsInfo.do', 'asws_renderDetailRecord');
-	common.ajaxCall({ as_no:asNo, page:'1' }, '/ad/as/getAwsList.do', 'asws_renderThread');
+	/* [AX Lab] 수정 끝 */
 }
 
 /* ===== COL2 상세 + COL3 처리정보 ===== */
 function asws_renderDetailRecord(data){
+	/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 렌더를 combine-as-thread.js 로 위임.
+	   COL2 는 [문의/고객답변/직원답변/조치이력/이관] 통합 타임라인 + 하단 작성영역,
+	   COL3 는 아코디언 상세정보 + 과거 상담이력으로 재구성했다(요구사항).
+	   아래 기존 코드는 combine-as-thread.js 가 로드되지 않은 경우(캐시/배포 누락)의 안전망으로 남겨둔다.
+	   ※ 통합화면 로직을 이 파일에 직접 넣지 않은 이유: 이 파일은 목록/필터/정렬/KPI 를 담당하는
+	     기존 코드라 변경 범위를 넓히면 현업이 쓰는 목록 기능까지 회귀 위험이 생긴다. */
+	if(typeof caws_renderAll === 'function'){ caws_renderAll(data); return; }
+	/* [AX Lab] 수정 끝 */
+
 	var vo  = (typeof data.resultVO != 'undefined' && data.resultVO) ? data.resultVO : {};
 	var row = asws.curRow || {};
 	var hist = (typeof data.asHistList != 'undefined' && data.asHistList) ? data.asHistList : [];
@@ -329,10 +344,17 @@ function asws_esc(s){
 var ASWS_ADV_CATALOG = [
 	{ key:'AS_NO',         label:'접수번호',      type:'keyword' },
 	{ key:'CUST',          label:'거래처명/코드', type:'cust' },
-	{ key:'EMP_NM',        label:'처리담당자명',  type:'keyword' },
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): A/S신청자 이름·연락처 검색조건 추가 */
+	{ key:'RL_APPLY_NM',    label:'A/S신청자 이름', type:'keyword' },
+	{ key:'APPLY_TEL',      label:'A/S신청자 연락처', type:'keyword' },
+	/* [AX Lab] 수정 끝 */
+	// [AX Lab] 삭제 (2026-10-18 AX Lab): 처리담당자는 기본필터로 이동
+	// { key:'ASSIGN_ID',      label:'처리담당자',    type:'assignee' },
 	{ key:'DEPT',          label:'부서명/코드',   type:'keyword' },
 	{ key:'REQUEST_TYPE',  label:'문의유형',      type:'select', cg:'AS',     pc:'CD07' },
-	{ key:'SERVICE_CATE',  label:'시스템유형',    type:'select', cg:'AS',     pc:'CD03' },
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템(대)/시스템(소) 연동 선택 */
+	{ key:'SERVICE_CATE',  label:'시스템유형',    type:'system', cg:'AS',     pc:'CD03' },
+	/* [AX Lab] 수정 끝 */
 	{ key:'CAUSE_TYPE',    label:'원인유형',      type:'select', cg:'AS',     pc:'CD05' },
 	{ key:'ACTION_TYPE',   label:'조치유형',      type:'select', cg:'AS',     pc:'CD06' },
 	{ key:'INPORTANCE',    label:'중요도',        type:'select', cg:'AS',     pc:'CD04' },
@@ -367,6 +389,173 @@ function asws_loadCodes(cg, pc){
 	return out;
 }
 
+/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 중인 AS 처리담당자 목록.
+   기존 권한 등록 URL(getAsEmpList2.do)을 재사용하고, 퇴사자는 서버 쿼리에서 제외한다. */
+var ASWS_ASSIGN_CACHE = null;
+function asws_loadAssignees(){
+	if(ASWS_ASSIGN_CACHE !== null) return ASWS_ASSIGN_CACHE;
+	var out = [];
+	try{
+		$.ajax({
+			type:'POST', url:'/ad/as/getAsEmpList2.do', dataType:'json', async:false,
+			success:function(d){
+				var l = (d && d.resultList) ? d.resultList : [];
+				for(var i=0;i<l.length;i++){
+					out.push({ id:asws_nvl(l[i].emp_no,''), name:asws_nvl(l[i].emp_nm,'') });
+				}
+			}
+		});
+	}catch(e){}
+	out.sort(function(a,b){
+		var n = a.name.localeCompare(b.name);
+		return n !== 0 ? n : a.id.localeCompare(b.id);
+	});
+	ASWS_ASSIGN_CACHE = out;
+	return out;
+}
+
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자를 기본필터로 이동하고 AS 담당자는 본인을 기본 선택
+   - 현직 ROLE_AS_MANAGER 목록(getAsEmpList2)에 로그인 사번이 있으면 최초 진입/초기화 시 본인을 선택한다.
+   - 목록에 없으면 아무도 선택하지 않아 전체 담당자를 조회한다.
+   - 검색 후 재진입 때는 서버가 돌려준 assignSelect를 우선해 사용자가 선택한 값을 보존한다. */
+var ASWS_BASE_ASSIGN = null;
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 선택한 담당자명을 우선 표시하고 칸을 넘을 때만 '첫 이름 외 n명'으로 축약 */
+function asws_baseAssignCaption(){
+	var $sel = $('#baseAssignSelect');
+	if(!$sel.length) return;
+	var $caption = $sel.closest('.SumoSelect').children('.CaptionCont').children('span');
+	if(!$caption.length) return;
+
+	var names = [];
+	$sel.find('option:selected').not(':disabled').each(function(){
+		names.push($(this).text());
+	});
+	var total = $sel.find('option').not(':disabled').length;
+	var text = names.length === 0 || names.length === total ? '전체 담당자' : names.join(', ');
+	$caption.text(text).toggleClass('placeholder', names.length === 0);
+	$caption.attr('title', text);
+
+	var caption = $caption[0];
+	if(names.length > 1 && names.length < total && caption.clientWidth > 0 && caption.scrollWidth > caption.clientWidth){
+		text = names[0]+' 외 '+(names.length-1)+'명';
+		$caption.text(text).attr('title', names.join(', '));
+	}
+}
+/* [AX Lab] 수정 끝 */
+
+function asws_baseAssignSync(){
+	var $sel = $('#baseAssignSelect');
+	if(!$sel.length) return;
+	var v = $sel.val() || [];
+	if(typeof v === 'string') v = [v];
+	$('#assignSelect').val(v.join(','));
+	if(v.length > 0 && !ASWS_ASSIGN_CLEARING) $('#search_type17').prop('checked', false);
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 선택 변경 때 담당자 캡션을 실제 너비에 맞춰 갱신 */
+	asws_baseAssignCaption();
+	/* [AX Lab] 수정 끝 */
+}
+
+function asws_baseAssignDefault(){
+	var loginNo = (typeof CAWS_LOGIN_EMP_NO !== 'undefined') ? $.trim(String(CAWS_LOGIN_EMP_NO || '')) : '';
+	if(loginNo === '') return '';
+	var emps = asws_loadAssignees();
+	for(var i=0;i<emps.length;i++){
+		if(emps[i].id === loginNo) return loginNo;
+	}
+	return '';
+}
+
+function asws_baseAssignInit(){
+	var $sel = $('#baseAssignSelect');
+	if(!$sel.length) return;
+	var emps = asws_loadAssignees();
+	var selectedCsv = $.trim(String($('#assignSelect').val() || ''));
+	if(selectedCsv === '' && typeof ASWS_IS_FIRST_ENTRY !== 'undefined' && ASWS_IS_FIRST_ENTRY){
+		selectedCsv = asws_baseAssignDefault();
+	}
+	var selected = {};
+	var selectedArr = selectedCsv.split(',');
+	for(var i=0;i<selectedArr.length;i++){
+		var id = $.trim(selectedArr[i]);
+		if(id !== '') selected[id] = true;
+	}
+	var html = '';
+	for(var j=0;j<emps.length;j++){
+		html += '<option value="'+asws_esc(emps[j].id)+'"'+(selected[emps[j].id] ? ' selected' : '')+'>'
+		     + asws_esc(emps[j].name)+'</option>';
+	}
+	$sel.html(html);
+	ASWS_BASE_ASSIGN = $sel.SumoSelect({
+		/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 플러그인의 고정 인원수 축약을 끄고 너비 기반 캡션을 사용 */
+		placeholder:'전체 담당자', csvDispCount:0, captionFormat:'{0}명 선택',
+		/* [AX Lab] 수정 끝 */
+		captionFormatAllSelected:'전체 담당자', selectAll:true, search:true,
+		searchText:'담당자 검색', noMatch:'검색 결과 없음', locale:['확인','취소','전체선택']
+	});
+	$sel.closest('.SumoSelect').addClass('base-assign-sumo');
+	$sel.on('change', asws_baseAssignSync);
+	if(ASWS_BASE_ASSIGN && ASWS_BASE_ASSIGN.sumo) ASWS_BASE_ASSIGN.sumo.setText();
+	asws_baseAssignSync();
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 화면 폭 변경 시에도 캡션 축약 여부를 다시 계산 */
+	$(window).off('resize.aswsBaseAssignCaption').on('resize.aswsBaseAssignCaption', asws_baseAssignCaption);
+	/* [AX Lab] 수정 끝 */
+}
+
+function asws_baseAssignReset(){
+	var $sel = $('#baseAssignSelect');
+	if(!$sel.length) return;
+	ASWS_ASSIGN_CLEARING = true;
+	try{
+		if($sel[0].sumo) $sel[0].sumo.unSelectAll();
+		var defaultId = asws_baseAssignDefault();
+		if(defaultId !== '' && $sel[0].sumo) $sel[0].sumo.selectItem(defaultId);
+	}finally{
+		ASWS_ASSIGN_CLEARING = false;
+	}
+	asws_baseAssignSync();
+}
+/* [AX Lab] 수정 끝 */
+
+/* SumoSelect의 실제 선택값을 검색용 CSV hidden 두 곳에 동기화한다.
+   adv_value는 검색 후 조건행 복원용, assignSelect는 MyBatis IN 조건용이다. */
+var ASWS_ASSIGN_CLEARING = false;
+function asws_assignSync($row){
+	if(!$row || !$row.length) return;
+	var v = $row.find('.adv-assign-multi').val() || [];
+	if(typeof v === 'string') v = [v];
+	var csv = v.join(',');
+	$row.find('input[name=adv_value]').val(csv);
+	$row.find('input[name=assignSelect]').val(csv);
+	if(csv !== '' && !ASWS_ASSIGN_CLEARING) $('#search_type17').prop('checked', false);
+}
+function asws_assignFlush(){
+	asws_baseAssignSync();
+	$('#advRows .adv-row').each(function(){
+		if($(this).find('.adv-field').val() === 'ASSIGN_ID') asws_assignSync($(this));
+	});
+}
+function asws_assignClear(){
+	ASWS_ASSIGN_CLEARING = true;
+	try{
+		var $base = $('#baseAssignSelect');
+		if($base.length){
+			try{ if($base[0].sumo) $base[0].sumo.unSelectAll(); }catch(e){}
+			$base.val([]);
+		}
+		$('#advRows .adv-assign-multi').each(function(){
+			try{ if(this.sumo) this.sumo.unSelectAll(); }catch(e){}
+			$(this).val([]);
+		});
+	}finally{
+		ASWS_ASSIGN_CLEARING = false;
+	}
+	$('#advRows input[name=assignSelect], #advRows .adv-row input[name=adv_value]').filter(function(){
+		return $(this).closest('.adv-row').find('.adv-field').val() === 'ASSIGN_ID';
+	}).val('');
+	$('#assignSelect').val('');
+}
+/* [AX Lab] 수정 끝 */
+
 /* YYYYMMDD -> yy/mm/dd (datepicker 표시용) */
 function asws_fmtDateInput(v){
 	v = (''+asws_nvl(v,'')).replace(/[^0-9]/g,'');
@@ -378,7 +567,7 @@ function asws_fmtDateInput(v){
    - select : 등호(=) 조건이라 같은 항목을 2개 걸면 결과가 없거나 의미가 없다.
    - cust   : 정확일치(=) 조건 + 값 UI 가 고정 id(cust_kor_name/cust_code)를 쓰는 기존 모달 콜백
               (makeCustInfo)에 의존하므로 화면에 1개만 존재해야 한다. */
-function asws_advIsSingleUse(type){ return type==='select' || type==='cust'; }
+function asws_advIsSingleUse(type){ return type==='select' || type==='cust' || type==='assignee' || type==='system'; }
 /* [AX Lab] 수정 끝 */
 
 /* 이미 사용 중인 1회성 검색구분 키 목록 (중복 방지용) */
@@ -422,6 +611,10 @@ function asws_advRenderVal($row, field, value, value2){
 	var m = asws_advMeta(field);
 	value = asws_nvl(value,''); value2 = asws_nvl(value2,'');
 
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 행의 퇴사자 옵션을 다른 값 UI로 교체하기 전에 보관 */
+	if($val.find('#advRetireWrap').length) asws_advParkRetireChk();
+	/* [AX Lab] 수정 끝 */
+
 	if(!m){
 		$val.html('<input type="hidden" name="adv_value" value=""><input type="hidden" name="adv_value2" value="">');
 		return;
@@ -438,6 +631,69 @@ function asws_advRenderVal($row, field, value, value2){
 		h += '</select><input type="hidden" name="adv_value2" value="">';
 		$val.html(h);
 		$val.find('select[name=adv_value]').val(value);
+
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템유형은 원본과 동일하게 대분류/소분류 두 선택창으로 표시.
+	   기존 검색 파라미터(search_type7/search_type8)를 재사용해 서버·쿼리 변경 없이 적용한다. */
+	}else if(m.type==='system'){
+		var parents = asws_loadCodes(m.cg, m.pc);
+		var sh = '<select class="adv-input adv-system-parent" name="search_type7" title="시스템(대) 선택">'
+		       + '<option value="">전체</option>';
+		for(var si=0;si<parents.length;si++){
+			sh += '<option value="'+asws_esc(parents[si].code)+'">'+asws_esc(parents[si].name)+'</option>';
+		}
+		sh += '</select>'
+		    + '<select class="adv-input adv-system-child" name="search_type8" title="시스템(소) 선택">'
+		    + '<option value="">전체</option></select>'
+		    + '<input type="hidden" name="adv_value" value="">'
+		    + '<input type="hidden" name="adv_value2" value="">';
+		$val.html(sh);
+		var $parent = $val.find('.adv-system-parent');
+		var $child = $val.find('.adv-system-child');
+		function fillSystemChildren(parentCode, selectedChild){
+			var children = parentCode ? asws_loadCodes('AS', parentCode) : [];
+			var ch = '<option value="">전체</option>';
+			for(var sj=0;sj<children.length;sj++){
+				ch += '<option value="'+asws_esc(children[sj].code)+'">'+asws_esc(children[sj].name)+'</option>';
+			}
+			$child.html(ch).val(selectedChild || '');
+		}
+		$parent.val(value);
+		fillSystemChildren(value, value2);
+		$parent.on('change', function(){ fillSystemChildren(this.value, ''); asws_advUpdateCount(); });
+	/* [AX Lab] 수정 끝 */
+
+	/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 재직 처리담당자 체크박스형 다중선택 */
+	}else if(m.type==='assignee'){
+		var emps = asws_loadAssignees();
+		var selected = {};
+		var selectedArr = String(value || '').split(',');
+		for(var ai=0;ai<selectedArr.length;ai++){
+			if($.trim(selectedArr[ai]) !== '') selected[$.trim(selectedArr[ai])] = true;
+		}
+		var ah = '<select class="adv-input adv-assign-multi" multiple title="처리담당자 선택">';
+		for(var aj=0;aj<emps.length;aj++){
+			var eid = emps[aj].id, enm = emps[aj].name;
+			ah += '<option value="'+asws_esc(eid)+'"'+(selected[eid] ? ' selected' : '')+'>'
+			   + asws_esc(enm)+'</option>';
+		}
+		ah += '</select>'
+		   + '<input type="hidden" name="assignSelect" value="">'
+		   + '<input type="hidden" name="adv_value" value="">'
+		   + '<input type="hidden" name="adv_value2" value="">';
+		$val.html(ah);
+		var $assign = $val.find('.adv-assign-multi');
+		var assignEl = $assign.SumoSelect({
+			placeholder:'전체 담당자', csvDispCount:3, captionFormat:'{0}명 선택',
+			captionFormatAllSelected:'전체 담당자', selectAll:true, search:true,
+			searchText:'담당자 검색', noMatch:'검색 결과 없음', locale:['확인','취소','전체선택']
+		});
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 담당자 선택창만 컴팩트 폭을 적용할 수 있도록 식별 클래스 부여 */
+		$assign.closest('.SumoSelect').addClass('adv-assign-sumo');
+		/* [AX Lab] 수정 끝 */
+		$assign.on('change', function(){ asws_assignSync($row); });
+		asws_assignSync($row);
+		if(assignEl && assignEl.sumo) assignEl.sumo.setText();
+	/* [AX Lab] 수정 끝 */
 
 	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처 조건 = 기존 거래처 조회 모달(#div1) 방식.
 	   - 직접 입력을 막고(readonly) [조회] 버튼 또는 입력칸 클릭으로 모달을 띄운다. (원본 화면과 동일)
@@ -469,25 +725,24 @@ function asws_advRenderVal($row, field, value, value2){
 	}
 }
 
-/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자만' 체크박스는 처리담당자명(EMP_NM) 조건이 있을 때만 노출.
+/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자만' 체크박스는 처리담당자(ASSIGN_ID) 조건이 있을 때만 노출.
    이 체크박스는 쿼리에서 IN_TB.RETIRE_DATE IS NOT NULL (= 처리담당자의 퇴사일이 있는 건) 으로 동작하므로
    처리담당자 조건과 함께 쓸 때만 의미가 있다. 단독으로 켜면 "퇴사자 담당 건 전체"가 나와
    사용자가 의도를 알기 어려운 조회결과가 됐다.
    → EMP_NM 행이 없으면 숨기고, 숨길 때는 체크도 해제해서 "보이지 않는 조건"이 남지 않게 한다. */
-function asws_advSyncRetireChk(){
-	var wrap = document.getElementById('advRetireWrap');
-	if(!wrap) return;
-	var hasEmp = false;
-	$('#advRows .adv-row').each(function(){
-		if($(this).find('.adv-field').val() === 'EMP_NM') hasEmp = true;
-	});
-	if(hasEmp){
-		wrap.style.display = '';
-	}else{
-		wrap.style.display = 'none';
-		$('#search_type17').prop('checked', false);
-	}
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 퇴사자 옵션을 처리담당자 선택창 우측에 고정.
+   별도 조건행 아래에 두면 조건을 추가할 때마다 화면 맨 아래로 밀리므로, ASSIGN_ID 행의 값 영역으로 옮긴다.
+   행 변경·삭제·전체 초기화 시 DOM에서 사라지지 않도록 영구 보관소(#advRetireHome)로 먼저 되돌린다. */
+function asws_advParkRetireChk(){
+	/* 처리담당자가 기본필터로 이동해 퇴사자 옵션도 기본필터 자리에 고정한다. */
 }
+
+function asws_advSyncRetireChk(){
+	var $wrap = $('#advRetireWrap');
+	if(!$wrap.length) return;
+	$wrap.css('display', 'inline-flex');
+}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 끝 */
 
 /* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 고급필터가 접혀 있어도 적용중인 조건 개수를 '고급' 칩 배지로 노출.
@@ -501,7 +756,15 @@ function asws_advUpdateCount(){
 	if(!badge) return;
 	var n = 0;
 	$('#advRows .adv-row').each(function(){
-		if(asws_nvl($(this).find('.adv-field').val(),'') !== '') n++;
+		var $row = $(this);
+		var field = asws_nvl($row.find('.adv-field').val(),'');
+		if(field === 'CUST'){
+			if(asws_nvl($row.find('#cust_kor_name').val(),'') !== '' || asws_nvl($row.find('#cust_code').val(),'') !== '') n++;
+		}else if(field === 'SERVICE_CATE'){
+			if(asws_nvl($row.find('[name=search_type7]').val(),'') !== '' || asws_nvl($row.find('[name=search_type8]').val(),'') !== '') n++;
+		}else if(asws_nvl($row.find('[name=adv_value]').val(),'') !== '' || asws_nvl($row.find('[name=adv_value2]').val(),'') !== ''){
+			n++;
+		}
 	});
 	/* [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스가 처리상태 기본 체크로 대체되어 제거됨.
 	   search_type13 은 hidden(value='N')으로만 남아 있어 고급조건 개수에서 세지 않는다.
@@ -523,12 +786,19 @@ function asws_advAddRow(field, value, value2){
 	var $del = $('<button type="button" class="adv-del" title="조건 삭제">&#8722;</button>');
 
 	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 행 추가/삭제/변경 시 '고급' 칩 배지 개수 갱신 */
-	$del.on('click', function(){ $row.remove(); asws_advRefreshFieldOptions(); asws_advUpdateCount(); });
+	$del.on('click', function(){
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 행과 함께 퇴사자 체크박스가 삭제되지 않도록 보관 */
+		if($row.find('#advRetireWrap').length) asws_advParkRetireChk();
+		/* [AX Lab] 수정 끝 */
+		$row.remove(); asws_advRefreshFieldOptions(); asws_advUpdateCount();
+	});
 	$field.on('change', function(){ asws_advRenderVal($row, this.value, '', ''); asws_advRefreshFieldOptions(); asws_advUpdateCount(); });
 
 	$row.append($field).append($val).append($del);
 	$('#advRows').append($row);
 	asws_advRenderVal($row, field, value, value2);
+	/* 값이 실제로 입력된 조건만 고급필터 배지에 집계한다. */
+	$row.on('change.aswsAdvCnt input.aswsAdvCnt', '.adv-val input, .adv-val select', asws_advUpdateCount);
 	asws_advRefreshFieldOptions();
 	asws_advUpdateCount();
 	/* [AX Lab] 수정 끝 */
@@ -536,7 +806,20 @@ function asws_advAddRow(field, value, value2){
 }
 
 /* 전체 비우기 */
-function asws_advClear(){ $('#advRows').empty(); asws_advUpdateCount(); /* [AX Lab] (2026-07-28) 배지 초기화 */ }
+function asws_advClear(){
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 동적 행 삭제 전에 퇴사자 체크박스를 영구 보관소로 이동 */
+	asws_advParkRetireChk();
+	/* [AX Lab] 수정 끝 */
+	$('#advRows').empty(); asws_advUpdateCount(); /* [AX Lab] (2026-07-28) 배지 초기화 */
+}
+
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 자주 쓰는 고급필터 기본행 */
+function asws_advAddDefaults(){
+	asws_advAddRow('CUST', '', '');
+	asws_advAddRow('REQUEST_TYPE', '', '');
+	asws_advAddRow('SERVICE_CATE', '', '');
+}
+/* [AX Lab] 수정 끝 */
 
 /* 리로드 후 저장된 고급조건 복원 (ASWS_ADV_INIT) */
 function asws_advInit(){
@@ -548,6 +831,11 @@ function asws_advInit(){
 		var m  = asws_advMeta(f);
 		var v  = asws_nvl(it.value,'');
 		var v2 = asws_nvl(it.value2,'');
+		/* 구 화면에서 저장된 처리담당자 고급조건은 새 기본필터로 승계한다. */
+		if(f === 'ASSIGN_ID'){
+			if($('#assignSelect').val() === '') $('#assignSelect').val(v);
+			continue;
+		}
 		if(m && m.type==='date'){ v = asws_fmtDateInput(v); v2 = asws_fmtDateInput(v2); }
 		asws_advAddRow(f, v, v2);
 	}
@@ -561,10 +849,29 @@ function asws_advInit(){
 		if(ciNm !== '' || ciCd !== '') asws_advAddRow('CUST', ciNm, ciCd);
 	}
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템 대/소분류 직접 파라미터 복원 */
+	var $si = $('#advSystemInit');
+	if($si.length && $('#advRows .adv-row').filter(function(){
+		return $(this).find('.adv-field').val() === 'SERVICE_CATE';
+	}).length === 0){
+		var siParent = asws_nvl($si.attr('data-parent'), '');
+		var siChild = asws_nvl($si.attr('data-child'), '');
+		if(siParent !== '' || siChild !== '') asws_advAddRow('SERVICE_CATE', siParent, siChild);
+	}
+	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 최초 고급필터에는 자주 쓰는 세 항목을 빈 기본행으로 제공 */
+	if($('#advRows .adv-row').length === 0 && typeof ASWS_IS_FIRST_ENTRY !== 'undefined' && ASWS_IS_FIRST_ENTRY){
+		asws_advAddDefaults();
+	}
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 복원 후 배지 갱신 + 체크박스형 고급조건 변경 감지
 	   (2026-07-28 수정: search_type13 은 체크박스 → hidden 으로 바뀌어 감지 대상에서 제외) */
 	asws_advUpdateCount();
-	$('#search_type17').off('change.aswsAdvCnt').on('change.aswsAdvCnt', asws_advUpdateCount);
+	$('#search_type17').off('change.aswsAdvCnt').on('change.aswsAdvCnt', function(){
+		/* 퇴사자만 조회는 재직 담당자 선택과 동시에 적용하지 않는다. */
+		if(this.checked) asws_assignClear();
+		asws_advUpdateCount();
+	});
 	/* [AX Lab] 수정 끝 */
 }
 
@@ -601,11 +908,222 @@ function asws_advRestoreOpen(isFirstEntry){
 		try{ saved = sessionStorage.getItem(ASWS_ADV_OPEN_KEY); }catch(e){}
 	}
 	var open;
-	if(saved === 'Y' || saved === 'N'){
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 최초 기본 고급필터 3행은 준비하되 패널은 기존처럼 접힌 상태 유지 */
+	if(isFirstEntry){
+		open = false;
+	}else if(saved === 'Y' || saved === 'N'){
 		open = (saved === 'Y');
 	}else{
 		open = ($('#advRows .adv-row').length > 0);	/* 저장값 없음(첫 진입 등): 복원된 조건이 있으면 펼침 */
 	}
+	/* [AX Lab] 수정 끝 */
 	if(open !== b.classList.contains('open')) asws_advToggle();
+}
+/* [AX Lab] 수정 끝 */
+
+/* =====================================================================
+ * [AX Lab] 수정 시작 (2026-07-29 AX Lab): A/S 목록 컬럼 개편 부가기능
+ *   1) 우측 가로스크롤 셀 렌더 헬퍼 (asws_cell / asws_cell_txt)
+ *   2) 헤더 클릭 정렬 (asws_sortBind / asws_sortClick / asws_sortSync / asws_sortInit)
+ *   3) 목록 넓게 보기 (asws_toggleListWide / asws_restoreListWide)
+ *   4) 문의내용 호버 전문 툴팁 (asws_tipBind / asws_tipShow / asws_tipHide)
+ * ===================================================================== */
+
+/* ---- 1) 우측 컬럼 셀 ------------------------------------------------
+   값이 비면 '-' 로 보여 빈칸과 구분하고, 잘린 값은 title 로 전체를 확인할 수 있게 한다.
+   말줄임 처리를 위해 내부 div(.ct)로 한 번 감싼다. td 에는 overflow 말줄임이 잘 먹지 않는다.
+   ※ asws_cell_txt 는 td 를 직접 만들어야 하는 칸(접수번호·담당자 등)에서 내용만 따로 쓴다. */
+function asws_cell(v){
+	return '<td class="ctxt">'+asws_cell_txt(v)+'</td>';
+}
+function asws_cell_txt(v){
+	v = asws_nvl(v, '');
+	var t = (v === '' || v === null) ? '-' : v;
+	return '<div class="ct" title="'+asws_esc(v)+'">'+asws_esc(t)+'</div>';
+}
+
+/* ---- 2) 헤더 클릭 정렬 ----------------------------------------------
+   동작: 미정렬 -> 오름(ASC) -> 내림(DESC) -> 오름 ... 순환. (해제 상태는 두지 않는다.
+         "정렬을 풀고 싶다"는 요구보다 "반대로 보고 싶다"는 요구가 압도적으로 많기 때문)
+   조회 방식: 페이지 리로드(폼 submit)가 아니라 makeListData() 의 ajax 로 다시 그린다.
+             리로드하면 고급필터 펼침/선택행/스크롤 위치가 모두 초기화되어 체감이 나쁘다.
+   ※ 정렬을 바꾸면 페이지 구성이 통째로 달라지므로 반드시 1페이지로 되돌린다.
+   ※ 서버는 sort_col 을 화이트리스트(AdAsController.AS_SORT_COLS)로 검증하므로, 여기서 보내는 키는
+     반드시 그 목록에 있어야 한다. 없으면 조용히 기본정렬(AS_NO DESC)로 처리된다. */
+function asws_sortBind(){
+	var thead = document.querySelector('#asWorkspace table.aslist thead');
+	if(!thead || thead.getAttribute('data-sortbound') === 'Y') return;
+	thead.setAttribute('data-sortbound', 'Y');
+	thead.addEventListener('click', function(e){
+		var th = e.target.closest ? e.target.closest('th.srt') : null;
+		if(!th || !thead.contains(th)) return;
+		asws_sortClick(th.getAttribute('data-sort'));
+	});
+}
+
+function asws_sortClick(key){
+	key = asws_nvl(key, '');
+	if(key === '') return;
+
+	var colEl = document.getElementById('sort_col');
+	var dirEl = document.getElementById('sort_dir');
+	if(!colEl || !dirEl) return;
+
+	// 같은 컬럼을 다시 누르면 방향만 뒤집고, 다른 컬럼이면 오름차순부터 시작한다.
+	var dir = (colEl.value === key && dirEl.value === 'ASC') ? 'DESC' : 'ASC';
+	colEl.value = key;
+	dirEl.value = dir;
+
+	var pageEl = document.getElementById('page');
+	if(pageEl) pageEl.value = '1';
+
+	/* 처리상태 멀티셀렉트는 화면 위젯(SumoSelect)의 선택값이 hidden(#procSelect)에 반영돼 있어야 필터가 유지된다.
+	   검색/페이징(list.jsp getAsList)이 하는 것과 동일한 동기화를 정렬에서도 해 준다.
+	   ※ 위젯 초기화 전에 호출될 수 있으므로 방어적으로 감싼다. 이 경우 hidden 의 기존 값이 그대로 쓰인다. */
+	try{
+		if(typeof procSelect !== 'undefined' && procSelect && procSelect.sumo){
+			var pe = document.getElementById('procSelect');
+			if(pe) pe.value = procSelect.sumo.getSelStr();
+		}
+	}catch(e){}
+
+	asws_sortSync();
+	if(typeof makeListData === 'function') makeListData();
+}
+
+/* 현재 정렬 상태를 헤더 화살표에 반영 */
+function asws_sortSync(){
+	var colEl = document.getElementById('sort_col');
+	var dirEl = document.getElementById('sort_dir');
+	var col = colEl ? asws_nvl(colEl.value, '') : '';
+	var dir = dirEl ? asws_nvl(dirEl.value, '') : '';
+
+	var ths = document.querySelectorAll('#asWorkspace table.aslist thead th.srt');
+	for(var i=0; i<ths.length; i++){
+		var th = ths[i];
+		th.classList.remove('srt-asc', 'srt-desc');
+		if(col !== '' && th.getAttribute('data-sort') === col){
+			th.classList.add(dir === 'ASC' ? 'srt-asc' : 'srt-desc');
+		}
+	}
+}
+
+/* 화면 진입/검색 리로드 직후 1회 호출 (list.jsp initForm) */
+function asws_sortInit(){
+	asws_sortBind();
+	asws_sortSync();
+}
+
+/* ---- 3) 목록 넓게 보기 ----------------------------------------------
+   COL2/COL3 을 숨겨 목록을 화면 전체폭으로 쓴다. 우측 컬럼까지 한 번에 훑을 때 사용한다.
+   검색/페이징은 폼 submit 으로 화면을 다시 그리므로 sessionStorage 로 상태를 넘긴다.
+   (고급필터 펼침상태와 동일한 방식 - ASWS_ADV_OPEN_KEY 참고) */
+var ASWS_LIST_WIDE_KEY = 'asws_list_wide';
+
+function asws_toggleListWide(){
+	var g = document.getElementById('asGrid');
+	if(!g) return;
+	var wide = g.classList.toggle('list-wide');
+
+	/* 목록이 접힌 상태에서 넓게 보기를 켜면 "전체폭인데 내용이 안 보이는" 상태가 되므로 함께 펼친다. */
+	if(wide){
+		var c1 = document.getElementById('col-c1');
+		if(c1 && c1.classList.contains('is-collapsed')) asws_toggleCol('c1');
+		/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): '상세 넓게 보기'(combine-as-thread.js)와 상호배타 처리.
+		   두 모드는 같은 #asGrid 의 grid-template-columns 를 서로 덮어쓰기 때문에 동시에 켜지면
+		   나중에 로드된 CSS(detail-wide) 가 이겨서 목록이 전체폭이 되지 않는다. */
+		if(typeof caws_toggleDetailWide === 'function' && g.classList.contains('detail-wide')) caws_toggleDetailWide();
+		/* [AX Lab] 수정 끝 */
+	}
+
+	asws_syncListWideBtn(wide);
+	try{ sessionStorage.setItem(ASWS_LIST_WIDE_KEY, wide ? 'Y' : 'N'); }catch(e){}
+}
+
+function asws_syncListWideBtn(wide){
+	var b = document.getElementById('listWideBtn');
+	if(!b) return;
+	b.classList.toggle('on', wide);
+	b.innerHTML = wide ? '\u2194 원래대로' : '\u2194 넓게 보기';
+	b.title = wide ? '3분할 화면(문의 상세 · 접수/처리 정보)으로 돌아갑니다' : '목록을 화면 전체폭으로 넓혀 우측 컬럼을 봅니다';
+}
+
+/* isFirstEntry : 메뉴로 새로 들어온 첫 진입이면 기본 3분할로 시작한다.
+   (첫 화면부터 상세 패널이 사라져 있으면 "상세가 왜 안 보이지" 하는 혼란이 생긴다) */
+function asws_restoreListWide(isFirstEntry){
+	var saved = null;
+	if(isFirstEntry){
+		try{ sessionStorage.removeItem(ASWS_LIST_WIDE_KEY); }catch(e){}
+	}else{
+		try{ saved = sessionStorage.getItem(ASWS_LIST_WIDE_KEY); }catch(e){}
+	}
+	var g = document.getElementById('asGrid');
+	if(!g) return;
+	var wide = (saved === 'Y');
+	g.classList.toggle('list-wide', wide);
+	asws_syncListWideBtn(wide);
+}
+
+/* ---- 4) 문의내용 호버 툴팁 ------------------------------------------
+   목록의 문의내용 칸은 제목 1줄 + 본문 1줄로 잘리므로, 마우스를 올리면 요청내용 전문과 조치내용을
+   합쳐 보여준다. 원문은 행 렌더 시 td[data-full] 에 실려 있다(list.jsp setAsList).
+   툴팁 요소는 body 직속에 만든다. 목록을 감싼 .tscroll 이 overflow:auto 라 그 안에 넣으면 잘린다. */
+var asws_tipEl = null;
+
+function asws_tipBind(){
+	var tb = document.getElementById('asList');
+	if(!tb || tb.getAttribute('data-tipbound') === 'Y') return;
+	tb.setAttribute('data-tipbound', 'Y');
+
+	/* mouseover/mouseout 은 버블링되므로 ajax 로 행을 다시 그려도 재바인딩이 필요 없다. */
+	tb.addEventListener('mouseover', function(e){
+		var td = e.target.closest ? e.target.closest('td[data-full]') : null;
+		if(!td || !tb.contains(td)) return;
+		if(asws_tipEl && asws_tipEl.__owner === td) return;	/* 같은 셀 안에서의 이동은 무시 */
+		asws_tipShow(td);
+	});
+	tb.addEventListener('mouseout', function(e){
+		var td = e.target.closest ? e.target.closest('td[data-full]') : null;
+		if(!td) return;
+		/* 셀 내부 자식 요소로 이동한 것뿐이라면 닫지 않는다. */
+		var to = e.relatedTarget;
+		if(to && td.contains(to)) return;
+		asws_tipHide();
+	});
+	/* 스크롤하면 좌표가 어긋나므로 그냥 닫는다. */
+	var sc = document.querySelector('#asWorkspace .tscroll');
+	if(sc) sc.addEventListener('scroll', asws_tipHide);
+	window.addEventListener('scroll', asws_tipHide, true);
+}
+
+function asws_tipShow(td){
+	var txt = asws_nvl(td.getAttribute('data-full'), '').replace(/\s+$/, '');
+	if(txt === '') return;
+
+	asws_tipHide();
+	asws_tipEl = document.createElement('div');
+	asws_tipEl.className = 'asws-tip';
+	asws_tipEl.textContent = txt;
+	asws_tipEl.__owner = td;
+	document.body.appendChild(asws_tipEl);
+
+	/* 셀 오른쪽에 붙이되, 화면 밖으로 나가면 왼쪽/위쪽으로 접어 넣는다. */
+	var r = td.getBoundingClientRect();
+	var w = asws_tipEl.offsetWidth, h = asws_tipEl.offsetHeight;
+	var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+
+	var left = r.right + 10;
+	if(left + w > vw - 8) left = Math.max(8, r.left - w - 10);
+
+	var top = r.top;
+	if(top + h > vh - 8) top = Math.max(8, vh - h - 8);
+
+	asws_tipEl.style.left = left + 'px';
+	asws_tipEl.style.top  = top + 'px';
+}
+
+function asws_tipHide(){
+	if(asws_tipEl && asws_tipEl.parentNode) asws_tipEl.parentNode.removeChild(asws_tipEl);
+	asws_tipEl = null;
 }
 /* [AX Lab] 수정 끝 */

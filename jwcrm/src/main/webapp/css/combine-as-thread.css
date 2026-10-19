@@ -1,0 +1,963 @@
+/* [AX Lab] 신규 파일 (2026-07-30): AS 통합화면 - 통합 타임라인 / 작성영역 / 아코디언 / 과거이력 / 모달 전용 스타일
+   ─────────────────────────────────────────────────────────────────────────────
+   combine-as.css 를 덮어쓰지 않고 "추가"만 하는 파일이다. 그래서 다음 두 규칙을 지킨다.
+   ① 모든 셀렉터는 #asWorkspace 하위로 스코핑한다 (기존 jw.css / 타 화면과 충돌 방지).
+      → 모달 마크업(combine-as-modal.jsp)도 반드시 #asWorkspace 안에 include 해야 스타일이 먹는다.
+   ② 클래스 접두어는 caws- (Combine As WorkSpace thread) 로 통일한다.
+      기존 combine-as.css 의 클래스(.bubble/.thread/.rgroup 등)는 건드리지 않는다.
+   색상은 combine-as.css 의 #asWorkspace CSS 변수를 그대로 쓰고, 여기서 필요한 것만 추가 정의한다.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#asWorkspace{
+  /* 이관(시스템 이벤트) 전용 색. 대화(파랑/청록)·내부기록(앰버) 어디에도 겹치지 않는 색을 골랐다. */
+  --tr:#6B4E9E; --tr-bg:#F1ECFA; --tr-line:#D9CDEE;
+}
+
+/* =============================================================================
+ * COL2 : 고정 헤더 + 액션바 + 필터탭
+ * -----------------------------------------------------------------------------
+ * COL2 의 .col-content 는 [고정헤더] / [스크롤 타임라인] / [고정 작성영역] 3단 flex 다.
+ * 헤더와 작성영역을 sticky 가 아니라 형제 요소로 둔 이유: sticky 는 스크롤 컨테이너의
+ * padding 과 물려 top 값을 음수로 보정해야 하고, 작성영역(아래쪽 고정)은 sticky 로는
+ * 스크롤 끝에서만 붙어 보인다. flex 3단이 훨씬 예측 가능하다.
+ * ========================================================================== */
+#asWorkspace .caws-fix{flex-shrink:0; border-bottom:1px solid var(--line); background:var(--surface);}
+#asWorkspace .caws-fix:empty{display:none; border-bottom:none;}
+
+
+#asWorkspace .caws-h1{display:flex; align-items:flex-start; gap:8px; padding:9px 13px 7px;}
+#asWorkspace .caws-h1 .caws-h1l{flex:1; min-width:0;}
+#asWorkspace .caws-h1 .caws-title{font-size:14px; font-weight:700; line-height:1.35; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-h1 .caws-meta{font-size:11.5px; color:var(--ink-3); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-h1 .caws-hbadge{display:flex; align-items:center; gap:5px; flex-shrink:0;}
+
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 접수번호/상태/거래처와 핵심정보를 2단 요약 카드로 표시 */
+#asWorkspace .caws-h1{align-items:center; padding:9px 13px;}
+#asWorkspace .caws-hmain{display:flex; align-items:center; gap:8px; flex:1; min-width:0;}
+#asWorkspace .caws-hno{font-size:14px; color:var(--ink); white-space:nowrap;}
+#asWorkspace .caws-hcust{font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-hcode{font-size:10px; font-weight:600; color:var(--ink-3); white-space:nowrap;}
+#asWorkspace .caws-hemp{font-size:11px; font-weight:500; color:var(--ink-3); white-space:nowrap;}
+#asWorkspace .caws-hemp b{margin-left:3px; color:var(--ink); font-weight:700;}
+#asWorkspace .caws-hinfo{
+  display:grid; grid-template-columns:1fr 1.45fr 1fr 1fr 1fr;
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+}
+#asWorkspace .caws-hi{
+  min-width:0; padding:8px 11px 9px; border-right:1px solid var(--line);
+  background:var(--surface);
+}
+#asWorkspace .caws-hi:last-child{border-right:0;}
+#asWorkspace .caws-hi > span{display:block; margin-bottom:3px; font-size:9.5px; color:var(--ink-3); white-space:nowrap;}
+#asWorkspace .caws-hi > b{
+  display:block; overflow:hidden; color:var(--ink); font-size:11.5px; font-weight:700;
+  text-overflow:ellipsis; white-space:nowrap;
+}
+#asWorkspace .caws-sms{
+  display:inline-flex; align-items:center; margin-left:4px; padding:1px 5px;
+  border:1px solid var(--line); border-radius:3px; background:var(--surface-1);
+  color:var(--ink-3); font-size:8.5px; font-style:normal; font-weight:700; vertical-align:1px;
+}
+#asWorkspace .caws-sms.on{border-color:#B9DFD1; background:#EAF7F2; color:#258263;}
+#asWorkspace .caws-headtools{display:flex; align-items:center; gap:8px; padding:7px 13px 8px;}
+#asWorkspace .caws-headtools .caws-tabs{flex:1; padding:0;}
+@media (min-width:1201px) and (max-width:1600px){
+  #asWorkspace .caws-hinfo{grid-template-columns:repeat(3,minmax(0,1fr));}
+  #asWorkspace .caws-hi:nth-child(3){border-right:0;}
+  #asWorkspace .caws-hi:nth-child(n+4){border-top:1px solid var(--line);}
+}
+@media(max-width:760px){
+  #asWorkspace .caws-hinfo{grid-template-columns:repeat(2,minmax(0,1fr));}
+  #asWorkspace .caws-hi:nth-child(2n){border-right:0;}
+  #asWorkspace .caws-hi:nth-child(n+3){border-top:1px solid var(--line);}
+  #asWorkspace .caws-h1{align-items:flex-start;}
+  #asWorkspace .caws-hmain{flex-wrap:wrap;}
+}
+/* [AX Lab] 수정 끝 */
+
+/* 액션바 : 상태변경 / 담당자 이관 / 조치내용 작성 / 전체 상세 */
+#asWorkspace .caws-acts{display:flex; align-items:center; gap:5px; padding:0 13px 8px; flex-wrap:wrap;}
+#asWorkspace .caws-acts .caws-sp{flex:1;}
+
+/* 필터탭 (전체 / 문의·답변 / 조치 / 이관) */
+#asWorkspace .caws-tabs{display:flex; align-items:center; gap:5px; padding:0 13px 8px; flex-wrap:wrap;}
+#asWorkspace .caws-tab{
+  display:inline-flex; align-items:center; gap:5px;
+  height:25px; padding:0 10px; border-radius:13px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
+  font-size:11.5px; font-weight:600; white-space:nowrap;
+}
+#asWorkspace .caws-tab:hover{border-color:var(--accent-line); color:var(--accent);}
+#asWorkspace .caws-tab b{
+  min-width:16px; height:15px; padding:0 4px; border-radius:8px;
+  background:#EEF0F3; color:var(--ink-2);
+  font-size:10px; font-weight:700; line-height:15px; text-align:center;
+}
+#asWorkspace .caws-tab.on{background:var(--navy); border-color:var(--navy); color:#fff;}
+#asWorkspace .caws-tab.on b{background:rgba(255,255,255,.22); color:#fff;}
+
+/* =============================================================================
+ * COL2 : 통합 타임라인
+ * -----------------------------------------------------------------------------
+ * 이벤트 5종을 "정렬 + 색"으로 구분한다.
+ *   문의(최초)  : 좌측 / 흰 배경 + 파란 좌측바   → 대화의 출발점
+ *   고객 답변   : 좌측 / 연파랑                  → 상대방 발화
+ *   직원 답변   : 우측 / 청록(accent)            → 우리 발화 (고객에게 노출됨)
+ *   조치이력    : 전체폭 / 앰버 + '내부용' 뱃지  → 대화가 아닌 내부 기록
+ *   이관        : 전체폭 / 얇은 보라 시스템 라인 → 대화 흐름을 끊지 않게 가볍게
+ * ========================================================================== */
+#asWorkspace .caws-tl{display:flex; flex-direction:column; gap:9px;}
+/* 'AI 추천' 블록이 타임라인 안(문의 버블 바로 아래)에 들어오면서, combine-as.css 의
+   margin-top:16px 이 flex gap(9px) 과 겹쳐 문의 버블과 사이가 너무 벌어진다. 여백은 gap 에 맡긴다. */
+#asWorkspace .caws-tl > .aiblock{margin-top:0;}
+
+/* 이벤트 래퍼 : 좌/우/전체폭 정렬만 담당 */
+#asWorkspace .caws-ev{display:flex;}
+#asWorkspace .caws-ev.al-l{justify-content:flex-start;}
+#asWorkspace .caws-ev.al-r{justify-content:flex-end;}
+#asWorkspace .caws-ev.al-c{justify-content:stretch;}
+#asWorkspace .caws-ev.al-l > .caws-bub,
+#asWorkspace .caws-ev.al-r > .caws-bub{max-width:88%;}
+#asWorkspace .caws-ev.al-c > .caws-bub{width:100%;}
+/* 탭 필터로 감출 때 */
+#asWorkspace .caws-ev.hide{display:none;}
+
+#asWorkspace .caws-bub{
+  border:1px solid var(--line); border-radius:11px; padding:9px 12px 10px;
+  background:var(--surface); min-width:0;
+}
+/* 문의(최초) */
+#asWorkspace .caws-ev.t-q > .caws-bub{border-left:4px solid var(--blue); background:var(--surface);}
+/* 고객 답변 */
+#asWorkspace .caws-ev.t-cust > .caws-bub{background:var(--blue-bg); border-color:#C8DBEF;}
+/* 직원 답변 */
+#asWorkspace .caws-ev.t-staff > .caws-bub{background:var(--accent-bg); border-color:var(--accent-line);}
+/* 조치이력 (내부용) */
+#asWorkspace .caws-ev.t-act > .caws-bub{background:var(--warn-bg); border-color:#EBDCC0;}
+
+#asWorkspace .caws-bhd{display:flex; align-items:center; gap:6px; margin-bottom:5px; flex-wrap:wrap;}
+#asWorkspace .caws-blabel{
+  display:inline-block; padding:0 7px; border-radius:9px;
+  font-size:10px; font-weight:700; line-height:16px; white-space:nowrap;
+  background:#EEF0F3; color:var(--ink-2);
+}
+#asWorkspace .caws-ev.t-q     .caws-blabel{background:var(--blue-bg); color:var(--blue);}
+#asWorkspace .caws-ev.t-cust  .caws-blabel{background:#D3E4F4; color:var(--blue);}
+#asWorkspace .caws-ev.t-staff .caws-blabel{background:#CBE4F0; color:var(--accent);}
+#asWorkspace .caws-ev.t-act   .caws-blabel{background:#F0E0BE; color:var(--warn);}
+#asWorkspace .caws-bname{font-size:12px; font-weight:700; color:var(--ink);}
+#asWorkspace .caws-btime{font-size:10.5px; color:var(--ink-3); margin-left:auto; white-space:nowrap;}
+#asWorkspace .caws-btxt{font-size:13px; color:var(--ink); line-height:1.6; white-space:pre-line; word-break:break-all;}
+#asWorkspace .caws-btxt .caws-bl{color:var(--accent); font-weight:600; text-decoration:underline; cursor:pointer;}
+
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 카드 우측 상단 AI 추천 버튼/팝오버 */
+#asWorkspace .caws-aiwrap{position:relative; display:inline-flex; flex-shrink:0;}
+#asWorkspace .caws-aibtn{
+  display:inline-flex; align-items:center; gap:4px; height:23px; padding:0 8px;
+  border:1px solid #D7CBFF; border-radius:7px; background:#F5F1FF; color:#6547C7;
+  font-size:10.5px; font-weight:700; line-height:21px; white-space:nowrap;
+}
+#asWorkspace .caws-aibtn:hover,
+#asWorkspace .caws-aiwrap.open .caws-aibtn{border-color:#B9A6F5; background:#ECE5FF;}
+#asWorkspace .caws-aiico{font-size:12px; color:#6E50D5; line-height:1;}
+#asWorkspace .caws-aibtn > b{
+  min-width:15px; height:15px; padding:0 4px; border-radius:8px;
+  background:#fff; color:#6547C7; font-size:9px; line-height:15px; text-align:center;
+}
+#asWorkspace .caws-aicaret{font-size:11px; line-height:1; transition:transform .15s ease;}
+#asWorkspace .caws-aiwrap.open .caws-aicaret{transform:rotate(180deg);}
+#asWorkspace .caws-aipop{
+  display:none; position:absolute; z-index:30; top:28px; right:0; width:285px;
+  border:1px solid #D7CBFF; border-radius:10px; background:#fff;
+  box-shadow:0 10px 28px rgba(45,35,85,.18); color:var(--ink); overflow:hidden;
+}
+#asWorkspace .caws-aiwrap.open .caws-aipop{display:block;}
+#asWorkspace .caws-aiphd{
+  display:flex; align-items:center; justify-content:space-between; padding:9px 11px;
+  border-bottom:1px solid #EAE4FB; background:#F8F5FF;
+}
+#asWorkspace .caws-aiphd strong{display:flex; align-items:center; gap:5px; font-size:11.5px;}
+#asWorkspace .caws-aiphd em{
+  padding:1px 6px; border-radius:7px; background:var(--pro-bg); color:var(--pro);
+  font-size:8.5px; font-style:normal; font-weight:700;
+}
+#asWorkspace .caws-aipitem{display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-bottom:1px solid #F0EDF7;}
+#asWorkspace .caws-aipitem:last-child{border-bottom:0;}
+#asWorkspace .caws-aipitem > i{
+  display:inline-flex; align-items:center; justify-content:center; flex:0 0 18px; height:18px;
+  border-radius:50%; background:#EEE8FF; color:#6547C7; font-size:9px; font-style:normal; font-weight:700;
+}
+#asWorkspace .caws-aipitem > span{display:block; min-width:0;}
+#asWorkspace .caws-aipitem b{display:block; margin-bottom:2px; font-size:10.5px; color:var(--ink);}
+#asWorkspace .caws-aipitem small{display:block; color:var(--ink-3); font-size:9.5px; font-weight:400; line-height:1.4;}
+/* [AX Lab] 수정 끝 */
+
+/* 조치이력 메타 (처리일자 / 처리자 / 인수자 / 처리상태 / 중요도) */
+#asWorkspace .caws-kvs{display:flex; flex-wrap:wrap; gap:4px 14px; margin-bottom:6px;}
+#asWorkspace .caws-kvs .caws-kvi{font-size:11px; color:var(--ink-3); white-space:nowrap;}
+#asWorkspace .caws-kvs .caws-kvi b{color:var(--ink); font-weight:600; margin-left:3px;}
+
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 이관 이벤트 → 조치이력 카드 통합 스타일
+   t-tr 클래스가 t-act 위에 함께 붙어, 배경은 앰버(조치)를 유지하되
+   테두리를 점선 보라로 바꾸고 라벨 배지도 보라색(이관색)으로 구별한다. */
+#asWorkspace .caws-ev.t-tr > .caws-bub{border-style:dashed; border-color:var(--tr-line);}
+#asWorkspace .caws-ev.t-tr .caws-blabel.caws-trlabel{background:var(--tr-bg); color:var(--tr);}
+/* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * [AX Lab] 수정 시작 (2026-09-30 AX Lab): 조치이력 테이블 (.caws-hist-tbl)
+ * form.jsp 의 .hType 테이블과 같은 레이아웃을 combine-as 스코프 안에서 재구현한다.
+ * 열: 처리일자 | 처리자 | 인수자 | 처리상태 | 중요도 | 작업처리의견 | [수정] | 첨부파일
+ * ========================================================================== */
+#asWorkspace .caws-hist-tbl{
+  width:100%; min-width:720px; table-layout:fixed; border-collapse:collapse;
+  font-size:11px; color:#4F565A;
+}
+#asWorkspace .caws-hist-scroll{width:100%; overflow-x:auto;}
+#asWorkspace .caws-hist-tbl th{
+  height:34px; padding:0 5px;
+  background:#849DA5; border:0;
+  font-size:11px; font-weight:700; color:#fff; text-align:center; white-space:nowrap;
+}
+#asWorkspace .caws-hist-tbl td{
+  height:35px; padding:4px 5px;
+  border:0; border-bottom:1px solid #D9DEE0;
+  vertical-align:middle; text-align:center;
+}
+/* 첨부 이미지와 같은 열 비율 */
+#asWorkspace .caws-hist-tbl .caws-hcol-date{width:130px;}
+#asWorkspace .caws-hist-tbl .caws-hcol-person{width:65px;}
+#asWorkspace .caws-hist-tbl .caws-hcol-status{width:90px;}
+#asWorkspace .caws-hist-tbl .caws-hcol-grade{width:48px;}
+#asWorkspace .caws-hist-tbl .caws-hcol-content{width:auto;}
+#asWorkspace .caws-hist-tbl .caws-hcol-edit{width:76px;}
+#asWorkspace .caws-hist-tbl .caws-hcol-file{width:110px;}
+/* 작업처리 의견은 남는 폭을 모두 사용하고 한 줄로 표시 */
+#asWorkspace .caws-hist-tbl td.caws-hcont{
+  text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#asWorkspace .caws-hist-tbl tbody tr:hover td{background:#F7FAFB;}
+/* 첨부 화면의 연한 하늘색 수정/첨부파일 버튼 */
+#asWorkspace .caws-hbtn{
+  min-width:68px; height:24px; padding:0 10px;
+  border:1px solid #B9D7E1; background:#EAF6FA; color:#1783A7;
+  font-size:11px; font-weight:700; line-height:22px; text-align:center;
+}
+#asWorkspace .caws-hbtn:hover{background:#DDF0F6; border-color:#91C5D5;}
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부파일은 아이콘과 파일 개수로 간결하게 표시 */
+#asWorkspace .caws-hattach{
+  display:inline-flex; align-items:center; justify-content:center; gap:4px;
+  min-width:43px; height:25px; padding:0 8px;
+  border:1px solid #D7E0E4; border-radius:6px;
+  background:#fff; color:#6B7B84; font-size:11px; font-weight:700;
+}
+#asWorkspace .caws-hattach:hover{border-color:#91C5D5; background:#F3FAFC; color:#1783A7;}
+#asWorkspace .caws-hattach .caws-clip{font-size:12px; line-height:1;}
+/* [AX Lab] 수정 끝 */
+/* 조치이력 테이블 감싸는 .caws-ev 에서 기본 버블 여백 없애고 테이블을 전체 폭으로 */
+#asWorkspace .caws-ev.al-c > .caws-hist-scroll{width:100%;}
+/* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * [AX Lab] 수정 시작 (2026-09-30 AX Lab): 문의+AI추천 영역과 조치이력/답변 구분선
+ * 문의 버블 + AI 추천 블록이 끝난 뒤, 첫 번째 조치/답변 이벤트 앞에 가로 구분선을 표시한다.
+ * ========================================================================== */
+#asWorkspace .caws-tl-sep{
+  display:flex; align-items:center; gap:8px;
+  margin:6px 0 2px;
+  font-size:10.5px; font-weight:700; color:var(--ink-3); letter-spacing:.04em;
+}
+#asWorkspace .caws-tl-sep:before,
+#asWorkspace .caws-tl-sep:after{
+  content:''; flex:1; height:1px; background:var(--line);
+}
+#asWorkspace .caws-tl-sep span{white-space:nowrap; flex-shrink:0; padding:0 4px;}
+/* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * 첨부파일 chip (버블 공용)
+ * -----------------------------------------------------------------------------
+ * 미리보기는 CRM_ATTACH_MGT 의 ATTACH_PATH(웹 상대경로 /upload/...) + ATTACH_SAVE_NM 을
+ * 그대로 참조한다. 별도 API 를 만들지 않아 MenuAuthFilter 403 제약을 피한다.
+ * (같은 방식의 선례: fr/videofaq/form.jsp 의 video src)
+ * ========================================================================== */
+#asWorkspace .caws-files{display:flex; flex-wrap:wrap; gap:5px; margin-top:8px;}
+#asWorkspace .caws-file{
+  display:inline-flex; align-items:center; gap:5px;
+  max-width:100%; padding:3px 8px; border-radius:8px;
+  border:1px solid var(--line); background:var(--surface);
+  font-size:11px; color:var(--ink-2);
+}
+#asWorkspace .caws-file .caws-fext{
+  flex:0 0 auto; min-width:26px; padding:0 4px; border-radius:4px;
+  background:#E7EAEC; color:var(--ink-2);
+  font-size:9px; font-weight:700; line-height:14px; text-align:center; text-transform:uppercase;
+}
+#asWorkspace .caws-file .caws-fnm{flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-file .caws-fbtn{
+  flex:0 0 auto; border:none; background:none; padding:0 2px;
+  font-size:10.5px; font-weight:600; color:var(--accent);
+}
+#asWorkspace .caws-file .caws-fbtn:hover{text-decoration:underline;}
+#asWorkspace .caws-file .caws-fbtn.dl{color:var(--ink-2);}
+#asWorkspace .caws-file .caws-fbtn[disabled]{color:var(--ink-3); cursor:default; text-decoration:none;}
+
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의 첨부 추가·삭제 편집 영역 */
+#asWorkspace .caws-qfiles{
+  margin-top:8px; padding:8px 9px; border:1px solid var(--line); border-radius:8px;
+  background:var(--surface-1);
+}
+#asWorkspace .caws-qfiles-h{display:flex; align-items:center; gap:8px; margin-bottom:6px;}
+#asWorkspace .caws-qfiles-h strong{font-size:11px; color:var(--ink-2);}
+#asWorkspace .caws-qfiles-h .caws-minib{margin-left:auto;}
+#asWorkspace .caws-qfiles-old{display:flex; flex-direction:column; gap:4px; margin-bottom:6px;}
+#asWorkspace .caws-qfiles-old label{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-2); cursor:pointer;}
+#asWorkspace .caws-qfiles-old label span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-qfiles-old label em{margin-left:auto; color:var(--red); font-size:10px; font-style:normal;}
+#asWorkspace .caws-qfiles-new{display:flex; flex-direction:column; gap:4px;}
+#asWorkspace .caws-qfile-new{display:flex; align-items:center; gap:5px;}
+#asWorkspace .caws-qfile-new input[type=file]{min-width:0; flex:1; font-size:11px;}
+#asWorkspace .caws-qfiles > .caws-mnote{margin-top:6px;}
+/* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * COL2 : 하단 고정 작성영역
+ * -----------------------------------------------------------------------------
+ * "고객에게 보이는 글(답변)" 과 "내부 기록(조치)" 을 탭으로 물리적으로 분리해 오발신을 막는다.
+ * 탭 색이 곧 타임라인 버블 색과 같아서(청록 / 앰버) 어디에 쓰이는 글인지 바로 읽힌다.
+ * ========================================================================== */
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 위쪽 경계 드래그 높이 조절 */
+#asWorkspace .caws-comp{
+  position:relative; flex-shrink:0;
+  border-top:1px solid var(--line); background:var(--surface-1);
+}
+#asWorkspace .caws-cresize{
+  position:absolute; z-index:6; top:-6px; left:0; right:0; height:12px;
+  cursor:row-resize;
+}
+#asWorkspace .caws-cresize:before{
+  content:''; position:absolute; top:4px; left:50%; width:52px; height:3px;
+  margin-left:-26px; border-radius:2px; background:var(--line);
+  transition:background .12s;
+}
+#asWorkspace .caws-cresize:hover:before,
+#asWorkspace .caws-cresize.on:before{background:var(--accent);}
+#asWorkspace .caws-comp.caws-sized{display:flex; flex-direction:column; min-height:110px;}
+#asWorkspace .caws-comp.caws-sized .caws-ctabs{flex-shrink:0;}
+#asWorkspace .caws-comp.caws-sized .caws-cbody{flex:1; min-height:0; overflow-y:auto;}
+#asWorkspace .caws-comp.caws-resizing{user-select:none;}
+/* 접으면 저장된 인라인 높이를 잠시 무시하고 탭 한 줄만 남긴다. 다시 펼치면 조절 높이가 복원된다. */
+#asWorkspace .caws-comp.off{height:auto !important;}
+#asWorkspace .caws-comp.off .caws-cresize{display:none;}
+/* [AX Lab] 수정 끝 */
+#asWorkspace .caws-comp:empty{display:none; border-top:none;}
+#asWorkspace .caws-ctabs{display:flex; align-items:center; gap:0; padding:0 10px; border-bottom:1px solid var(--line);}
+#asWorkspace .caws-ctab{
+  height:30px; padding:0 12px; border:none; background:none;
+  font-size:12px; font-weight:700; color:var(--ink-3);
+  border-bottom:2px solid transparent;
+}
+#asWorkspace .caws-ctab:hover{color:var(--ink-2);}
+#asWorkspace .caws-ctab.on{color:var(--accent); border-bottom-color:var(--accent);}
+#asWorkspace .caws-ctab.on.act{color:var(--warn); border-bottom-color:var(--warn);}
+
+/* 작성영역 접기/펼치기.
+   -----------------------------------------------------------------------------
+   이 영역은 flex-shrink:0 인 고정 3단 레이아웃의 아래칸이라, 펼쳐진 상태(약 190px)로는
+   가운데 타임라인이 그만큼 잘려 대화 흐름을 놓친다. 그래서 기본은 탭 줄(31px)만 남기고
+   접어 두고, 쓸 때만 펼친다. 접힘여부는 sessionStorage 에 저장한다.
+   ★ 접힘 토글은 innerHTML 을 다시 만들지 않고 이 클래스만 바꾼다.
+     다시 그리면 작성 중이던 textarea 내용과 첨부 썸네일이 날아간다. (caws_toggleCompose 주석 참고) */
+#asWorkspace .caws-comp.off .caws-cbody{display:none;}
+#asWorkspace .caws-ctabs .caws-sp{flex:1;}
+#asWorkspace .caws-cfold{
+  display:inline-flex; align-items:center; gap:5px;
+  height:22px; padding:0 9px; border-radius:11px; margin-left:6px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
+  font-size:11px; font-weight:600; white-space:nowrap;
+}
+#asWorkspace .caws-cfold:hover{border-color:var(--accent-line); color:var(--accent);}
+#asWorkspace .caws-cfold .caws-cchev{font-size:10px; line-height:1; transition:transform .15s;}
+/* 접힘 상태에서는 화살표를 위로 돌려 "여기를 누르면 올라온다"를 표시 */
+#asWorkspace .caws-comp.off .caws-cfold .caws-cchev{transform:rotate(180deg);}
+/* 접혀 있는데 작성 중이던 글/첨부가 있으면 잊지 않도록 탭 줄에 표시한다 */
+#asWorkspace .caws-cdraft{
+  display:none; padding:0 8px; border-radius:10px; margin-left:6px;
+  background:var(--warn-bg); color:var(--warn);
+  font-size:10px; font-weight:700; line-height:18px; white-space:nowrap;
+}
+#asWorkspace .caws-comp.off .caws-cdraft.show{display:inline-block;}
+
+#asWorkspace .caws-cbody{padding:8px 11px 10px;}
+#asWorkspace .caws-cnote{font-size:10.5px; font-weight:600; margin-bottom:6px;}
+#asWorkspace .caws-cnote.ans{color:var(--accent);}
+#asWorkspace .caws-cnote.act{color:var(--warn);}
+
+#asWorkspace .caws-tools{display:flex; align-items:center; gap:4px; margin-bottom:6px; flex-wrap:wrap;}
+#asWorkspace .caws-tools .caws-sp{flex:1;}
+
+/* textarea 전체가 drop 타깃 */
+#asWorkspace .caws-drop{position:relative; border:1px solid var(--line); border-radius:9px; background:var(--surface); overflow:hidden;}
+#asWorkspace .caws-drop.on{border-color:var(--accent); border-style:dashed; background:var(--accent-bg);}
+#asWorkspace .caws-drop.on:after{
+  content:'여기에 놓으면 첨부됩니다';
+  position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+  text-align:center; font-size:12px; font-weight:700; color:var(--accent); pointer-events:none;
+}
+/* 펼쳤을 때도 타임라인을 최대한 남기려고 min-height 를 2줄(52px)로 잡았다.
+   길게 쓸 때는 입력에 따라 caws_autoGrow() 가 max-height(200px)까지 늘린다. */
+#asWorkspace .caws-ta{
+  width:100%; display:block; border:none; outline:none; resize:vertical;
+  min-height:52px; max-height:200px; padding:8px 11px;
+  font-size:13px; line-height:1.6; color:var(--ink); background:transparent;
+  overflow-y:auto;
+}
+
+/* 전송 전 첨부 썸네일 */
+#asWorkspace .caws-thumbs{display:flex; flex-wrap:wrap; gap:6px; margin-top:7px;}
+#asWorkspace .caws-thumbs:empty{display:none;}
+#asWorkspace .caws-thumb{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 6px 4px 4px; border:1px solid var(--line); border-radius:8px; background:var(--surface);
+  font-size:11px; color:var(--ink-2); max-width:220px;
+}
+#asWorkspace .caws-thumb img{width:26px; height:26px; border-radius:5px; object-fit:cover; flex:0 0 auto; background:var(--surface-1);}
+#asWorkspace .caws-thumb .caws-tico{
+  width:26px; height:26px; border-radius:5px; flex:0 0 auto;
+  background:#E7EAEC; color:var(--ink-2);
+  font-size:9px; font-weight:700; line-height:26px; text-align:center; text-transform:uppercase;
+}
+#asWorkspace .caws-thumb .caws-tnm{flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-thumb .caws-tdel{
+  flex:0 0 auto; width:17px; height:17px; border-radius:50%;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-3);
+  font-size:11px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+#asWorkspace .caws-thumb .caws-tdel:hover{border-color:var(--red); color:var(--red);}
+
+/* =============================================================================
+ * COL3 처리 패널 (편집 버튼 / 인라인 폼)
+ * - '처리' 탭이 COL2 작성영역에서 COL3 처리상태사항 섹션으로 이동됨.
+ * ========================================================================== */
+/* COL3 읽기모드 편집 버튼 */
+#asWorkspace .caws-rec3btn{margin-left:auto;}
+
+/* COL3 편집폼 래퍼 — accb 의 패딩 안에서 자연스럽게 보이도록 여백만 맞춘다 */
+#asWorkspace .caws-rec3form{padding-top:4px;}
+
+/* =============================================================================
+ * 처리 패널 공통 : 처리상태 · 처리예정일 · 담당자 · 조치메모를 한 폼에 배치
+ * (COL2 처리 탭에서 COL3 처리 패널로 위치를 옮겼고, 스타일은 동일하게 재사용)
+ * ========================================================================== */
+#asWorkspace .caws-actbody{padding:8px 11px 10px;}
+#asWorkspace .caws-actrow{display:flex; gap:8px; margin-bottom:6px; flex-wrap:wrap;}
+#asWorkspace .caws-actrow .caws-actfld{flex:1; min-width:0;}
+#asWorkspace .caws-actfld{margin-bottom:6px;}
+#asWorkspace .caws-actfld.caws-actmemo{margin-bottom:0;}
+#asWorkspace .caws-aclb{
+  display:block; font-size:10.5px; font-weight:600; color:var(--ink-2); margin-bottom:3px;
+}
+/* 현재/선택된 담당자 이름 칩 */
+#asWorkspace .caws-actselnm{
+  display:inline-block; margin-left:6px; padding:1px 8px; border-radius:10px;
+  background:var(--accent-bg); color:var(--accent); font-size:10px; font-weight:700;
+}
+#asWorkspace .caws-acsel{
+  width:100%; height:30px; border:1px solid var(--line); border-radius:7px;
+  background:var(--surface); color:var(--ink); font-size:12px; padding:0 8px;
+}
+#asWorkspace .caws-acdt{
+  width:100%; height:30px; border:1px solid var(--line); border-radius:7px;
+  background:var(--surface); color:var(--ink); font-size:12px; padding:0 8px;
+}
+/* 담당자 검색 입력 */
+#asWorkspace .caws-actemp .caws-emplist{max-height:96px; overflow-y:auto; margin-top:4px;}
+#asWorkspace .caws-acempkw{
+  width:100%; height:28px; border:1px solid var(--line); border-radius:7px;
+  background:var(--surface); color:var(--ink); font-size:12px; padding:0 8px;
+  box-sizing:border-box;
+}
+
+#asWorkspace .caws-cbar{display:flex; align-items:center; gap:8px; margin-top:8px;}
+#asWorkspace .caws-cbar .caws-chint{font-size:10.5px; color:var(--ink-3);}
+#asWorkspace .caws-send{
+  margin-left:auto; border:none; border-radius:8px; padding:7px 18px;
+  background:var(--accent); color:#fff; font-size:12.5px; font-weight:700;
+}
+#asWorkspace .caws-send:hover{background:#155f7d;}
+#asWorkspace .caws-send.act{background:var(--warn);}
+#asWorkspace .caws-send.act:hover{background:#935c08;}
+
+/* =============================================================================
+ * COL3 : 아코디언 상세정보
+ * ========================================================================== */
+#asWorkspace .caws-acc{border:1px solid var(--line); border-radius:10px; margin-bottom:8px; overflow:hidden; background:var(--surface);}
+#asWorkspace .caws-acch{
+  display:flex; align-items:center; gap:6px; width:100%;
+  padding:8px 10px; border:none; background:var(--surface-1);
+  font-size:12px; font-weight:700; color:var(--ink); text-align:left;
+}
+#asWorkspace .caws-acch:hover{background:#EBEFF1;}
+#asWorkspace .caws-acch .caws-achev{font-size:11px; color:var(--ink-3); transition:transform .15s; flex-shrink:0; line-height:1;}
+#asWorkspace .caws-acch .caws-asum{margin-left:auto; font-size:10.5px; font-weight:500; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:52%;}
+#asWorkspace .caws-accb{padding:8px 10px 9px; border-top:1px solid var(--line);}
+/* 접힘 : 화살표를 -90도 회전(▶)하고 본문을 감춘다 */
+#asWorkspace .caws-acc.off .caws-accb{display:none;}
+#asWorkspace .caws-acc.off .caws-achev{transform:rotate(-90deg);}
+#asWorkspace .caws-acc.off .caws-acch{background:var(--surface);}
+
+/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 헤더 우측 일괄 편집 버튼 */
+#asWorkspace .caws-batchhead{display:flex; align-items:center; gap:5px; flex-shrink:0;}
+#asWorkspace .caws-batchhead .btn-s{height:24px; min-width:42px; padding:0 9px;}
+#asWorkspace .caws-batchmemo-wrap{margin-top:9px; padding-top:8px; border-top:1px solid var(--line);}
+#asWorkspace .caws-batchmemo-wrap .caws-req{margin-left:4px; font-size:10px; font-weight:500; color:var(--red);}
+#asWorkspace .caws-batchmemo{max-width:none; min-height:64px;}
+/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부 */
+#asWorkspace .caws-batchfiles{margin-top:7px;}
+#asWorkspace .caws-batchfiles-head{display:flex; align-items:center; gap:6px;}
+#asWorkspace .caws-batchfiles-head > span{font-size:10.5px; font-weight:600; color:var(--ink-2);}
+#asWorkspace .caws-batchfiles-head .caws-minib{margin-left:auto;}
+#asWorkspace .caws-batchfiles-head input[type=file]{display:none;}
+#asWorkspace .caws-batchfiles-list{display:flex; flex-direction:column; gap:4px; margin-top:6px;}
+#asWorkspace .caws-batchfile{
+  display:flex; align-items:center; gap:5px; min-width:0; padding:4px 6px;
+  border:1px solid var(--line); border-radius:6px; background:var(--surface);
+  font-size:10.5px; color:var(--ink-2);
+}
+#asWorkspace .caws-batchfile > span{min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-batchfile > button{
+  flex:0 0 auto; width:17px; height:17px; border:1px solid var(--line); border-radius:50%;
+  background:var(--surface); color:var(--ink-3); font-size:11px; line-height:14px;
+}
+#asWorkspace .caws-batchfile > button:hover{border-color:var(--red); color:var(--red);}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * COL3 : 과거 상담이력
+ * ========================================================================== */
+#asWorkspace .caws-past{border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--surface);}
+#asWorkspace .caws-pasth{display:flex; align-items:center; gap:6px; padding:8px 10px; background:var(--surface-1); border-bottom:1px solid var(--line);}
+#asWorkspace .caws-pasth .caws-ptitle{font-size:12px; font-weight:700; color:var(--ink);}
+#asWorkspace .caws-pasth .caws-pcnt{margin-left:auto; font-size:10.5px; color:var(--ink-3);}
+#asWorkspace .caws-pastf{padding:7px 10px; border-bottom:1px solid var(--line);}
+#asWorkspace .caws-pastf .caws-prow{display:flex; align-items:center; gap:4px; margin-bottom:5px; flex-wrap:wrap;}
+#asWorkspace .caws-pastf .caws-prow:last-child{margin-bottom:0;}
+#asWorkspace .caws-pastf input[type=text]{
+  height:26px; padding:0 7px; border:1px solid var(--line); border-radius:6px;
+  font-size:11px; line-height:24px; color:var(--ink); background:var(--surface); outline:none; min-width:0;
+}
+#asWorkspace .caws-pastf input[type=text]:focus{border-color:var(--accent);}
+#asWorkspace .caws-pastf .caws-pdt{flex:0 1 84px; min-width:66px; text-align:center;}
+#asWorkspace .caws-pastf .caws-pkw{flex:1 1 auto; min-width:60px;}
+#asWorkspace .caws-pastf .caws-pwave{color:var(--ink-3); font-size:11px; flex-shrink:0;}
+#asWorkspace .caws-pchip{
+  height:22px; padding:0 8px; border-radius:11px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-2);
+  font-size:10.5px; font-weight:600; white-space:nowrap;
+}
+#asWorkspace .caws-pchip:hover{border-color:var(--accent-line); color:var(--accent);}
+#asWorkspace .caws-pchip.on{background:var(--accent-bg); border-color:var(--accent-line); color:var(--accent);}
+
+/* 세로 스크롤 목록 */
+#asWorkspace .caws-pastlist{max-height:260px; overflow-y:auto;}
+#asWorkspace .caws-pit{display:block; width:100%; text-align:left; border:none; background:none; padding:7px 10px; border-bottom:1px solid var(--line);}
+#asWorkspace .caws-pit:last-child{border-bottom:none;}
+#asWorkspace .caws-pit:hover{background:var(--surface-1);}
+#asWorkspace .caws-pit.on{background:var(--accent-bg);}
+#asWorkspace .caws-pit .caws-pith{display:flex; align-items:center; gap:6px; margin-bottom:3px;}
+#asWorkspace .caws-pit .caws-pdate{font-size:10.5px; color:var(--ink-3); white-space:nowrap;}
+#asWorkspace .caws-pit .caws-pno{font-size:10.5px; color:var(--ink-3); margin-left:auto; white-space:nowrap;}
+/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 과거 상담이력 시스템유형(대/소) 표시 */
+#asWorkspace .caws-pit .caws-psys{margin-bottom:3px; font-size:10.5px; color:var(--ink-2); line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-pit .caws-psys span{margin-right:5px; color:var(--ink-3); font-weight:600;}
+/* [AX Lab] 수정 끝 */
+#asWorkspace .caws-pit .caws-ptxt{font-size:11.5px; color:var(--ink); line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+#asWorkspace .caws-pempty{padding:16px 10px; text-align:center; font-size:11.5px; color:var(--ink-3);}
+
+/* =============================================================================
+ * 모달 공통 (첨부 미리보기 / 상태변경 / 이관 / AI / 게시물링크)
+ * -----------------------------------------------------------------------------
+ * position:fixed 이므로 #asWorkspace 안에 있어도 뷰포트 기준으로 뜬다.
+ * 마크업을 #asWorkspace 안에 두는 이유는 이 파일의 스코핑 규칙과 CSS 변수 상속 때문이다.
+ * ※ #asWorkspace 는 <form name="listFrm"> 안에 있다. 모달 입력요소에 name 속성을 주면
+ *   목록조회(listFrm.serialize())에 섞여 들어가므로, 모달 입력에는 id 만 부여하고
+ *   전송 데이터는 JS 에서 객체로 조립한다. (combine-as-modal.jsp 주석 참고)
+ * ========================================================================== */
+#asWorkspace .caws-dim{position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(16,26,32,.45); z-index:1200;}
+#asWorkspace .caws-modal{
+  position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:1201;
+  width:440px; max-width:calc(100vw - 32px); max-height:calc(100vh - 60px);
+  display:flex; flex-direction:column;
+  background:var(--surface); border:1px solid var(--line); border-radius:13px;
+  box-shadow:0 12px 40px rgba(10,30,40,.28);
+  font-family:var(--sans); color:var(--ink);
+}
+#asWorkspace .caws-modal.wide{width:820px;}
+#asWorkspace .caws-mh{display:flex; align-items:center; gap:8px; padding:12px 15px; border-bottom:1px solid var(--line); flex-shrink:0;}
+#asWorkspace .caws-mh h3{margin:0; font-size:14px; font-weight:700;}
+#asWorkspace .caws-mh .caws-msub{font-size:11px; color:var(--ink-3);}
+#asWorkspace .caws-mx{
+  margin-left:auto; width:26px; height:26px; border-radius:7px; flex-shrink:0;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-3);
+  font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+#asWorkspace .caws-mx:hover{border-color:var(--red); color:var(--red);}
+#asWorkspace .caws-mb{padding:14px 15px; overflow-y:auto; flex:1; min-height:0;}
+#asWorkspace .caws-mf{display:flex; align-items:center; gap:7px; padding:11px 15px; border-top:1px solid var(--line); background:var(--surface-1); flex-shrink:0;}
+#asWorkspace .caws-mf .caws-sp{flex:1;}
+#asWorkspace .caws-mf .caws-mhint{font-size:10.5px; color:var(--ink-3);}
+
+/* 모달 폼 요소 */
+#asWorkspace .caws-fld{margin-bottom:11px;}
+#asWorkspace .caws-fld:last-child{margin-bottom:0;}
+#asWorkspace .caws-fld > label{display:block; font-size:11px; font-weight:700; color:var(--ink-2); margin-bottom:5px;}
+#asWorkspace .caws-fld > label .caws-req{color:var(--red); margin-left:2px;}
+#asWorkspace .caws-fld .caws-frow,
+#asWorkspace .caws-accb .caws-frow{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+#asWorkspace .caws-modal select,
+#asWorkspace .caws-modal input[type=text]{
+  width:100%; height:32px; padding:0 8px; border:1px solid var(--line); border-radius:7px;
+  font-size:12.5px; line-height:30px; color:var(--ink); background:var(--surface); outline:none;
+}
+#asWorkspace .caws-modal select{padding:0 22px 0 8px;}
+#asWorkspace .caws-modal select:focus,
+#asWorkspace .caws-modal input[type=text]:focus{border-color:var(--accent);}
+#asWorkspace .caws-modal textarea{
+  width:100%; min-height:78px; max-height:240px; padding:9px 10px; resize:vertical; display:block;
+  border:1px solid var(--line); border-radius:8px;
+  font-family:inherit; font-size:12.5px; line-height:1.6; color:var(--ink); background:var(--surface); outline:none;
+}
+#asWorkspace .caws-modal textarea:focus{border-color:var(--accent);}
+#asWorkspace .caws-modal .caws-ro{background:var(--surface-1); color:var(--ink-2);}
+/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): origin과 동일하게 readonly/disabled 입력칸을 상태에 따라 동적 음영 처리 */
+#asWorkspace .caws-modal input[type=text][readonly],
+#asWorkspace .caws-modal select:disabled{
+  background:var(--surface-1);
+  color:var(--ink-3);
+  cursor:not-allowed;
+}
+/* [AX Lab] 수정 끝 */
+#asWorkspace .caws-mnote{font-size:11px; color:var(--ink-3); line-height:1.55; margin-top:6px;}
+#asWorkspace .caws-mwarn{
+  padding:8px 10px; border-radius:8px; margin-bottom:11px;
+  background:var(--warn-bg); border:1px solid #EBDCC0; color:var(--warn);
+  font-size:11px; font-weight:600; line-height:1.5;
+}
+
+/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 링크 선택 목록 / 세로 스크롤 / 페이지 이동 */
+#asWorkspace .caws-link-modal{width:700px;}
+#asWorkspace .caws-link-list{
+  max-height:286px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;
+  background:var(--surface);
+}
+#asWorkspace .caws-link-list table{width:100%; border-collapse:collapse; table-layout:fixed;}
+#asWorkspace .caws-link-list col.caws-link-no{width:100px;}
+#asWorkspace .caws-link-list col.caws-link-date{width:110px;}
+#asWorkspace .caws-link-list col.caws-link-writer{width:90px;}
+#asWorkspace .caws-link-search{display:flex; align-items:center; gap:6px; margin-bottom:9px;}
+#asWorkspace .caws-link-search input[type=text]{flex:1; width:auto;}
+#asWorkspace .caws-link-list th{
+  position:sticky; top:0; z-index:1; height:32px; padding:0 9px;
+  background:var(--surface-1); border-bottom:1px solid var(--line);
+  color:var(--ink-2); font-size:11px; font-weight:700; text-align:center;
+}
+#asWorkspace .caws-link-list td{
+  height:36px; padding:0 9px; border-bottom:1px solid var(--line);
+  color:var(--ink-2); font-size:11.5px; text-align:center;
+}
+#asWorkspace .caws-link-list tbody tr:last-child td{border-bottom:none;}
+#asWorkspace .caws-link-list tbody tr[data-num]{cursor:pointer;}
+#asWorkspace .caws-link-list tbody tr[data-num]:hover{background:var(--surface-1);}
+#asWorkspace .caws-link-list tbody tr[data-num].on{background:var(--accent-bg);}
+#asWorkspace .caws-link-list tbody tr[data-num].on td{color:var(--accent); font-weight:600;}
+#asWorkspace .caws-link-list td.caws-link-num{font-variant-numeric:tabular-nums;}
+#asWorkspace .caws-link-list td.caws-link-title{
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left;
+}
+#asWorkspace .caws-link-list td.caws-link-title button{
+  display:block; width:100%; padding:0; overflow:hidden; border:0; background:none;
+  color:inherit; font:inherit; text-align:left; text-overflow:ellipsis; white-space:nowrap; cursor:pointer;
+}
+#asWorkspace .caws-link-list td.caws-link-title button:hover{color:var(--accent); text-decoration:underline;}
+#asWorkspace .caws-link-list td.caws-link-writer{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#asWorkspace .caws-link-list td.caws-link-empty{height:72px; color:var(--ink-3); text-align:center;}
+#asWorkspace .caws-link-list td.caws-link-empty.error{color:var(--red);}
+#asWorkspace .caws-link-nav{display:flex; align-items:center; gap:10px; min-height:32px; margin-top:8px;}
+#asWorkspace .caws-link-count{color:var(--ink-3); font-size:10.5px; white-space:nowrap;}
+#asWorkspace .caws-link-pages{display:flex; align-items:center; justify-content:center; gap:3px; flex:1; flex-wrap:wrap;}
+#asWorkspace .caws-link-pages button{
+  min-width:27px; height:27px; padding:0 7px; border:1px solid var(--line); border-radius:6px;
+  background:var(--surface); color:var(--ink-2); font-size:10.5px;
+}
+#asWorkspace .caws-link-pages button:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+#asWorkspace .caws-link-pages button.on{border-color:var(--accent); background:var(--accent); color:#fff; font-weight:700;}
+#asWorkspace .caws-link-pages button:disabled{opacity:.45; cursor:default;}
+#asWorkspace #cawsLnInsert:disabled{opacity:.45; cursor:not-allowed;}
+#asWorkspace .caws-link-preview{z-index:1202;}
+#asWorkspace .caws-link-preview-meta{
+  display:flex; align-items:center; gap:18px; padding:8px 11px;
+  border:1px solid var(--line); border-radius:8px; background:var(--surface-1);
+}
+#asWorkspace .caws-link-preview-meta span{display:flex; align-items:center; gap:6px; min-width:0;}
+#asWorkspace .caws-link-preview-meta b{color:var(--ink-3); font-size:10.5px; white-space:nowrap;}
+#asWorkspace .caws-link-preview-meta em{
+  overflow:hidden; color:var(--ink-2); font-size:11.5px; font-style:normal; text-overflow:ellipsis; white-space:nowrap;
+}
+#asWorkspace .caws-link-preview-title{
+  margin-top:10px; padding:10px 12px; border-bottom:1px solid var(--line);
+  color:var(--ink); font-size:14px; font-weight:700; line-height:1.5;
+}
+#asWorkspace .caws-link-preview-content{
+  min-height:220px; padding:14px 12px; overflow:auto;
+  color:var(--ink-2); font-size:12.5px; line-height:1.7; white-space:pre-wrap; word-break:break-word;
+}
+#asWorkspace .caws-link-preview-content img{max-width:100%; height:auto;}
+#asWorkspace .caws-link-preview-wait{padding:70px 10px; color:var(--ink-3); text-align:center;}
+#asWorkspace .caws-link-preview-wait.error{color:var(--red);}
+#asWorkspace #cawsLnPvInsert:disabled{opacity:.45; cursor:not-allowed;}
+/* [AX Lab] 수정 끝 */
+
+/* 담당자 이관 : 후보 목록 */
+#asWorkspace .caws-emplist{max-height:190px; overflow-y:auto; border:1px solid var(--line); border-radius:8px;}
+#asWorkspace .caws-empit{display:flex; align-items:center; gap:7px; width:100%; padding:7px 10px; border:none; background:none; border-bottom:1px solid var(--line); text-align:left;}
+#asWorkspace .caws-empit:last-child{border-bottom:none;}
+#asWorkspace .caws-empit:hover{background:var(--surface-1);}
+#asWorkspace .caws-empit.on{background:var(--accent-bg);}
+#asWorkspace .caws-empit .caws-enm{font-size:12.5px; font-weight:700; color:var(--ink);}
+#asWorkspace .caws-empit .caws-edp{font-size:10.5px; color:var(--ink-3);}
+#asWorkspace .caws-empit .caws-ecur{margin-left:auto; font-size:10px; font-weight:700; color:var(--accent);}
+
+/* AI 문장 다듬기 */
+#asWorkspace .caws-aitone{display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-bottom:10px;}
+#asWorkspace .caws-aiout{
+  border:1px solid var(--accent-line); border-radius:9px; background:var(--accent-bg);
+  padding:10px 12px; font-size:12.5px; line-height:1.65; color:var(--ink);
+  white-space:pre-line; word-break:break-all; min-height:78px;
+}
+#asWorkspace .caws-aiout.wait{color:var(--ink-3); font-style:normal;}
+#asWorkspace .caws-aibadge{
+  display:inline-block; padding:1px 7px; border-radius:8px;
+  background:var(--pro-bg); color:var(--pro); font-size:9.5px; font-weight:700;
+}
+
+/* 첨부 미리보기 라이트박스 */
+#asWorkspace .caws-lb{
+  position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:1201;
+  width:min(1040px, calc(100vw - 40px)); height:calc(100vh - 70px);
+  display:flex; flex-direction:column;
+  background:var(--surface); border-radius:13px; overflow:hidden;
+  box-shadow:0 12px 40px rgba(10,30,40,.35);
+}
+#asWorkspace .caws-lbb{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; background:#20272B; padding:8px;}
+#asWorkspace .caws-lbb img{max-width:100%; max-height:100%; object-fit:contain;}
+#asWorkspace .caws-lbb iframe{width:100%; height:100%; border:none; background:#fff;}
+#asWorkspace .caws-lbb .caws-lbmsg{color:#C9D2D6; font-size:12.5px; line-height:1.7; text-align:center; padding:20px;}
+#asWorkspace .caws-lbnav{display:flex; align-items:center; gap:7px; padding:9px 13px; border-top:1px solid var(--line); background:var(--surface-1); flex-shrink:0;}
+#asWorkspace .caws-lbnav .caws-lbpos{font-size:11px; color:var(--ink-3);}
+#asWorkspace .caws-lbnav .caws-sp{flex:1;}
+
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 조치이력 첨부 목록 전용 소형 모달 */
+#asWorkspace .caws-lb.caws-files-mode{
+  width:520px; max-width:calc(100vw - 32px); height:auto;
+  max-height:calc(100vh - 80px); border:1px solid var(--line);
+  background:var(--surface); color:var(--ink);
+}
+#asWorkspace .caws-files-mode .caws-mh{padding:10px 14px;}
+#asWorkspace .caws-files-mode .caws-mh h3{font-size:13px;}
+#asWorkspace .caws-files-mode .caws-mh .caws-msub{font-size:11px;}
+#asWorkspace .caws-files-mode .caws-hfall{
+  margin-left:auto; height:27px; color:#657781; background:#fff; border-color:#DCE4E8;
+}
+#asWorkspace .caws-files-mode .caws-mx{margin-left:0;}
+#asWorkspace .caws-files-mode .caws-lbb{
+  display:block; flex:none; min-height:176px; max-height:420px;
+  overflow-y:auto; padding:12px 18px 18px; background:#fff;
+}
+#asWorkspace .caws-hflist{display:flex; flex-direction:column;}
+#asWorkspace .caws-hfrow{
+  display:flex; align-items:center; gap:14px; min-height:48px; padding:0 4px;
+}
+#asWorkspace .caws-hfname{
+  flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:#26343A; font-size:12px; font-weight:700;
+}
+#asWorkspace .caws-hfdown{
+  flex-shrink:0; height:27px; color:#657781; background:#fff; border-color:#DCE4E8;
+}
+#asWorkspace .caws-files-mode .caws-hfall:hover,
+#asWorkspace .caws-files-mode .caws-hfdown:hover{
+  color:#1783A7; border-color:#91C5D5; background:#F3FAFC;
+}
+/* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * 상세 넓게 보기 (COL1 을 rail 로 접고 COL2 를 넓힌다)
+ * -----------------------------------------------------------------------------
+ * 기존 "목록 넓게 보기"(.grid.list-wide) 의 반대 모드다. 두 모드가 동시에 켜지면
+ * grid-template-columns 가 서로 덮어써 레이아웃이 깨지므로 JS 에서 상호배타로 처리한다.
+ * COL1 은 display:none 이 아니라 rail(46px) 로 접어 목록으로 바로 돌아올 수 있게 한다.
+ * (COL1 의 rail 은 combine-as.css 의 .col.is-collapsed 규칙을 그대로 재사용한다)
+ * ========================================================================== */
+#asWorkspace .grid.detail-wide{grid-template-columns:46px 2.6fr 1.15fr;}
+#asWorkspace .grid.detail-wide #col-c1 .chd,
+#asWorkspace .grid.detail-wide #col-c1 .col-content{display:none;}
+#asWorkspace .grid.detail-wide #col-c1 .rail{display:flex;}
+
+/* 좁은 화면 : 3분할이 1열로 떨어지므로 과거이력 높이를 늘려준다 */
+@media(max-width:1200px){
+  #asWorkspace .caws-pastlist{max-height:none;}
+  #asWorkspace .grid.detail-wide{grid-template-columns:1fr;}
+  #asWorkspace .grid.detail-wide #col-c1 .chd,
+  #asWorkspace .grid.detail-wide #col-c1 .col-content{display:flex;}
+  #asWorkspace .grid.detail-wide #col-c1 .rail{display:none;}
+}
+
+/* =============================================================================
+ * [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수처리정보 필드 단위 편집
+ * 편집 가능한 값(.caws-fv)은 hover 없이도 항상 점선 밑줄 + 흐린 연필로 구분되고,
+ * 클릭하면 그 자리가 입력 컨트롤로 바뀐다. 변경값은 헤더 우측 버튼에서 일괄 저장한다.
+ * ========================================================================== */
+/* 클릭 가능한 값 — 항상 점선 밑줄과 연필 아이콘으로 "수정 가능"을 표시 */
+#asWorkspace .kv .v.caws-fv{cursor:pointer; border-bottom:1px dashed var(--line);}
+#asWorkspace .kv .v.caws-fv:after{content:'\270E'; margin-left:4px; font-size:10px; color:var(--ink-3); opacity:.55;}
+#asWorkspace .kv .v.caws-fv:hover{color:var(--accent); border-bottom-color:var(--accent);}
+#asWorkspace .kv .v.caws-fv:hover:after{color:var(--accent); opacity:1;}
+/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 접수처리정보 조건부 필수 마커 */
+#asWorkspace .kv .k .caws-req{margin-left:3px; font-size:10px; font-weight:600; color:var(--red);}
+/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 정의서 중 1개 이상을 뜻하는 묶음 필수는 검은 별표로 구분 */
+#asWorkspace .kv .k .caws-req.caws-req-group{color:var(--ink);}
+/* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 끝 */
+/* 요청내용(블록형 본문)도 항상 점선 테두리로 클릭 가능 표시 */
+#asWorkspace .caws-btxt.caws-fv{cursor:pointer; border:1px dashed var(--line); border-radius:6px; padding:2px 4px; margin-left:-4px;}
+#asWorkspace .caws-btxt.caws-fv:hover{border-color:var(--accent); background:var(--accent-bg);}
+
+/* 인라인 입력 컨트롤 (한 번에 한 필드만 열린다) */
+#asWorkspace .caws-fin{
+  /* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 선택목록 글자가 상하로 잘리지 않도록 높이와 줄높이 확보 */
+  width:100%; max-width:180px; height:28px; padding:0 7px; box-sizing:border-box;
+  border:1px solid var(--accent); border-radius:6px; outline:none;
+  background:var(--surface); color:var(--ink); font-size:12px; line-height:26px;
+  /* [AX Lab] 수정 끝 */
+}
+#asWorkspace .kv.caws-fe .v.caws-fev{flex:1; display:flex; justify-content:flex-end;}
+#asWorkspace .caws-feb{margin-top:5px;}
+#asWorkspace .caws-feb .caws-fin{max-width:none;}
+#asWorkspace .caws-fin.caws-fgrow{max-width:none; flex:1; min-width:0;}
+#asWorkspace .caws-fin.caws-fwide{max-width:none;}
+#asWorkspace .caws-fin.caws-fcnt{width:46px; max-width:46px; text-align:center;}
+/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 전화부재중 미체크 시 부재 횟수 음영·비활성 상태 명확화 */
+#asWorkspace .caws-fin.caws-fcnt.write_gray{
+  color:#999; background:#f3f3f3; border-color:#dcdcdc; cursor:not-allowed;
+}
+/* [AX Lab] 수정 끝 */
+
+/* 인라인 textarea (요청내용 / 팝오버 메모) — 기본 .caws-ta 는 border 가 없어 테두리를 되살린다 */
+#asWorkspace .caws-fta{
+  border:1px solid var(--accent); border-radius:8px; background:var(--surface);
+  min-height:64px; box-sizing:border-box; padding:7px 8px;
+}
+
+/* 인라인 취소(×) 버튼 — 시스템(대/소) 쌍처럼 blur 로 닫기 어려운 컨트롤 옆에 붙인다 */
+#asWorkspace .caws-fx{
+  flex:0 0 auto; width:26px; height:26px; border-radius:6px; line-height:1;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-3); font-size:14px;
+}
+#asWorkspace .caws-fx:hover{border-color:var(--red); color:var(--red);}
+
+/* 처리상태/담당자 팝오버 — 조치내용(이력) 메모가 필수인 필드용 소형 폼 */
+#asWorkspace .caws-pop{
+  margin:4px 0 8px; padding:9px 10px;
+  border:1px solid var(--accent); border-radius:9px; background:var(--accent-bg);
+}
+#asWorkspace .caws-pop .caws-emplist{max-height:96px; overflow-y:auto; background:var(--surface);}
+
+/* 전화확인/부재중 즉시 저장 체크박스 행 */
+#asWorkspace .caws-ck{display:inline-flex; align-items:center; gap:4px; font-size:12px; cursor:pointer; color:var(--ink);}
+#asWorkspace .kv .v.caws-telv{display:inline-flex; align-items:center; gap:5px;}
+
+/* 접수정보 부가 UI — 하위작업 생성/연관접수 열기 미니 버튼, 탐색용 select */
+#asWorkspace .caws-minib{
+  height:22px; padding:0 8px; font-size:11px; border-radius:6px; white-space:nowrap;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink-2); flex:0 0 auto;
+}
+#asWorkspace .caws-minib:hover{border-color:var(--accent); color:var(--accent);}
+/* 탐색용 select 는 편집 중인 컨트롤(강조 테두리)처럼 보이지 않게 기본 테두리로 */
+#asWorkspace .caws-fin.caws-fnav{border-color:var(--line); max-width:150px;}
+/* 클릭 가능한 접수번호 링크(상위접수번호 등) */
+#asWorkspace .kv .v.caws-lnk{cursor:pointer;}
+#asWorkspace .kv .v.caws-lnk:hover{text-decoration:underline;}
+/* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * [AX Lab] 수정 시작 (2026-07-31 AX Lab): 3분할 기본 폭 조정 + 컬럼 경계 드래그 리사이즈
+ * -----------------------------------------------------------------------------
+ * ① 기본 폭 : 접수처리정보(COL3)는 kv 나열이라 좁아도 되므로 줄이고(1.2fr→0.9fr),
+ *    그만큼 AS목록(COL1, 1.35fr→1.45fr)과 문의내용(COL2, 1.9fr→2.1fr)을 넓혀 시작한다.
+ *    combine-as.css 의 grid-template-columns 를 같은 특정도로 재선언하되(나중 로드라 이김),
+ *    var 체인을 --c1(접기용, c1-collapsed 클래스가 지배) → --caws-c1(드래그용, JS 인라인)
+ *    → 기본값 순으로 두어 c1/c3-collapsed(46px) 모드와 충돌하지 않는다.
+ *    (list-wide / detail-wide 는 특정도가 더 높은 규칙이 grid-template-columns 를
+ *     직접 덮어쓰므로 그대로 이긴다)
+ * ② 드래그 핸들(.caws-rz) : combine-as-thread.js(caws_rzInit)가 컬럼 사이
+ *    gap(10px) 위치에 절대배치로 만들어 넣는다. position:absolute 라 그리드 트랙을
+ *    차지하지 않는다. 드래그로 폭 조절, 더블클릭으로 기본 폭 복원.
+ * ========================================================================== */
+#asWorkspace .grid{
+  position:relative;	/* .caws-rz 절대배치 기준 */
+  grid-template-columns:
+    var(--c1, var(--caws-c1, 1.45fr))
+    var(--c2, var(--caws-c2, 2.1fr))
+    var(--c3, var(--caws-c3, 0.9fr));
+}
+
+/* 컬럼 경계 핸들 : gap(10px)을 그대로 덮는 투명 띠. hover/드래그 중에만 가운데 2px 라인 표시 */
+#asWorkspace .grid > .caws-rz{position:absolute; top:0; bottom:0; width:10px; cursor:col-resize; z-index:30;}
+#asWorkspace .grid > .caws-rz:before{
+  content:''; position:absolute; left:4px; top:0; bottom:0; width:2px; border-radius:1px;
+  background:transparent; transition:background .12s;
+}
+#asWorkspace .grid > .caws-rz:hover:before,
+#asWorkspace .grid > .caws-rz.on:before{background:var(--accent);}
+/* 드래그 중에는 grid 의 폭 transition(.22s)을 끊어야 마우스를 따라온다 */
+#asWorkspace .grid.caws-rzing{transition:none;}
+/* 인접 컬럼이 rail(46px)로 접혀 있거나, 전체폭 모드에서는 해당 핸들을 숨긴다 */
+#asWorkspace .grid.c1-collapsed > .caws-rz.rz1{display:none;}
+#asWorkspace .grid.c3-collapsed > .caws-rz.rz2{display:none;}
+#asWorkspace .grid.list-wide > .caws-rz,
+#asWorkspace .grid.detail-wide > .caws-rz{display:none;}
+
+/* 좁은 화면(1열 전환) : 위의 grid-template-columns 재선언이 combine-as.css 의
+   미디어쿼리(1fr)를 "나중에 로드된 같은 특정도" 규칙으로 이겨버리므로,
+   여기서 1fr 을 다시 선언해 1열 모드를 지켜준다. */
+@media(max-width:1200px){
+  #asWorkspace .grid{grid-template-columns:1fr;}
+  #asWorkspace .grid > .caws-rz{display:none;}
+}
+/* [AX Lab] 수정 끝 */
+
+/* =============================================================================
+ * [AX Lab] 추가 (2026-07-31 AX Lab): 접수 등록 모달 (신규작업/복사/하위작업)
+ * combine-as-form.js (cafm_*) / combine-as-modal.jsp #cawsRegist
+ * 모달 골격(caws-modal/mh/mb/mf)과 폼 요소(caws-fld 등)는 위 공통 규칙을 그대로 쓰고,
+ * 여기는 등록 모달 전용(2열 그리드 / 검색 내장패널 / 결과목록 / 페이저)만 추가한다.
+ * ========================================================================== */
+#asWorkspace .caws-modal.cafm{width:700px;}
+#asWorkspace .cafm-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
+/* 고객사/신청자 검색 내장 패널 */
+#asWorkspace .cafm-pick{border:1px solid var(--line); border-radius:9px; padding:9px; margin-top:7px; background:var(--surface-1);}
+#asWorkspace .cafm-list{max-height:170px; overflow-y:auto; margin-top:7px; border:1px solid var(--line); border-radius:7px; background:var(--surface);}
+#asWorkspace .cafm-list table{width:100%; border-collapse:collapse; font-size:11.5px;}
+#asWorkspace .cafm-list th{position:sticky; top:0; background:var(--surface-1); color:var(--ink-3); font-size:10.5px; font-weight:700; text-align:left; padding:5px 8px; border-bottom:1px solid var(--line);}
+#asWorkspace .cafm-list td{padding:6px 8px; border-bottom:1px solid var(--line); cursor:pointer; color:var(--ink-2);}
+#asWorkspace .cafm-list tbody tr:hover td{background:var(--accent-bg); color:var(--accent);}
+#asWorkspace .cafm-list td.cafm-none{text-align:center; color:var(--ink-3); cursor:default; padding:14px;}
+#asWorkspace .cafm-list tbody tr:hover td.cafm-none{background:none; color:var(--ink-3);}
+#asWorkspace .cafm-pgr{display:flex; align-items:center; justify-content:flex-end; gap:7px; margin-top:7px; font-size:11px; color:var(--ink-3);}
+#asWorkspace .cafm-pgr:empty{display:none;}
+/* 연락처 3분할 입력 */
+#asWorkspace .caws-modal input[type=text].cafm-tel{width:64px; flex:0 0 auto; text-align:center;}
+/* 담당자 자동배정 안내 */
+#asWorkspace .cafm-assign-msg{font-size:11px; color:var(--accent); font-weight:600;}
+/* [AX Lab] 추가 끝 */

@@ -41,6 +41,9 @@ import egovframework.com.model.OperateVO;
 import egovframework.com.service.AsService;
 import egovframework.com.service.LoginService;
 import egovframework.com.comm.dao.CommonDao;
+// [AX Lab] 수정 시작 (2026-10-06 AX Lab): AS 통합화면 AI 추천 서비스
+import egovframework.com.service.CombineAsAiService;
+// [AX Lab] 수정 끝
 /**
  * @Class Name : AdAsController.java
  * @
@@ -65,7 +68,100 @@ public class AdAsController {
 	@Autowired LoginService loginService ; 
 	@Autowired AsService asService ; 
 	@Autowired CommonDao commonDAO ;
+	// [AX Lab] 수정 시작 (2026-10-06 AX Lab): AS 통합화면 AI 추천 — getAsInfo(pageType=aiRecommend) 에서 사용
+	@Autowired CombineAsAiService combineAsAiService ;
+	// [AX Lab] 수정 끝
 	
+	// [AX Lab] 수정 시작 (2026-07-29 AX Lab): AS 목록 헤더클릭 정렬(오름/내림) 지원.
+	/**
+	 * 정렬 화이트리스트. key = 화면(list.jsp thead 의 data-sort)이 보내는 키, value = 실제 SQL 컬럼명.
+	 *
+	 * 이 값은 egov-as-query.xml 의 getAsList 에서 ${sort_expr} 로 "문자열 치환"되어 SQL 에 직접 박힌다.
+	 * 바인딩(#{})이 아니므로 이 화이트리스트가 SQL Injection 방어의 전부다. 절대 화면 값을 그대로 쓰지 말 것.
+	 *
+	 * [주의 1] 정렬은 ROW_NUMBER() 시점(=in_tb)에 걸리므로 in_tb 에 실재하는 컬럼만 넣을 수 있다.
+	 *          proc_status_nm 같은 _nm 컬럼은 최외곽 스칼라 서브쿼리라 이 시점에 존재하지 않는다.
+	 *          → 원본 코드 컬럼(PROC_STATUS 등)으로 매핑한다. 즉 명칭 가나다순이 아니라 코드순으로 정렬된다.
+	 *          반대로 EMP_NM / DEPT_NM / PART_TYPE 은 in_tb 안에서 이미 계산되므로 실제 이름순으로 정렬된다.
+	 * [주의 2] 요청내용(CALL_CONTENT)/조치내용(ACTION_CONTENT)/최신댓글(W_CONTENT)은 장문 컬럼이라
+	 *          정렬 의미가 없고 CLOB 인 경우 ORDER BY 자체가 불가(ORA-00932)하므로 의도적으로 제외한다.
+	 * [주의 3] 연결AS개수/답변수/첨부여부는 최외곽에서 계산되는 파생값이라 정렬 대상이 아니다.
+	 */
+	private static final Map<String, String> AS_SORT_COLS = new HashMap<String, String>() ;
+	static {
+		AS_SORT_COLS.put("as_no"             , "AS_NO") ;
+		AS_SORT_COLS.put("cn_as_no"          , "CN_AS_NO") ;
+		AS_SORT_COLS.put("accept_dt"         , "ACCEPT_DT") ;
+		AS_SORT_COLS.put("as_accept_dt"      , "ACCEPT_DT") ;
+		AS_SORT_COLS.put("cust_code"         , "CUST_CODE") ;
+		AS_SORT_COLS.put("cust_kor_name"     , "CUST_KOR_NAME") ;
+		AS_SORT_COLS.put("erp_code"          , "ERP_CODE") ;
+		AS_SORT_COLS.put("priority"          , "PRIORITY") ;
+		AS_SORT_COLS.put("deal_code_nm"      , "DEAL_CODE") ;
+		AS_SORT_COLS.put("apply_nm"          , "APPLY_NM") ;
+		AS_SORT_COLS.put("rl_apply_nm"       , "RL_APPLY_NM") ;
+		AS_SORT_COLS.put("chatbot_id"        , "CHATBOT_ID") ;
+		AS_SORT_COLS.put("proc_status_nm"    , "PROC_STATUS") ;
+		AS_SORT_COLS.put("accept_route_nm"   , "ACCEPT_ROUTE") ;
+		AS_SORT_COLS.put("request_type_nm"   , "REQUEST_TYPE") ;
+		AS_SORT_COLS.put("service_cate_nm"   , "SERVICE_CATE") ;
+		AS_SORT_COLS.put("inquiry_type_nm"   , "INQUIRY_TYPE") ;
+		AS_SORT_COLS.put("inportance_nm"     , "INPORTANCE") ;
+		AS_SORT_COLS.put("cause_type_nm"     , "CAUSE_TYPE") ;
+		AS_SORT_COLS.put("action_type_nm"    , "ACTION_TYPE") ;
+		AS_SORT_COLS.put("tel_confirm"       , "TEL_CONFIRM") ;
+		AS_SORT_COLS.put("tel_absence"       , "TEL_ABSENCE") ;
+		AS_SORT_COLS.put("tel_absence_cnt"   , "TEL_ABSENCE_CNT") ;
+		AS_SORT_COLS.put("emp_nm"            , "EMP_NM") ;
+		AS_SORT_COLS.put("dept_nm"           , "DEPT_NM") ;
+		AS_SORT_COLS.put("part_type"         , "PART_TYPE") ;
+		AS_SORT_COLS.put("as_proc_dt"        , "PROC_DT") ;
+		AS_SORT_COLS.put("as_complete_dt"    , "COMPLETE_DT") ;
+		AS_SORT_COLS.put("work_time"         , "WORK_TIME") ;
+		AS_SORT_COLS.put("proc_gubun_nm"     , "PROC_GUBUN") ;
+		AS_SORT_COLS.put("proc_build_info"   , "PROC_BUILD_INFO") ;
+		AS_SORT_COLS.put("proc_test_info"    , "PROC_TEST_INFO") ;
+		AS_SORT_COLS.put("proc_process_sp"   , "PROC_PROCESS_SP") ;
+		AS_SORT_COLS.put("proc_screen_sp"    , "PROC_SCREEN_SP") ;
+		AS_SORT_COLS.put("proc_table_sp"     , "PROC_TABLE_SP") ;
+		AS_SORT_COLS.put("proc_function_sp"  , "PROC_FUNCTION_SP") ;
+		AS_SORT_COLS.put("proc_interface_sp" , "PROC_INTERFACE_SP") ;
+		AS_SORT_COLS.put("star_state_date"   , "STAR_STATE_DATE") ;
+		AS_SORT_COLS.put("star_state"        , "STAR_STATE") ;
+	}
+
+	/**
+	 * 화면이 보낸 정렬조건(sort_col/sort_dir)을 검증해 쿼리용 값(sort_expr/sort_dir_sql/sort_dir_inv)으로 확정한다.
+	 *
+	 * sort_dir_inv 가 sort_dir_sql 의 반대인 이유: PagingVO.setPaging() 이
+	 * startRow = rowCnt - page*pageSize + 1 로 "뒤에서부터" 페이지 창을 잡기 때문에 1페이지가 RNUM 최대 구간이다.
+	 * 따라서 ROW_NUMBER 채번은 최종 출력순서의 역방향이어야 1페이지에 원하는 행이 나온다.
+	 * (자세한 내용은 egov-as-query.xml getAsList 의 ROW_NUMBER 주석 참고)
+	 *
+	 * 화이트리스트에 없는 키가 오면 정렬 미지정으로 간주해 AS_NO DESC 기본값으로 되돌린다(=개편 전과 동일한 동작).
+	 */
+	private void applyAsSort(AsVO vo) {
+		String sortKey = SsStringUtil.normalizeNull(vo.getSort_col()) ;
+		String sortCol = AS_SORT_COLS.get(sortKey) ;
+
+		if (sortCol == null) {
+			// 화면 표시용 값도 함께 비워 헤더에 엉뚱한 정렬표시가 남지 않게 한다.
+			vo.setSort_col("") ;
+			vo.setSort_dir("") ;
+			vo.setSort_expr("AS_NO") ;
+			vo.setSort_dir_sql("DESC") ;
+			vo.setSort_dir_inv("ASC") ;
+			return ;
+		}
+
+		boolean asc = "ASC".equalsIgnoreCase(SsStringUtil.normalizeNull(vo.getSort_dir())) ;
+
+		vo.setSort_dir(asc ? "ASC" : "DESC") ;	// 화면 복원용(정규화)
+		vo.setSort_expr(sortCol) ;
+		vo.setSort_dir_sql(asc ? "ASC" : "DESC") ;
+		vo.setSort_dir_inv(asc ? "DESC" : "ASC") ;
+	}
+	// [AX Lab] 수정 끝
 	
 	
 	/**
@@ -91,6 +187,12 @@ public class AdAsController {
 		
 		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 검색 후 리로드 시 고급 동적필터를 화면에서 복원할 수 있도록 JSON 으로 내려준다.
 		vo.setAdvFiltersJson(buildAdvFiltersJson(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
+		// [AX Lab] 수정 끝
+		
+		// [AX Lab] 수정 시작 (2026-07-29 AX Lab): 정렬조건 정규화.
+		// 화면(list.jsp)이 ${vo.sort_col} / ${vo.sort_dir} 로 헤더의 정렬표시를 복원하므로, 화이트리스트에 없는
+		// 값이 그대로 내려가 "정렬된 것처럼" 보이는 일이 없도록 여기서도 검증을 거친다.
+		applyAsSort(vo);
 		// [AX Lab] 수정 끝
 		
 		return "ad/as/list";
@@ -206,6 +308,11 @@ public class AdAsController {
 		
 		String[] procSelectArray =  vo.getProcSelect().split(",");
 		vo.setProcSelectArray(procSelectArray);
+		// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 체크박스로 선택한 재직 처리담당자 다중검색
+		String assignSelect = SsStringUtil.normalizeNull(vo.getAssignSelect());
+		/* normalizeNullArray()가 array[0]을 확인하므로 미선택도 길이 1의 빈 문자열 배열로 전달한다. */
+		vo.setAssignSelectArray(assignSelect.split(","));
+		// [AX Lab] 수정 끝
 		
 		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 처리구분(나의 A/S) + 고급 동적필터(AND 중복) 조건 조립
 		// 나의 A/S(asGubunFlag="2")이면 로그인 사용자 사번을 담당자(ASSIGN_ID) 필터로 사용
@@ -216,6 +323,10 @@ public class AdAsController {
 		}
 		// 고급 동적 검색조건(검색구분 select/keyword/date)을 쿼리용 목록으로 변환
 		vo.setAdvFilterList(buildAdvFilterList(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
+		// [AX Lab] 수정 끝
+		
+		// [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록 헤더클릭 정렬조건 확정 (화이트리스트 검증 필수)
+		applyAsSort(vo);
 		// [AX Lab] 수정 끝
 		
 		int totalCount = asService.getTotalCnt(vo,"asDAO.getAsListCnt") ;
@@ -392,6 +503,11 @@ public class AdAsController {
 
 	    String pageType = SsStringUtil.normalizeNull(vo.getPageType()).trim();
 	    String script = "";
+	    // [AX Lab] 수정 시작 (2026-10-12 AX Lab): 일괄 처리 조치의견 최대 1,300자 서버 검증
+	    if (SsStringUtil.normalizeNull(vo.getAction_content()).length() > 1300) {
+	        return CommonExecute.execute(model, "parent.procReturn('fail');");
+	    }
+	    // [AX Lab] 수정 끝
 
 	    List<String> successList = new ArrayList<>();
 	    List<String> failList = new ArrayList<>();
@@ -520,17 +636,598 @@ public class AdAsController {
 			FileVO fileVO = new FileVO();
 			if(!"0".equals(SsStringUtil.normalize(vo.getFile_seq(), "0"))) {
 				fileVO.setAttach_seq(Integer.parseInt(vo.getFile_seq()));
-				returnValue += commonFileService.deleteFileByAttachSeq(fileVO) ; 
+				returnValue += commonFileService.deleteFileByAttachSeq(fileVO) ;
 			}
+	// [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 인라인 처리(조치내용 작성 / 처리상태 변경 / 담당자 이관).
+	//   ★ 신규 URL 을 만들지 않고 기존 histProc.do 에 pageType 을 추가하는 이유는
+	//     MenuAuthFilter 가 acceptUrlList 와 완전일치 비교만 해서 신규 /ad/as/*.do 가 403 이 되기 때문이다.
+	//     (awsProc.do 의 insert/update/delete, histProc.do 의 updateHistActionContent 와 같은 기존 관례)
+	} else if("insertAction".equals(vo.getPageType())
+			|| "changeStatus".equals(vo.getPageType())
+			|| "transferAssign".equals(vo.getPageType())) {
+		returnValue = procAswsInline(vo, userInfo) ;
+	} else if("saveAction".equals(vo.getPageType())) {
+		// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 처리 탭 통합 저장 (처리상태 + 담당자 + 조치메모 한 번에).
+		//   기존 changeStatus/transferAssign 를 각각 모달로 처리하던 것을
+		//   처리 탭 단일 폼으로 통합하면서 추가한 pageType.
+		returnValue = procAswsSaveAction(vo, userInfo) ;
+		// [AX Lab] 수정 끝
+	// [AX Lab] 수정 끝
+	// [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 상·하단 버튼 일괄 저장
+	} else if("saveRecordBatch".equals(vo.getPageType())) {
+		// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부 업로드 후 히스토리 FILE_SEQ로 전달
+		if(request instanceof MultipartHttpServletRequest) {
+			procAswsRecordFiles(vo, (MultipartHttpServletRequest)request) ;
 		}
-		
-		if(returnValue > 0) returnCode = "000" ;				
-		
-		returnMap.put("returnCode", returnCode) ; 
+		// [AX Lab] 수정 끝
+		returnValue = asService.updateAsRecordBatch(vo, userInfo) ;
+	// [AX Lab] 수정 끝
+	// [AX Lab] 수정 시작 (2026-07-31 AX Lab): AS 통합화면 아코디언 그룹별 인라인 편집(접수정보/고객사정보/
+	//   문의유형정보/처리완료사항/처리완료 상세사항). 기존 updateAsInfoAll 은 건드리지 않고
+	//   egov-combine-as-thread-query.xml 의 새 쿼리(그룹별 부분 UPDATE)만 사용한다.
+	} else if("saveAccept".equals(vo.getPageType())) {
+		returnValue = procAswsSaveAccept(vo, userInfo) ;
+	} else if("saveCust".equals(vo.getPageType())) {
+		returnValue = procAswsSaveCust(vo, userInfo) ;
+	} else if("saveInquiry".equals(vo.getPageType())) {
+		// [AX Lab] 수정 시작 (2026-10-02 AX Lab): multipart 요청이면 문의내용과 접수 첨부를 함께 저장
+		if(request instanceof MultipartHttpServletRequest) {
+			returnValue = procAswsSaveInquiryWithFiles(vo, userInfo, (MultipartHttpServletRequest)request) ;
+		} else {
+			returnValue = procAswsSaveInquiry(vo, userInfo) ;
+		}
+		// [AX Lab] 수정 끝
+	} else if("saveDone".equals(vo.getPageType())) {
+		returnValue = procAswsSaveDone(vo, userInfo) ;
+	} else if("saveDoneDt".equals(vo.getPageType())) {
+		returnValue = procAswsSaveDoneDt(vo, userInfo) ;
+	} else if("saveProcExtra".equals(vo.getPageType())) {
+		/* 중요도/전화확인/전화부재중 즉시 저장 (필드 클릭 즉시 수정 UX).
+		   처리상태·담당자와 달리 조치메모 없이 저장하며 이력도 남기지 않는다
+		   (원본 화면(form.jsp)도 이 필드들은 이력 없이 마스터만 갱신). */
+		returnValue = procAswsSaveProcExtra(vo, userInfo) ;
+	// [AX Lab] 수정 끝
+	}
+
+		if(returnValue > 0) returnCode = "000" ;
+
+		returnMap.put("returnCode", returnCode) ;
 		CommonExecute.returnJson(response, returnMap);
 	}
 
-	
+
+	// [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 인라인 처리 공통 로직.
+	/**
+	 * 이관 코멘트 식별 접두어.
+	 *
+	 * CRM_AS_MGT_HIST 에는 "이 행이 이관인지"를 구분하는 컬럼도, 이관 코멘트 전용 컬럼도 없다.
+	 * (컬럼: SEQ / AS_NO / PROC_DT / ACCEPTOR / PROC_STATUS / ACTION_CONTENT / FILE_SEQ /
+	 *        REG_DATE / REG_ID / INPORTANCE / REQUEST_TYPE / SERVICE_CATE / INQUIRY_TYPE)
+	 * 그래서 DDL 없이 ACTION_CONTENT 앞에 이 접두어를 붙여 저장하고, 화면(combine-as-thread.js)에서
+	 * 접두어를 떼어 이관 코멘트로 표시한다. "이관 전 담당자"는 직전 이력행의 ACCEPTOR 로 유추한다.
+	 * 추후 HIST_TYPE / FROM_ASSIGN_ID / TRANSFER_COMMENT 컬럼이 생기면 이 상수와
+	 * procAswsInline() 의 transferAssign 분기, JS 의 어댑터만 교체하면 된다.
+	 */
+	private static final String ASWS_TRANSFER_PREFIX = "[이관] " ;
+	// [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN 처리상태별 담당자 변경 허용 조건
+	private static boolean isAswsAssignEditableStatus(String status) {
+		return "C001".equals(status) || "C004".equals(status) ;
+	}
+	// [AX Lab] 수정 끝
+
+	/**
+	 * AS 통합화면(list.jsp) 의 인라인 처리.
+	 *
+	 * pageType
+	 *  - insertAction   : 조치내용만 단독 추가. CRM_AS_MGT 는 건드리지 않고 이력만 남긴다.
+	 *  - changeStatus   : 처리상태 / 처리예정일 변경 + 이력.
+	 *  - transferAssign : 배정담당자 변경(이관) + 이관 코멘트 이력.
+	 *
+	 * ★ changeStatus 가 현재 행을 먼저 읽어서 통째로 다시 넣는 이유:
+	 *   updateAsInfoAll 은 부분 UPDATE 가 아니라 20여 개 컬럼을 무조건 덮어쓴다.
+	 *   화면이 보낸 3~4개 값만 담아 호출하면 원인유형/조치유형/작업시간/처리완료 상세 등이
+	 *   전부 NULL 로 지워진다. 그래서 getAsInfo 로 현재 값을 읽어 복사한 뒤 바뀐 값만 덮어쓴다.
+	 *   (신규 쿼리를 만들지 않고 egov-as-query.xml 을 무수정으로 두기 위한 선택이다)
+	 *
+	 * @return 처리 건수 (0 이면 실패)
+	 */
+	private int procAswsInline(AsVO vo, UserVO userInfo) throws Exception {
+
+		String pageType = SsStringUtil.normalizeNull(vo.getPageType()) ;
+		String asNo     = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 공백 제거 전 조치의견 길이도 검증
+		String rawComment = SsStringUtil.normalizeNull(vo.getAction_content()) ;
+		String comment  = rawComment.trim() ;
+
+		if("".equals(asNo) || userInfo == null || rawComment.length() > 1300) return 0 ;
+		// [AX Lab] 수정 끝
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(asNo) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		String empNo = SsStringUtil.normalizeNull(userInfo.getEmp_no()) ;
+
+		/** 이력에 남길 값. 기본값은 "현재 상태 그대로" 이고 각 분기에서 바뀐 값만 덮어쓴다. */
+		AsVO hist = new AsVO() ;
+		hist.setAs_no(asNo) ;
+		hist.setProc_dt(SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+		hist.setProc_status(SsStringUtil.normalizeNull(cur.getProc_status())) ;
+		hist.setInportance(SsStringUtil.normalizeNull(cur.getInportance())) ;
+		hist.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type())) ;
+		hist.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate())) ;
+		hist.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type())) ;
+		hist.setAssign_id(SsStringUtil.normalizeNull(cur.getAssign_id())) ;	/* ACCEPTOR = 인수자 */
+		hist.setAttach_seq2(0) ;											/* FILE_SEQ  = 첨부 없음 */
+		hist.setReg_id(empNo) ;
+		hist.setAction_content(comment) ;
+
+		int returnValue = 0 ;
+
+		if("changeStatus".equals(pageType)) {
+
+			/* ※ 중요도(INPORTANCE)는 updateAsInfoAll 의 SET 절에 없어서 이 경로로는 바꿀 수 없다.
+			      그래서 상태변경 모달은 처리상태 / 처리예정일 / 조치의견만 다루고,
+			      중요도 변경은 기존 상세페이지(form.do)에 그대로 위임한다. */
+			String newStatus = SsStringUtil.normalizeNull(vo.getProc_status()).trim() ;
+			String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim() ;
+
+			if("".equals(newStatus)) return 0 ;
+			// [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN 조치의견 필수 조건
+			if ((!"".equals(SsStringUtil.normalizeNull(cur.getAssign_id()).trim())
+					&& !empNo.equals(SsStringUtil.normalizeNull(cur.getAssign_id()).trim())
+					&& "".equals(comment))
+					|| (("C005".equals(newStatus) || "C006".equals(newStatus)) && "".equals(comment))) return 0 ;
+			// [AX Lab] 수정 끝
+
+			/* updateAsInfoAll 이 덮어쓰는 모든 컬럼을 현재 값으로 채운다.
+			   ※ BeanUtils.copyProperties 를 쓰지 않는 이유: PagingVO 에 getPaging():String 과
+			      setPaging(int) 가 공존해서 String→int 변환 예외가 발생한다. */
+			AsVO upd = new AsVO() ;
+			upd.setAs_no(asNo) ;
+			upd.setPageType("") ;					/* updateAsInfoAll 의 subUpdate 분기(CN_AS_NO 조건) 회피 */
+			upd.setReg_id(empNo) ;					/* UPT_ID */
+			upd.setTel_confirm(SsStringUtil.normalizeNull(cur.getTel_confirm())) ;
+			upd.setProc_dt(SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+			upd.setProc_time(SsStringUtil.normalizeNull(cur.getProc_time())) ;
+			upd.setCause_type(SsStringUtil.normalizeNull(cur.getCause_type())) ;
+			upd.setAction_type(SsStringUtil.normalizeNull(cur.getAction_type())) ;
+			upd.setAssign_id(SsStringUtil.normalizeNull(cur.getAssign_id())) ;
+			upd.setAttach_seq2(cur.getAttach_seq2()) ;
+			upd.setWork_time(SsStringUtil.normalizeNull(cur.getWork_time())) ;
+			upd.setComplete_dt(SsStringUtil.normalizeNull(cur.getComplete_dt())) ;
+			upd.setProc_gubun(SsStringUtil.normalizeNull(cur.getProc_gubun())) ;
+			upd.setProc_build_info(SsStringUtil.normalizeNull(cur.getProc_build_info())) ;
+			upd.setProc_test_info(SsStringUtil.normalizeNull(cur.getProc_test_info())) ;
+			upd.setProc_process_sp(SsStringUtil.normalizeNull(cur.getProc_process_sp())) ;
+			upd.setProc_screen_sp(SsStringUtil.normalizeNull(cur.getProc_screen_sp())) ;
+			upd.setProc_table_sp(SsStringUtil.normalizeNull(cur.getProc_table_sp())) ;
+			upd.setProc_function_sp(SsStringUtil.normalizeNull(cur.getProc_function_sp())) ;
+			upd.setProc_interface_sp(SsStringUtil.normalizeNull(cur.getProc_interface_sp())) ;
+			upd.setProc_status(newStatus) ;
+			upd.setAction_content(comment) ;
+			if(!"".equals(newProcDt)) upd.setProc_dt(newProcDt) ;
+
+			returnValue = commonDAO.update(upd, "asDAO.updateAsInfoAll") ;
+
+			if(returnValue > 0) {
+				hist.setProc_status(newStatus) ;
+				if(!"".equals(newProcDt)) hist.setProc_dt(newProcDt) ;
+			}
+
+		} else if("transferAssign".equals(pageType)) {
+
+			String newAssignId = SsStringUtil.normalizeNull(vo.getAssign_id()).trim() ;
+
+			if("".equals(newAssignId)) return 0 ;
+			if(newAssignId.equals(SsStringUtil.normalizeNull(cur.getAssign_id()).trim())) return 0 ;
+			// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 상태별 담당자 변경 및 ORIGIN 이관사유 검증
+			if(!isAswsAssignEditableStatus(SsStringUtil.normalizeNull(cur.getProc_status()).trim())) return 0 ;
+			if(!newAssignId.equals(empNo) && "".equals(comment)) return 0 ;
+			// [AX Lab] 수정 끝
+
+			AsVO assignVO = new AsVO() ;
+			assignVO.setAs_no(asNo) ;
+			assignVO.setAssign_id(newAssignId) ;
+
+			returnValue = commonDAO.update(assignVO, "asDAO.updateAssignIdSingle") ;
+
+			if(returnValue > 0) {
+				/* 이관은 담당자만 바꾼다. 처리상태까지 같이 바꾸면 이력행의 PROC_STATUS 와
+				   마스터의 PROC_STATUS 가 어긋나므로 상태 변경은 별도 동작으로 분리한다. */
+				hist.setAssign_id(newAssignId) ;								/* ACCEPTOR = 인수자 */
+				hist.setAction_content(ASWS_TRANSFER_PREFIX + comment) ;
+			}
+
+		} else {
+			/* insertAction : 이력만 추가한다. 마스터(CRM_AS_MGT)는 건드리지 않는다. */
+			// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 조치내용 단독 추가는 공백 불가
+			if("".equals(comment)) return 0 ;
+			// [AX Lab] 수정 끝
+			returnValue = 1 ;
+		}
+
+		if(returnValue > 0) {
+			hist.setSeq(String.valueOf(commonDAO.selectOneInt(hist, "asDAO.getAsHistMaxSeq"))) ;
+			commonDAO.insert(hist, "asDAO.insertAsInfoHist") ;
+		}
+
+		return returnValue ;
+	}
+	// [AX Lab] 수정 끝
+
+
+	// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 처리 탭 통합 저장 로직.
+	/**
+	 * AS 통합화면 처리 탭 — 처리상태 · 담당자 · 조치메모를 한 번에 저장한다.
+	 *
+	 * 기존에는 '처리상태 변경' 과 '담당자 이관' 이 각각 별도 모달(changeStatus / transferAssign)이었다.
+	 * 통합 처리 탭으로 합치면서 아래 규칙으로 동작한다.
+	 *
+	 * ① 처리상태 또는 담당자가 변경된 경우:
+	 *    updateAsInfoAll 로 마스터 1회 업데이트 (read-modify-write 패턴은 changeStatus 분기와 동일).
+	 *    updateAsInfoAll 이 PROC_STATUS 와 ASSIGN_ID 를 모두 덮어쓰므로 두 번 호출할 필요 없다.
+	 * ② 아무것도 바뀌지 않은 "메모만" 케이스: 마스터는 건드리지 않고 이력만 추가한다.
+	 * ③ 담당자가 바뀌면 이력 ACTION_CONTENT 에 ASWS_TRANSFER_PREFIX 를 붙여 이관 이벤트로 식별한다.
+	 *    (JS 의 CAWS_TR_PREFIX 상수와 반드시 같아야 한다)
+	 *
+	 * @return 처리 건수 (0 이면 실패)
+	 */
+	private int procAswsSaveAction(AsVO vo, UserVO userInfo) throws Exception {
+
+		String asNo    = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 공백 제거 전 조치의견 길이도 검증
+		String rawComment = SsStringUtil.normalizeNull(vo.getAction_content()) ;
+		String comment = rawComment.trim() ;
+
+		if("".equals(asNo) || userInfo == null || rawComment.length() > 1300) return 0 ;
+		// [AX Lab] 수정 끝
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(asNo) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		String empNo     = SsStringUtil.normalizeNull(userInfo.getEmp_no()) ;
+		String newStatus = SsStringUtil.normalizeNull(vo.getProc_status()).trim() ;
+		String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim() ;
+		String newAssign = SsStringUtil.normalizeNull(vo.getAssign_id()).trim() ;
+
+		String curStatus = SsStringUtil.normalizeNull(cur.getProc_status()).trim() ;
+		String curAssign = SsStringUtil.normalizeNull(cur.getAssign_id()).trim() ;
+
+		boolean statusChanged = !"".equals(newStatus) && !newStatus.equals(curStatus) ;
+		boolean assignChanged = !"".equals(newAssign) && !newAssign.equals(curAssign) ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 변경 후 상태·담당자를 기준으로 ORIGIN 검증
+		String targetStatus = statusChanged ? newStatus : curStatus ;
+		String targetAssign = assignChanged ? newAssign : curAssign ;
+		if(assignChanged && !isAswsAssignEditableStatus(targetStatus)) return 0 ;
+		if((!"".equals(targetAssign) && !targetAssign.equals(empNo) && "".equals(comment))
+				|| (("C005".equals(targetStatus) || "C006".equals(targetStatus)) && "".equals(comment))) return 0 ;
+		if(!statusChanged && !assignChanged && "".equals(comment)) return 0 ;
+		// [AX Lab] 수정 끝
+
+		// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 처리상태사항 편집폼에 중요도/전화확인/전화부재중 추가.
+		//   updateAsInfoAll 의 SET 절에는 이 3개 컬럼이 없어 위 read-modify-write 로는 반영이 안 되므로,
+		//   egov-combine-as-thread-query.xml 의 updateAsProcExtra(부분 UPDATE) 로 별도 처리한다.
+		String newGrade = SsStringUtil.normalizeNull(vo.getInportance()).trim() ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 중요도 공백은 일반(C002)
+		if("".equals(newGrade)) newGrade = "C002" ;
+		// [AX Lab] 수정 끝
+		String curGrade = SsStringUtil.normalizeNull(cur.getInportance()).trim() ;
+		boolean gradeChanged = !"".equals(newGrade) && !newGrade.equals(curGrade) ;
+		// [AX Lab] 수정 끝
+
+		/* 이력 기본값 — 변경된 값은 아래에서 덮어쓴다 */
+		AsVO hist = new AsVO() ;
+		hist.setAs_no(asNo) ;
+		hist.setProc_dt(SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+		hist.setProc_status(curStatus) ;
+		hist.setInportance(SsStringUtil.normalizeNull(cur.getInportance())) ;
+		hist.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type())) ;
+		hist.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate())) ;
+		hist.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type())) ;
+		hist.setAssign_id(curAssign) ;
+		hist.setAttach_seq2(0) ;
+		hist.setReg_id(empNo) ;
+		hist.setAction_content(comment) ;
+
+		int returnValue = 1 ;		/* 메모만 남기는 케이스(상태/담당자 모두 그대로)도 이력 추가는 성공 */
+
+		if(statusChanged || assignChanged) {
+
+			/* read-modify-write : updateAsInfoAll 이 20여 개 컬럼을 무조건 덮어쓰므로
+			   현재 값을 먼저 복사한 뒤 바뀐 값만 교체한다. (changeStatus 분기와 동일한 패턴) */
+			AsVO upd = new AsVO() ;
+			upd.setAs_no(asNo) ;
+			upd.setPageType("") ;					/* subUpdate 분기(CN_AS_NO 조건) 회피 */
+			upd.setReg_id(empNo) ;
+			upd.setTel_confirm(SsStringUtil.normalizeNull(cur.getTel_confirm())) ;
+			upd.setProc_dt(SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+			upd.setProc_time(SsStringUtil.normalizeNull(cur.getProc_time())) ;
+			upd.setCause_type(SsStringUtil.normalizeNull(cur.getCause_type())) ;
+			upd.setAction_type(SsStringUtil.normalizeNull(cur.getAction_type())) ;
+			upd.setAssign_id(curAssign) ;
+			upd.setAttach_seq2(cur.getAttach_seq2()) ;
+			upd.setWork_time(SsStringUtil.normalizeNull(cur.getWork_time())) ;
+			upd.setComplete_dt(SsStringUtil.normalizeNull(cur.getComplete_dt())) ;
+			upd.setProc_gubun(SsStringUtil.normalizeNull(cur.getProc_gubun())) ;
+			upd.setProc_build_info(SsStringUtil.normalizeNull(cur.getProc_build_info())) ;
+			upd.setProc_test_info(SsStringUtil.normalizeNull(cur.getProc_test_info())) ;
+			upd.setProc_process_sp(SsStringUtil.normalizeNull(cur.getProc_process_sp())) ;
+			upd.setProc_screen_sp(SsStringUtil.normalizeNull(cur.getProc_screen_sp())) ;
+			upd.setProc_table_sp(SsStringUtil.normalizeNull(cur.getProc_table_sp())) ;
+			upd.setProc_function_sp(SsStringUtil.normalizeNull(cur.getProc_function_sp())) ;
+			upd.setProc_interface_sp(SsStringUtil.normalizeNull(cur.getProc_interface_sp())) ;
+			upd.setProc_status(statusChanged ? newStatus : curStatus) ;
+			upd.setAction_content(comment) ;
+			if(statusChanged && !"".equals(newProcDt)) upd.setProc_dt(newProcDt) ;
+			if(assignChanged) upd.setAssign_id(newAssign) ;
+
+			returnValue = commonDAO.update(upd, "asDAO.updateAsInfoAll") ;
+
+			if(returnValue > 0) {
+				if(statusChanged) {
+					hist.setProc_status(newStatus) ;
+					if(!"".equals(newProcDt)) hist.setProc_dt(newProcDt) ;
+				}
+				if(assignChanged) {
+					hist.setAssign_id(newAssign) ;
+					hist.setAction_content(ASWS_TRANSFER_PREFIX + comment) ;
+				}
+			}
+		}
+
+		// [AX Lab] 수정 시작 (2026-07-31 AX Lab): 중요도/전화확인/전화부재중 저장.
+		//   updateAsInfoAll 과 별도 쿼리라 실패해도 위에서 이미 커밋된 상태변경까지 되돌리지는 않는다
+		//   (커밋 단위는 함수 전체 트랜잭션이므로 return 0 이면 전체 롤백된다. 정상 케이스만 고려).
+		if(returnValue > 0) {
+			AsVO extra = new AsVO() ;
+			extra.setAs_no(asNo) ;
+			extra.setReg_id(empNo) ;
+			extra.setInportance(gradeChanged ? newGrade : curGrade) ;
+			extra.setTel_confirm(SsStringUtil.normalize(vo.getTel_confirm(), SsStringUtil.normalizeNull(cur.getTel_confirm()))) ;
+			extra.setTel_absence(SsStringUtil.normalize(vo.getTel_absence(), SsStringUtil.normalizeNull(cur.getTel_absence()))) ;
+			extra.setTel_absence_cnt(SsStringUtil.normalize(vo.getTel_absence_cnt(), SsStringUtil.normalizeNull(cur.getTel_absence_cnt()))) ;
+			// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 부재중 미체크 시 횟수 초기화
+			if(!"Y".equals(extra.getTel_absence())) extra.setTel_absence_cnt("") ;
+			// [AX Lab] 수정 끝
+			commonDAO.update(extra, "asDAO.updateAsProcExtra") ;
+			if(gradeChanged) hist.setInportance(newGrade) ;
+		}
+		// [AX Lab] 수정 끝
+
+		if(returnValue > 0) {
+			hist.setSeq(String.valueOf(commonDAO.selectOneInt(hist, "asDAO.getAsHistMaxSeq"))) ;
+			commonDAO.insert(hist, "asDAO.insertAsInfoHist") ;
+		}
+
+		return returnValue ;
+	}
+	// [AX Lab] 수정 끝
+
+
+	// [AX Lab] 수정 시작 (2026-07-31 AX Lab): AS 통합화면 아코디언 그룹별 인라인 편집 저장.
+	//   접수정보/고객사정보/문의유형정보/처리완료사항/처리완료 상세사항 — 5개 그룹.
+	//   각 그룹은 egov-combine-as-thread-query.xml 의 "그 그룹 컬럼만 SET 하는" 좁은 쿼리를 쓴다.
+	//   (updateAsInfoAll 처럼 전체 덮어쓰기가 아니므로 read-modify-write 가 필요 없다)
+	//   ★ 원본 화면(form.jsp)도 이 필드들을 저장할 때 CRM_AS_MGT_HIST 에 이력을 남기지 않으므로,
+	//     여기서도 동일하게 이력 없이 마스터만 갱신한다(처리상태사항 편집만 이력을 남기는 기존 규칙 유지).
+
+	/** 접수정보 — 접수경로 */
+	private int procAswsSaveAccept(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setAccept_route(SsStringUtil.normalizeNull(vo.getAccept_route()).trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsAccept") ;
+	}
+
+	/** 고객사정보 — 실신청자명 / 연락처 / SMS수신동의 */
+	private int procAswsSaveCust(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setRl_apply_nm(SsStringUtil.normalizeNull(vo.getRl_apply_nm()).trim()) ;
+		upd.setApply_tel(SsStringUtil.normalizeNull(vo.getApply_tel()).trim()) ;
+		upd.setSend_sms(SsStringUtil.normalizeNull(vo.getSend_sms()).trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsCust") ;
+	}
+
+	/** 문의유형정보 — 문의유형 / 시스템(대) / 시스템(소) / 요청내용
+	 *  ★ 일반 담당자(as_admin != 'Y')는 원본 화면(form.jsp)과 동일하게 문의유형/시스템유형을 바꿀 수 없다.
+	 *    화면에서도 select 를 비활성화하지만, 우회 호출을 막기 위해 서버에서도 한 번 더 확인한다. */
+	private int procAswsSaveInquiry(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(asNo) ;
+		curKey.setReg_id(userInfo.getEmp_no()) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		boolean isAdmin = "Y".equals(SsStringUtil.normalizeNull(cur.getAs_admin())) ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		if(isAdmin) {
+			upd.setRequest_type(SsStringUtil.normalizeNull(vo.getRequest_type()).trim()) ;
+			upd.setService_cate(SsStringUtil.normalizeNull(vo.getService_cate()).trim()) ;
+			upd.setInquiry_type(SsStringUtil.normalizeNull(vo.getInquiry_type()).trim()) ;
+			// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템(대)에 연동해 화면에서 계산한 고객사 HIS 버전 저장
+			upd.setVersion_info(SsStringUtil.normalizeNull(vo.getVersion_info()).trim()) ;
+			// [AX Lab] 수정 끝
+		} else {
+			/* 권한이 없으면 문의/시스템/버전 필드는 현재 값을 그대로 유지하고, 요청내용만 반영한다 */
+			upd.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type())) ;
+			upd.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate())) ;
+			upd.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type())) ;
+			// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 비관리자의 우회 요청으로 버전정보가 변경되지 않게 보호
+			upd.setVersion_info(SsStringUtil.normalizeNull(cur.getVersion_info())) ;
+			// [AX Lab] 수정 끝
+		}
+		upd.setCall_content(SsStringUtil.normalizeNull(vo.getCall_content()).trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsInquiry") ;
+	}
+
+	// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 문의내용 첨부 추가·삭제
+	/**
+	 * 문의내용과 접수 첨부를 함께 저장한다.
+	 * 기존 파일 수정은 해당 순번 삭제 후 새 파일을 추가하는 방식이며,
+	 * CRM_AS_MGT.FILE_SEQ가 없는 건은 새 첨부 묶음 번호를 발급해 좁은 쿼리로 연결한다.
+	 */
+	private int procAswsSaveInquiryWithFiles(AsVO vo, UserVO userInfo,
+			MultipartHttpServletRequest multiRequest) throws Exception {
+		int returnValue = procAswsSaveInquiry(vo, userInfo) ;
+		if(returnValue <= 0 || userInfo == null) return returnValue ;
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(SsStringUtil.normalizeNull(vo.getAs_no()).trim()) ;
+		curKey.setReg_id(userInfo.getEmp_no()) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		int fileSeq = SsStringUtil.parseInt(SsStringUtil.normalizeNull(cur.getFile_seq()), 0) ;
+		String delAttach1 = SsStringUtil.normalizeNull(vo.getDelAttach1()).trim() ;
+		if(fileSeq > 0 && !"".equals(delAttach1)) {
+			String[] delOrds = delAttach1.split("@") ;
+			for(String delOrd : delOrds) {
+				if(delOrd != null && delOrd.matches("\\d+")) {
+					FileVO delFile = new FileVO() ;
+					delFile.setAttach_seq(fileSeq) ;
+					delFile.setAttach_ord(Integer.parseInt(delOrd)) ;
+					commonFileService.deleteFileInfo(delFile) ;
+				}
+			}
+		}
+
+		List<FileVO> fileList = commonFileService.uploadFormFile(multiRequest, "as") ;
+		if(fileList != null && fileList.size() > 0) {
+			if(fileSeq == 0) fileSeq = commonFileService.getMaxFileSeq() ;
+			for(FileVO file : fileList) {
+				if(!file.getAttach_tag_name().startsWith("inquiryUpload_")) continue ;
+				file.setAttach_seq(fileSeq) ;
+				file.setAttach_ord(commonFileService.getMaxFileOrd(file)) ;
+				commonFileService.insertFile(file) ;
+			}
+
+			if(SsStringUtil.parseInt(SsStringUtil.normalizeNull(cur.getFile_seq()), 0) == 0) {
+				AsVO fileUpd = new AsVO() ;
+				fileUpd.setAs_no(curKey.getAs_no()) ;
+				fileUpd.setReg_id(userInfo.getEmp_no()) ;
+				fileUpd.setFile_seq(String.valueOf(fileSeq)) ;
+				commonDAO.update(fileUpd, "asDAO.updateAsInquiryFileSeq") ;
+			}
+		}
+
+		return returnValue ;
+	}
+	// [AX Lab] 수정 끝
+
+	// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 접수처리정보 조치이력 복수 첨부
+	/**
+	 * 일괄 저장 요청의 actionUpload_* 파일을 하나의 첨부 묶음으로 저장하고
+	 * 서비스가 생성할 CRM_AS_MGT_HIST 행에 연결할 ATTACH_SEQ2를 VO에 설정한다.
+	 */
+	private void procAswsRecordFiles(AsVO vo, MultipartHttpServletRequest multiRequest) throws Exception {
+		List<FileVO> fileList = commonFileService.uploadFormFile(multiRequest, "as") ;
+		if(fileList == null || fileList.size() == 0) {
+			vo.setAttach_seq2(0) ;
+			return ;
+		}
+
+		int attachSeq = 0 ;
+		for(FileVO file : fileList) {
+			if(!file.getAttach_tag_name().startsWith("actionUpload_")) continue ;
+			if(attachSeq == 0) attachSeq = commonFileService.getMaxFileSeq() ;
+			file.setAttach_seq(attachSeq) ;
+			file.setAttach_ord(commonFileService.getMaxFileOrd(file)) ;
+			commonFileService.insertFile(file) ;
+		}
+		vo.setAttach_seq2(attachSeq) ;
+	}
+	// [AX Lab] 수정 끝
+
+	/** 처리완료사항 — 처리예정일자/시각 / 원인유형 / 조치유형 / 작업시간 / 처리완료일자 */
+	private int procAswsSaveDone(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setProc_dt(SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim()) ;
+		upd.setProc_time(SsStringUtil.normalizeNull(vo.getProc_time()).trim()) ;
+		upd.setCause_type(SsStringUtil.normalizeNull(vo.getCause_type()).trim()) ;
+		upd.setAction_type(SsStringUtil.normalizeNull(vo.getAction_type()).trim()) ;
+		upd.setWork_time(SsStringUtil.normalizeNull(vo.getWork_time()).trim()) ;
+		upd.setComplete_dt(SsStringUtil.normalizeNull(vo.getComplete_dt()).replaceAll("/", "").trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsDone") ;
+	}
+
+	/** 처리완료 상세사항 — 처리구분 / 빌드순번 / 각종 정의서 (개발팀 참고용) */
+	private int procAswsSaveDoneDt(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		upd.setProc_gubun(SsStringUtil.normalizeNull(vo.getProc_gubun()).trim()) ;
+		upd.setProc_build_info(SsStringUtil.normalizeNull(vo.getProc_build_info()).trim()) ;
+		upd.setProc_test_info(SsStringUtil.normalizeNull(vo.getProc_test_info()).trim()) ;
+		upd.setProc_process_sp(SsStringUtil.normalizeNull(vo.getProc_process_sp()).trim()) ;
+		upd.setProc_screen_sp(SsStringUtil.normalizeNull(vo.getProc_screen_sp()).trim()) ;
+		upd.setProc_table_sp(SsStringUtil.normalizeNull(vo.getProc_table_sp()).trim()) ;
+		upd.setProc_function_sp(SsStringUtil.normalizeNull(vo.getProc_function_sp()).trim()) ;
+		upd.setProc_interface_sp(SsStringUtil.normalizeNull(vo.getProc_interface_sp()).trim()) ;
+
+		return commonDAO.update(upd, "asDAO.updateAsDoneDt") ;
+	}
+
+	/** 처리상태사항 부가필드 — 중요도 / 전화확인 / 전화부재중 (조치메모 불필요, 이력 미기록)
+	 *  화면에서 빈 값으로 온 필드는 현재 값을 유지한다(체크박스·select 하나만 바꿔도 안전). */
+	private int procAswsSaveProcExtra(AsVO vo, UserVO userInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim() ;
+		if("".equals(asNo) || userInfo == null) return 0 ;
+
+		AsVO curKey = new AsVO() ;
+		curKey.setAs_no(asNo) ;
+		AsVO cur = asService.getSelectInfo(curKey, "asDAO.getAsInfo") ;
+		if(cur == null) return 0 ;
+
+		AsVO upd = new AsVO() ;
+		upd.setAs_no(asNo) ;
+		upd.setReg_id(userInfo.getEmp_no()) ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 중요도 공백은 일반(C002)
+		upd.setInportance(SsStringUtil.normalize(vo.getInportance(),
+				SsStringUtil.normalize(SsStringUtil.normalizeNull(cur.getInportance()), "C002"))) ;
+		// [AX Lab] 수정 끝
+		upd.setTel_confirm(SsStringUtil.normalize(vo.getTel_confirm(), SsStringUtil.normalizeNull(cur.getTel_confirm()))) ;
+		upd.setTel_absence(SsStringUtil.normalize(vo.getTel_absence(), SsStringUtil.normalizeNull(cur.getTel_absence()))) ;
+		upd.setTel_absence_cnt(SsStringUtil.normalize(vo.getTel_absence_cnt(), SsStringUtil.normalizeNull(cur.getTel_absence_cnt()))) ;
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 부재중 미체크 시 횟수 초기화
+		if(!"Y".equals(upd.getTel_absence())) upd.setTel_absence_cnt("") ;
+		// [AX Lab] 수정 끝
+
+		return commonDAO.update(upd, "asDAO.updateAsProcExtra") ;
+	}
+	// [AX Lab] 수정 끝
+
+
 	/**
 	 * 엑셀처리
 	 * @param vo
@@ -562,6 +1259,11 @@ public class AdAsController {
 		
 		String[] procSelectArray =  vo.getProcSelect().split(",");
 		vo.setProcSelectArray(procSelectArray);
+		// [AX Lab] 수정 시작 (2026-10-16 AX Lab): 엑셀에도 재직 처리담당자 다중검색 적용
+		String assignSelect = SsStringUtil.normalizeNull(vo.getAssignSelect());
+		/* normalizeNullArray()가 array[0]을 확인하므로 미선택도 길이 1의 빈 문자열 배열로 전달한다. */
+		vo.setAssignSelectArray(assignSelect.split(","));
+		// [AX Lab] 수정 끝
 	
 		// [AX Lab] 수정 시작 (2026-07-24 AX Lab): 엑셀도 목록과 동일하게 처리구분(나의 A/S)+고급 동적필터 적용
 		if ("2".equals(SsStringUtil.normalizeNull(vo.getAsGubunFlag())) && userInfo != null) {
@@ -570,6 +1272,11 @@ public class AdAsController {
 			vo.setUser_id("");
 		}
 		vo.setAdvFilterList(buildAdvFilterList(vo.getAdv_field(), vo.getAdv_value(), vo.getAdv_value2()));
+		// [AX Lab] 수정 끝
+	
+		// [AX Lab] 수정 시작 (2026-07-29 AX Lab): 화면에서 정렬한 순서 그대로 엑셀이 나오도록 동일한 정렬조건을 적용.
+		// 정렬 미지정 시 AS_NO DESC 로 확정되므로 기존 다운로드 결과와 완전히 동일하다.
+		applyAsSort(vo);
 		// [AX Lab] 수정 끝
 	
 		List<AsVO> resultList = asService.getList(vo, "asDAO.getAsList");
@@ -824,7 +1531,30 @@ public class AdAsController {
 	    } else if ("update".equals(vo.getPageType())) {
 	        returnValue = asService.updateAws(vo, request);
 	    } else if ("delete".equals(vo.getPageType())) {
-	        returnValue = asService.deleteAws(vo, request);
+	        // [AX Lab] 수정 시작 (2026-10-17 AX Lab): 답변 삭제 시 작성자 또는 관리자 권한을 서버에서 재검증
+	        // 화면의 삭제 버튼 노출 여부만 신뢰하면 요청을 직접 조작해 다른 직원의 답변을 삭제할 수 있다.
+	        boolean canDelete = false;
+	        String loginEmpNo = adUserInfo != null && adUserInfo.getEmp_no() != null
+	                ? adUserInfo.getEmp_no() : "";
+	        String targetSeq = vo.getSeq() != null ? vo.getSeq() : "";
+	        boolean isAdmin = adUserInfo != null && "C001".equals(adUserInfo.getEmp_grade());
+
+	        if (!"".equals(loginEmpNo) && !"".equals(targetSeq)) {
+	            List<AsVO> awsList = asService.getList(vo, "asDAO.getAwsList");
+	            if (awsList != null) {
+	                for (AsVO awsVO : awsList) {
+	                    if (targetSeq.equals(awsVO.getSeq())) {
+	                        canDelete = loginEmpNo.equals(awsVO.getW_id()) || isAdmin;
+	                        break;
+	                    }
+	                }
+	            }
+	        }
+
+	        if (canDelete) {
+	            returnValue = asService.deleteAws(vo, request);
+	        }
+	        // [AX Lab] 수정 끝
 	    }
 
 	    // 1건이라도 성공하면 성공 코드
@@ -1025,6 +1755,82 @@ public class AdAsController {
 		UserVO userInfo = session.getAttribute("adUserInfo") != null ? (UserVO) session.getAttribute("adUserInfo") : null ;
 		vo.setReg_id(userInfo.getEmp_no());
 		
+		// [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 링크 삽입 모달용 게시물 목록 조회.
+		// 신규 URL은 MenuAuthFilter의 완전일치 권한 검사에서 403이 되므로, 권한이 이미 등록된
+		// getAsInfo.do에 pageType 분기로 격리한다. 공지사항은 NOTICE_NUM, 나머지는 SEQ를 화면 번호로 사용한다.
+		String boardLinkPageType = SsStringUtil.normalizeNull(vo.getPageType()).trim() ;
+		if("boardLinkList".equals(boardLinkPageType) || "boardLinkInfo".equals(boardLinkPageType)) {
+			String boardGbn = SsStringUtil.normalizeNull(request.getParameter("board_gbn")).trim() ;
+			List<String> allowedBoardGbns = Arrays.asList("0000", "0001", "0002", "0005", "0006") ;
+			if(!allowedBoardGbns.contains(boardGbn)) {
+				response.setStatus(HttpServletResponse.SC_BAD_REQUEST) ;
+				returnMap.put("message", "지원하지 않는 게시판 종류입니다.") ;
+				CommonExecute.returnJson(response, returnMap) ;
+				return ;
+			}
+
+			// [AX Lab] 수정 시작 (2026-10-17 AX Lab): 제목 클릭 시 게시물 본문 미리보기.
+			if("boardLinkInfo".equals(boardLinkPageType)) {
+				String linkNum = SsStringUtil.normalizeNull(request.getParameter("link_num")).trim() ;
+				if(!linkNum.matches("^[0-9]+$")) {
+					response.setStatus(HttpServletResponse.SC_BAD_REQUEST) ;
+					returnMap.put("message", "게시물 번호가 올바르지 않습니다.") ;
+					CommonExecute.returnJson(response, returnMap) ;
+					return ;
+				}
+
+				Map<String, Object> infoParam = new HashMap<String, Object>() ;
+				infoParam.put("board_gbn", boardGbn) ;
+				infoParam.put("link_num", linkNum) ;
+				infoParam.put("reg_id", userInfo.getEmp_no()) ;
+				returnMap.put("resultVO", commonDAO.selectOne(infoParam, "asDAO.getBoardLinkInfo")) ;
+				CommonExecute.returnJson(response, returnMap) ;
+				return ;
+			}
+			// [AX Lab] 수정 끝
+
+			int page = SsStringUtil.parseInt(SsStringUtil.normalizeNull(request.getParameter("page")), 1) ;
+			if(page < 1) page = 1 ;
+			final int pageSize = 10 ;
+			String searchText = SsStringUtil.normalizeNull(request.getParameter("search_text")).trim() ;
+			if(searchText.length() > 100) searchText = searchText.substring(0, 100) ;
+
+			Map<String, Object> param = new HashMap<String, Object>() ;
+			param.put("board_gbn", boardGbn) ;
+			param.put("reg_id", userInfo.getEmp_no()) ;
+			param.put("search_text", "".equals(searchText) ? null : searchText) ;
+
+			int totalCount = commonDAO.selectOneInt(param, "asDAO.getBoardLinkListCnt") ;
+			int pageCount = totalCount == 0 ? 0 : (totalCount + pageSize - 1) / pageSize ;
+			if(pageCount > 0 && page > pageCount) page = pageCount ;
+
+			param.put("start_row", ((page - 1) * pageSize) + 1) ;
+			param.put("end_row", page * pageSize) ;
+
+			returnMap.put("resultList", totalCount > 0
+					? commonDAO.list(param, "asDAO.getBoardLinkList") : new ArrayList<Object>()) ;
+			returnMap.put("totalCount", totalCount) ;
+			returnMap.put("page", page) ;
+			returnMap.put("pageSize", pageSize) ;
+			returnMap.put("pageCount", pageCount) ;
+			CommonExecute.returnJson(response, returnMap) ;
+			return ;
+		}
+		// [AX Lab] 수정 끝
+
+		// [AX Lab] 수정 시작 (2026-10-06 AX Lab): AS 통합화면 AI 추천 (설계서 mdfile/AS통합화면_AI추천_통합설계.md §5·§6).
+		//   pageType=aiRecommend 이면 상세 응답 대신 추천 API 결과만 돌려주고 끝낸다.
+		//   ★ 신규 URL(/ad/as/aiRecommend.do 등)을 만들지 않는 이유: MenuAuthFilter.isAccept() 가 세션 acceptUrlList 와
+		//     "완전일치" 비교만 하므로 DB 메뉴권한에 없는 신규 /ad/as/*.do 는 무조건 403 이다. (위 2026-07-30 블록과 같은 제약)
+		//   ★ 기존 호출자(form.jsp / combine-as.js 의 pageType=update|subUpdate)는 이 분기를 타지 않으므로 영향이 없다.
+		//   ★ 추천 API 호출 실패(타임아웃·장애)는 CombineAsAiClient 가 result 코드로만 돌려주므로 여기서 예외가 나지 않는다.
+		//     문의 원문·유형·제외 접수번호는 브라우저 값이 아니라 서버가 DB(combineAsAiDAO.getAiContext)에서 직접 읽는다.
+		if("aiRecommend".equals(SsStringUtil.normalizeNull(vo.getPageType()).trim())) {
+			CommonExecute.returnJson(response, combineAsAiService.recommend(vo));
+			return;
+		}
+		// [AX Lab] 수정 끝
+		
 		AsVO resultVO = asService.getSelectInfo(vo, "asDAO.getAsInfo") ;
 		
 		returnMap.put("resultVO", resultVO) ;
@@ -1038,14 +1844,49 @@ public class AdAsController {
 			
 			if(!"0".equals(SsStringUtil.normalize(resultVO.getAttach_seq2(), "0"))) {
 				fileVO.setAttach_seq(resultVO.getAttach_seq2());
-				returnMap.put("attachList2", commonFileService.getFileList(fileVO)) ; 
+				returnMap.put("attachList2", commonFileService.getFileList(fileVO)) ;
 			}
-			
-			returnMap.put("asHistList", asService.getList(vo, "asDAO.getAsHistList")) ; 
+
+			// [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 - 문의/답변/조치/이관을 한 줄기 타임라인으로
+			//   그리기 위해 답변목록과 각 조치이력의 첨부목록을 이 응답에 함께 실어 보낸다.
+			//   ★ 신규 URL 을 만들지 않는 이유: MenuAuthFilter.isAccept() 가 세션 acceptUrlList 와
+			//     "완전일치" 비교만 하므로 DB 메뉴권한에 없는 신규 /ad/as/*.do 는 무조건 403 이 된다.
+			//     (과거 getAswsKpi.do 가 이 이유로 제거되고 getAsList.do 응답에 합쳐졌다)
+			//     그래서 여기서도 기존 엔드포인트의 응답만 확장한다. 기존 호출자(form.jsp 등)는
+			//     추가된 키를 참조하지 않으므로 영향이 없다.
+			List<AsVO> awsList = asService.getList(vo, "asDAO.getAwsList") ;
+			if(awsList != null && awsList.size() > 0) {
+				for(AsVO awsVO : awsList) {
+					if(awsVO.getAttach_seq() > 0) {
+						FileVO awsFileVO = new FileVO() ;
+						awsFileVO.setAttach_seq(awsVO.getAttach_seq()) ;
+						Map<String , Object> awsMap = new HashMap<String , Object>() ;
+						awsMap.put("attachList", commonFileService.getFileList(awsFileVO)) ;
+						awsVO.setAmap(awsMap) ;
+					}
+				}
+			}
+			returnMap.put("awsList", awsList) ;
+
+			List<AsVO> asHistList = asService.getList(vo, "asDAO.getAsHistList") ;
+			if(asHistList != null && asHistList.size() > 0) {
+				for(AsVO histVO : asHistList) {
+					int histFileSeq = SsStringUtil.parseInt(SsStringUtil.normalizeNull(histVO.getFile_seq()), 0) ;
+					if(histFileSeq > 0) {
+						FileVO histFileVO = new FileVO() ;
+						histFileVO.setAttach_seq(histFileSeq) ;
+						Map<String , Object> histMap = new HashMap<String , Object>() ;
+						histMap.put("attachList", commonFileService.getFileList(histFileVO)) ;
+						histVO.setAmap(histMap) ;
+					}
+				}
+			}
+			returnMap.put("asHistList", asHistList) ;
+			// [AX Lab] 수정 끝
 		}
-		
+
 		CommonExecute.returnJson(response, returnMap);
-	}	
+	}
 	
 	
 	/**

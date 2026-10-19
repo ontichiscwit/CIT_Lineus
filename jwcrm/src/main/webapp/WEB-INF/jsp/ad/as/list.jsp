@@ -52,6 +52,17 @@
 		}
 	}
 	/* [AX Lab] 수정 끝 */
+
+	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 새 탭 진입 시 선택할 접수번호 쿼리값을 안전하게 읽는다.
+	   /ad/as/list.do?as_no=...&cn_as_no=... 로 들어온 경우에만 사용하며 숫자 11자리 외 값은 버린다. */
+	function asws_initialAsNo(name){
+		var m = new RegExp('(?:^|[?&])' + name + '=([^&]*)').exec(window.location.search || '');
+		if(!m) return '';
+		var v = '';
+		try{ v = decodeURIComponent(String(m[1]).replace(/\+/g, ' ')); }catch(e){ return ''; }
+		return /^20\d{9}$/.test(v) ? v : '';
+	}
+	/* [AX Lab] 수정 끝 */
 	
 	$(document).ready(function(){
 		
@@ -66,7 +77,25 @@
 		
 		initForm();
 		if (typeof asws_initKpiCollapse === 'function') asws_initKpiCollapse(); /* [AX Lab] KPI 영역을 접힘으로 고정 + 구버전 저장값 정리 (2026-07-28 AX Lab) */
-		makeListData();	/* [AX Lab] 상단 KPI(나에게 배정된 건 6종)는 getAsList.do 응답에 동봉되어 setAsList 에서 갱신됨 */
+		/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록 컬럼 개편 부가기능 초기화.
+		   - asws_restoreListWide : 검색/페이징으로 화면이 다시 그려져도 '넓게 보기' 상태를 유지 (첫 진입은 기본 3분할)
+		   - asws_tipBind        : 문의내용 셀 호버 시 전문 툴팁 (행 렌더링 전에 위임 바인딩해 두면 됨) */
+		if (typeof asws_restoreListWide === 'function') asws_restoreListWide(ASWS_IS_FIRST_ENTRY);
+		if (typeof asws_tipBind === 'function') asws_tipBind();
+		/* [AX Lab] 수정 끝 */
+		/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): '상세 넓게 보기' 상태 복원.
+		   목록 넓게 보기(asws_restoreListWide) "뒤"에 호출해야 한다. 두 모드는 같은 #asGrid 의
+		   grid-template-columns 를 다투므로, 뒤에 실행되는 쪽이 최종 상태를 결정한다. */
+		if (typeof caws_restoreDetailWide === 'function') caws_restoreDetailWide();
+		/* [AX Lab] 수정 끝 */
+		/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 새 탭에서 목록 첫 행 대신 URL의 접수건을 상세영역에 연다.
+		   makeListData 콜백은 목록이 0건이어도 실행되므로 현재 검색조건/담당자 여부와 무관하게 대상 건을 볼 수 있다. */
+		var initialAsNo = asws_initialAsNo('as_no');
+		var initialCnAsNo = asws_initialAsNo('cn_as_no');
+		makeListData(initialAsNo !== '' ? function(){
+			asws_openDetail(initialAsNo, initialCnAsNo);
+		} : null);	/* 상단 KPI(나에게 배정된 건 6종)는 getAsList.do 응답에 동봉되어 setAsList 에서 갱신됨 */
+		/* [AX Lab] 수정 끝 */
 		$("#search_text").keyup(function(e){if(e.keyCode == 13)  getAsList(1); });
 		/* [AX Lab] 삭제 (2026-07-24 AX Lab): emp_nm/search_type4/search_type6 필드는 고급필터 동적행으로 대체됨 */
 		
@@ -132,19 +161,10 @@
 		   "목록은 필터됐는데 처리상태 칸은 비어 보이는" 불일치가 생기지 않는다. */
 		$('#procSelect').val(asws_procInitStr());
 
-		/* 처리구분(나의/전체 A/S) - 저장값 없으면 '나의 A/S'(2) 기본 */
-		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '전체 A/S' 선택이 검색 후 유지되지 않던 문제 수정.
-		   기존에는 '전체 A/S' 의 option value 가 빈 문자열('') 이라 "미지정(첫 진입)" 과 구분되지 않았다.
-		   검색(getAsList)은 listFrm 을 /ad/as/list.do 로 재요청해 화면을 다시 그리는데, 이때 돌아온
-		   ''(=전체 선택) 이 "저장값 없음" 으로 판정되어 매번 '2'(나의 A/S) 로 되돌아갔다.
-		   → AS 처리담당자가 아닌 계정은 담당건이 0건이라 '전체 A/S' 를 골라도 목록이 계속 비어 보였다.
-		   해결: '전체 A/S' 의 값을 '1' 로 부여해 ''(미지정) 과 구분한다. 아래 복원 로직은 그대로 두어도
-		   '1' 이 그대로 복원되므로 정상 동작한다.
-		   서버(AdAsController.getAsList / exl)는 "2".equals(asGubunFlag) 일 때만 담당자(ASSIGN_ID) 필터를
-		   걸고 그 외 값은 전체 조회로 처리하므로 Java·쿼리 수정 없이 동작한다. */
+		/* [AX Lab] 삭제 (2026-10-18 AX Lab): 나의/전체 A/S 처리구분을 제거하고 처리담당자 필터로 통합
 		var asGubun = '${ vo.asGubunFlag }';
 		$('#asGubunFlag').val(asGubun === '' ? '2' : asGubun);
-		/* [AX Lab] 수정 끝 */
+		*/
 
 		/* 고급필터 체크박스 상태 복원 */
 		/* [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스를 제거하고 처리상태 기본 체크(접수+처리중)로
@@ -164,8 +184,21 @@
 		$('#page').val('${ vo.page}') ;
 		$('#pageSize').val('${ vo.pageSize}') ;
 
+		/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록 정렬조건 복원.
+		   페이징/검색은 listFrm 을 submit 해 화면을 다시 그리므로, 서버가 검증해 돌려준 값을 hidden 에 다시 넣고
+		   헤더 화살표 표시(asws_sortSync)까지 맞춰야 정렬 상태가 유지된 것처럼 보인다.
+		   서버에서 화이트리스트를 통과하지 못한 값은 빈 문자열로 내려오므로 자동으로 정렬 해제 상태가 된다. */
+		$('#sort_col').val('${ vo.sort_col }');
+		$('#sort_dir').val('${ vo.sort_dir }');
+		if (typeof asws_sortInit === 'function') asws_sortInit();
+		/* [AX Lab] 수정 끝 */
+
 		/* 고급 동적 검색구분 행 복원 (combine-as.js) */
 		if (typeof asws_advInit === 'function') asws_advInit();
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 기본필터 초기화.
+		   ASWS_ADV_INIT의 구 처리담당자 조건을 승계해야 하므로 asws_advInit() 다음에 실행한다. */
+		if (typeof asws_baseAssignInit === 'function') asws_baseAssignInit();
+		/* [AX Lab] 수정 끝 */
 
 		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자만' 체크 복원은 반드시 asws_advInit() "뒤"에서 한다.
 		   asws_advInit() 은 시작할 때 조건행을 전부 비우는데(asws_advClear), 그 순간에는 처리담당자명 조건이
@@ -258,6 +291,7 @@
 		
 		$('#cust_kor_name').val(common.nvl(resultVO.cust_kor_name, '')) ; 
 		$('#cust_code').val(common.nvl(resultVO.erp_code, '')) ; 
+		if (typeof asws_advUpdateCount === 'function') asws_advUpdateCount();
 	
 	}
 	
@@ -295,14 +329,19 @@
 		$("#search_start").val($.datepicker.formatDate('yy/mm/dd', new Date(new Date().setDate(new Date().getDate() - 7)))).datepicker(datepicker);
 		$( "#search_end" ).val($.datepicker.formatDate('yy/mm/dd', new Date())).datepicker(datepicker);
 		
-		/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 고급 동적조건/처리상태/처리구분 초기화 */
+		/* [AX Lab] 수정 시작 (2026-07-24 AX Lab): 고급 동적조건/처리상태 초기화 */
 		if (typeof asws_advClear === 'function') asws_advClear();
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 초기화 후에도 자주 쓰는 고급필터 기본행 복원 */
+		if (typeof asws_advAddDefaults === 'function') asws_advAddDefaults();
+		/* [AX Lab] 수정 끝 */
 		/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 초기화 시 처리상태를 "빈 값(=전체 조회)"으로 두면
 		   처리완료 건까지 다 나와 첫 진입 상태와 달라진다. 첫 진입과 동일하게 기본 체크(접수+처리중)로 복원한다. */
 		asws_procApply(ASWS_PROC_DEFAULT);
 		$('#procSelect').val(ASWS_PROC_DEFAULT);
 		/* [AX Lab] 수정 끝 */
-		$('#asGubunFlag').val('2');
+		/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): AS 처리담당자는 본인, 그 외 계정은 전체 담당자로 초기화 */
+		if (typeof asws_baseAssignReset === 'function') asws_baseAssignReset();
+		/* [AX Lab] 수정 끝 */
 		/* [AX Lab] 수정 끝 */
 	}
 	
@@ -319,6 +358,9 @@
 	function getAsList(pageIndex) {
 		var val = procSelect.sumo.getSelStr();
 		$("#procSelect").val(val);
+		/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 체크박스 선택값을 조회용 CSV로 확정 */
+		if(typeof asws_assignFlush === 'function') asws_assignFlush();
+		/* [AX Lab] 수정 끝 */
 
 		var f = document.listFrm;
 
@@ -349,14 +391,37 @@
 		/* [AX Lab] 삭제 (2026-07-24 AX Lab): 제거된 검색필드(search_type7/cust_*) 재활성 코드 - 고급필터 동적행으로 대체 */
 
 		f.page.value = pageIndex;
+		/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 검색/페이징은 왼쪽 목록만 비동기로 갱신한다.
+		   전체 페이지 submit 시 asws 상태가 새로 만들어져 이미 열린 AS상세내용이 초기화되는 문제를 방지한다.
+		   로딩 스크립트가 누락된 배포 환경에서는 기존 submit 방식으로 안전하게 폴백한다. */
+		if(typeof asws_listLoad === 'function'){
+			asws_listLoad();
+			return;
+		}
 		f.target = '';
 		f.action = '/ad/as/list.do';
 		f.submit();
+		/* [AX Lab] 수정 끝 */
 	}
 	
-	function makeListData() {
+	/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 목록조회를 비동기로 전환 + 로딩표시.
+	   공통 common.ajaxCall 은 async:false(동기 XHR) 라 요청이 도는 동안 브라우저가 화면을
+	   다시 그리지 않는다. 그래서 로딩 표시를 DOM 에 넣어도 절대 보이지 않았다.
+	   → 목록 조회만 combine-as-loading.js 의 asws_listLoad() 로 위임한다.
+
+	   ★ afterFn : 조회 완료 후 "첫 행 자동선택 대신" 실행할 함수.
+	     기존 호출부(combine-as-form.js 등록후 / combine-as-thread.js 답변후)는
+	         makeListData(); asws_openDetail(원래보던건);
+	     처럼 동기 실행에 의존했다. 비동기로 바꾸면 순서가 뒤집혀 보던 건이 첫 행으로
+	     튕기므로, 그 호출부는 afterFn 형태로 넘기도록 함께 수정했다.
+	   ※ combine-as-loading.js 미로드 시에는 기존 동기 방식으로 자동 폴백한다(원복 안전망). */
+	function makeListData(afterFn) {
+		if (typeof asws_listLoad === 'function') { asws_listLoad(afterFn) ; return ; }
+		/* 동기 폴백 : ajaxCall 이 async:false 라 여기서 afterFn 을 바로 부르면 개편 전과 순서가 같다. */
 		common.ajaxCall($('form[name=listFrm]').serialize(), '/ad/as/getAsList.do', 'setAsList') ;
+		if (typeof afterFn === 'function') afterFn() ;
 	}
+	/* [AX Lab] 수정 끝 */
 		
 	/* [AX Lab] 수정 시작 (2026-07-23 AX Lab): 20컬럼 -> 4컬럼 축약 + 행클릭 상세연동(asws_openDetail).
 	   나머지 축약된 컬럼값은 rowMap 에 저장해 오른쪽 상세 패널(COL3)에서 사용한다. */
@@ -391,11 +456,29 @@
 				var stCode = common.nvl(datas.proc_status, '');
 				var stCls = asws_stClass(stCode);
 
-				// 우선처 / 중요도 뱃지
-				var prioIco = (common.nvl(datas.priority, '') == 'Y') ? '<span style="color:var(--red);font-weight:700;">★</span> ' : '';
+				/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 우선처는 거래처명 앞, 중요도는 문의내용 앞으로 위치 변경.
+				   (요구사항: 우선처/중요도는 별도 컬럼을 만들지 않고 해당 값 앞에 표식으로만 노출) */
+				// 우선처 : 거래처명 앞에 붙는 ★
+				var prioIco = (common.nvl(datas.priority, '') == 'Y') ? '<span class="prio" title="우선처">★</span>' : '';
+				/* 중요도 : 문의내용 앞에 붙는 뱃지 (C001=긴급이면 붉은색 강조)
+				   [AX Lab] 수정 (2026-07-30 AX Lab): "중요도는 별도 컬럼 없이 문의내용 앞에만" 요청이 반영되지 않은 것으로
+				   보였던 원인은, 이 뱃지는 그려지고 있었지만 우측 가로스크롤 영역에 중요도 컬럼이 그대로 남아 있어
+				   여전히 '별도 컬럼'으로 보였던 것. → 우측 중요도 컬럼을 제거하고(colgroup/thead 참고),
+				   뱃지는 배경이 있는 칩 형태로 바꿔 문의내용 앞 표식임이 분명히 드러나게 했다(combine-as.css .grade). */
 				var gradeNm = common.nvl(datas.inportance_nm, '');
 				var gradeCls = (common.nvl(datas.inportance, '') == 'C001') ? 'grade emc' : 'grade';
-				var gradeTag = gradeNm ? ' <span class="'+gradeCls+'">'+gradeNm+'</span>' : '';
+				var gradeTag = gradeNm ? '<span class="'+gradeCls+'" title="중요도 '+asws_esc(gradeNm)+'">'+asws_esc(gradeNm)+'</span> ' : '';
+
+				/* 거래상태 : 해지(C003)/폐업(C004)/중지(C005) 거래처는 별도 컬럼 없이
+				   거래처명 뒤 뱃지 + 행 전체 연한 회색 배경으로 육안 식별되게 한다. */
+				var dealCd  = common.nvl(datas.deal_code, '');
+				var isOff   = (dealCd == 'C003' || dealCd == 'C004' || dealCd == 'C005');
+				var dealNm  = common.nvl(datas.deal_code_nm, '');
+				var dealTag = isOff ? ' <span class="dealoff" title="거래상태: '+asws_esc(dealNm)+'">'+asws_esc(dealNm)+'</span>' : '';
+
+				// 첨부파일 : 있으면 제목 뒤에 클립 표식
+				var clipTag = (common.nvl(datas.has_file, '') == 'Y') ? ' <span class="clip" title="첨부파일 있음">&#128206;</span>' : '';
+				/* [AX Lab] 수정 끝 */
 
 				// 문의/조치 내용 요약
 				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 제목(q-title)과 본문(q-body)에 같은 call_content 를
@@ -420,45 +503,138 @@
 				var actInfo = actC ? ('조치: ' + actC.substr(0, 40)) : '';
 				/* [AX Lab] 수정 끝 */
 
-				str += '<tr data-asno="'+asNo+'" onclick="asws_openDetail(\''+asNo+'\',\''+cnAsNo+'\');">';
+				/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 좌측 6컬럼 + 우측 가로스크롤 컬럼 구조로 행 재구성.
+				   - 마우스 호버 시 문의/조치 내용을 전부 보여주기 위해 원문을 data-full 에 실어 보낸다.
+				     (title 속성은 줄바꿈·긴 글 표현이 빈약해 combine-as.js 의 커스텀 툴팁을 쓴다)
+				   [AX Lab] 수정 (2026-07-30 AX Lab): sticky 고정 해제로 stk/stkN 클래스 제거, 맨 앞 컬럼을 접수번호로 교체.
+				   ※ 여기서 그리는 td 의 개수·순서는 위 colgroup/thead 와 반드시 1:1 로 맞아야 한다.
+				     어긋나면 브라우저가 조용히 밀어서 그리므로 눈으로 찾기 어렵다.
+				     (test/check-aslist-columns.js 로 개수 정합성을 정적 검사할 수 있다) */
+				var fullTxt = callC + (actC ? '\n\n[조치]\n' + actC : '');
+
+				/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 이미 다른 AS가 열려 있으면 새 탭/현재 화면 선택창 표시 */
+				str += '<tr data-asno="'+asNo+'" class="'+(isOff ? 'cust-off' : '')+'" onclick="typeof asoc_selectFromList===\'function\'?asoc_selectFromList(\''+asNo+'\',\''+cnAsNo+'\'):asws_openDetail(\''+asNo+'\',\''+cnAsNo+'\');">';
+				/* [AX Lab] 수정 끝 */
 				str += '  <td class="col-chk" onclick="event.cancelBubble=true;">' +
 				       '<input type="checkbox" title="거래선택" name="chk" ' +
 				       'value="'+asNo+'@'+cnAsNo+'" ' +
 				       'data-as-no-link="'+asNoLink+'" ' +
 				       'data-proc-status="'+stCode+'"/></td>';
-				str += '  <td class="col-date">'+vAcceptDt+'</td>';
+				/* 접수번호 : 행의 식별자. 폭이 부족하면 말줄임 + title 로 전체값을 보여주는 asws_cell_txt 를 쓴다. */
+				str += '  <td class="col-no">'+asws_cell_txt(asNo)+'</td>';
 				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 거래처명이 길면 3~4줄로 늘어나 행 높이를 키우던 문제 → 2줄 클램프
-				   (td 에는 -webkit-box 를 쓸 수 없어 내부 div(cl-t)로 감싼다. 전체 값은 title 툴팁으로 확인 가능) */
-				var custTxt = '['+common.nvl(datas.cust_code, '')+']'+common.nvl(datas.cust_kor_name,'');
-				str += '  <td class="col-client"><div class="cl-t" title="'+asws_esc(custTxt)+'">'+asws_esc(custTxt)+'</div></td>';
+				   (td 에는 -webkit-box 를 쓸 수 없어 내부 div(cl-t)로 감싼다. 전체 값은 title 툴팁으로 확인 가능)
+				   [AX Lab] 수정 (2026-07-29): 거래처명 앞 ★(우선처), 뒤 거래상태 뱃지 추가. 거래처코드는 별도 컬럼 없이
+				   title 툴팁으로만 보여주고 폭은 거래처명에 몰아준다. */
+				var custNm  = common.nvl(datas.cust_kor_name, '');
+				var custTip = '['+common.nvl(datas.cust_code, '')+'] '+custNm+(isOff ? ' (거래상태: '+dealNm+')' : '');
+				str += '  <td class="col-client"><div class="cl-t" title="'+asws_esc(custTip)+'">'+prioIco+asws_esc(custNm)+dealTag+'</div></td>';
 				/* [AX Lab] 수정 끝 */
-				str += '  <td>';
-				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 제목을 q-t 로 감싸 1줄 ellipsis 처리 (좁은 컬럼에서 2~3줄로 늘어나는 것 방지) */
-				str += '    <div class="q-title">'+prioIco+'<span class="q-t">'+asws_esc(callHead)+'</span>'+gradeTag+'</div>';
+				str += '  <td class="col-q" data-full="'+asws_esc(fullTxt)+'">';
+				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 제목을 q-t 로 감싸 1줄 ellipsis 처리 (좁은 컬럼에서 2~3줄로 늘어나는 것 방지)
+				   [AX Lab] 수정 (2026-07-29): 중요도 뱃지를 제목 앞으로, 첨부 표식을 제목 뒤로 배치 */
+				str += '    <div class="q-title">'+gradeTag+'<span class="q-t">'+asws_esc(callHead)+'</span>'+clipTag+'</div>';
 				/* [AX Lab] 수정 끝 */
 				/* [AX Lab] 수정 시작 (2026-07-28 AX Lab): 추가 내용이 있을 때만 본문 줄을 출력 (빈 줄로 행 높이 낭비 방지) */
 				if (callRest !== '') str += '    <div class="q-body">'+asws_esc(callRest)+'</div>';
 				/* [AX Lab] 수정 끝 */
-				str += '    <div class="q-act">담당 '+common.nvl(datas.emp_nm,'-')+' · 답변 '+common.nvl(datas.total_aws_cnt,'0')+'건'+(actInfo? ' · '+asws_esc(actInfo):'')+'</div>';
+				/* [AX Lab] 수정 시작 (2026-07-29 AX Lab): 담당자가 별도 컬럼으로 분리되어 이 줄에서는 제거 */
+				str += '    <div class="q-act">답변 '+common.nvl(datas.total_aws_cnt,'0')+'건'+(actInfo? ' · '+asws_esc(actInfo):'')+'</div>';
+				/* [AX Lab] 수정 끝 */
 				str += '  </td>';
 				str += '  <td class="col-status"><span class="st '+stCls+'">'+common.nvl(datas.proc_status_nm, '')+'</span></td>';
+				str += '  <td class="col-emp">'+asws_cell_txt(datas.emp_nm)+'</td>';
+
+				/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 우측 가로스크롤 컬럼 10개 (thead 의 col/th 순서와 1:1).
+				   원본 화면(list_origin.jsp)의 값 가공 방식을 그대로 따른다.
+				   - 시스템유형   : 원본과 동일하게 시스템(대) / 시스템(소) 를 한 칸에 합쳐 보여준다.
+				   - 신규답변     : aws_cnt = "가장 마지막 답변을 고객(w_gubun='U')이 썼는가" 플래그.
+				                    1이면 답변 대기 건이므로 원본과 동일하게 [확인] 버튼(신규답변 팝업)을 노출하고,
+				                    0이면 누적 답변수를 숫자로 보여준다.
+				   - 처리완료일자 : 원본과 동일하게 처리상태가 완료(C005)일 때만 값을 노출한다.
+				   ※ 조건 분기로 td 리터럴을 2개 쓰면 컬럼수 정적검사(check-aslist-columns.js)가 오탐하므로
+				     내용만 변수로 만들고 td 는 한 번만 출력한다. */
+				var sysType = common.nvl(datas.service_cate_nm, '')
+				            + (common.nvl(datas.inquiry_type_nm, '') !== '' ? ' / ' + datas.inquiry_type_nm : '');
+				var completeDt = (stCode == 'C005') ? common.nvl(datas.as_complete_dt, '') : '';
+				var awsHtml = (common.nvl(datas.aws_cnt, '0') == '0')
+				            ? asws_cell_txt(common.nvl(datas.total_aws_cnt, '0'))
+				            : '<button type="button" class="btn-s aws-new" title="고객이 마지막으로 남긴 답변이 있습니다"'
+				              + ' onclick="event.cancelBubble=true;btnAws(\''+asNo+'\');">확인</button>';
+
+				str += asws_cell(datas.as_no_link_count);
+				str += asws_cell(datas.as_proc_dt);
+				str += asws_cell(datas.request_type_nm);
+				str += asws_cell(sysType);
+				str += '  <td class="ctxt col-aws">'+awsHtml+'</td>';
+				str += asws_cell(vAcceptDt);
+				str += asws_cell(completeDt);
+				str += asws_cell(datas.cause_type_nm);
+				str += asws_cell(datas.action_type_nm);
+				str += asws_cell(asws_stars(datas.star_state));
 				str += '</tr>';
+				/* [AX Lab] 수정 끝 */
+				/* [AX Lab] 수정 끝 */
 			}
 
 			$('#asList').append(str);
 			$('#count').html(numberWithCommas(vo.rowCnt));
 			$("#pagination").html(vo.json_paging);
 
-			/* 첫 행 자동 선택(상세 열기) */
-			var first = resultList[0];
-			asws_openDetail(common.nvl(first.as_no,''), common.nvl(first.cn_as_no,''));
+			/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 비동기 전환에 따른 "조회 후 열어둘 건" 처리.
+			   makeListData(afterFn) 로 콜백이 넘어온 경우(등록 직후 / 답변 직후)는 그 건을 연다. */
+			var afterFn = (typeof asws_listTakeAfter === 'function') ? asws_listTakeAfter() : null;
+			if (afterFn) {
+				afterFn();
+			} else {
+				/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 목록 첫 행 자동 열기를 제거한다.
+				   최초 진입은 안내문을 유지한다. 페이징/검색으로 목록만 다시 조회할 때는
+				   사용자가 이미 선택한 상세를 초기화하지 않고, 현재 페이지에 있으면 선택 표시만 복원한다. */
+				var selectedNo = (typeof asws !== 'undefined') ? common.nvl(asws.asNo,'') : '';
+				if(selectedNo !== ''){
+					/* 현재 페이지에 선택건이 없으면 기존 curRow도 유지해 상세 기능의 부가정보가 사라지지 않게 한다. */
+					if(asws.rowMap[selectedNo]) asws.curRow = asws.rowMap[selectedNo];
+					$('#asList tr[data-asno="'+selectedNo+'"]').addClass('on');
+				}else if(typeof caws_clear === 'function'){
+					caws_clear('왼쪽 목록에서 접수건을 선택하세요.');
+				}
+				/* [AX Lab] 수정 끝 */
+			}
+			/* [AX Lab] 수정 끝 */
 
 		} else {
-			$('#asList').html('<tr><td colspan="5" style="text-align:center;padding:30px;color:#8A979E;">조회된 데이터가 없습니다.</td></tr>');
+			/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 0건 안내를 원인별로 구분해서 보여준다.
+			   기존 한 줄 문구로는 "처리구분이 '나의 A/S' 라 나에게 배정된 건만 조회 중" 이라는
+			   진짜 원인을 알 수 없어 장애로 오인됐다. (combine-as-loading.js / asws_emptyHtml)
+			   ※ 0건일 때도 대기 중인 afterFn 을 반드시 비워야 다음 조회로 새지 않는다.
+			   ※ 미로드 시에는 기존 문구로 폴백한다. */
+			var emptyAfterFn = (typeof asws_listTakeAfter === 'function') ? asws_listTakeAfter() : null;
+			if (typeof asws_emptyHtml === 'function') {
+				$('#asList').html(asws_emptyHtml());
+			} else {
+				$('#asList').html('<tr><td colspan="16" style="text-align:center;padding:30px;color:#8A979E;">조회된 데이터가 없습니다.</td></tr>');
+			}
+			/* [AX Lab] 수정 끝 */
 			$('#count').html('0');
 			$("#pagination").html('');
-			$('#asDetail').html('<div class="empty">조회된 접수건이 없습니다.</div>');
-			$('#asRecord').html('<div class="none" style="padding:14px">조회된 접수건이 없습니다.</div>');
+			/* [AX Lab] 수정 시작 (2026-09-30 AX Lab): 저장 직후 현재 건이 검색조건에서 빠져도 상세는 유지.
+			   담당자 이관 후 '나의 A/S' 목록이 0건이 될 수 있으므로, 대기 중 콜백이 있으면
+			   빈 화면으로 초기화하지 않고 방금 저장한 접수번호를 다시 조회한다. */
+			/* [AX Lab] 수정 시작 (2026-10-16 AX Lab): 검색 결과가 0건이어도 이미 연 AS 상세는 초기화하지 않는다.
+			   검색은 왼쪽 목록만 갱신하며, 사용자가 다른 AS를 직접 선택하기 전까지 현재 상세를 유지한다. */
+			var openedAsNo = (typeof asws !== 'undefined') ? common.nvl(asws.asNo,'') : '';
+			if(emptyAfterFn){
+				emptyAfterFn();
+			}else if(openedAsNo !== ''){
+				/* 기존 AS상세내용/접수처리정보 유지 */
+			}else if(typeof caws_clear === 'function'){
+				caws_clear('조회된 접수건이 없습니다.');
+			}else{
+				$('#asDetail').html('<div class="empty">조회된 접수건이 없습니다.</div>');
+				$('#asRecord').html('<div class="none" style="padding:14px">조회된 접수건이 없습니다.</div>');
+			}
+			/* [AX Lab] 수정 끝 */
+			/* [AX Lab] 수정 끝 */
 		}
 	}
 	/* [AX Lab] 수정 끝 */
@@ -559,11 +735,20 @@
 			$('#asReplyText').val('') ;
 			/* 기존 신규답변 팝업이 열려있으면 팝업 목록 갱신 */
 			if(typeof v_as_no != 'undefined' && v_as_no) awsList(1 , v_as_no) ;
-			/* 인라인 상세가 열려있으면 스레드 갱신 */
-			if(typeof asws != 'undefined' && asws.asNo){
+			/* [AX Lab] 수정 시작 (2026-07-30 AX Lab): 통합 타임라인은 답변만 따로 갱신할 수 없다.
+			   문의·답변·조치이력·이관을 한 배열로 머지해 그리므로 getAsInfo.do 를 다시 호출해 전체를 재렌더한다.
+			   (caws_afterAnswer 가 작성영역 초기화 + 첨부 슬롯 정리까지 함께 처리한다) */
+			if(typeof caws_afterAnswer === 'function' && typeof caws != 'undefined' && caws.asNo){
+				caws_afterAnswer() ;
+			}else if(typeof asws != 'undefined' && asws.asNo){
+				/* 안전망: combine-as-thread.js 가 없으면 기존 스레드 갱신 방식 유지 */
 				common.ajaxCall({ as_no:asws.asNo, page:'1' }, '/ad/as/getAwsList.do', 'asws_renderThread') ;
 			}
+			/* [AX Lab] 수정 끝 */
 		}else{
+			/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 답변 삭제 실패 시 중복 전송 방지 상태 해제 */
+			if(typeof caws_answerFailed === 'function') caws_answerFailed() ;
+			/* [AX Lab] 수정 끝 */
 			alert('처리도중 오류가 발생했습니다.') ; return ;
 		}
 	}
@@ -663,6 +848,7 @@
 		f.submit() ; 
 	}
 	
+	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 숨김 iframe에서 첨부 응답이 다운로드로 전달되지 않는 문제 수정 */
 	function goExl() {
 		
 		var totalCnt = Number($('#count').html().replace(/,/g, ""));
@@ -676,21 +862,26 @@
 			return ;
 		}else{
 			if (confirm(totalCnt + "건의 데이터를 다운로드 받으시겠습니까?")) {
-				var f = document.listFrm ; 
-				
-				try{
-					$("#exlFrame").remove() ;
-				}catch(e){}
-				
-				var downFrame = $('<iframe id="exlFrame" name="exlFrame" style="width:0px; height=0px ; display:none;"></iframe>') ; 
-				downFrame.appendTo("body") ;
-				
-				f.target = "exlFrame" ; 
-				f.action = "/ad/as/exl.do" ; 
-				f.submit() ; 
+				var f = document.listFrm ;
+
+				/* 비동기 목록에 적용된 최신 처리상태/처리담당자 조건을 다운로드 요청에도 반영한다. */
+				if(typeof procSelect !== 'undefined' && procSelect && procSelect.sumo){
+					$("#procSelect").val(procSelect.sumo.getSelStr());
+				}
+				if(typeof asws_assignFlush === 'function') asws_assignFlush();
+
+				/*
+				 * 첨부 응답을 display:none iframe으로 받으면 일부 브라우저가 다운로드를 시작하지 않거나
+				 * 실패 응답을 사용자에게 숨긴다. 현재 창이 직접 attachment 응답을 받게 하면 화면 이동 없이
+				 * 브라우저 다운로드 관리자가 파일을 정상 처리한다.
+				 */
+				f.target = "_self";
+				f.action = "/ad/as/exl.do";
+				f.submit();
 			}
 		}
 	}
+	/* [AX Lab] 수정 끝 */
 	
 	function goView(pageType , as_no, cn_as_no){
 		var f = document.listFrm ; 
@@ -1084,6 +1275,13 @@
 					$('#action_content_pop').focus(); 
 					return;
 				}
+			  /* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 일괄 처리 조치의견 최대 1,300자 검증 */
+			  if(String($('#action_content_pop').val() || '').length > 1300){
+					alert('조치의견은 최대 1,300자까지 입력할 수 있습니다.');
+					$('#action_content_pop').focus();
+					return;
+			  }
+			  /* [AX Lab] 수정 끝 */
 			  
 			  if (($('#action_type_pop').val() == 'C001' || $('#action_type_pop').val() == 'C002')) {
 					
@@ -1249,7 +1447,10 @@
 	
 </div>
 
-<form name="listFrm" id="listFrm" method="get">
+<%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): GET 쿼리스트링을 Tomcat 7이 기본 문자셋으로 해석해
+     한글 검색어가 깨지는 문제를 방지한다. UTF-8 인코딩 필터가 적용되는 POST 본문으로 검색조건을 전송한다. --%>
+<form name="listFrm" id="listFrm" method="post" accept-charset="UTF-8">
+<%-- [AX Lab] 수정 끝 --%>
 <input type="hidden" name="pageType" id="pageType" value=""/>
 <input type="hidden" name="as_no" id="as_no" value=""/>
 <input type="hidden" name="as_no_link" id="as_no_link" value="">
@@ -1257,6 +1458,16 @@
 <input type="hidden" name="cn_as_no" id="cn_as_no" value=""/>
 <input type="hidden" name="page" id="page" value="${ vo.page }" />
 <input type="hidden" name="procSelect" id="procSelect" value="" />
+<%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 기본필터 처리담당자 다중선택값 --%>
+<input type="hidden" name="assignSelect" id="assignSelect" value="<c:out value='${vo.assignSelect}'/>" />
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록 헤더클릭 정렬 조건.
+     헤더 클릭은 ajax(makeListData)로 즉시 조회하지만, 페이징/검색은 이 폼을 submit 해 화면을 다시 그리므로
+     정렬 상태가 유지되려면 hidden 으로 함께 전송돼야 한다. 서버(AdAsController.applyAsSort)가 화이트리스트로
+     검증한 뒤 다시 내려주고, initForm() 에서 복원한다. --%>
+<input type="hidden" name="sort_col" id="sort_col" value="" />
+<input type="hidden" name="sort_dir" id="sort_dir" value="" />
+<%-- [AX Lab] 수정 끝 --%>
 <input type="hidden" name="checkedAsNo" id="checkedAsNo" value="">
 <input type="hidden" name="tel_confirm" id="tel_confirm"/>
 <input type="hidden" name="proc_dt" id="proc_dt"/>
@@ -1279,10 +1490,124 @@
 <input type="hidden" name="w_content" id="w_content"/>
 
 <%-- [AX Lab] 수정 시작 (2026-07-23 AX Lab): AS 통합 워크스페이스(3분할) 화면 리뉴얼 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as.css" />
-<script type="text/javascript" src="/js/combine-as.js"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스타일 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 필터 UI 배치 수정 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as.css?v=20261018-2" />
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): AS 목록의 현재 페이지를 굵게 강조 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-pagination.css" />
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스크립트 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 필터 UI 배치 수정 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 우선 표시 캡션 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-open-choice.css?v=20261016-1" />
+<%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 미저장 변경 보호·즉시 전환·브라우저 뒤로가기 반영 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-open-choice.js?v=20261018-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면(통합 타임라인 / 작성영역 / 모달 / 아코디언 / 과거이력).
+     combine-as.css / combine-as.js 를 고치지 않고 "뒤에 추가"하는 방식이라 로드 순서가 중요하다.
+     ① CSS 는 combine-as.css 다음에 와야 같은 특정도에서 나중 규칙이 이긴다.
+     ② JS 는 combine-as.js 다음에 와야 asws_renderDetailRecord 의 위임 대상(caws_renderAll)이 준비된다. --%>
+<%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 접수처리정보 필수값 UX 수정 캐시 갱신 --%>
+<%-- [AX Lab] 수정 (2026-10-12 AX Lab): 전화부재중 횟수 비활성 음영 스타일 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 스타일 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261019-1" />
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 기능 수정 후 브라우저가 이전 JS를 재사용하지 않도록 버전 고정 --%>
+<%-- [AX Lab] 수정 (2026-10-12 AX Lab): 처리상태별 담당자/조치의견/전화부재중 규칙 반영 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-14 AX Lab): 고객 답변 영역 높이 조절 스크립트 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 기능 반영 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 처리담당자 표시 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-3"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-07-31 AX Lab): 접수 등록 모달(신규작업/복사/하위작업).
+     기존에는 세 버튼이 전체 상세페이지(/ad/as/form.do)로 이동했지만, 이제 페이지 이동 없이
+     통합화면의 모달에서 등록한다. 저장은 기존 /ad/as/proc.do 재사용(서버 무수정).
+     combine-as-thread.js 뒤에 로드해야 한다(caws_* 모달/코드 헬퍼를 재사용하기 때문). --%>
+<script type="text/javascript" src="/js/combine-as-form.js"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): 목록 로딩표시 + 0건 원인별 안내.
+     0건일 때 "조회된 데이터가 없습니다." 한 줄뿐이라, 실제 원인이 처리구분 '나의 A/S'(=나에게
+     배정된 건만 조회) 인데도 사용자는 장애인지 필터인지 구분할 수 없었다.
+     combine-as.js 뒤에 로드해야 한다(asws_esc / asws_openDetail 재사용). --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-loading.css" />
+<%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 나의/전체 A/S 빈 결과 안내 제거 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-loading.js?v=20261018-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): 문의 키워드 추출 + 연관 과거이력 우선노출.
+     COL2 문의 내용에서 접수번호/담당자/화면명 등을 뽑아 COL3 과거 상담이력 "위에"
+     관련도순 블록을 얹는다. 기존 기간(1주/1개월/3개월/전체) 목록은 그대로 남는다.
+     ★ 기존 파일은 한 줄도 고치지 않았다. combine-as-keyword.js 가 로드 시점에
+       caws_pastReset / caws_renderRecord 를 감싸는(wrapping) 방식이라,
+       원복이 필요하면 아래 두 줄만 지우면 완전히 되돌아간다.
+     ★ 로드 순서 : combine-as.js(asws_stClass) + combine-as-thread.js(caws_* 유틸) 뒤여야 한다. --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-keyword.css" />
+<%-- [AX Lab] 수정 (2026-10-12 AX Lab): 연관 이력 항목 클릭 동작 변경(ckw_listHtml) 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 연관 이력 시스템유형 표시 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 연관 이력 처리담당자 표시 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-keyword.js?v=20261019-3"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-06 AX Lab): AI 추천 (유사 상담사례 / 과거사례 / 공지) 실제 연동.
+     설계서 mdfile/AS통합화면_AI추천_통합설계.md §8. 문의 카드의 [✦ AI 추천] 팝오버가 추천 "목록"을,
+     항목 클릭 시 COL3(접수·처리 정보) 상단 패널이 본문을 보여준다.
+     서버 호출은 기존 /ad/as/getAsInfo.do 에 pageType=aiRecommend 를 얹어 쓴다(신규 URL 금지 제약).
+     ★ 로드 순서 : combine-as-thread.js(caws_renderAll/caws_renderRecord 를 감싼다) 와
+       combine-as-loading.css(.asws-spin 재사용) 뒤여야 한다.
+     ★ 원복 : 아래 두 줄만 지우면 combine-as-thread.js 의 caws_aiRecommendHtml() 이 기존 플레이스홀더로 돌아간다. --%>
+<%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): AI 추천 긴 본문 스크롤 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-ai.css?v=20261016-3" />
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): AI 재정렬·참고 사례 UX 반영 캐시 갱신
+     [AX Lab] 수정 (2026-10-16 AX Lab): 관련 없는 추천 제외(0~5건) 표시 반영 캐시 갱신
+     [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거(겹친 단어) 표시 반영 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 색인 불일치 시 원본 최신 직원답변 사용 반영 캐시 갱신
+     [AX Lab] 수정 (2026-10-19 AX Lab): 일치 사유 칩("같은 업무분류") 화면 미표시 반영 캐시 갱신 (기존 v=20261017-2) --%>
+<script type="text/javascript" src="/js/combine-as-ai.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 연관 이력 / 과거 상담이력 항목을 "그 자리에서" 펼쳐 보기.
+     기존에는 항목 클릭 = caws_pastOpen → asws_openDetail 이라 지금 보던 접수건이 그 과거 건으로 통째로
+     바뀌었다. 이제는 항목 바로 아래에 과거 건 내용(문의 전문·첨부·답변·조치이력)을 펼치고,
+     현재 접수건(COL2/COL3)은 그대로 둔다. 완전히 넘어가려면 패널의 [이 건으로 이동].
+     서버 호출은 기존 /ad/as/getAsInfo.do 재사용(신규 URL 금지 제약, 순수 SELECT).
+     ★ 로드 순서 : combine-as-thread.js(caws_* 유틸) + combine-as-keyword.js(ckw_render 를 감싼다) 뒤여야 한다.
+     ★ 원복 : 아래 두 줄만 지우면 두 목록의 onclick 이 typeof cpi_toggle 폴백을 타서 기존 caws_pastOpen 으로 돌아간다. --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-past-inline.css" />
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 통합 AS 화면 새 탭에서 이 건으로 이동 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 미리보기 시스템유형 명칭 표시 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-past-inline.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 고급 동적필터 화면복원용 초기값(JSON) --%>
 <script type="text/javascript">var ASWS_ADV_INIT = ${empty vo.advFiltersJson ? '[]' : vo.advFiltersJson};</script>
+<%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN 담당자 변경 사유 검증용 로그인 사번 --%>
+<script type="text/javascript">var CAWS_LOGIN_EMP_NO = '<c:out value="${adUserInfo.emp_no}" />';</script>
+<%-- [AX Lab] 수정 끝 --%>
 
 <div id="asWorkspace">
 
@@ -1472,6 +1797,12 @@
         <h2>AS 목록</h2>
         <span class="cnt">조회 <b id="count">0</b>건</span>
         <div class="spacer"></div>
+        <%-- [AX Lab] 수정 시작 (2026-07-29 AX Lab): 목록 넓게 보기 토글.
+             3분할 기본 레이아웃에서 목록 칸은 약 560px 이라 좌측 고정 6컬럼을 넘어가는 컬럼을 보려면
+             가로스크롤 폭이 너무 좁다. 이 버튼을 누르면 문의상세(COL2)/접수·처리정보(COL3)를 숨기고
+             목록이 화면 전체폭을 쓰므로 우측 컬럼을 훨씬 편하게 훑을 수 있다. --%>
+        <button type="button" class="wide-btn" id="listWideBtn" onclick="asws_toggleListWide()" title="목록을 화면 전체폭으로 넓혀 우측 컬럼을 봅니다">&#8596; 넓게 보기</button>
+        <%-- [AX Lab] 수정 끝 --%>
         <button type="button" class="collapse-btn" onclick="asws_toggleCol('c1')" title="목록 접기">&#9666;</button>
       </div>
       <div class="col-content">
@@ -1481,21 +1812,15 @@
              전체폭 1행을 차지하던 '고급 검색' 토글을 1행 우측 인라인 칩으로 이동해 총 1행을 더 절약했다.
              (필드/name/id 는 그대로 유지 → 검색 로직·서버 파라미터 변경 없음) --%>
         <div class="basefilter">
-          <!-- 기본필터 1행 : 처리구분 · 접수일자 · 고급검색 토글 -->
+          <%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 기본필터를 접수일 / 처리상태·처리담당자 / 통합검색 3행으로 재배치 --%>
+          <!-- 기본필터 1행 : 접수일 · 초기화 · 고급검색 토글 -->
           <div class="bf-line">
-            <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): '전체 A/S' 의 value 를 '' → '1' 로 변경.
-                 ''(빈값)은 "처리구분 미지정(첫 진입)" 과 값이 겹쳐, 검색 후 화면 복원 시 '전체 A/S' 가
-                 매번 '나의 A/S' 로 되돌아갔다(=담당건 없는 계정은 목록이 비어 보임).
-                 서버는 "2" 일 때만 담당자 필터를 걸므로 '1' 은 전체 조회로 동작한다. --%>
-            <%-- [AX Lab] 삭제 (2026-07-28 AX Lab): 선택 즉시 조회하던 onchange="getAsList(1);" 제거.
-                 다른 조건(접수일/처리상태/통합검색)은 모두 [검색] 버튼을 눌러야 조회되는데 처리구분만
-                 선택하는 순간 조회가 나가, 나머지 조건을 입력하던 중에 화면이 리로드되어 흐름이 끊겼다.
-                 → 조회 시점을 [검색] 버튼 하나로 통일한다. (선택값은 검색 후에도 그대로 복원됨) --%>
+            <%-- [AX Lab] 삭제 (2026-10-18 AX Lab): 나의/전체 A/S 선택 제거
             <select name="asGubunFlag" id="asGubunFlag" class="bf-sel-narrow" title="처리구분 선택">
               <option value="2">나의 A/S</option>
               <option value="1">전체 A/S</option>
             </select>
-            <%-- [AX Lab] 수정 끝 --%>
+            --%>
             <label class="bf-chk" title="접수일자 기간조건 사용">
               <input type="checkbox" name="search_type10" id="search_type10" value="Y" checked> 접수일
             </label>
@@ -1511,7 +1836,7 @@
                  - bf-act 로 [초기화 │ 고급] 을 묶은 이유: 더 좁은 해상도에서 줄바꿈이 나더라도 버튼 하나만
                    떨어지지 않고 묶음 통째로 내려가게 한다. --%>
             <span class="bf-act">
-              <button type="button" class="btn-s bf-reset" onclick="searchReset();" title="접수일·처리구분·처리상태·통합검색·고급조건을 모두 초기화합니다">초기화</button>
+              <button type="button" class="btn-s bf-reset" onclick="searchReset();" title="접수일·처리상태·처리담당자·통합검색·고급조건을 모두 초기화합니다">초기화</button>
               <span class="bf-div"></span>
               <button type="button" class="moretoggle" id="advToggle" onclick="asws_advToggle();" title="고급 검색조건 펼치기/접기">
                 <span class="chev">&#9662;</span> 고급<span class="adv-cnt" id="advCnt" style="display:none;">0</span>
@@ -1519,7 +1844,7 @@
             </span>
             <%-- [AX Lab] 수정 끝 --%>
           </div>
-          <!-- 기본필터 2행 : 처리상태 · 통합검색 -->
+          <!-- 기본필터 2행 : 처리상태 · 처리담당자 -->
           <div class="bf-line">
             <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): 처리상태 멀티셀렉트와 통합검색 입력줄의 경계가 없어
                  "처리상태를 검색하는 칸"처럼 오해되던 문제 개선.
@@ -1531,6 +1856,16 @@
             <span class="bf-lb">처리상태</span>
             <select name="procMultiSelect" id="procMultiSelect" class="procMultiSelect" title="처리상태 선택" multiple data-max="2"></select>
             <span class="bf-div"></span>
+            <span class="bf-lb">처리담당자</span>
+            <select id="baseAssignSelect" class="base-assign-multi" title="처리담당자 선택" multiple></select>
+            <span id="advRetireWrap">
+              <label class="bf-chk" title="체크하면 퇴사한 처리담당자가 담당했던 건만 조회합니다.">
+                <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자만
+              </label>
+            </span>
+          </div>
+          <!-- 기본필터 3행 : 통합검색 -->
+          <div class="bf-line">
             <%-- [AX Lab] 수정 끝 --%>
             <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): 통합검색 라벨 추가 + [검색] 버튼을 입력창 밖으로 분리.
                  문제: 입력창 안(.sl-input)에 [검색] 버튼이 들어 있어 "검색어를 입력해야 눌리는 버튼"으로 보였다.
@@ -1550,10 +1885,11 @@
                  읽히지 않게 띄워 준다. ([초기화] 는 1행으로 올려 이 줄의 폭을 통합검색 입력칸에 몰아줬다) --%>
             <span class="bf-act">
               <span class="bf-div"></span>
-              <button type="button" class="btn-s primary bf-go" onclick="getAsList(1);" title="위에 설정한 모든 조건(처리구분·접수일·처리상태·통합검색·고급조건)으로 목록을 조회합니다">조회</button>
+              <button type="button" class="btn-s primary bf-go" onclick="getAsList(1);" title="위에 설정한 모든 조건(접수일·처리상태·처리담당자·통합검색·고급조건)으로 목록을 조회합니다">조회</button>
             </span>
             <%-- [AX Lab] 수정 끝 --%>
           </div>
+          <%-- [AX Lab] 수정 끝 --%>
 
           <%-- [AX Lab] 삭제 (2026-07-28 AX Lab): '처리완료 외 상태' 체크박스를 화면에서 제거.
                동일 조건(접수+처리중)을 위 2행의 처리상태 멀티셀렉트 기본 체크로 대체했다.
@@ -1583,20 +1919,13 @@
                   data-name="<c:out value='${vo.cust_kor_name}'/>"
                   data-code="<c:out value='${vo.cust_code}'/>"></span>
             <%-- [AX Lab] 수정 끝 --%>
-            <div id="advRows"></div>
-            <%-- [AX Lab] 수정 시작 (2026-07-28 AX Lab): '퇴사자' 체크박스를 조건행 아래로 옮기고 조건부 노출로 변경.
-                 ① 위치: 처리담당자명 조건에 딸린 하위 옵션이므로 조건행 바로 아래에 둔다.
-                 ② 노출: 처리담당자명(EMP_NM) 조건행이 있을 때만 보인다. (combine-as.js / asws_advSyncRetireChk)
-                    display:none 을 마크업에 박아두어 스크립트 실행 전 잠깐 보이는 깜빡임을 막는다.
-                 ③ 라벨: '퇴사자 포함' → '퇴사자만'. 쿼리 조건이 RETIRE_DATE IS NOT NULL 이라
-                    실제 동작은 "퇴사한 처리담당자의 건만" 조회하는 것이어서 '포함' 이라는 표현이 사실과 달랐다.
-                    (name/id/value = search_type17/Y 는 그대로 → 서버·쿼리 영향 없음) --%>
-            <div class="bf-line" id="advRetireWrap" style="display:none; gap:16px; margin:2px 0 7px;">
-              <label class="bf-chk" title="체크하면 퇴사한 처리담당자가 담당했던 건만 조회합니다.">
-                <input type="checkbox" name="search_type17" id="search_type17" value="Y"> 퇴사자만
-              </label>
-            </div>
+            <%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 시스템 대/소분류 검색조건 화면복원용 초기값 --%>
+            <span id="advSystemInit" style="display:none;"
+                  data-parent="<c:out value='${vo.search_type7}'/>"
+                  data-child="<c:out value='${vo.search_type8}'/>"></span>
             <%-- [AX Lab] 수정 끝 --%>
+            <div id="advRows"></div>
+            <%-- [AX Lab] 삭제 (2026-10-18 AX Lab): 퇴사자만 옵션은 처리담당자와 함께 기본필터 2행으로 이동 --%>
             <button type="button" class="btn-s" id="advAddBtn" onclick="asws_advAddRow();" style="margin-top:4px;">+ 조건 추가</button>
           </div>
         </div>
@@ -1604,9 +1933,20 @@
         <%-- [AX Lab] 수정 끝 --%>
         <div class="toolbar">
           <button type="button" class="btn-s primary" onclick="javascript:openProcLayer();">일괄처리</button>
-          <button type="button" class="btn-s" onclick="javascript:goInsertCopy();">복사</button>
-          <button type="button" class="btn-s" onclick="javascript:goForm('insert','');">신규작업</button>
-          <button type="button" class="btn-s" onclick="javascript:goForm('subInsert','');">하위작업</button>
+          <%-- [AX Lab] 수정 시작 (2026-07-31 AX Lab): 복사/신규작업/하위작업을 상세페이지 이동 대신
+               통합화면의 접수 등록 모달(combine-as-form.js)로 처리. 기존 goInsertCopy/goForm 함수는
+               원복 대비 + combine-as-form.js 미로드 시 자동 폴백용으로 그대로 남겨둔다.
+               (원래 코드)
+               <button type="button" class="btn-s" onclick="javascript:goInsertCopy();">복사</button>
+               <button type="button" class="btn-s" onclick="javascript:goForm('insert','');">신규작업</button>
+               <button type="button" class="btn-s" onclick="javascript:goForm('subInsert','');">하위작업</button> --%>
+          <button type="button" class="btn-s" title="선택한 접수건의 고객사·신청자 정보를 복사해 새 접수를 등록합니다 (이 화면에서 바로 등록)"
+                  onclick="javascript:typeof cafm_openCopy==='function'?cafm_openCopy():goInsertCopy();">복사</button>
+          <button type="button" class="btn-s" title="새 접수를 등록합니다 (이 화면에서 바로 등록)"
+                  onclick="javascript:typeof cafm_openInsert==='function'?cafm_openInsert():goForm('insert','');">신규작업</button>
+          <button type="button" class="btn-s" title="선택한 접수건의 하위작업(연관 접수건)을 등록합니다 (이 화면에서 바로 등록)"
+                  onclick="javascript:typeof cafm_openSub==='function'?cafm_openSub():goForm('subInsert','');">하위작업</button>
+          <%-- [AX Lab] 수정 끝 --%>
           <button type="button" class="btn-s" onclick="javascript:goExl();">엑셀</button>
           <div class="spacer"></div>
           <select id="pageSize" name="pageSize" onchange="getAsList(1);" title="리스트 행 선택">
@@ -1615,23 +1955,76 @@
             <option value="50">50개씩</option>
           </select>
         </div>
+        <%-- [AX Lab] 수정 시작 (2026-07-29 AX Lab): A/S 리스트 컬럼 구성 개편.
+             - 좌측 6컬럼(체크박스/접수번호/거래처/문의내용·조치/상태/담당자) + 우측 가로스크롤 컬럼 구조.
+             - 우선처(★)는 별도 컬럼 없이 거래처명 앞에, 중요도는 문의내용 앞에, 거래상태(해지/폐업/중지)는
+               거래처명 뒤 뱃지 + 행 배경 회색으로 표시한다. (setAsList 참고)
+             - 정렬 가능한 헤더에는 class="srt" 와 data-sort(=서버 화이트리스트 키)를 준다.
+               클릭 처리는 combine-as.js 의 위임 핸들러(asws_sortBind)가 담당한다.
+             ※ 좌측 6컬럼의 폭은 combine-as.css 의 --w-chk/--w-no/--w-cli/--w-q/--w-st/--w-emp 변수가 가진다.
+               우측 컬럼 폭만 아래 인라인 style 로 둔다. (합계는 CSS --w-right-sum 과 일치시켜야 하며
+               test/check-aslist-columns.js 가 이를 검사한다)
+
+             [AX Lab] 수정 (2026-07-30 AX Lab): 현업 요청 3건 반영.
+             ① 맨 앞 컬럼을 접수일 → 접수번호(as_no)로 교체. 접수번호가 행의 식별자이므로 선두가 맞고,
+                값이 잘리지 않도록 폭을 96px(--w-no)로 잡았다. (접수일은 우측 컬럼으로 이동)
+             ② 좌측 6컬럼 sticky 고정 해제 : th/td 의 stk·stkN 클래스를 모두 제거했다.
+                (CSS 의 .stk 규칙도 함께 삭제 - combine-as.css 참고)
+             ③ 우측 컬럼을 원본 화면(list_origin.jsp)과 동일한 10개로 축소하고 요청 순서대로 재배열.
+                연결된AS개수 → 처리예정일 → 문의유형 → 시스템유형 → 신규답변 → 접수일 →
+                처리완료일자 → 원인유형 → 조치유형 → 고객평가
+                ※ 이때 제외된 컬럼(하위작업/CRM코드/A/S신청자/접수경로/챗봇ID/전화확인/전화부재중/
+                  부재중횟수/부서명/작업시간/처리구분/빌드순번/각종 정의서/검수일/답변수/요청내용/
+                  조치내용/최신댓글) 은 값 자체는 그대로 조회되고 있으므로(egov-as-query.xml getAsList),
+                  다시 필요해지면 colgroup·thead·setAsList 세 곳에 같은 순서로 한 줄씩 추가하면 된다.
+                ※ 중요도 컬럼도 여기서 제거됐다. 중요도는 문의내용 앞 인라인 뱃지로만 표시한다(요청사항). --%>
         <div class="tscroll">
           <table class="aslist">
             <colgroup>
-              <col style="width:26px" /><col style="width:56px" /><col style="width:96px" /><col style="width:auto" /><col style="width:64px" />
+              <%-- 좌측 6컬럼 : 폭은 CSS 변수로 관리 --%>
+              <col class="c-chk" /><col class="c-no" /><col class="c-cli" /><col class="c-q" /><col class="c-st" /><col class="c-emp" />
+              <%-- 우측 가로스크롤 컬럼 (현업 요청 순서) --%>
+              <col style="width:72px" /><!-- 연결된AS개수 -->
+              <col style="width:88px" /><!-- 처리예정일 -->
+              <col style="width:90px" /><!-- 문의유형 -->
+              <col style="width:120px" /><!-- 시스템유형 (대/소) -->
+              <col style="width:68px" /><!-- 신규답변 -->
+              <col style="width:84px" /><!-- 접수일 -->
+              <col style="width:96px" /><!-- 처리완료일자 -->
+              <col style="width:90px" /><!-- 원인유형 -->
+              <col style="width:90px" /><!-- 조치유형 -->
+              <col style="width:80px" /><!-- 고객평가 -->
             </colgroup>
             <thead>
               <tr>
-                <th class="col-chk"><input type="checkbox" id="chkall" onclick="asws_toggleAll(this);" title="전체선택" /></th>
-                <th>접수일</th>
-                <th>거래처</th>
+                <%-- 좌측 6컬럼 --%>
+                <th><input type="checkbox" id="chkall" onclick="asws_toggleAll(this);" title="전체선택" /></th>
+                <th class="srt" data-sort="as_no"         title="클릭하면 접수번호 오름차순 → 내림차순으로 정렬합니다">접수번호<i class="sar"></i></th>
+                <th class="srt" data-sort="cust_kor_name" title="클릭하면 거래처명 오름차순 → 내림차순으로 정렬합니다">거래처<i class="sar"></i></th>
+                <%-- 문의내용은 장문이라 정렬 대상에서 제외 (서버 화이트리스트에도 없음) --%>
                 <th>문의 내용 · 조치</th>
-                <th>상태</th>
+                <%-- 처리상태/중요도 등 공통코드 항목은 명칭 가나다순이 아니라 코드순으로 정렬된다(쿼리 구조상 제약, AdAsController.AS_SORT_COLS 주석 참고) --%>
+                <th class="srt" data-sort="proc_status_nm" title="클릭하면 처리상태 순으로 정렬합니다">상태<i class="sar"></i></th>
+                <th class="srt" data-sort="emp_nm"         title="클릭하면 담당자명 오름차순 → 내림차순으로 정렬합니다">담당자<i class="sar"></i></th>
+                <%-- 우측 가로스크롤 컬럼 --%>
+                <%-- 연결된AS개수는 AS_NO_LINK 문자열에서 계산되는 파생값이라 서버 정렬 화이트리스트에 없다 --%>
+                <th title="연결된 AS 개수">연결AS</th>
+                <th class="srt" data-sort="as_proc_dt">처리예정일<i class="sar"></i></th>
+                <th class="srt" data-sort="request_type_nm">문의유형<i class="sar"></i></th>
+                <th class="srt" data-sort="service_cate_nm" title="시스템(대) / 시스템(소)">시스템유형<i class="sar"></i></th>
+                <%-- 신규답변(aws_cnt)도 최종 답변 작성자로 계산되는 파생값이라 정렬 불가 --%>
+                <th title="고객이 마지막으로 답변을 남긴 건은 [확인] 버튼으로 표시됩니다">신규답변</th>
+                <th class="srt" data-sort="accept_dt">접수일<i class="sar"></i></th>
+                <th class="srt" data-sort="as_complete_dt">처리완료일자<i class="sar"></i></th>
+                <th class="srt" data-sort="cause_type_nm">원인유형<i class="sar"></i></th>
+                <th class="srt" data-sort="action_type_nm">조치유형<i class="sar"></i></th>
+                <th class="srt" data-sort="star_state">고객평가<i class="sar"></i></th>
               </tr>
             </thead>
             <tbody id="asList"></tbody>
           </table>
         </div>
+        <%-- [AX Lab] 수정 끝 --%>
         <div class="list-page"><div id="pagination"></div></div>
       </div>
     </section>
@@ -1639,15 +2032,31 @@
     <!-- COL2 : 문의 상세 + 답변 -->
     <section class="col" id="col-c2">
       <div class="chd">
-        <h2>문의 상세</h2>
+        <%-- [AX Lab] 수정 시작 (2026-10-02 AX Lab): 영역명을 A/S 상세내용으로 변경 --%>
+        <h2>A/S상세내용</h2>
+        <%-- [AX Lab] 수정 끝 --%>
         <div class="spacer"></div>
+        <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): 상세 넓게 보기 (목록 넓게 보기의 반대 모드).
+             첨부 미리보기·긴 답변 작성 시 가운데 열이 좁아 불편하므로 COL1 을 rail 로 접고 COL2 를 넓힌다. --%>
+        <button type="button" class="wide-btn" id="cawsDwBtn" onclick="caws_toggleDetailWide()" title="목록을 접고 타임라인을 넓게 봅니다">상세 넓게 보기</button>
+        <%-- [AX Lab] 수정 끝 --%>
         <span class="cnt" id="pinlabel"></span>
       </div>
+      <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): COL2 를 [고정헤더 / 스크롤 타임라인 / 고정 작성영역] 3단으로 구성.
+           .col-content 가 이미 flex-column + min-height:0 이므로 위/아래는 flex-shrink:0, 가운데만 flex:1 로 스크롤된다.
+           - #asDetailHead : 접수정보 1행 + 액션바(상태변경/이관/조치작성/전체상세) + 필터탭
+           - #asDetail     : 단일 스크롤 영역 (문의 → AI추천 → 조치/답변/이관 히스토리 순)
+           - #asCompose    : 2탭 작성영역 (고객 답변 / 내부 조치내용)
+           세 영역 모두 combine-as-thread.js 가 채운다. id 는 기존 #asDetail 을 그대로 유지해
+           setAsList / asws_openDetail 의 "불러오는 중" 처리와 호환된다. --%>
       <div class="col-content">
+        <div class="caws-fix" id="asDetailHead"></div>
         <div class="detail-scroll" id="asDetail">
           <div class="empty">왼쪽 목록에서 접수건을 선택하세요.</div>
         </div>
+        <div class="caws-comp" id="asCompose"></div>
       </div>
+      <%-- [AX Lab] 수정 끝 --%>
     </section>
 
     <!-- COL3 : 접수 · 처리 정보 -->
@@ -1659,6 +2068,9 @@
       <div class="chd">
         <h2>접수 · 처리 정보</h2>
         <div class="spacer"></div>
+        <%-- [AX Lab] 수정 시작 (2026-09-30 AX Lab): 접수처리정보 일괄 편집 버튼을 헤더 우측에 배치 --%>
+        <div id="cawsBatchHead" class="caws-batchhead"></div>
+        <%-- [AX Lab] 수정 끝 --%>
         <button type="button" class="collapse-btn" onclick="asws_toggleCol('c3')" title="정보 접기">&#9656;</button>
       </div>
       <div class="col-content">
@@ -1669,6 +2081,15 @@
     </section>
 
   </div>
+
+  <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면 모달 5종
+       (첨부 미리보기 라이트박스 / 처리상태 변경 / 담당자 이관 / AI 문장 다듬기 / 게시물 링크 삽입)
+       ★ 반드시 #asWorkspace 안쪽에 include 해야 한다. combine-as-thread.css 의 모든 셀렉터가
+         #asWorkspace 하위로 스코핑되어 있고 CSS 변수도 거기서 상속받기 때문이다.
+       ★ 모달 입력요소에는 name 을 주지 않는다. 여기는 <form name="listFrm"> 안이라
+         name 이 있으면 목록조회(listFrm.serialize())에 값이 섞여 검색결과가 바뀐다. --%>
+  <jsp:include page="/WEB-INF/jsp/ad/as/combine-as-modal.jsp" />
+  <%-- [AX Lab] 수정 끝 --%>
 </div>
 <%-- [AX Lab] 수정 끝 : #asWorkspace --%>
 
@@ -1939,8 +2360,10 @@
           <span style="color:red;">(외부에는 노출되지 않습니다)</span>
         </th>
         <td colspan="3">
-          <textarea name="action_content_pop" id="action_content_pop"
+          <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): 일괄 처리 조치의견 최대 1,300자 --%>
+          <textarea name="action_content_pop" id="action_content_pop" maxlength="1300"
                     style="width:98%;height:120px; box-sizing:border-box;"></textarea>
+          <%-- [AX Lab] 수정 끝 --%>
           <div class="txt_byte" id="action_content_text_pop">0 / 1300자</div>
         </td>
       </tr>

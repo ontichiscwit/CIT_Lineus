@@ -1064,6 +1064,191 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 
 	    return returnValue;
 	}
+
+	// [AX Lab] 수정 시작 (2026-09-30 AX Lab): 통합화면 접수처리정보 일괄 저장
+	/**
+	 * 접수처리정보 편집값을 한 번의 UPDATE로 반영하고, 조치이력 컬럼·메모·첨부가 바뀌면
+	 * 같은 트랜잭션에서 현재 컬럼값을 담은 조치이력 한 건을 생성한다.
+	 */
+	@Override
+	public int updateAsRecordBatch(AsVO vo, UserVO adUserInfo) throws Exception {
+		String asNo = SsStringUtil.normalizeNull(vo.getAs_no()).trim();
+		if ("".equals(asNo) || adUserInfo == null) return 0;
+
+		AsVO key = new AsVO();
+		key.setAs_no(asNo);
+		key.setReg_id(adUserInfo.getEmp_no());
+		AsVO cur = (AsVO) commonDAO.selectOne(key, "asDAO.getAsInfo");
+		if (cur == null) return 0;
+
+		String curStatus = SsStringUtil.normalizeNull(cur.getProc_status()).trim();
+		String curAssign = SsStringUtil.normalizeNull(cur.getAssign_id()).trim();
+		// [AX Lab] 수정 시작 (2026-10-07 AX Lab): 빈 선택을 기존값으로 치환하지 않고 필수 검증에서 차단
+		String newStatus = SsStringUtil.normalizeNull(vo.getProc_status()).trim();
+		String newAssign = SsStringUtil.normalizeNull(vo.getAssign_id()).trim();
+		// [AX Lab] 수정 끝
+		boolean statusChanged = !newStatus.equals(curStatus);
+		boolean assignChanged = !newAssign.equals(curAssign);
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 공백 제거 전 조치의견 길이 및 ORIGIN 담당자 기준 검증
+		String rawComment = SsStringUtil.normalizeNull(vo.getAction_content());
+		String comment = rawComment.trim();
+
+		if (rawComment.length() > 1300) return 0;
+		if (!newAssign.equals(SsStringUtil.normalizeNull(adUserInfo.getEmp_no()).trim())
+				&& "".equals(comment)) return 0;
+		// [AX Lab] 수정 끝
+
+		/* 문의유형/시스템유형은 기존 화면과 동일하게 관리자만 변경할 수 있다. */
+		if (!"Y".equals(SsStringUtil.normalizeNull(cur.getAs_admin()))) {
+			vo.setRequest_type(SsStringUtil.normalizeNull(cur.getRequest_type()));
+			vo.setService_cate(SsStringUtil.normalizeNull(cur.getService_cate()));
+			vo.setInquiry_type(SsStringUtil.normalizeNull(cur.getInquiry_type()));
+			// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 비관리자는 문의/시스템과 함께 버전정보도 기존값 유지
+			vo.setVersion_info(SsStringUtil.normalizeNull(cur.getVersion_info()));
+			// [AX Lab] 수정 끝
+		}
+
+		// [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 컬럼 변경 여부를 현재 DB값과 비교
+		String curProcDt = SsStringUtil.normalizeNull(cur.getProc_dt()).replaceAll("/", "").trim();
+		String curImportance = SsStringUtil.normalizeNull(cur.getInportance()).trim();
+		String curRequestType = SsStringUtil.normalizeNull(cur.getRequest_type()).trim();
+		String curServiceCate = SsStringUtil.normalizeNull(cur.getService_cate()).trim();
+		String curInquiryType = SsStringUtil.normalizeNull(cur.getInquiry_type()).trim();
+
+		String newProcDt = SsStringUtil.normalizeNull(vo.getProc_dt()).replaceAll("/", "").trim();
+		// [AX Lab] 수정 시작 (2026-10-07 AX Lab): 화면에서 선택한 공백도 그대로 받아 서버 필수 검증 수행
+		String newImportance = SsStringUtil.normalizeNull(vo.getInportance()).trim();
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN 초기화 규칙 — 중요도 공백은 일반(C002)
+		if ("".equals(newImportance)) newImportance = "C002";
+		// [AX Lab] 수정 끝
+		String newRequestType = SsStringUtil.normalizeNull(vo.getRequest_type()).trim();
+		String newServiceCate = SsStringUtil.normalizeNull(vo.getService_cate()).trim();
+		String newInquiryType = SsStringUtil.normalizeNull(vo.getInquiry_type()).trim();
+		// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 시스템(대)에 연동해 화면에서 계산한 버전정보
+		String newVersionInfo = SsStringUtil.normalizeNull(vo.getVersion_info()).trim();
+		// [AX Lab] 수정 끝
+		// [AX Lab] 수정 끝
+
+		// [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp goSave의 필수값·상태별 조건을 서버에서도 검증
+		String acceptRoute = SsStringUtil.normalizeNull(vo.getAccept_route()).trim();
+		String realApplyName = SsStringUtil.normalizeNull(vo.getRl_apply_nm()).trim();
+		String sendSms = SsStringUtil.normalizeNull(vo.getSend_sms()).trim();
+		String applyTel = SsStringUtil.normalizeNull(vo.getApply_tel()).trim();
+		String causeType = SsStringUtil.normalizeNull(vo.getCause_type()).trim();
+		String actionType = SsStringUtil.normalizeNull(vo.getAction_type()).trim();
+		String workTime = SsStringUtil.normalizeNull(vo.getWork_time()).trim();
+		String completeDt = SsStringUtil.normalizeNull(vo.getComplete_dt()).replaceAll("/", "").trim();
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 부재중 미체크 시 횟수 저장값 초기화
+		String telAbsence = SsStringUtil.normalizeNull(vo.getTel_absence()).trim();
+		String telAbsenceCnt = SsStringUtil.normalizeNull(vo.getTel_absence_cnt()).trim();
+		if (!"Y".equals(telAbsence)) telAbsenceCnt = "";
+		vo.setTel_absence(telAbsence);
+		vo.setTel_absence_cnt(telAbsenceCnt);
+		// [AX Lab] 수정 끝
+
+		if ("".equals(acceptRoute) || "".equals(realApplyName) || "".equals(sendSms)
+				|| "".equals(newRequestType) || "".equals(newStatus)
+				|| "".equals(newImportance) || "".equals(newAssign)) return 0;
+		if ("Y".equals(sendSms) && "".equals(applyTel)) return 0;
+
+		AsVO taskKey = new AsVO();
+		taskKey.setRequest_type(newRequestType);
+		AsVO taskType = (AsVO) commonDAO.selectOne(taskKey, "asDAO.getTaskType");
+		// [AX Lab] 수정 시작 (2026-10-08 AX Lab): VAL2/시스템(대) 규칙을 서버에서도 강제해 이전 버전 잔존 방지
+		boolean systemRequired = taskType != null
+				&& "Y".equals(SsStringUtil.normalizeNull(taskType.getVal2()).trim());
+		if (systemRequired && ("".equals(newServiceCate) || "".equals(newInquiryType))) return 0;
+		if (!systemRequired) {
+			newServiceCate = "";
+			newInquiryType = "";
+			newVersionInfo = "";
+		} else if (!("P002".equals(newServiceCate) || "P004".equals(newServiceCate)
+				|| "P003".equals(newServiceCate) || "P006".equals(newServiceCate))) {
+			newVersionInfo = "";
+		}
+		// [AX Lab] 수정 끝
+
+		if (statusChanged) {
+			if ("C006".equals(curStatus)) return 0;
+			if (commonDAO.selectOneInt(key, "asDAO.getAsChildCount") > 0) return 0;
+		}
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 접수(C001)/처리중(C004) 외 담당자 변경 서버 차단
+		if (assignChanged && !("C001".equals(newStatus) || "C004".equals(newStatus))) return 0;
+		// [AX Lab] 수정 끝
+
+		if ("C004".equals(newStatus) && "".equals(newProcDt)) return 0;
+		if ("C005".equals(newStatus)) {
+			/* 원본과 동일하게 처리예정일이 없으면 처리완료일로 자동 보정 */
+			if ("".equals(newProcDt) && !"".equals(completeDt)) newProcDt = completeDt;
+			if ("".equals(causeType) || "".equals(actionType) || "".equals(workTime)
+					|| "".equals(completeDt) || "".equals(comment)) return 0;
+			if (commonDAO.selectOneInt(key, "asDAO.getAsAdminAnswerCount") < 1) return 0;
+
+			if ("C001".equals(actionType) || "C002".equals(actionType)) {
+				String procGubun = SsStringUtil.normalizeNull(vo.getProc_gubun()).trim();
+				if ("".equals(procGubun)
+						|| "".equals(SsStringUtil.normalizeNull(vo.getProc_build_info()).trim())
+						|| "".equals(SsStringUtil.normalizeNull(vo.getProc_test_info()).trim())) return 0;
+				if ("C001".equals(procGubun)
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_process_sp()).trim())
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_screen_sp()).trim())
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_table_sp()).trim())
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_function_sp()).trim())
+						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_interface_sp()).trim())) return 0;
+			}
+		} else if ("C006".equals(newStatus) && "".equals(comment)) {
+			return 0;
+		}
+		// [AX Lab] 수정 끝
+
+		boolean procDtChanged = !newProcDt.equals(curProcDt);
+		boolean importanceChanged = !newImportance.equals(curImportance);
+		boolean requestTypeChanged = !newRequestType.equals(curRequestType);
+		boolean serviceCateChanged = !newServiceCate.equals(curServiceCate);
+		boolean inquiryTypeChanged = !newInquiryType.equals(curInquiryType);
+		boolean historyColumnChanged = statusChanged || assignChanged || procDtChanged
+				|| importanceChanged || requestTypeChanged || serviceCateChanged || inquiryTypeChanged;
+		// [AX Lab] 수정 끝
+
+		vo.setAs_no(asNo);
+		vo.setReg_id(adUserInfo.getEmp_no());
+		vo.setProc_status(newStatus);
+		vo.setAssign_id(newAssign);
+		vo.setProc_dt(newProcDt);
+		vo.setInportance(newImportance);
+		vo.setRequest_type(newRequestType);
+		vo.setService_cate(newServiceCate);
+		vo.setInquiry_type(newInquiryType);
+		// [AX Lab] 수정 시작 (2026-10-08 AX Lab): 정규화된 버전정보를 일괄 UPDATE에 전달
+		vo.setVersion_info(newVersionInfo);
+		// [AX Lab] 수정 끝
+		vo.setComplete_dt(completeDt);
+
+		int returnValue = commonDAO.update(vo, "asDAO.updateAsRecordBatch");
+		if (returnValue <= 0) return returnValue;
+
+		/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 컬럼/메모/첨부 중 하나라도 바뀌면 한 건으로 기록 */
+		if (historyColumnChanged || !"".equals(comment) || vo.getAttach_seq2() > 0) {
+			AsVO hist = new AsVO();
+			hist.setSeq(String.valueOf(commonDAO.selectOneInt(vo, "asDAO.getAsHistMaxSeq")));
+			hist.setAs_no(asNo);
+			hist.setProc_dt(vo.getProc_dt());
+			hist.setAssign_id(newAssign);
+			hist.setProc_status(newStatus);
+			hist.setAction_content(assignChanged ? "[이관] " + comment : comment);
+			hist.setAttach_seq2(vo.getAttach_seq2());
+			hist.setReg_id(adUserInfo.getEmp_no());
+			hist.setInportance(newImportance);
+			hist.setRequest_type(newRequestType);
+			hist.setService_cate(newServiceCate);
+			hist.setInquiry_type(newInquiryType);
+			commonDAO.insert(hist, "asDAO.insertAsInfoHist");
+		}
+		/* [AX Lab] 수정 끝 */
+
+		return returnValue;
+	}
+	// [AX Lab] 수정 끝
 	
 	@Override
 	public String getAlimTalkMessage(AsVO vo) {
@@ -1674,6 +1859,9 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 
 	@Override
 	public int updateAsHistAction(AsVO vo) throws Exception {
+		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 우회 요청에서도 조치의견 최대 1,300자 제한
+		if (SsStringUtil.normalizeNull(vo.getAction_content()).length() > 1300) return 0;
+		// [AX Lab] 수정 끝
 		return commonDAO.update(vo, "asDAO.updateAsHistAction");
 	}
 
