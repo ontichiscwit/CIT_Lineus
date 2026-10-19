@@ -81,7 +81,9 @@ var CAWS_TR_PREFIX = '[이관] ';
 /* 파일별/요청 전체 용량 제한은 기존 multipart 설정을 그대로 적용한다. */
 /* [AX Lab] 수정 끝 */
 
-var CAWS_IMG_EXT = ['jpg','jpeg','png','gif','bmp','webp','svg'];
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 안전하게 직접 표시 가능한 일반 이미지 형식만 미리보기 */
+var CAWS_IMG_EXT = ['jpg','jpeg','png','gif','webp'];
+/* [AX Lab] 수정 끝 */
 var CAWS_PDF_EXT = ['pdf'];
 
 /* COL3 아코디언 펼침상태 저장키 (asws_restoreListWide 와 동일한 sessionStorage 패턴)
@@ -181,16 +183,17 @@ function caws_ext(nm){
 function caws_isImg(nm){ return CAWS_IMG_EXT.indexOf(caws_ext(nm)) >= 0; }
 function caws_isPdf(nm){ return CAWS_PDF_EXT.indexOf(caws_ext(nm)) >= 0; }
 
-/* 첨부 정적 URL. CRM_ATTACH_MGT.ATTACH_PATH 가 웹 상대경로(/upload/...)라 별도 API 없이 바로 참조한다.
-   (같은 방식의 선례: fr/videofaq/form.jsp 의 <video src="'+attach_path+attach_save_nm+'">)
-   경로가 환경에 따라 서비스되지 않을 수도 있어 미리보기에는 onerror 대체표시를 반드시 함께 둔다. */
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 로컬/운영 공통 이미지 inline 스트리밍 URL
+   로컬에는 운영 첨부 물리파일이 없어 /upload/** 직접 참조가 실패하므로, 기존 다운로드 URL에
+   inline=Y를 전달한다. 서버는 일반 이미지일 때만 저장창 없이 표시하고 파일이 없으면 운영 폴백을 사용한다. */
 function caws_fileUrl(f){
-	var p = caws_nvl(f.attach_path, caws_nvl(f.ATTACH_PATH,''));
-	var n = caws_nvl(f.attach_save_nm, caws_nvl(f.ATTACH_SAVE_NM,''));
-	if(p === '' || n === '') return '';
-	if(p.charAt(p.length-1) !== '/') p += '/';
-	return encodeURI(p + n);
+	var seq = caws_nvl(f.attach_seq, caws_nvl(f.ATTACH_SEQ,''));
+	var ord = caws_nvl(f.attach_ord, caws_nvl(f.ATTACH_ORD,''));
+	if(String(seq) === '' || String(seq) === '0' || String(ord) === '') return '';
+	return '/comm/fileDown.do?attach_seq='+encodeURIComponent(seq)
+	     + '&attach_ord='+encodeURIComponent(ord)+'&inline=Y';
 }
+/* [AX Lab] 수정 끝 */
 function caws_fileNm(f){ return caws_nvl(f.attach_ori_nm, caws_nvl(f.ATTACH_ORI_NM,'첨부파일')); }
 function caws_fileSeq(f){ return caws_nvl(f.attach_seq, caws_nvl(f.ATTACH_SEQ,'0')); }
 function caws_fileOrd(f){ return caws_nvl(f.attach_ord, caws_nvl(f.ATTACH_ORD,'0')); }
@@ -961,12 +964,16 @@ function caws_histFiles(seq){
 	for(var j=0; j<files.length; j++){
 		var f = files[j];
 		caws.lb.list.push({
-			nm:caws_fileNm(f), seq:caws_fileSeq(f), ord:caws_fileOrd(f)
+			nm:caws_fileNm(f), url:caws_fileUrl(f), seq:caws_fileSeq(f), ord:caws_fileOrd(f)
 		});
 		s += '<div class="caws-hfrow">'
 		  +    '<span class="caws-hfname" title="'+caws_esc(caws_fileNm(f))+'">'+caws_esc(caws_fileNm(f))+'</span>'
 		  +    '<button type="button" class="btn-s caws-hfdown" onclick="caws_histFileDown('+j+');">'
 		  +      '<span aria-hidden="true">&#8595;</span> 다운로드</button>'
+		  /* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 조치이력 이미지 첨부에 팝업 미리보기 제공 */
+		  +    (caws_isImg(caws_fileNm(f)) && caws_fileUrl(f) !== ''
+		        ? '<button type="button" class="btn-s caws-hfpreview" onclick="caws_histFilePreview('+j+');">미리보기</button>' : '')
+		  /* [AX Lab] 수정 끝 */
 		  +  '</div>';
 	}
 	s += '</div>';
@@ -997,6 +1004,11 @@ function caws_histFileDown(idx){
 	var f = caws.lb.list[idx];
 	if(f) fileDown(f.seq, f.ord);
 }
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 조치이력 첨부목록에서 선택한 이미지를 공통 뷰어로 표시 */
+function caws_histFilePreview(idx){
+	caws_openImagePreview(caws.lb.list, idx, true);
+}
+/* [AX Lab] 수정 끝 */
 function caws_histFileDownAll(){
 	for(var i=0; i<caws.lb.list.length; i++){
 		(function(f, idx){
@@ -1176,7 +1188,7 @@ function caws_linkify(text){
 function caws_filesHtml(files, evIdx){
 	if(!files || !files.length) return '';
 	var s = '<div class="caws-files">';
-	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부 미리보기 UI를 완전히 제거하고 다운로드만 제공 */
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 다운로드는 항상 유지하고 일반 이미지에만 팝업 미리보기 제공 */
 	for(var i=0; i<files.length; i++){
 		var f = files[i];
 		var nm = caws_fileNm(f);
@@ -1185,17 +1197,23 @@ function caws_filesHtml(files, evIdx){
 		  +    '<span class="caws-fext">'+caws_esc(ext)+'</span>'
 		  +    '<span class="caws-fnm" title="'+caws_esc(nm)+'">'+caws_esc(nm)+'</span>'
 		  +    '<button type="button" class="caws-fbtn dl" onclick="fileDown(\''+caws_fileSeq(f)+'\',\''+caws_fileOrd(f)+'\');">다운로드</button>'
+		  +    (caws_isImg(nm) && caws_fileUrl(f) !== ''
+		        ? '<button type="button" class="caws-fbtn pv" onclick="caws_preview('+evIdx+','+i+');">미리보기</button>' : '')
 		  +  '</span>';
 	}
 	/* [AX Lab] 수정 끝 */
 	return s + '</div>';
 }
 
-/* 같은 버블의 미리보기 가능한 첨부만 모아 라이트박스 목록으로 쓴다(좌우 이동 대상). */
+/* 같은 버블의 이미지 첨부만 모아 라이트박스 목록으로 쓴다(좌우 이동 대상). */
 function caws_preview(evIdx, fileIdx){
 	var ev = caws.events[evIdx];
 	if(!ev || !ev.files) return;
+	caws_openImagePreview(ev.files, fileIdx, false);
+}
 
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 문의·답변·조치이력 공통 이미지 전용 팝업 뷰어 */
+function caws_openImagePreview(files, fileIdx, normalized){
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 첨부목록 팝업 사용 후 미리보기 모달 상태 복원 */
 	var modal = caws_el('cawsLb');
 	if(modal) modal.classList.remove('caws-files-mode');
@@ -1208,34 +1226,34 @@ function caws_preview(evIdx, fileIdx){
 	/* [AX Lab] 수정 끝 */
 
 	var list = [], start = 0;
-	for(var i=0; i<ev.files.length; i++){
-		var f = ev.files[i];
-		var nm = caws_fileNm(f);
-		if(!(caws_isImg(nm) || caws_isPdf(nm))) continue;
-		if(caws_fileUrl(f) === '') continue;
+	for(var i=0; i<files.length; i++){
+		var f = files[i];
+		var nm = normalized ? caws_nvl(f.nm,'첨부파일') : caws_fileNm(f);
+		var url = normalized ? caws_nvl(f.url,'') : caws_fileUrl(f);
+		if(!caws_isImg(nm) || url === '') continue;
 		if(i === fileIdx) start = list.length;
-		list.push({ nm:nm, url:caws_fileUrl(f), seq:caws_fileSeq(f), ord:caws_fileOrd(f) });
+		list.push({
+			nm:nm, url:url,
+			seq:normalized ? caws_nvl(f.seq,'0') : caws_fileSeq(f),
+			ord:normalized ? caws_nvl(f.ord,'0') : caws_fileOrd(f)
+		});
 	}
-	if(!list.length){ alert('미리볼 수 있는 첨부가 없습니다.'); return; }
+	if(!list.length){ alert('미리볼 수 있는 이미지가 없습니다.'); return; }
 
 	caws.lb.list = list;
 	caws.lb.idx = start;
 	caws_lbShow();
 	caws_openModal('cawsLb');
 }
+/* [AX Lab] 수정 끝 */
 
 function caws_lbShow(){
 	var it = caws.lb.list[caws.lb.idx];
 	if(!it) return;
-	var body = '';
-	if(caws_isPdf(it.nm)){
-		body = '<iframe src="'+it.url+'"></iframe>';
-	}else{
-		/* 정적 경로(/upload/...)가 서비스되지 않는 환경(업로드 물리경로가 웹루트 밖)에 대비해
-		   onerror 로 안내문으로 바꾼다. 인라인에 긴 HTML 문자열을 넣으면 따옴표 이스케이프가
-		   깨지기 쉬워 함수 호출(caws_lbFail)로 분리했다. */
-		body = '<img src="'+it.url+'" alt="'+caws_esc(it.nm)+'" onerror="caws_lbFail();" />';
-	}
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 뷰어 대상이 일반 이미지로 제한되어 img로만 출력 */
+	/* 정적 경로가 서비스되지 않는 환경에서는 onerror 안내로 대체하고 다운로드는 계속 제공한다. */
+	var body = '<img src="'+it.url+'" alt="'+caws_esc(it.nm)+'" onerror="caws_lbFail();" />';
+	/* [AX Lab] 수정 끝 */
 	caws_html('cawsLbBody', body);
 	caws_html('cawsLbNm', caws_esc(it.nm));
 	caws_html('cawsLbPos', (caws.lb.idx+1) + ' / ' + caws.lb.list.length);
