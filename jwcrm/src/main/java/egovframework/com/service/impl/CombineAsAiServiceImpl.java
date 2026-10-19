@@ -87,6 +87,18 @@ public class CombineAsAiServiceImpl implements CombineAsAiService {
 		return returnMap;
 	}
 
+	// [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 문장 다듬기 — DB 조회 없이 클라이언트 호출만 감싼다.
+	//   입력 검증(빈 본문·4,000자 상한·톤 화이트리스트)은 CombineAsAiClient.polish 가 910 으로 거른다.
+	@Override
+	public Map<String, Object> polish(AsVO vo, String text, String tone) throws Exception {
+		String asNo = vo == null ? "" : SsStringUtil.normalizeNull(vo.getAs_no()).trim();
+		Map<String, Object> returnMap = new HashMap<String, Object>(CombineAsAiClient.polish(text, tone, asNo));
+		returnMap.put("as_no", asNo);
+		returnMap.remove("message");	/* 실패 사유는 운영 로그에만. 브라우저에는 result 코드만 내려간다 */
+		return returnMap;
+	}
+	// [AX Lab] 수정 끝
+
 	/** 자신 / 부모 / 자식 / 연결건 — 중복 제거, 입력 순서 유지 */
 	static List<String> buildExclude(String asNo, CombineAsAiVO ctx) {
 		Set<String> set = new LinkedHashSet<String>();

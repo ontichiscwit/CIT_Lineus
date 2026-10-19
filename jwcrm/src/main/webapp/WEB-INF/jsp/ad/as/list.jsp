@@ -1518,8 +1518,9 @@
 <%-- [AX Lab] 수정 시작 (2026-10-07 AX Lab): 접수처리정보 필수값 UX 수정 캐시 갱신 --%>
 <%-- [AX Lab] 수정 (2026-10-12 AX Lab): 전화부재중 횟수 비활성 음영 스타일 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 스타일 캐시 갱신 --%>
-<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 스타일 캐시 갱신 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261019-1" />
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 스타일 캐시 갱신
+     [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(비교 표시·배지·되돌리기) 스타일 캐시 갱신 (기존 v=20261019-1) --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261019-2" />
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
@@ -1529,8 +1530,9 @@
 <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 기능 반영 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 처리담당자 표시 캐시 갱신 --%>
-<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-3"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신
+     [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(getAsInfo.do?pageType=aiPolish) 캐시 갱신 (기존 v=20261019-3) --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-4"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
