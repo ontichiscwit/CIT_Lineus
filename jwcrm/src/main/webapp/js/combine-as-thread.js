@@ -1346,6 +1346,10 @@ function caws_renderCompose(){
 	var comp = caws_el('asCompose');
 	if(comp) comp.classList.toggle('off', !open);
 	caws.cpPinLine = false;		/* [AX Lab] 2026-10-19 새로 그린 빈 입력창은 자동 넓히기 허용 */
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 최초 렌더링 때도 한 줄 모드 입력창 높이(32px)를 즉시 적용 */
+	var composeTa = caws_el('cawsText');
+	if(composeTa) caws_autoGrow(composeTa);
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 저장된 사용자 조절 높이 복원 */
 	caws_composeHeightRestore();
 	/* [AX Lab] 수정 끝 */
@@ -2519,8 +2523,11 @@ function caws_telSave(){
 
 /* ---- 접기/펼치기 -------------------------------------------------------- */
 function caws_composeOpen(){
-	/* 기본값은 접힘. 펼쳐진 작성영역이 약 190px 을 먹어 타임라인이 그만큼 잘리기 때문이다. */
-	try{ return sessionStorage.getItem(CAWS_CP_KEY) === '1'; }catch(e){ return false; }
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 접수건을 열 때 고객 답변 영역은 항상 한 줄 모드로 시작 */
+	// [AX Lab] 삭제 (2026-10-19 AX Lab): 이전 접수건의 펼침 상태를 다음 접수건에 적용하지 않는다.
+	// try{ return sessionStorage.getItem(CAWS_CP_KEY) === '1'; }catch(e){ return false; }
+	return false;
+	/* [AX Lab] 수정 끝 */
 }
 /* ★ 여기서 caws_renderCompose() 를 다시 부르지 않는다.
    innerHTML 을 새로 만들면 작성 중이던 textarea 내용과 첨부 썸네일이 전부 날아간다.
