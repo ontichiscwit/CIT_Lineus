@@ -9,7 +9,11 @@
 <!-- [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거(겹친 단어·일치 사유) 표시 — #s-screen 하단 -->
 <!-- [AX Lab] 수정 (2026-10-16 AX Lab): 겹친 단어 형태소 분석기(Kiwi) 적용 이유·방식 — #s-morph -->
 <!-- [AX Lab] 수정 (2026-10-16 AX Lab): 노란 칩 의미 #s-synchip · 형식어 거르기 #s-formal · 재문의·연락 요청 문의 #s-followup -->
-<!-- [AX Lab] 수정 (2026-10-18 AX Lab): #s-morph 에 Kiwi 쓰임 확대(형식어 통계·문장 단위 판정·재문의 판정) 반영 -->
+<!-- [AX Lab] 수정 (2026-10-19 AX Lab): 일치 사유 칩("같은 업무분류") 화면 미표시 반영 — 목업·칩 설명·응답 필드 표·변경 이력 -->
+<!-- [AX Lab] 수정 (2026-10-18 AX Lab): 문서 전체 재구성 — 추천이 만들어지는 순서대로 섹션을 다시 배열.
+     · 동의어 사전 섹션 신설(#s-synonym, 선정 기준·규칙 표) · 리랭킹 원점수 -2.0 을 확률 눈금으로 설명(#s-filter)
+     · 아키텍처 단계마다 "어디서 → 어디로 무엇이" 가는지 경로 표시(#s-arch) · 칩 만드는 과정(#s-terms)과 재문의(#s-followup)를 독립 섹션으로
+     · 본문 안의 날짜 배지는 #s-dev 변경 이력 표로 모았다. 기존 앵커(#s-morph · #s-formal · #s-synchip · #s-followup)는 그대로 유지. -->
 
 
 <style>
@@ -32,6 +36,7 @@
   .toc{position:sticky;top:24px;align-self:start}
   .toc b{display:block;margin-bottom:10px;font-size:12px;color:var(--muted)}
   .toc a{display:block;padding:7px 10px;border-left:2px solid var(--line);color:var(--ink2);text-decoration:none;font-size:13px}
+  .toc a.sub{padding-left:20px;font-size:12px;color:var(--muted)}
   .toc a:hover{color:var(--brand);border-left-color:var(--brand)}
   .toc a.on{color:var(--brand);border-left-color:var(--brand);font-weight:700}
 
@@ -40,11 +45,14 @@
   .kicker{margin:0 0 6px;font-size:12px;font-weight:800;color:var(--brand);letter-spacing:.04em}
   h1{margin:0;font-size:30px;line-height:1.35;letter-spacing:-.03em}
   h2{margin:0 0 6px;font-size:22px;letter-spacing:-.02em}
-  h3{margin:0 0 6px;font-size:16px}
+  h3{margin:0 0 6px;font-size:16px;scroll-margin-top:24px}
+  h4{margin:0 0 8px;font-size:14px}
   .desc{margin:0 0 22px;color:var(--muted)}
   p{margin:0}
   .muted{color:var(--muted)}
   .small{font-size:13px}
+  main a{color:var(--brand)}
+  .sub-h{margin-top:34px}
 
   /* 용어 툴팁 */
   .t{border-bottom:1px dashed var(--brand);cursor:help;color:inherit;border-radius:2px;transition:background .15s}
@@ -62,11 +70,16 @@
   /* 히어로 */
   .hero{padding:34px 36px;background:var(--surface);border:1px solid var(--line);border-radius:18px;margin-bottom:56px}
   .hero .lead{margin-top:12px;font-size:16px;color:var(--ink2);max-width:760px}
-  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
   .summary div{padding:16px 18px;background:var(--bg);border-radius:12px}
   .summary b{display:block;font-size:13px;color:var(--brand);margin-bottom:4px}
   .summary span{font-size:14px;color:var(--ink2)}
   .howto{margin-top:20px;font-size:13px;color:var(--muted)}
+  .reading{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:18px;font-size:13px;color:var(--ink2)}
+  .reading b{margin-right:4px;font-size:12px;color:var(--muted)}
+  .reading a{padding:3px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink2);text-decoration:none;font-size:12.5px}
+  .reading a:hover{border-color:var(--brand-line);color:var(--brand)}
+  .reading i{font-style:normal;color:var(--muted)}
 
   /* 비유 */
   .analogy{display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
@@ -84,7 +97,7 @@
   .zone-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}
   .zone-h b{font-size:14px}
   .zone-h span{font-size:11px;color:var(--muted)}
-  .box{padding:12px 14px;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);transition:background .2s,border-color .2s,opacity .2s}
+  .box{position:relative;padding:12px 14px;margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);transition:background .2s,border-color .2s,opacity .2s}
   .box:first-of-type{margin-top:0}
   .box b{display:block;font-size:14px}
   .box > span{display:block;font-size:12px;color:var(--muted);line-height:1.5;margin-top:3px}
@@ -92,6 +105,8 @@
   .box .tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:5px;background:var(--teal-soft);color:var(--teal);font-size:10px;font-weight:800;vertical-align:2px}
   .arch.playing .box{opacity:.5}
   .arch.playing .box.lit{opacity:1;background:var(--brand-soft);border-color:var(--brand)}
+  .arch.playing .box.lit[data-role]::before{content:attr(data-role);position:absolute;top:-10px;right:10px;padding:0 8px;border-radius:6px;background:var(--brand);color:#fff;font-size:10px;font-weight:800;line-height:19px;white-space:nowrap}
+  .arch.playing .box.lit.from{border-style:dashed}
   .zone.wide{grid-column:span 1}
   .player{margin-bottom:14px;background:var(--surface);border:1px solid var(--brand-line);border-radius:14px;overflow:hidden;box-shadow:0 4px 14px rgba(91,69,198,.08)}
   .player-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 20px;background:var(--brand-soft);border-bottom:1px solid var(--brand-line)}
@@ -109,6 +124,22 @@
   .player-body h3{margin:0 0 2px}
   .player-body p{font-size:14px;color:var(--ink2)}
   .ctrl{display:flex;gap:8px}
+  /* 단계별 이동 경로 (어디서 → 어디로 무엇이) */
+  .route{display:flex;flex-wrap:wrap;align-items:center;gap:8px 6px;padding:12px 20px 14px;border-top:1px solid var(--line2);background:#fbfbfd}
+  .route .lbl{margin-right:6px;font-size:11px;font-weight:800;color:var(--muted)}
+  .route .nd{padding:4px 10px;border:1px solid var(--brand-line);border-radius:9px;background:var(--surface);font-size:12.5px;font-weight:800;color:var(--ink);line-height:1.3}
+  .route .nd small{display:block;font-size:10px;font-weight:400;color:var(--muted)}
+  .route .nd.pc-agent{border-left:3px solid #6fb3a9}.route .nd.pc-crm{border-left:3px solid var(--brand)}.route .nd.pc-ai{border-left:3px solid #2a6496}.route .nd.pc-db{border-left:3px solid #94661a}.route .nd.pc-lab{border-left:3px solid #56606c}
+  .route .ar{display:flex;flex-direction:column;align-items:center;min-width:54px;color:var(--brand);font-size:16px;font-weight:800;line-height:1}
+  .route .ar small{margin-top:2px;max-width:150px;font-size:10px;font-weight:400;color:var(--muted);text-align:center;line-height:1.3;white-space:normal}
+  .route .stay{font-size:12px;color:var(--muted)}
+  .pathbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;margin:0 0 14px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;font-size:12px}
+  .pathbar .lbl{margin-right:8px;font-size:11px;font-weight:800;color:var(--muted)}
+  .pathbar .nd{padding:2px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);font-weight:700;color:var(--ink2);transition:background .15s,border-color .15s}
+  .pathbar .nd i{font-style:normal;margin-right:5px;padding:0 5px;border-radius:5px;background:var(--line2);color:var(--muted);font-size:10px}
+  .pathbar .nd.on{background:var(--brand-soft);border-color:var(--brand);color:var(--ink)}
+  .pathbar .nd.on i{background:var(--brand);color:#fff}
+  .pathbar .ar{color:var(--muted);font-size:12px}
   .btn{height:42px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink2);font:inherit;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer}
   .btn:hover{border-color:var(--brand-line);color:var(--brand)}
   .btn:disabled{opacity:.35;cursor:default;border-color:var(--line);color:var(--ink2)}
@@ -130,8 +161,10 @@
   /* 단계 */
   .stages{display:grid;gap:12px}
   .stage{display:grid;grid-template-columns:56px 1fr 240px;gap:20px;padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .stage.side{background:#fbfbfd;border-style:dashed}
   .stage .no{font-size:26px;font-weight:800;color:var(--brand-line);line-height:1}
   .stage p{color:var(--ink2);font-size:14px}
+  .stage .more{display:block;margin-top:6px;font-size:12px}
   .stage .eg{padding:12px 14px;border-radius:10px;background:var(--bg);font-size:12px;color:var(--ink2);line-height:1.6}
   .stage .eg b{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
   .funnel{display:flex;align-items:center;gap:8px;margin:18px 0 0;font-size:13px;color:var(--muted);flex-wrap:wrap}
@@ -177,9 +210,14 @@
   .mock-i b{display:block;font-size:12px}
   .mock-i small{color:var(--muted);font-size:11px}
   .mock-i.ref{background:#fafbfc}
+  .mock-fu{padding:7px 14px;border-bottom:1px solid #F1E2BC;background:#FFF8E8;color:#7A5B12;font-size:10.5px;line-height:1.45}
+  .mock-fu b{margin-right:5px;color:#8A6410}
+  .mock-box{margin:8px 10px;border:1px solid #E6CF95;border-radius:8px;box-shadow:0 0 0 2px #FFF3D6;overflow:hidden}
+  .mock-box .mock-h{font-size:11px;padding:8px 12px}
+  .mock-box .mock-i{padding:8px 12px}
+  .mock-dim{opacity:.45}
   .refb{display:inline-block;padding:0 6px;border-radius:6px;background:#eaf1f7;color:#486174;font-weight:700;font-size:10px}
   .mock-f{padding:8px 14px;background:#faf9ff;color:var(--muted);font-size:10px;text-align:center}
-  /* [AX Lab] 2026-10-16 추천 근거 칩 */
   .kws{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
   .kw{display:inline-block;padding:0 6px;border-radius:7px;background:#f3f0fa;color:#5b4a9b;font-size:10px;font-weight:700;line-height:16px}
   .kw.syn{background:#fff4e5;color:#9a5b0b}
@@ -188,15 +226,16 @@
   .whyk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
   .whyk > div{padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font-size:12px;color:var(--ink2)}
   .whyk .kw{margin-bottom:6px}
-  .why2 h4{margin:0 0 8px;font-size:14px}
   .levels{display:grid;gap:10px}
   .lv{display:grid;grid-template-columns:150px 1fr;gap:16px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
   .lv b{font-size:14px}
   .lv small{display:block;color:var(--muted);font-size:11px}
   .lv p{font-size:13px;color:var(--ink2)}
   .note{margin-top:14px;padding:14px 18px;border-left:3px solid var(--blue);background:var(--blue-soft);color:#2f5170;font-size:13px;border-radius:0 10px 10px 0}
+  .note.warn{border-left-color:var(--amber);background:var(--amber-soft);color:#6b4a12}
+  .note.brand{border-left-color:var(--brand);background:var(--brand-soft);color:#3f2f99}
 
-  /* [AX Lab] 2026-10-16 관련 없는 추천 제외 */
+  /* 카드 묶음 */
   .why2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
   .why2 > div{padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
   .why2 .lbl{display:inline-block;margin-bottom:8px;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:800}
@@ -205,6 +244,7 @@
   .rule3 > div{padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
   .rule3 .v{display:block;margin:2px 0 6px;font-size:22px;font-weight:800;color:var(--brand);line-height:1.2}
   .rule3 p{font-size:12.5px;color:var(--muted)}
+  .rule3 .card p, .why2 .card p{color:var(--ink2)}
   .scale{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:26px}
   .scale-bar{position:relative;display:grid;grid-template-columns:37.5% 12.5% 50%;height:30px;border-radius:8px;font-size:11px;font-weight:800}
   .scale-bar span:first-child{border-radius:8px 0 0 8px}
@@ -217,7 +257,8 @@
   .scale-ax{position:relative;height:18px;margin-top:4px;font-size:10px;color:var(--muted)}
   .scale-ax span{position:absolute;transform:translateX(-50%);white-space:nowrap}
   .scale-ax span.end{left:auto !important;right:0;transform:none}
-  #s-filter a, #s-steps a{color:var(--brand)}
+  .scale-ax span.head{left:0 !important;transform:none;font-weight:800;color:var(--ink2)}
+  .scale-ax.prob{margin-top:0;color:var(--brand)}
   .scale-ax span.cutl{color:var(--ink);font-weight:800}
   .scale-eg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;font-size:12px;color:var(--ink2);line-height:1.6}
   .scale-eg div{padding:12px 14px;border-radius:10px;background:var(--bg);border-top:3px solid var(--line)}
@@ -228,11 +269,18 @@
   .cmp th{background:var(--bg);color:var(--muted);font-size:12px}
   .cmp td b{color:var(--brand)}
   .cmp tr:last-child td{border-bottom:0}
+  .cmp tr.hl td{background:var(--brand-soft)}
+  .cmp td.num{font-family:Consolas,monospace;white-space:nowrap}
+  .cmp td .grp{display:inline-block;padding:0 7px;border-radius:6px;background:var(--line2);color:var(--ink2);font-size:11px;font-weight:700}
   .zero{display:grid;grid-template-columns:330px 1fr;gap:28px;align-items:start;margin-top:26px}
   .aibtn{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--brand-line);border-radius:8px;background:var(--brand-soft);color:var(--brand);font-size:12px;font-weight:800}
   .aibtn i{font-style:normal;padding:0 6px;border-radius:6px;background:#fff;color:var(--brand);font-size:11px}
   .aibtn i.na{color:#a79bcf}
   .mock-empty{padding:16px 14px;color:var(--muted);font-size:12px;text-align:center}
+  .ex-pair{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:16px 20px;background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-bottom:18px;font-size:13px}
+  .ex-pair .arrow{font-size:20px;color:var(--brand);font-weight:800}
+  .ex-pair b{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+  .ex-pair .q{color:var(--ink)}
 
   /* 안전장치 */
   .guards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
@@ -248,6 +296,7 @@
 
   /* 개발자용 */
   details{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  details + details{margin-top:12px}
   summary{padding:16px 20px;font-weight:800;cursor:pointer}
   .dev{padding:0 20px 20px}
   .dev pre{margin:0 0 14px;padding:14px 16px;background:#202733;color:#e8edf3;border-radius:10px;font:12px/1.75 Consolas,monospace;white-space:pre-wrap}
@@ -255,6 +304,7 @@
   .dev th,.dev td{padding:9px 10px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
   .dev th{color:var(--muted);font-weight:700}
   .dev td:first-child{font-family:Consolas,monospace;color:var(--brand);white-space:nowrap}
+  .dev table.plain td:first-child{font-family:inherit;color:inherit}
   .foot{margin-top:30px;font-size:11px;color:var(--muted)}
 
   @media(max-width:1000px){
@@ -262,7 +312,7 @@
     .arch{grid-template-columns:1fr}.analogy,.summary,.guards,.data{grid-template-columns:1fr}
     .analogy > div{border-right:0;border-bottom:1px solid var(--line)}
     .weights,.down{grid-template-columns:1fr 1fr}.stage{grid-template-columns:1fr}.screen{grid-template-columns:1fr}
-    .why2,.rule3,.zero,.scale-eg{grid-template-columns:1fr}
+    .why2,.rule3,.zero,.scale-eg,.ex-pair{grid-template-columns:1fr}
     .whyk{grid-template-columns:1fr 1fr}
     .player-body{grid-template-columns:auto 1fr}.player-body .ctrl{grid-column:1 / -1;justify-content:flex-end}.chips{margin-left:0}
     .row{grid-template-columns:28px 1fr 56px}.row .stack{grid-column:1 / -1}.row.axis{display:none}
@@ -276,24 +326,36 @@
     <a href="#s-overview">한눈에 보기</a>
     <a href="#s-arch">어느 PC에서 무엇을?</a>
     <a href="#s-steps">추천이 만들어지는 과정</a>
-    <a href="#s-score">순위는 어떻게 정하나</a>
-    <a href="#s-filter">관련 없는 추천은 빼기</a>
+    <a href="#s-synonym" class="sub">① 현장 말 → 시스템 말</a>
+    <a href="#s-score" class="sub">② 순위는 어떻게 정하나</a>
+    <a href="#s-filter" class="sub">③ 관련 없는 추천은 빼기</a>
     <a href="#s-screen">화면에서는 어떻게 보이나</a>
+    <a href="#s-terms" class="sub">겹친 단어 칩은 어떻게 고르나</a>
+    <a href="#s-followup" class="sub">재문의·연락 요청 문의</a>
     <a href="#s-guard">안전장치</a>
     <a href="#s-data">추천 자료는 어디서 오나</a>
-    <a href="#s-dev">개발자용 상세</a>
+    <a href="#s-dev">개발자용 상세 · 변경 이력</a>
   </nav>
 
   <main>
     <!-- 0. 히어로 -->
     <header class="hero" id="s-overview">
       <p class="kicker">AS 통합화면 · AI 추천</p>
-      <h1>상담원이 문의를 열면,<br>AI가 비슷한 답변을 최대 5건 찾아 옆에 띄워 줍니다</h1>
-      <p class="lead">과거에 이미 해결한 AS 사례, 표준답변, 공지 약 1만 1천 건 중에서 지금 문의와 가장 비슷한 것을 골라 보여 주는 기능입니다. 상담원은 그 답변을 참고하거나 답변 초안에 바로 넣을 수 있습니다.</p>
+      <h1>상담원이 문의를 열면,<br>AI가 비슷한 답변을 찾아 옆에 띄워 줍니다</h1>
+      <p class="lead">과거에 이미 해결한 AS 사례, 표준답변, 공지 약 1만 1천 건 중에서 지금 문의와 가장 비슷한 것을 골라 보여 주는 기능입니다. 관련 있는 자료만 0~5건 보여 주고, 왜 골랐는지(겹친 단어)도 함께 표시합니다. 상담원은 그 답변을 참고하거나 답변 초안에 바로 넣을 수 있습니다.</p>
       <div class="summary">
         <div><b>무엇을 찾나요?</b><span>지금 문의와 <strong>내용이 비슷한</strong> 과거 해결 사례·표준답변·공지</span></div>
         <div><b>어떻게 찾나요?</b><span>뜻과 단어로 동시에 찾는 <span class="t" data-term="hybrid">하이브리드 검색</span> 후, AI가 직접 읽어 다시 채점하는 <span class="t" data-term="rerank">리랭킹</span></span></div>
+        <div><b>몇 건을 보여 주나요?</b><span>관련 있는 것만 <strong>0~5건</strong>. 자료마다 문의와 겹친 단어를 칩으로 붙여 왜 골랐는지 보여 줍니다</span></div>
         <div><b>얼마나 걸리나요?</b><span>최대 <strong>2.5초</strong> <span class="t" data-term="timeout">타임아웃</span>. 늦어지면 추천만 건너뛰고 CRM 화면은 정상 동작</span></div>
+      </div>
+      <div class="reading">
+        <b>읽는 순서</b>
+        <a href="#s-arch">어느 PC가 무엇을 하나</a><i>→</i>
+        <a href="#s-steps">추천이 만들어지는 6단계</a><i>→</i>
+        <a href="#s-synonym">단계별 자세히 (①②③)</a><i>→</i>
+        <a href="#s-screen">화면과 근거 칩</a><i>→</i>
+        <a href="#s-guard">안전장치 · 자료</a>
       </div>
       <p class="howto">점선 밑줄이 있는 <span class="t" data-term="demo">개발 용어</span>에 마우스를 올리면(모바일은 누르면) 쉬운 설명과 비유가 나옵니다.</p>
     </header>
@@ -302,13 +364,13 @@
     <section>
       <p class="kicker">먼저 비유로 이해하기</p>
       <h2>도서관 사서가 책을 추천하는 과정과 같습니다</h2>
-      <p class="desc">질문을 받은 사서가 서가에서 후보를 빠르게 뽑고, 꼼꼼히 읽어 본 뒤, 상황에 맞는 몇 권만 건네주는 방식입니다.</p>
+      <p class="desc">질문을 받은 사서가 서가에서 후보를 빠르게 뽑고, 꼼꼼히 읽어 본 뒤, 상황에 맞는 몇 권만 메모를 붙여 건네주는 방식입니다.</p>
       <div class="analogy">
         <div>
           <span class="n">1단계 · 빠르게 고르기</span>
           <h3>서가에서 후보 수십 권을 뽑습니다</h3>
-          <p class="muted small">제목·내용이 비슷해 보이는 책을 빠르게 훑어 꺼냅니다. 정확하진 않지만 빠릅니다.</p>
-          <p class="real">실제: <span class="t" data-term="hybrid">하이브리드 검색</span>으로 1만 1천 건 중 후보 최대 120건 선별</p>
+          <p class="muted small">질문에 나온 현장 말을 서가의 분류 용어로 바꿔 읽고, 제목·내용이 비슷해 보이는 책을 빠르게 훑어 꺼냅니다. 정확하진 않지만 빠릅니다.</p>
+          <p class="real">실제: <a href="#s-synonym">동의어 사전</a>으로 질문을 보충하고 <span class="t" data-term="hybrid">하이브리드 검색</span>으로 1만 1천 건 중 후보 최대 120건 선별</p>
         </div>
         <div>
           <span class="n">2단계 · 꼼꼼히 읽기</span>
@@ -318,9 +380,9 @@
         </div>
         <div>
           <span class="n">3단계 · 상황에 맞춰 건네기</span>
-          <h3>관련 없는 책은 빼고 최대 5권만 줍니다</h3>
-          <p class="muted small">읽어 보니 질문과 상관없는 책은 자리가 남아도 건네지 않습니다. 같은 분야인지, 공식 안내서인지, 비슷한 책이 겹치지 않는지 따져서 최종 선택합니다.</p>
-          <p class="real">실제: 리랭킹 기준 미달 제외, 업무 분류·<span class="t" data-term="tier">Tier</span>·답변 품질 반영, <span class="t" data-term="dedup">중복 제거</span> 후 0~5건</p>
+          <h3>관련 없는 책은 빼고 최대 5권만, 메모를 붙여 줍니다</h3>
+          <p class="muted small">읽어 보니 질문과 상관없는 책은 자리가 남아도 건네지 않습니다. 건넬 때는 "이 대목이 질문과 겹친다"는 메모를 붙입니다. 질문이 "지난번 그 건 어떻게 됐나요?"라면 책 대신 지난 기록부터 찾아 줍니다.</p>
+          <p class="real">실제: <a href="#s-filter">리랭킹 기준 미달 제외</a> 후 0~5건, <a href="#s-terms">겹친 단어 칩</a>, <a href="#s-followup">재문의 판정</a></p>
         </div>
       </div>
     </section>
@@ -329,12 +391,14 @@
     <section id="s-arch">
       <p class="kicker">아키텍처</p>
       <h2>어느 PC에서 무엇을 하나요?</h2>
-      <p class="desc">AI 추천은 PC 여러 대가 역할을 나눠서 동작합니다. 아래 <strong>[다음 단계 →]</strong> 버튼을 누를 때마다 지금 일하는 PC가 그림에서 보라색으로 표시됩니다.</p>
+      <p class="desc">AI 추천은 PC 여러 대가 역할을 나눠서 동작합니다. 아래 <strong>[다음 단계 →]</strong> 버튼을 누르면 단계마다 <strong>어디에서 어디로 무엇이 가는지</strong>가 화살표로 표시되고, 그림에서는 출발한 곳(점선)과 도착한 곳이 보라색으로 켜집니다. 위쪽 "전체 경로"는 모든 단계를 한 줄로 이은 것입니다.</p>
 
       <div class="tabs">
         <button type="button" class="on" data-flow="live">추천 요청 흐름 (상담원이 문의를 열 때)</button>
         <button type="button" data-flow="prep">자료 준비 흐름 (뒤에서 자동으로)</button>
       </div>
+
+      <div class="pathbar" id="pathbar"></div>
 
       <div class="player">
         <div class="player-top">
@@ -351,6 +415,7 @@
             <button type="button" class="btn primary" id="stNext">다음 단계 →</button>
           </div>
         </div>
+        <div class="route" id="stRoute"></div>
       </div>
 
       <div class="arch playing" id="arch">
@@ -361,12 +426,12 @@
         <div class="zone">
           <div class="zone-h"><b>CRM 서버 PC</b><span>현재는 두 <span class="t" data-term="server">서버</span> 프로그램이 같은 PC에서 동작</span></div>
           <div class="box" data-box="was"><b>CRM 웹 서버 <small class="muted">(<span class="t" data-term="was">WAS</span>)</small></b><span>문의 내용을 <span class="t" data-term="db">DB</span>에서 꺼내 추천 서버 API를 호출하고, 최대 2.5초 <span class="t" data-term="timeout">타임아웃</span>까지 결과를 기다립니다.</span></div>
-          <div class="box" data-box="rec"><b>AI 추천 서버 <small class="muted">(<span class="t" data-term="port">포트</span> 8765)</small></b><span>추천의 두뇌. 자료 1만 1천 건의 <span class="t" data-term="index">인덱스</span>를 <span class="t" data-term="memory">메모리</span>에 올려 두고 <span class="t" data-term="hybrid">하이브리드 검색</span>·점수 계산·최종 최대 5건 선택을 합니다.</span></div>
+          <div class="box" data-box="rec"><b>AI 추천 서버 <small class="muted">(<span class="t" data-term="port">포트</span> 8765)</small></b><span>추천의 두뇌. 자료 1만 1천 건의 <span class="t" data-term="index">인덱스</span>를 <span class="t" data-term="memory">메모리</span>에 올려 두고 <span class="t" data-term="hybrid">하이브리드 검색</span>·점수 계산·최종 선택·근거 칩 만들기를 합니다.</span></div>
         </div>
         <div class="zone">
           <div class="zone-h"><b>AI PC</b><span><span class="t" data-term="ip">IP</span> 192.168.19.141 · AI 모델 전용</span></div>
           <div class="box" data-box="embed"><b>임베딩 서버 <small class="muted">(<span class="t" data-term="ollama">Ollama</span> · <span class="t" data-term="bgem3">bge-m3</span>)</small></b><span>문의 문장을 뜻을 담은 숫자 묶음인 <span class="t" data-term="embedding">임베딩</span>으로 바꿔 줍니다.</span></div>
-          <div class="box" data-box="rerank"><b><span class="t" data-term="rerank">리랭킹</span> 서버<span class="tag">신규</span> <small class="muted">(포트 8766 · <span class="t" data-term="bgerr">bge-reranker-v2-m3</span>)</small></b><span>후보 상위 20건을 문의와 나란히 놓고 직접 읽어 다시 채점합니다. 꺼져 있어도 <span class="t" data-term="fallback">폴백</span>으로 추천은 정상 동작합니다.</span></div>
+          <div class="box" data-box="rerank"><b><span class="t" data-term="rerank">리랭킹</span> 서버 <small class="muted">(포트 8766 · <span class="t" data-term="bgerr">bge-reranker-v2-m3</span>)</small></b><span>후보 상위 20건을 문의와 나란히 놓고 직접 읽어 다시 채점합니다. 꺼져 있어도 <span class="t" data-term="fallback">폴백</span>으로 추천은 정상 동작합니다.</span></div>
           <div class="box" data-box="llm"><b>자료 정리용 <span class="t" data-term="llm">LLM</span> <small class="muted">(Ollama · <span class="t" data-term="gemma">gemma</span>)</small></b><span>새 AS 건이 들어오면 주제 분류와 개인정보 <span class="t" data-term="masking">마스킹</span>을 도와줍니다. 자료 준비 때만 씁니다.</span></div>
         </div>
         <div class="zone">
@@ -379,7 +444,7 @@
         </div>
       </div>
 
-      <h3 style="margin-top:34px">PC가 꺼지면 어떻게 되나요?</h3>
+      <h3 class="sub-h">PC가 꺼지면 어떻게 되나요?</h3>
       <p class="muted small" style="margin-bottom:4px">어떤 경우에도 CRM의 다른 기능은 영향을 받지 않습니다. 추천 기능만 영향을 받습니다.</p>
       <div class="down">
         <div><span class="st bad">추천 중단</span><b>AI 추천 서버가 꺼지면</b><p>화면에 "AI 추천 서버 응답이 지연되어 건너뛰었습니다 [다시 시도]"가 뜹니다.</p></div>
@@ -392,13 +457,13 @@
     <!-- 2. 단계 -->
     <section id="s-steps">
       <p class="kicker">처리 과정</p>
-      <h2>추천이 만들어지는 5단계</h2>
-      <p class="desc">상담원이 문의를 열고 결과가 뜨기까지, AI 추천 서버 안에서 일어나는 일입니다.</p>
+      <h2>추천이 만들어지는 6단계</h2>
+      <p class="desc">상담원이 문의를 열고 결과가 뜨기까지, AI 추천 서버 안에서 일어나는 일입니다. 1~5단계가 "무엇을 보여 줄지"를 정하고, 6단계는 그 결과에 "왜 골랐는지"를 붙입니다. 세 군데(①②③)는 다음 섹션에서 자세히 설명합니다.</p>
       <div class="stages">
         <div class="stage">
           <div class="no">01</div>
-          <div><h3>문의 내용 <span class="t" data-term="preprocess">전처리</span></h3><p>접수 양식의 고정 문구("프로그램명:", "발생일시:" 등)를 떼어 내고, 환자 이름·전화번호 같은 개인정보는 <span class="t" data-term="masking">마스킹</span>합니다. 현장에서 쓰는 말을 시스템 용어로 보충하는 <span class="t" data-term="qexpand">쿼리 확장</span>도 합니다.</p></div>
-          <div class="eg"><b>예</b>"산재 지사 등록이 안 돼요" → "산재조합 / 보험거래처코드" 같은 시스템 용어를 함께 붙여 검색</div>
+          <div><h3>문의 내용 <span class="t" data-term="preprocess">전처리</span>와 <span class="t" data-term="qexpand">쿼리 확장</span></h3><p>접수 양식의 고정 문구("프로그램명:", "발생일시:" 등)를 떼어 내고, 환자 이름·전화번호 같은 개인정보는 <span class="t" data-term="masking">마스킹</span>합니다. 그리고 현장에서 쓰는 말 옆에 시스템 용어를 덧붙입니다. 현장은 "보험회사"라고 하지만 화면과 매뉴얼은 "보험거래처코드"라고 쓰기 때문입니다.<a class="more" href="#s-synonym">① 동의어 사전은 어떤 기준으로 만들었나 →</a></p></div>
+          <div class="eg"><b>예</b>"산재 지사 등록이 안 돼요" → 뒤에 "산재조합 · 보험거래처코드"를 붙여 검색</div>
         </div>
         <div class="stage">
           <div class="no">02</div>
@@ -412,13 +477,18 @@
         </div>
         <div class="stage">
           <div class="no">04</div>
-          <div><h3><span class="t" data-term="rerank">리랭킹</span> — AI가 직접 읽고 다시 채점</h3><p>1차 상위 20건을 AI PC의 <span class="t" data-term="crossenc">Cross-Encoder</span> 모델로 보냅니다. 1·2단계는 문장을 따로따로 비교했다면, 여기서는 문의와 답변을 <strong>나란히 놓고 함께 읽어</strong> 판단하므로 더 정확합니다.</p></div>
+          <div><h3><span class="t" data-term="rerank">리랭킹</span> — AI가 직접 읽고 다시 채점</h3><p>1차 상위 20건을 AI PC의 <span class="t" data-term="crossenc">Cross-Encoder</span> 모델로 보냅니다. 1·2단계는 문장을 따로따로 비교했다면, 여기서는 문의와 답변을 <strong>나란히 놓고 함께 읽어</strong> 판단하므로 더 정확합니다. 이때 나오는 <span class="t" data-term="rawscore">원점수</span>는 등수가 아닌 절대 점수라서, 다음 단계에서 "관련 없음"을 가르는 기준이 됩니다.</p></div>
           <div class="eg"><b><span class="t" data-term="timeout">타임아웃</span> 0.9초</b>0.9초 안에 답이 없으면 기다리지 않고 1차 점수만으로 다음 단계로 갑니다(<span class="t" data-term="fallback">폴백</span>).</div>
         </div>
         <div class="stage">
           <div class="no">05</div>
-          <div><h3>최종 최대 5건 고르기</h3><p>먼저 리랭킹 <span class="t" data-term="rawscore">원점수</span>가 기준(-2.0)에 못 미치거나 리랭킹 20건 밖이라 검증되지 않은 후보는 뺍니다(<a href="#s-filter">자세히</a>). 남은 후보만 리랭킹 점수에 업무 분류 일치, <span class="t" data-term="tier">Tier</span>(표준답변인지), 답변 품질을 <span class="t" data-term="weight">가중치</span>대로 더해 순위를 정합니다. 그리고 비슷한 내용이 겹치지 않게 <span class="t" data-term="dedup">중복 제거</span>해서 최대 5건을 보냅니다. 관련 있는 자료가 적으면 5건보다 적게, 없으면 0건을 보냅니다.</p></div>
-          <div class="eg"><b>다음 섹션</b>아래 "순위는 어떻게 정하나"에서 실제 예시로 설명합니다.</div>
+          <div><h3>관련 없는 후보를 빼고 최대 5건 고르기</h3><p>먼저 리랭킹 원점수가 기준(-2.0, "맞는 답일 가능성 약 12%")에 못 미치거나 리랭킹 20건 밖이라 검증되지 않은 후보는 뺍니다. 남은 후보만 리랭킹 점수에 업무 분류 일치, <span class="t" data-term="tier">Tier</span>(표준답변인지), 답변 품질을 <span class="t" data-term="weight">가중치</span>대로 더해 순위를 정하고, 비슷한 내용이 겹치지 않게 <span class="t" data-term="dedup">중복 제거</span>합니다. 관련 있는 자료가 적으면 5건보다 적게, 없으면 0건입니다.<a class="more" href="#s-score">② 순위는 어떻게 정하나 →</a><a class="more" href="#s-filter">③ 기준 -2.0은 어떤 숫자이고 어떻게 정했나 →</a></p></div>
+          <div class="eg"><b>결과</b>0~5건. "오늘 점심 메뉴 추천해주세요" 같은 문의는 0건</div>
+        </div>
+        <div class="stage side">
+          <div class="no">06</div>
+          <div><h3>근거와 안내 붙이기 <small class="muted" style="font-weight:400">(순위에는 영향 없음)</small></h3><p>고른 자료마다 문의와 <strong>겹친 단어</strong>를 칩으로 붙입니다. <span class="t" data-term="morph">형태소 분석</span>으로 명사만 고르고, "안녕"·"연락"처럼 내용과 무관한 인사·연락 문구는 뺍니다. 얼마나 확실한지(<span class="t" data-term="confidence">신뢰도</span>)도 붙입니다. 마지막으로 문의 자체가 "연락 달라", "재문의 드립니다" 같은 <strong>재문의</strong>인지 판정해 화면에 알립니다.<a class="more" href="#s-terms">겹친 단어 칩은 어떻게 고르나 →</a><a class="more" href="#s-followup">재문의 문의는 어떻게 알아보나 →</a></p></div>
+          <div class="eg"><b>예</b><span class="kw">시술확인서</span> <span class="kw syn">≈ 산재조합</span> <span class="kw">출력</span><br><span style="display:block;margin-top:6px">재문의로 판정되면 → "앞서 접수한 건을 먼저 확인하세요" 안내</span></div>
         </div>
       </div>
       <div class="funnel">
@@ -430,11 +500,78 @@
       </div>
     </section>
 
-    <!-- 3. 점수 -->
+    <!-- 3. ① 동의어 사전 -->
+    <section id="s-synonym">
+      <p class="kicker">단계별 자세히 ① · 1단계 쿼리 확장</p>
+      <h2>현장 말을 시스템 말로 — 동의어 사전은 어떤 기준으로 만들었나요?</h2>
+      <p class="desc">병원 현장의 문의와 상담원 답변·매뉴얼은 같은 것을 다른 말로 부릅니다. 동의어 사전(<code>combine_synonyms.py</code>)은 문의에 특정 표현이 있으면 그 옆에 시스템 용어를 덧붙여, 말이 달라도 같은 자료를 찾게 하는 장치입니다.</p>
+
+      <h3>왜 만들었나 — 실제로 못 찾던 사례</h3>
+      <div class="ex-pair">
+        <div><b>테스터 문의 (2026-10-12, 접수 20260530013)</b><span class="q">"산재 청구 심사 → 일반내역 → <strong>산재 지사</strong> 선택란 항목 없음"</span></div>
+        <div class="arrow">↔</div>
+        <div><b>정답 자료</b><span class="q">기초코드관리 &gt; [기관조합/보험거래처코드] <strong>산재조합</strong> 등록 (매뉴얼 p.14)</span></div>
+      </div>
+      <p class="small" style="color:var(--ink2)">두 글에 <strong>겹치는 단어가 하나도 없었습니다.</strong> 그래서 단어 검색(<span class="t" data-term="bm25">BM25</span>) 점수는 0이고, 뜻 검색(<span class="t" data-term="cosine">코사인 유사도</span>)도 0.36~0.45에 그쳐 정답이 후보 60건에도 들지 못했습니다. 문의 뒤에 "산재조합 보험회사 등록"을 붙여 보니 정답 자료군이 1~3위로 올라왔습니다. 이 실험에서 출발해 사전을 만들었습니다.</p>
+
+      <h3 class="sub-h">어떻게 동작하나</h3>
+      <div class="rule3">
+        <div class="card"><b>규칙은 한 줄짜리</b><p>"문의에 <em>이 표현</em>이 있으면 <em>이 말</em>을 덧붙인다." 표 한 줄이 규칙 하나입니다. 현업이 표를 보고 늘릴 수 있게 일부러 단순하게 만들었습니다.</p></div>
+        <div class="card"><b>덧붙이는 곳이 두 군데</b><p><strong>뜻 검색용</strong>에는 같은 뜻의 <em>다른 명사</em>만 짧게 붙입니다(임베딩을 크게 흔들지 않으려고). <strong>단어 검색용</strong>에는 표기 변형(매뉴얼/메뉴얼)까지 붙입니다.</p></div>
+        <div class="card"><b>문의에만 적용</b><p>자료(색인) 쪽은 상담원이 쓴 표현 그대로 둡니다. 문의만 자료 쪽 어휘로 끌어오므로 사전을 고쳐도 <strong>색인을 다시 만들 필요가 없습니다.</strong></p></div>
+      </div>
+
+      <h3>무엇을 넣고, 무엇을 넣지 않나</h3>
+      <table class="cmp">
+        <thead><tr><th style="width:170px">기준</th><th>설명</th><th style="width:36%">예</th></tr></thead>
+        <tbody>
+          <tr><td><span class="grp">넣는다</span> 현장어 ↔ 시스템어</td><td>현장은 일상 말로 부르고 화면·매뉴얼은 코드성 이름으로 부르는 것. 사전의 핵심이며 뜻 검색에도 덧붙입니다.</td><td>보험회사·보험사 → <b>보험거래처코드</b> · 산재 지사 → <b>산재조합</b> · 자보 → <b>자동차보험</b></td></tr>
+          <tr><td><span class="grp">넣는다</span> 화면·프로그램 이름 줄임말</td><td>현장은 줄여 부르지만 자료에는 정식 화면명이 적힌 것.</td><td>마약류 → <b>마약류투약정보조회</b> · 이폼 → <b>전자서식</b> · 히라브로커 → <b>HiraBroker</b></td></tr>
+          <tr><td><span class="grp">넣는다</span> 표기 변형</td><td>같은 말인데 철자·한영이 다른 것. 단어 검색에만 덧붙입니다(뜻은 이미 같아서).</td><td>메뉴얼 ↔ <b>매뉴얼</b> · 엑셀 ↔ <b>excel</b> · 재발행 ↔ <b>재출력</b> · 공인인증서 ↔ <b>공동인증서</b></td></tr>
+          <tr><td><span class="grp">안 넣는다</span> 너무 흔한 말</td><td>"오류", "안됨", "문의"처럼 거의 모든 자료에 있는 말. 단어 검색에서는 가중치가 0에 가깝고, 뜻 검색은 흐리기만 합니다.</td><td>오류 · 안됨 · 확인 · 문의</td></tr>
+          <tr><td><span class="grp">안 넣는다</span> 문의에 이미 있는 말</td><td>같은 말을 두 번 넣으면 그 단어만 지나치게 무거워지므로, 이미 적힌 말은 덧붙이지 않습니다.</td><td>"보험거래처코드가 안 보여요" → 아무것도 안 붙임</td></tr>
+          <tr><td><span class="grp">조건</span> 자료에 실제로 쓰이는 말</td><td>덧붙이는 말은 화면명·매뉴얼·상담원 답변에 실제로 등장하는 표현이어야 효과가 있습니다. 사전을 늘릴 때는 그 말로 CRM 자료가 검색되는지 먼저 확인합니다.</td><td>"보험거래처코드"는 기초코드관리 화면명 그대로</td></tr>
+        </tbody>
+      </table>
+
+      <details style="margin-top:18px">
+        <summary>현재 규칙 19개 전체 보기</summary>
+        <div class="dev">
+          <p class="muted small" style="margin-bottom:10px">"뜻 검색"에 붙는 말은 <span class="t" data-term="vector">벡터 검색</span>에, "단어 검색"에 붙는 말은 <span class="t" data-term="bm25">BM25</span>에만 들어갑니다. 화면에서는 이렇게 덧붙인 말이 자료에서 발견되면 <span class="kw syn">≈ 노란 칩</span>으로 표시됩니다(<a href="#s-synchip">설명</a>).</p>
+          <table class="plain">
+            <thead><tr><th style="width:60px">분류</th><th style="width:28%">문의에 이 표현이 있으면</th><th>뜻 검색에 덧붙임</th><th>단어 검색에 덧붙임</th></tr></thead>
+            <tbody>
+              <tr><td>현장어</td><td>산재 (뒤에 "조합"이 안 붙은 경우)</td><td>산재조합 기관조합 보험회사 등록</td><td>산재조합 기관조합 보험거래처코드 보험회사</td></tr>
+              <tr><td>현장어</td><td>산재조합</td><td>기관조합 보험거래처코드 등록</td><td>기관조합 보험거래처코드 보험회사</td></tr>
+              <tr><td>현장어</td><td>산재 지사 · 조합 지사 · 보험 지사 · 승인 지사</td><td>산재조합 지사 등록</td><td>산재조합 지사 보험거래처코드</td></tr>
+              <tr><td>현장어</td><td>보험사 · 보험회사</td><td>보험 거래처코드</td><td>보험거래처코드 기관조합</td></tr>
+              <tr><td>현장어</td><td>자보 · 자동차보험</td><td>자동차보험 자보</td><td>자동차보험 자보 보험거래처코드</td></tr>
+              <tr><td>표기</td><td>심평원 · 심사평가원 · HIRA</td><td>—</td><td>심평원 심사평가원 HIRA</td></tr>
+              <tr><td>표기</td><td>건보공단 · 건강보험공단 · 공단</td><td>—</td><td>공단 건강보험공단</td></tr>
+              <tr><td>화면명</td><td>히라브로커 · hira broker</td><td>HiraBroker</td><td>HiraBroker 히라브로커 브로커</td></tr>
+              <tr><td>화면명</td><td>HiraBroker</td><td>—</td><td>히라브로커 브로커</td></tr>
+              <tr><td>화면명</td><td>마약류 (뒤에 "투약"이 안 붙은 경우)</td><td>마약류투약정보조회</td><td>마약류투약정보조회 마약류</td></tr>
+              <tr><td>화면명</td><td>이폼 · e-form</td><td>—</td><td>이폼 e-form eform 전자서식</td></tr>
+              <tr><td>화면명</td><td>DUR</td><td>—</td><td>DUR 의약품안전사용서비스 점검</td></tr>
+              <tr><td>화면명</td><td>처방전 출력 · 처방전 인쇄</td><td>—</td><td>처방전출력 처방전 출력 인쇄</td></tr>
+              <tr><td>표기</td><td>재발행 · 재인쇄 · 다시 출력</td><td>—</td><td>재출력 재발행 재인쇄</td></tr>
+              <tr><td>표기</td><td>메뉴얼 · 메뉴월 · manual</td><td>—</td><td>매뉴얼 메뉴얼</td></tr>
+              <tr><td>표기</td><td>매뉴얼</td><td>—</td><td>메뉴얼</td></tr>
+              <tr><td>표기</td><td>엑셀 · excel</td><td>—</td><td>엑셀 excel 엑셀파일</td></tr>
+              <tr><td>표기</td><td>팝업창 · 알림창</td><td>—</td><td>팝업</td></tr>
+              <tr><td>표기</td><td>공인인증서 · 공동인증서 · 인증서</td><td>—</td><td>인증서 공동인증서 공인인증서</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <div class="note">규칙을 늘리려면 <code>combine_synonyms.py</code>의 표(<code>RULES</code>)에 한 줄을 추가하고 AI 추천 서버를 다시 켜면 됩니다. 색인 재생성은 필요 없습니다. 추가 전에 ① 덧붙일 말이 실제 자료에 쓰이는지, ② 너무 흔한 말이 아닌지 두 가지만 확인하면 됩니다.</div>
+    </section>
+
+    <!-- 4. ② 점수 -->
     <section id="s-score">
-      <p class="kicker">순위 결정</p>
+      <p class="kicker">단계별 자세히 ② · 5단계 순위 결정</p>
       <h2>순위는 어떻게 정하나요? — 실제 예시로 보기</h2>
-      <p class="desc">후보마다 아래 5가지 항목을 각각 0~1점(1이 만점)으로 매기고, 항목별 <span class="t" data-term="weight">가중치</span>를 곱해 더한 값으로 줄을 세웁니다. 막대가 길수록 위에 표시됩니다.</p>
+      <p class="desc">3단계 관련도와 4단계 리랭킹 점수에 세 가지를 더해 줄을 세웁니다. 후보마다 아래 5가지 항목을 각각 0~1점(1이 만점)으로 매기고, 항목별 <span class="t" data-term="weight">가중치</span>를 곱해 더한 값이 최종 점수입니다. 막대가 길수록 위에 표시됩니다.</p>
 
       <div class="ex-q">
         <div><small>예시 문의 (설명용으로 만든 수치입니다)</small><b>"원무 화면에서 카드 수납 취소가 안 됩니다"</b></div>
@@ -450,9 +587,9 @@
       <div class="insight" id="insight"></div>
     </section>
 
-    <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 추천 제외 -->
+    <!-- 5. ③ 관련 없는 추천 제외 -->
     <section id="s-filter">
-      <p class="kicker">관련 없는 추천은 빼기 <small class="muted" style="font-weight:700">· 2026-10-16 적용</small></p>
+      <p class="kicker">단계별 자세히 ③ · 5단계 관련 없는 후보 빼기</p>
       <h2>왜 항상 5건이 아니라 0~5건인가요?</h2>
       <p class="desc">예전에는 어떤 문의든 [AI 추천] 버튼에 항상 <b>5</b>가 떴습니다. 이제는 문의와 관련 있는 자료만 보여 주므로 건수가 0~5건으로 달라지고, 그 숫자 자체가 "볼 만한 추천이 몇 개인지"를 알려 줍니다.</p>
 
@@ -469,15 +606,35 @@
         </div>
       </div>
 
+      <h3>원점수 -2.0은 어떤 숫자인가요?</h3>
+      <p class="small" style="color:var(--ink2);margin-bottom:14px">리랭킹 모델은 문의와 자료를 함께 읽고 "맞는 답이다 / 아니다" 중 어느 쪽으로 얼마나 기우는지를 숫자 하나로 냅니다. 이 숫자가 <span class="t" data-term="rawscore">원점수</span>입니다. 0~100점 같은 점수가 아니라 <strong>0을 가운데에 두고 양쪽으로 뻗는 눈금</strong>이라 마이너스가 나옵니다.</p>
+      <div class="rule3">
+        <div class="card"><b>0이 반반</b><span class="v">0 = 50%</span><p>0이면 모델이 "맞는 답인지 아닌지 반반"이라는 뜻입니다. 플러스로 갈수록 "맞는 답" 쪽, 마이너스로 갈수록 "아니다" 쪽으로 확신이 커집니다. 실제 값은 대략 -10 ~ +10 사이에서 나옵니다.</p></div>
+        <div class="card"><b>확률로 바꿔 읽으면</b><span class="v">-2.0 ≈ 12%</span><p>이 눈금은 "맞는 답일 가능성"으로 <span class="t" data-term="sigmoid">환산</span>할 수 있습니다. -2.0은 약 12%, 0은 50%, +2.0은 약 88%입니다. 즉 <strong>"모델이 맞는 답일 가능성을 12%도 주지 않은 자료는 보여 주지 않는다"</strong>는 규칙입니다.</p></div>
+        <div class="card"><b>왜 50%가 아니라 12%인가</b><span class="v">참고 자료를 남기려고</span><p>직접 답은 아니어도 같은 업무 흐름의 자료(-2 ~ 0 구간, 12~50%)는 해결 실마리가 되는 경우가 많았습니다. 그래서 반반(0점)보다 느슨한 -2.0에 선을 그어 이런 자료는 남기고, 명백히 무관한 자료만 뺍니다.</p></div>
+      </div>
+      <table class="cmp" style="margin-bottom:26px">
+        <thead><tr><th style="width:120px">원점수</th><th style="width:170px">맞는 답일 가능성</th><th>실제 측정에서 이 구간에 있던 자료</th></tr></thead>
+        <tbody>
+          <tr><td class="num">-5 안팎</td><td>약 1%</td><td>"회의실 예약" 문의에 뜨던 통합예약 오류 사례(-5.14) · 산재평가 인증 문의에 뜨던 "배달서비스공제조합 계약처코드"(-5.13) — 명백히 무관</td></tr>
+          <tr><td class="num">-2.5</td><td>약 8%</td><td>문의와 무관한 질문 8건(점심 메뉴·프린터 토너 등)에 추천되던 자료는 전부 이 아래</td></tr>
+          <tr class="hl"><td class="num"><b>-2.0 (기준)</b></td><td><b>약 12%</b></td><td><b>이 아래는 제외, 이 위는 남김</b></td></tr>
+          <tr><td class="num">-1.25 · -0.42</td><td>약 22% · 약 40%</td><td>TKR CP 템플릿 문의 → 슬관절 CP 양식 사례 · 위조직검사 FM→PH 처방 변경 문의 → 같은 변경 사례 — 직접 답은 아니지만 같은 업무 흐름</td></tr>
+          <tr><td class="num">0</td><td>50%</td><td>반반</td></tr>
+          <tr><td class="num">+2</td><td>약 88%</td><td>연락 요청 문의끼리 서로 비슷하다고 본 경우(이 문제는 <a href="#s-followup">재문의 판정</a>으로 따로 처리)</td></tr>
+          <tr><td class="num">+9 안팎</td><td>99.99%</td><td>차등제 치료식 환자수 조회 → 같은 문의 사례(+9.76) · 서식지 열추가 칸 길이 → 같은 증상 사례(+8.97) — 바로 쓸 수 있는 답</td></tr>
+        </tbody>
+      </table>
+
       <h3>세 가지 규칙</h3>
       <div class="rule3">
-        <div><b>리랭킹 원점수 기준</b><span class="v">-2.0 미만 제외</span><p>리랭킹이 정상일 때의 기본 규칙입니다. 질문과 함께 읽어 봤더니 맞지 않는 자료를 뺍니다.</p></div>
+        <div><b>리랭킹 원점수 기준</b><span class="v">-2.0 미만 제외</span><p>리랭킹이 정상일 때의 기본 규칙입니다. 질문과 함께 읽어 봤더니 맞을 가능성이 12%도 안 되는 자료를 뺍니다.</p></div>
         <div><b>검증 안 된 자료 제외</b><span class="v">리랭킹 20건 밖 제외</span><p>리랭킹은 상위 20건만 읽습니다. 그 밖의 자료는 아무도 읽어 보지 않았으므로, 빈칸 채우기나 "<a href="#s-guard">표준답변 최소 1건</a>" 규칙으로도 끼워 넣지 않습니다.</p></div>
         <div><b>리랭킹 서버가 꺼졌을 때</b><span class="v">코사인 0.55 미만 제외</span><p>원점수가 없으므로 <span class="t" data-term="fallback">폴백</span>으로 <span class="t" data-term="cosine">코사인 유사도</span>를 씁니다. 원점수보다 덜 정확해서 기준을 느슨하게 잡았습니다.</p></div>
       </div>
 
       <h3>기준 -2.0은 어떻게 정했나요? — 실제 측정</h3>
-      <p class="muted small" style="margin-bottom:12px">실제 인덱스와 리랭킹 서버로 질의 48건(문의와 무관한 질문 8건, 실제 AS 문의 40건)을 돌려, 추천된 자료의 리랭킹 원점수와 내용을 하나씩 대조했습니다.</p>
+      <p class="muted small" style="margin-bottom:12px">실제 인덱스와 리랭킹 서버로 질의 48건(문의와 무관한 질문 8건, 실제 AS 문의 40건)을 돌려, 추천된 자료의 리랭킹 원점수와 내용을 하나씩 대조했습니다. 무관한 자료와 관련 있는 자료가 갈리는 지점이 -2.0 근처였습니다.</p>
       <div class="scale">
         <div class="scale-bar">
           <span class="b1">-2.0 미만 · 대부분 무관 → 제외</span>
@@ -486,7 +643,10 @@
           <i class="cut" title="기준선 -2.0"></i>
         </div>
         <div class="scale-ax">
-          <span style="left:12.5%">-6</span><span class="cutl" style="left:37.5%">기준 -2.0</span><span style="left:50%">0</span><span style="left:75%">+4</span><span class="end">+8 이상</span>
+          <span class="head">원점수</span><span style="left:12.5%">-6</span><span class="cutl" style="left:37.5%">기준 -2.0</span><span style="left:50%">0</span><span style="left:75%">+4</span><span class="end">+8 이상</span>
+        </div>
+        <div class="scale-ax prob">
+          <span class="head">가능성</span><span style="left:12.5%">0.2%</span><span class="cutl" style="left:37.5%">12%</span><span style="left:50%">50%</span><span style="left:75%">98%</span><span class="end">99.97%</span>
         </div>
         <div class="scale-eg">
           <div class="e1"><b>-2.0 미만: 대부분 무관</b>문의와 무관한 질문에 추천되던 자료는 <strong>전부 -2.5 이하</strong>였습니다.<br>예) "회의실 예약" → 통합예약 오류 사례 -5.14<br>예) 산재평가 인증 문의 → "배달서비스공제조합 계약처코드" -5.13</div>
@@ -513,22 +673,21 @@
         <div>
           <h3>0건일 때 화면</h3>
           <p class="small" style="color:var(--ink2)">버튼의 숫자를 흐린 색으로 표시하고, 팝업에는 "관련도가 충분한 사례가 없어 추천하지 않았습니다"라고 안내합니다. 오류가 아니라 <strong>억지로 채우지 않았다</strong>는 뜻입니다. 상담원은 버튼을 열어 보지 않고도 "이번 문의는 참고할 추천이 없다"는 걸 알 수 있습니다.</p>
-          <div class="note" style="border-left-color:var(--amber);background:var(--amber-soft);color:#6b4a12"><b>아직 남은 한계</b> — "담당자 휴무라 4시 전에 연락 달라"처럼 <strong>내용 없이 연락만 요청하는 문의</strong>는 여전히 5건이 나옵니다. 인덱스 안에 "그 전에 연락바랍니다" 같은 연락 요청 접수건이 실제로 있고, 리랭킹 모델도 서로 비슷하다고(원점수 +2 안팎) 판단하기 때문입니다. 점수 기준으로는 풀 수 없어, 인덱스에서 이런 사례를 거르거나 질문에서 연락 요청 문구를 뺀 뒤 남는 내용이 없으면 추천을 건너뛰는 방식을 검토 중입니다.</div>
+          <div class="note warn"><b>점수로는 풀 수 없던 경우</b> — "담당자 휴무라 4시 전에 연락 달라"처럼 <strong>내용 없이 연락만 요청하는 문의</strong>는 이 규칙으로 걸러지지 않습니다. 인덱스 안에 "그 전에 연락바랍니다" 같은 연락 요청 접수건이 실제로 있고, 리랭킹 모델도 서로 비슷하다고(원점수 +2 안팎, 88%) 보기 때문입니다. 틀린 판단이 아니라 질문 자체에 업무 내용이 없는 것이라서, 점수 대신 <strong>문의의 성격을 알아보는 방식</strong>으로 따로 처리합니다 → <a href="#s-followup">재문의·연락 요청 문의</a>.</div>
         </div>
       </div>
     </section>
-    <!-- [AX Lab] 수정 끝 -->
 
-    <!-- 4. 화면 -->
+    <!-- 6. 화면 -->
     <section id="s-screen">
       <p class="kicker">사용자 화면</p>
       <h2>화면에서는 어떻게 보이나요?</h2>
-      <p class="desc">추천마다 <span class="t" data-term="confidence">신뢰도</span>(얼마나 확실한지)를 따로 판단해서, 확실하지 않은 결과는 추천이라고 단정하지 않고 '참고 사례'로 보여 줍니다.</p>
+      <p class="desc">추천마다 <span class="t" data-term="confidence">신뢰도</span>(얼마나 확실한지)를 따로 판단해서, 확실하지 않은 결과는 추천이라고 단정하지 않고 '참고 사례'로 보여 줍니다. 그리고 자료마다 왜 골랐는지를 칩으로 붙입니다.</p>
       <div class="screen">
         <div class="mock" aria-label="AI 추천 팝업 예시">
           <div class="mock-h"><span>✦ AI 추천</span><em>3건</em></div>
-          <div class="mock-i"><span class="tierb tier1">표준답변</span><div><b>카드 수납 취소 처리 방법</b><small>관련도 92% · 2026-08</small><div class="kws"><span class="kw">카드</span><span class="kw">수납</span><span class="kw">취소</span><span class="kw rsn">같은 업무분류</span></div></div></div>
-          <div class="mock-i"><span class="tierb tier2">과거사례</span><div><b>카드 취소 시 승인번호 오류</b><small>관련도 78% · 2026-05</small><div class="kws"><span class="kw">카드</span><span class="kw">취소</span><span class="kw rsn">같은 업무분류</span></div></div></div>
+          <div class="mock-i"><span class="tierb tier1">표준답변</span><div><b>카드 수납 취소 처리 방법</b><small>관련도 92% · 2026-08</small><div class="kws"><span class="kw">카드</span><span class="kw">수납</span><span class="kw">취소</span></div></div></div>
+          <div class="mock-i"><span class="tierb tier2">과거사례</span><div><b>카드 취소 시 승인번호 오류</b><small>관련도 78% · 2026-05</small><div class="kws"><span class="kw">카드</span><span class="kw">취소</span></div></div></div>
           <div class="mock-i ref"><span class="tierb tier2">과거사례</span><div><b>결제 환불이 처리되지 않아요</b><small><span class="refb">참고 사례</span> · 2025-11</small><div class="kws"><span class="kw sem">뜻으로 찾음</span></div></div></div>
           <div class="mock-f">항목을 누르면 오른쪽에 답변 본문이 열립니다</div>
         </div>
@@ -539,84 +698,55 @@
             <div class="lv"><div><b>참고 사례 <small style="display:inline">low</small></b><small>코사인 유사도 0.58 미만</small></div><p>관련도 % 대신 <span class="refb">참고 사례</span>라고 표시합니다. 모든 결과가 이 경우라면 "직접 일치하는 답변 대신 유사한 업무 사례를 보여 드립니다"라는 안내가 함께 나옵니다.</p></div>
           </div>
           <div class="note">왜 '관련 없음'이라고 하지 않나요? 정확히 같은 사례는 없어도 같은 업무 흐름의 사례가 해결 실마리가 되는 경우가 많습니다. 그래서 결과를 숨기거나 부정적으로 표시하는 대신, "직접적인 답은 아니지만 참고할 만한 자료"라는 사실 그대로 안내합니다.</div>
-          <div class="note" style="border-left-color:var(--brand);background:var(--brand-soft);color:#3f2f99"><span class="t" data-term="cosine">코사인 유사도</span>는 <span class="t" data-term="relevance">관련도</span> %와 다른 값입니다. 관련도는 후보들끼리의 등수라 항상 1등이 높게 나오지만, 코사인 유사도는 문장 뜻이 실제로 얼마나 가까운지를 재는 절대 기준이라 "확실한지"를 판단하는 데 씁니다.</div>
+          <div class="note brand"><span class="t" data-term="cosine">코사인 유사도</span>는 <span class="t" data-term="relevance">관련도</span> %와 다른 값입니다. 관련도는 후보들끼리의 등수라 항상 1등이 높게 나오지만, 코사인 유사도는 문장 뜻이 실제로 얼마나 가까운지를 재는 절대 기준이라 "확실한지"를 판단하는 데 씁니다.</div>
         </div>
       </div>
 
-      <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 추천 근거(겹친 단어) 표시 -->
-      <h3 style="margin-top:30px">왜 추천됐는지도 보여 줍니다 <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
-      <p class="muted small">추천 항목마다 아래 칩이 붙습니다. 목록에는 3개, 항목을 눌러 여는 상세 패널의 "겹친 단어" 줄에는 4개까지 보입니다.</p>
-      <div class="whyk">
-        <div><span class="kw">시술확인서</span><br><b>겹친 단어</b><br>문의와 이 자료에 함께 들어 있는 말입니다. 드문 말부터 보여 주고, "문의"·"확인"처럼 어디에나 나오는 말은 뺍니다. <span class="t" data-term="morph">형태소 분석</span>으로 명사만 골라 "진단서를"은 "진단서"로, 붙여 쓴 "시술확인서"는 한 단어로 보여 줍니다(<a href="#s-morph">아래</a>).</div>
-        <div><span class="kw syn">≈ 산재조합</span><br><b>동의어로 찾은 말 (노란 칩)</b><br>문의에는 없었지만 <span class="t" data-term="qexpand">쿼리 확장</span>으로 덧붙인 같은 뜻의 다른 표현이 걸린 경우입니다. 예) "산재 지사"로 물었는데 "산재조합" 자료를 찾음. 동의어는 <strong>통째로 일치할 때만</strong> 보여 주고, 문의에 있던 말 뒤에 놓습니다(<a href="#s-synchip">아래</a>).</div>
+      <h3 class="sub-h">자료마다 붙는 칩 — 왜 추천됐는지</h3>
+      <p class="muted small">목록에는 3개, 항목을 눌러 여는 상세 패널의 "겹친 단어" 줄에는 4개까지 보입니다. 칩은 <strong>단어 검색(<span class="t" data-term="bm25">BM25</span>) 쪽 근거</strong>입니다. 실제 순위는 리랭킹(문장 뜻)을 함께 보고 정하므로 겹친 단어가 많다고 1등은 아니지만, 엉뚱한 추천이 왜 올라왔는지는 바로 드러내 줍니다.</p>
+      <div class="whyk" style="grid-template-columns:repeat(3,1fr)">
+        <div><span class="kw">시술확인서</span><br><b>겹친 단어</b><br>문의와 이 자료에 함께 들어 있는 말입니다. 드문 말부터 보여 주고, 어디에나 나오는 말과 인사·연락 문구는 뺍니다. <a href="#s-terms">어떻게 고르나 →</a></div>
+        <div><span class="kw syn">≈ 산재조합</span><br><b>동의어로 찾은 말 (노란 칩)</b><br>문의에는 없었지만 <a href="#s-synonym">동의어 사전</a>이 덧붙인 시스템 용어가 자료에서 발견된 경우입니다. 문의에 있던 말 뒤에 놓입니다. <a href="#s-synchip">자세히 →</a></div>
         <div><span class="kw sem">뜻으로 찾음</span><br><b>겹친 단어 없음</b><br>같은 단어는 없지만 <span class="t" data-term="vector">벡터 검색</span>·<span class="t" data-term="rerank">리랭킹</span>이 문장 뜻이 비슷하다고 판단한 경우입니다. 예) "결제가 취소가 안 돼요" ↔ "수납 취소 불가".</div>
-        <div><span class="kw rsn">같은 업무분류</span><br><b>일치 사유</b><br>업무분류(원무 등)가 같으면 "같은 업무분류", 프로그램·화면이 같으면 "같은 프로그램·화면", 문의유형만 같으면 "같은 문의유형"이 붙습니다.</div>
       </div>
-      <div class="note">겹친 단어는 <strong>단어 검색(<span class="t" data-term="bm25">BM25</span>) 쪽 근거</strong>입니다. 실제 순위는 리랭킹(문장 뜻)을 함께 보고 정하므로, 겹친 단어가 많다고 1등은 아닙니다. 대신 엉뚱한 추천의 이유를 드러내 줍니다. 예전에는 "담당자 휴무라 4시 전에 연락 달라" 문의에 <span class="kw">퇴근</span> <span class="kw">담당자</span> <span class="kw">긴급</span> 같은 칩이 떠서, 업무 내용이 아니라 연락 요청 문구가 겹쳐 올라왔다는 게 드러났습니다. 지금은 이런 말을 칩에서 빼고(<a href="#s-formal">아래</a>), 이런 문의 자체를 "재문의·연락 요청"으로 알아봐 상담원이 이전 접수부터 보게 합니다(<a href="#s-followup">아래</a>).</div>
-      <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 노란 칩(동의어) 칩별 의미 · 동의어는 통째로만 -->
-      <h3 id="s-synchip" style="margin-top:30px">노란 칩(≈)은 무엇을 뜻하나요? <small class="muted" style="font-weight:400">· 2026-10-16</small></h3>
-      <p>노란 칩은 <strong>문의에 직접 쓰이지 않은 말</strong>입니다. 현장에서 쓰는 말과 CRM 화면에 적힌 말이 달라 검색이 빗나가지 않도록, 동의어 사전(<code>combine_synonyms.py</code>)이 문의에 시스템 용어를 덧붙이는데, 그 덧붙인 말이 자료에서 발견됐다는 표시입니다. 예를 들어 문의에 "보험회사", "산재 지사"가 있으면 다음 말이 덧붙습니다.</p>
+      <div class="note">예전에는 <span class="kw rsn">같은 업무분류</span> 칩(일치 사유)도 함께 붙었습니다. 이 칩은 내용을 보고 판단한 것이 아니라 <strong>접수할 때 고른 "서비스구분" 코드(원무·진료·청구 …)가 같은지</strong>만 본 것이라 근거로서 정보가 적고, 과거 문의의 약 21%는 서비스구분이 비어 있어 붙지도 않았습니다. 그래서 2026-10-19부터 화면에서 뺐습니다. 순위 계산의 "업무 분류 일치"(<a href="#s-score">15%</a>)와 서버 응답은 그대로입니다.</div>
+
+      <h3 class="sub-h">화면이 달라지는 네 가지 경우</h3>
       <table class="cmp">
-        <thead><tr><th>칩</th><th>뜻</th><th>왜 덧붙나</th></tr></thead>
+        <thead><tr><th style="width:190px">경우</th><th>화면</th><th style="width:220px">판단 기준</th></tr></thead>
         <tbody>
-          <tr><td><span class="kw syn">≈ 보험거래처코드</span></td><td>보험회사·산재·자보 기관을 등록하는 기초코드 화면 「기관조합/보험거래처코드」의 이름</td><td>현장은 "보험회사", "보험사"라고 묻고 화면·매뉴얼은 "보험거래처코드"라고 씀</td></tr>
-          <tr><td><span class="kw syn">≈ 기관조합</span></td><td>같은 화면 「기관조합/보험거래처코드」의 앞쪽 이름</td><td>"보험회사", "산재 조합"으로 물어도 그 설정 화면 사례를 찾게 함</td></tr>
-          <tr><td><span class="kw syn">≈ 산재조합</span></td><td>그 화면에서 하는 "산재조합 등록"(매뉴얼 p.14)</td><td>"산재 지사"로 물었는데 겹치는 단어가 0개라 정답을 못 찾던 실제 사례(2026-10-12)에서 추가</td></tr>
+          <tr><td>일반 추천</td><td>관련도 %와 칩을 붙여 1~5건</td><td>신뢰도 high·mid</td></tr>
+          <tr><td>참고 사례</td><td>관련도 % 대신 <span class="refb">참고 사례</span> 표시. 전부 참고 사례면 안내 한 줄 추가</td><td>신뢰도 low (코사인 0.58 미만)</td></tr>
+          <tr><td>0건</td><td>버튼 숫자가 흐려지고 "관련도가 충분한 사례가 없어 추천하지 않았습니다"</td><td><a href="#s-filter">원점수 -2.0 미만 전부 제외</a></td></tr>
+          <tr><td>재문의·연락 요청</td><td>팝업에 안내 한 줄 + 접수·처리 정보의 「문의 내용 키워드 · 연관 이력」 블록이 맨 위로</td><td><a href="#s-followup">재문의 판정</a></td></tr>
         </tbody>
       </table>
-      <div class="note">고친 문제: 예전에는 동의어 "보험회사"의 조각 <span class="kw syn">≈ 회사</span>까지 칩으로 떴습니다. "회사"는 문의에도 동의어 사전에도 없는 말이라 근거가 될 수 없습니다. 이제 <strong>동의어는 통째로 일치할 때만</strong> 칩이 되고, 칩 순서도 <strong>문의에 있던 말 먼저, 노란 칩은 뒤</strong>로 바꿨습니다.</div>
+    </section>
 
-      <h3 id="s-formal" style="margin-top:30px">"안녕", "연락" 같은 말은 왜 칩에서 빠지나요? <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
-      <p>"안녕하세요", "빠른 연락 부탁드립니다", "담당자분 퇴근 전에" 같은 말은 문의 내용이 아니라 <strong>인사·연락 요청 문구</strong>입니다. 이런 말이 겹친 단어로 뜨면 근거처럼 보여 오히려 헷갈립니다. 금지어 목록을 사람이 계속 늘리면 새 말이 나올 때마다 뒤처지므로, <strong>색인에 들어 있는 과거 문의 약 1만 건에서 단어마다 성격을 자동으로 재서</strong> 정합니다.</p>
-      <div class="why2">
-        <div class="card"><h4>① 글의 맨 앞·맨 끝에 몰리는 말 = 인사·맺음말</h4><p>단어가 문의 글의 어디쯤 나오는지 평균을 냅니다(0 = 맨 앞/끝, 0.5 = 한가운데). <span class="kw">안녕</span> 0.04 · <span class="kw">수고</span> 0.04 · <span class="kw">긴급</span> 0.07 · <span class="kw">감사</span> 0.09는 맨 앞·끝에 몰리고, 삭제·오류·처방 같은 업무 말은 0.22~0.27로 본문 가운데에 나옵니다. 기준: 0.10 이하.</p></div>
-        <div class="card"><h4>② 재문의 문의에 몰리는 말 = 연락 요청 문구</h4><p>과거 문의 중 "처리현황 독촉"(재문의·연락 요청)으로 분류된 72건에 유독 많이 나오는 말을 찾습니다. 표본이 작아 우연을 걸러 내는 통계 하한(Wilson)을 써서 평소의 2배 이상인 말만 고릅니다. 결과: <span class="kw">담당자</span> <span class="kw">연락</span> <span class="kw">전화</span> <span class="kw">답변</span> <span class="kw">처리</span> <span class="kw">진행</span> <span class="kw">상황</span> 등. 미수·서버·경과기록지 같은 업무 말은 걸리지 않습니다.</p></div>
+    <!-- 6-1. 칩 만드는 법 -->
+    <section id="s-terms">
+      <p class="kicker">사용자 화면 · 자세히</p>
+      <h2>겹친 단어 칩은 어떻게 고르나요?</h2>
+      <p class="desc">칩 하나가 화면에 뜨기까지 세 번 거릅니다. 먼저 문의를 <strong>명사 덩어리</strong>로 자르고, 그중 <strong>인사·연락 문구</strong>를 빼고, 마지막으로 <strong>동의어는 통째로 일치할 때만</strong> 남깁니다. 이 모든 과정은 화면 표시에만 쓰이고 검색·순위에는 영향을 주지 않습니다.</p>
+      <div class="rule3">
+        <div class="card"><b>1. 명사 덩어리로 자른다</b><p>"진단서를" → <span class="kw">진단서</span>, 붙여 쓴 "시술확인서"는 한 단어로. 형태소 분석기 Kiwi를 씁니다. <a href="#s-morph">↓</a></p></div>
+        <div class="card"><b>2. 인사·연락 문구를 뺀다</b><p>"안녕", "연락", "담당자", "퇴근"처럼 문의 내용과 무관한 말은 과거 문의 통계로 자동 판정해 뺍니다. <a href="#s-formal">↓</a></p></div>
+        <div class="card"><b>3. 동의어는 통째로만</b><p>동의어 사전이 덧붙인 "보험회사"의 조각 "회사"는 근거가 아니므로 칩이 되지 않습니다. 노란 칩은 문의에 있던 말 뒤에 놓습니다. <a href="#s-synchip">↓</a></p></div>
       </div>
-      <div class="rule3" style="grid-template-columns:repeat(2,1fr)">
-        <div class="card"><b>드문 말은 같은 문장을 봅니다</b><p>"퇴근", "휴무"처럼 과거 문의에 20번도 안 나온 말은 통계를 믿을 수 없습니다. 그래서 <strong>같은 문장</strong>에 연락 요청 문구가 있고 업무 말이 하나도 없으면 같은 성격으로 봅니다. "퇴근 전에 연락 부탁드립니다" → 퇴근 제외.</p></div>
-        <div class="card"><b>업무 말은 지켜집니다</b><p>같은 문장에 연락 문구가 있어도 업무 말은 남깁니다. "시술확인서 연락 부탁드립니다" → <span class="kw">시술확인서</span> 유지(안의 "시술"이 업무 말). 영문(BIXOLON·EDI)과 업무 조각이 든 합성어도 업무 말로 봅니다.</p></div>
-      </div>
-      <table class="cmp" style="margin-top:14px">
-        <thead><tr><th>검증 (실제 문의 40건 + 연락 요청 문장 17개)</th><th>결과</th></tr></thead>
-        <tbody>
-          <tr><td>칩에서 빠진 말</td><td><span class="kw">연락</span> 21회 · <span class="kw">담당자</span> 14 · <span class="kw">답변</span> 7 · <span class="kw">통화</span> 4 · <span class="kw">긴급</span> 3 · <span class="kw">접수번호</span> 2 · <span class="kw">상황</span> 1</td></tr>
-          <tr><td>잘못 빠진 업무 말</td><td>없음 (시술확인서·보험회사·EDI·런타임·처방전 등 그대로)</td></tr>
-        </tbody>
-      </table>
-      <div class="note">시도했다가 버린 방법: ① 드문 말일수록 중요하다는 기준(IDF) — "안녕"도 드문 말이라 못 거름. ② 단어 뜻(벡터)으로 분류 — "수고·회사"를 업무 말로, "삭제·변경"을 인사말로 잘못 봄. ③ 문의에서 그 단어를 지웠을 때 뜻이 얼마나 변하나 — "원외약국·환경설정값" 같은 정상 칩까지 지움. 위의 두 기준이 실측에서 가장 정확했습니다.<br>통계는 서버를 켤 때 뒤에서 한 번 계산(약 1분)해 <code>data/combine_wordstats.json</code>에 저장하고, 다음부터는 바로 읽습니다. 계산이 끝나기 전에는 거르기 없이 예전처럼 보입니다.</div>
 
-      <h3 id="s-followup" style="margin-top:30px">"연락 달라", "재문의 드립니다"는 어떻게 보이나요? <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
-      <p>이런 문의에는 비슷한 사례(AI 추천)보다 <strong>"앞서 접수한 건이 무엇이었나"</strong>가 먼저 필요합니다. 그래서 AI 추천 서버가 재문의·연락 요청 문의로 판단하면, 접수·처리 정보의 <strong>「문의 내용 키워드 · 연관 이력」 블록을 맨 위로 올리고</strong> 안내 한 줄을 붙입니다. 이 블록에는 문의에 적힌 접수번호를 직접 찾은 결과와 같은 고객의 최근 1년 접수가 있습니다.</p>
-      <div class="whyk" style="grid-template-columns:repeat(2,1fr)">
-        <div><b>판단 ① 비슷한 과거 문의</b><br>뜻이 가장 가까운 과거 문의 10건 중 "처리현황 독촉" 문의가 2건 이상이면 재문의로 봅니다. 이런 문의는 전체의 0.6%뿐이라 10건 중 2건이면 평소의 30배입니다.</div>
-        <div><b>판단 ② 내용 없는 문의</b><br>문의의 모든 말이 위의 인사·연락 요청 문구이고 업무 말이 하나도 없으면 재문의·연락 요청으로 봅니다. 예) "담당자분 통화 원하십니다".</div>
-      </div>
-      <table class="cmp" style="margin-top:14px">
-        <thead><tr><th>검증</th><th>결과</th></tr></thead>
-        <tbody>
-          <tr><td>연락 요청·재문의 문장 11개</td><td>8개 알아봄 ("앞전 ta청구관련 재문의 드립니다 … 연락이 없어 재문의 남깁니다", "어제 남긴 문의 아직 답변이 없습니다" 등)</td></tr>
-          <tr><td>일반 실제 문의 40건 + 업무 문의 문장</td><td>잘못 알아본 것 0건 ("안녕하세요 수납 화면에서 카드 취소가 안됩니다 빠른 연락 부탁" 같은 업무 문의는 일반 추천 그대로)</td></tr>
-          <tr><td>놓친 경우</td><td>"전화 부탁드립니다"(내용 없음으로는 잡힘), "고객이 콜백 요청함"(콜백·고객이 통계에 없음), 업무 내용이 함께 있는 재촉 문의 — 이때는 일반 추천 화면 그대로입니다</td></tr>
-        </tbody>
-      </table>
-      <div class="note">AI 추천 팝업에도 "재문의·연락 요청으로 보이는 문의입니다. 우측 「문의 내용 키워드 · 연관 이력」에서 앞서 접수한 건을 먼저 확인해주세요."가 표시되고, 안내에 마우스를 올리면 판단 근거(비슷한 과거 문의 몇 건이 독촉 문의였는지 등)가 보입니다. 이 표시는 CRM Java(<code>CombineAsAiClient</code>·<code>CombineAsAiVO</code>·<code>CombineAsAiServiceImpl</code>)를 다시 컴파일하고 WAS를 재기동한 뒤부터 나타납니다.</div>
-      <!-- [AX Lab] 수정 끝 -->
-      <!-- [AX Lab] 수정 끝 -->
-
-      <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 겹친 단어 — 형태소 분석기(Kiwi) 적용 -->
-      <h3 id="s-morph" style="margin-top:30px">단어를 어디서 자르나요? — 형태소 분석기 Kiwi <small class="muted" style="font-weight:400">· 2026-10-16 적용</small></h3>
+      <h3 id="s-morph" class="sub-h">1. 단어를 어디서 자르나요? — 형태소 분석기 Kiwi</h3>
       <p>처음에는 띄어쓰기로 자른 덩어리(어절)에서 조사·어미를 규칙으로 떼어 냈습니다. 그런데 상담 문의는 띄어쓰기가 불규칙해서 <strong>두 방향 모두</strong> 틀렸습니다. 맞춤법대로 띄어 주는 것도 답이 아닙니다.</p>
-      <div class="why2">
+      <div class="why2" style="margin-top:14px">
         <div class="card"><h4>덜 잘림 — 붙으면 안 되는 말이 붙음</h4><p><span class="kw">신규및</span> (신규 + 및), <span class="kw">신규오더시</span> (신규오더 + 시), <span class="kw">사진과</span> (사진 + 과)처럼 기능어가 단어에 붙어 칩에 그대로 나왔습니다.</p></div>
         <div class="card"><h4>더 잘림 — 맞춤법대로 띄우면 뜻이 깨짐</h4><p>맞춤법상으로는 "시술 확인서"지만 현장에서는 <span class="kw">시술확인서</span>가 서식 이름 하나입니다. "시술", "확인서"로 나누면 한 단어처럼 보이지 않습니다.</p></div>
       </div>
-      <p style="margin-top:14px">그래서 기준을 <strong>"맞춤법상 단어"가 아니라 "업무에서 한 뜻으로 쓰는 덩어리"</strong>로 잡았습니다.</p>
-      <div class="rule3">
-        <div class="card"><b>1. 품사를 나눈다</b><p>형태소 분석기 Kiwi가 문장을 명사·조사·어미·부사 등으로 나눕니다. "신규및" → 신규(명사) + 및(부사).</p></div>
-        <div class="card"><b>2. 붙어 있던 명사는 다시 붙인다</b><p>원문에서 띄어쓰기 없이 이어진 명사들은 하나로 합칩니다. 시술 + 확인서 → <span class="kw">시술확인서</span>, D / C + 오더 → <span class="kw">D/C오더</span>.</p></div>
-        <div class="card"><b>3. 명사가 아닌 것은 버린다</b><p>조사·어미·"및"·"같이"·"빠른" 같은 말과 끝에 붙은 "시·후·때·중·분"은 뗍니다. 자료에 덩어리 전체가 없으면 그 안의 더 짧은 조각을 찾습니다(신규오더 → 신규).</p></div>
+      <p>그래서 기준을 <strong>"맞춤법상 단어"가 아니라 "업무에서 한 뜻으로 쓰는 덩어리"</strong>로 잡았습니다.</p>
+      <div class="rule3" style="margin-top:14px">
+        <div class="card"><b>① 품사를 나눈다</b><p>형태소 분석기 Kiwi가 문장을 명사·조사·어미·부사 등으로 나눕니다. "신규및" → 신규(명사) + 및(부사).</p></div>
+        <div class="card"><b>② 붙어 있던 명사는 다시 붙인다</b><p>원문에서 띄어쓰기 없이 이어진 명사들은 하나로 합칩니다. 시술 + 확인서 → <span class="kw">시술확인서</span>, D / C + 오더 → <span class="kw">D/C오더</span>.</p></div>
+        <div class="card"><b>③ 명사가 아닌 것은 버린다</b><p>조사·어미·"및"·"같이"·"빠른" 같은 말과 끝에 붙은 "시·후·때·중·분"은 뗍니다. 자료에 덩어리 전체가 없으면 그 안의 더 짧은 조각을 찾습니다(신규오더 → 신규).</p></div>
       </div>
-      <table class="cmp" style="margin-top:16px">
+      <table class="cmp">
         <thead><tr><th>실제 문의 (같은 추천 결과)</th><th>이전 (어절 규칙)</th><th>지금 (Kiwi)</th></tr></thead>
         <tbody>
           <tr><td>신규및 D/C오더 대상자 처방이 표기되지 않습니다</td><td><span class="kw">신규및</span> <span class="kw">대상자</span> <span class="kw">표기</span> <span class="kw">오더</span></td><td><span class="kw">대상자</span> <span class="kw">표기</span> <span class="kw">신규</span> <span class="kw">D/C오더</span></td></tr>
@@ -638,21 +768,85 @@
         </tbody>
       </table>
       <div class="whyk" style="grid-template-columns:repeat(3,1fr)">
-        <div><b>원문 위치를 알려 줌</b><br>나눈 조각마다 원문의 몇 번째 글자인지 알려 줍니다. 그래서 "원래 붙어 있던 명사"만 정확히 다시 붙일 수 있습니다. 2번 규칙이 가능한 이유입니다.</div>
+        <div><b>원문 위치를 알려 줌</b><br>나눈 조각마다 원문의 몇 번째 글자인지 알려 줍니다. 그래서 "원래 붙어 있던 명사"만 정확히 다시 붙일 수 있습니다. ②번 규칙이 가능한 이유입니다.</div>
         <div><b>업무 용어 사전을 넣을 수 있음</b><br>동의어 사전 용어와 화면명·프로그램명(여러 문서에 반복되는 것, 약 330개)을 사용자 사전에 넣습니다. 예를 들어 사전이 없으면 문장 첫머리 "D/C오더"를 "C + 이오 + 더"로 잘못 읽는데, "오더"를 넣으면 바로 고쳐집니다.</div>
         <div><b>빠름</b><br>실측 결과 문장 하나에 약 1ms가 걸립니다. 모델을 불러오는 데 약 4초가 걸리지만, 서버를 켤 때 한 번만 뒤에서 불러오므로 추천 응답 시간에는 영향이 없습니다.</div>
       </div>
-      <!-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): Kiwi 쓰임 확대(형식어 통계·재문의 판정) 반영 -->
       <div class="whyk" style="grid-template-columns:repeat(2,1fr)">
-        <div><b>과거 문의 통계에도 씁니다</b><br>서버를 켤 때 색인의 과거 문의(Tier2) 약 1만 건을 Kiwi로 나눠 명사·영문 단어만 뽑고, 단어마다 글 안의 위치와 재문의 문의 쏠림을 잽니다(<a href="#s-formal">형식어 판정</a>). 사용자 사전 단어(예: 외래접수수납)는 단어 전체와 기본 조각(외래·접수·수납)을 함께 셉니다.</div>
+        <div><b>과거 문의 통계에도 씁니다</b><br>서버를 켤 때 색인의 과거 문의(Tier2) 약 1만 건을 Kiwi로 나눠 명사·영문 단어만 뽑고, 단어마다 글 안의 위치와 재문의 문의 쏠림을 잽니다(아래 <a href="#s-formal">2번</a>). 사용자 사전 단어(예: 외래접수수납)는 단어 전체와 기본 조각(외래·접수·수납)을 함께 셉니다.</div>
         <div><b>문장 번호도 함께 넘깁니다</b><br>명사 덩어리마다 몇 번째 문장에서 나왔는지 함께 넘깁니다. "퇴근"처럼 드문 말을 <strong>같은 문장</strong>의 다른 말로 판단하고, 문의 전체가 인사·연락 문구뿐인지(<a href="#s-followup">재문의 판정</a>) 보는 데 씁니다.</div>
       </div>
       <div class="note">안전장치: Kiwi는 <strong>화면 표시용</strong>(칩 고르기, 형식어 거르기, 재문의 안내)으로만 씁니다. 검색(BM25)·리랭킹·점수와 색인은 그대로라 색인을 다시 만들 필요가 없습니다. 서버를 켠 직후 Kiwi를 불러오는 몇 초 동안이나 Kiwi가 설치되지 않은 PC에서는 칩이 이전 규칙 방식으로 자동 전환되고 형식어 거르기·"내용 없는 문의" 판정은 쉬고, 추천 자체는 멈추지 않습니다. 상태는 추천 서버 <code>/health</code>의 <code>morph</code>·<code>wordstats</code>에서 확인합니다.</div>
-      <!-- [AX Lab] 수정 끝 -->
-      <!-- [AX Lab] 수정 끝 -->
+
+      <h3 id="s-formal" class="sub-h">2. "안녕", "연락" 같은 말은 왜 칩에서 빠지나요?</h3>
+      <p>"안녕하세요", "빠른 연락 부탁드립니다", "담당자분 퇴근 전에" 같은 말은 문의 내용이 아니라 <strong>인사·연락 요청 문구</strong>입니다. 이런 말이 겹친 단어로 뜨면 근거처럼 보여 오히려 헷갈립니다. 예전에는 "담당자 휴무라 4시 전에 연락 달라" 문의에 <span class="kw">퇴근</span> <span class="kw">담당자</span> <span class="kw">긴급</span> 같은 칩이 떴습니다. 금지어 목록을 사람이 계속 늘리면 새 말이 나올 때마다 뒤처지므로, <strong>색인에 들어 있는 과거 문의 약 1만 건에서 단어마다 성격을 자동으로 재서</strong> 정합니다.</p>
+      <div class="why2" style="margin-top:14px">
+        <div class="card"><h4>① 글의 맨 앞·맨 끝에 몰리는 말 = 인사·맺음말</h4><p>단어가 문의 글의 어디쯤 나오는지 평균을 냅니다(0 = 맨 앞/끝, 0.5 = 한가운데). <span class="kw">안녕</span> 0.04 · <span class="kw">수고</span> 0.04 · <span class="kw">긴급</span> 0.07 · <span class="kw">감사</span> 0.09는 맨 앞·끝에 몰리고, 삭제·오류·처방 같은 업무 말은 0.22~0.27로 본문 가운데에 나옵니다. 기준: 0.10 이하.</p></div>
+        <div class="card"><h4>② 재문의 문의에 몰리는 말 = 연락 요청 문구</h4><p>과거 문의 중 "처리현황 독촉"(재문의·연락 요청)으로 분류된 72건에 유독 많이 나오는 말을 찾습니다. 표본이 작아 우연을 걸러 내는 통계 하한(Wilson)을 써서 평소의 2배 이상인 말만 고릅니다. 결과: <span class="kw">담당자</span> <span class="kw">연락</span> <span class="kw">전화</span> <span class="kw">답변</span> <span class="kw">처리</span> <span class="kw">진행</span> <span class="kw">상황</span> 등. 미수·서버·경과기록지 같은 업무 말은 걸리지 않습니다.</p></div>
+      </div>
+      <div class="rule3" style="grid-template-columns:repeat(2,1fr)">
+        <div class="card"><b>드문 말은 같은 문장을 봅니다</b><p>"퇴근", "휴무"처럼 과거 문의에 20번도 안 나온 말은 통계를 믿을 수 없습니다. 그래서 <strong>같은 문장</strong>에 연락 요청 문구가 있고 업무 말이 하나도 없으면 같은 성격으로 봅니다. "퇴근 전에 연락 부탁드립니다" → 퇴근 제외.</p></div>
+        <div class="card"><b>업무 말은 지켜집니다</b><p>같은 문장에 연락 문구가 있어도 업무 말은 남깁니다. "시술확인서 연락 부탁드립니다" → <span class="kw">시술확인서</span> 유지(안의 "시술"이 업무 말). 영문(BIXOLON·EDI)과 업무 조각이 든 합성어도 업무 말로 봅니다.</p></div>
+      </div>
+      <table class="cmp">
+        <thead><tr><th>검증 (실제 문의 40건 + 연락 요청 문장 17개)</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td>칩에서 빠진 말</td><td><span class="kw">연락</span> 21회 · <span class="kw">담당자</span> 14 · <span class="kw">답변</span> 7 · <span class="kw">통화</span> 4 · <span class="kw">긴급</span> 3 · <span class="kw">접수번호</span> 2 · <span class="kw">상황</span> 1</td></tr>
+          <tr><td>잘못 빠진 업무 말</td><td>없음 (시술확인서·보험회사·EDI·런타임·처방전 등 그대로)</td></tr>
+        </tbody>
+      </table>
+      <div class="note">시도했다가 버린 방법: ① 드문 말일수록 중요하다는 기준(IDF) — "안녕"도 드문 말이라 못 거름. ② 단어 뜻(벡터)으로 분류 — "수고·회사"를 업무 말로, "삭제·변경"을 인사말로 잘못 봄. ③ 문의에서 그 단어를 지웠을 때 뜻이 얼마나 변하나 — "원외약국·환경설정값" 같은 정상 칩까지 지움. 위의 두 기준이 실측에서 가장 정확했습니다.<br>통계는 서버를 켤 때 뒤에서 한 번 계산(약 1분)해 <code>data/combine_wordstats.json</code>에 저장하고, 다음부터는 바로 읽습니다. 계산이 끝나기 전에는 거르기 없이 예전처럼 보입니다.</div>
+
+      <h3 id="s-synchip" class="sub-h">3. 노란 칩(≈)은 무엇을 뜻하고, 왜 통째로만 보여 주나요?</h3>
+      <p>노란 칩은 <strong>문의에 직접 쓰이지 않은 말</strong>입니다. <a href="#s-synonym">동의어 사전</a>이 문의에 덧붙인 시스템 용어가 자료에서 발견됐다는 표시입니다. 예를 들어 문의에 "보험회사", "산재 지사"가 있으면 다음 말이 덧붙고, 자료에 있으면 칩이 됩니다.</p>
+      <table class="cmp" style="margin-top:14px">
+        <thead><tr><th>칩</th><th>뜻</th><th>왜 덧붙나</th></tr></thead>
+        <tbody>
+          <tr><td><span class="kw syn">≈ 보험거래처코드</span></td><td>보험회사·산재·자보 기관을 등록하는 기초코드 화면 「기관조합/보험거래처코드」의 이름</td><td>현장은 "보험회사", "보험사"라고 묻고 화면·매뉴얼은 "보험거래처코드"라고 씀</td></tr>
+          <tr><td><span class="kw syn">≈ 기관조합</span></td><td>같은 화면 「기관조합/보험거래처코드」의 앞쪽 이름</td><td>"보험회사", "산재 조합"으로 물어도 그 설정 화면 사례를 찾게 함</td></tr>
+          <tr><td><span class="kw syn">≈ 산재조합</span></td><td>그 화면에서 하는 "산재조합 등록"(매뉴얼 p.14)</td><td>"산재 지사"로 물었는데 겹치는 단어가 0개라 정답을 못 찾던 <a href="#s-synonym">실제 사례</a>에서 추가</td></tr>
+        </tbody>
+      </table>
+      <div class="note">고친 문제: 예전에는 동의어 "보험회사"의 조각 <span class="kw syn">≈ 회사</span>까지 칩으로 떴습니다. "회사"는 문의에도 동의어 사전에도 없는 말이라 근거가 될 수 없습니다. 이제 <strong>동의어는 통째로 일치할 때만</strong> 칩이 되고, 칩 순서도 <strong>문의에 있던 말 먼저, 노란 칩은 뒤</strong>입니다.</div>
     </section>
 
-    <!-- 5. 안전장치 -->
+    <!-- 6-2. 재문의 -->
+    <section id="s-followup">
+      <p class="kicker">사용자 화면 · 자세히</p>
+      <h2>"연락 달라", "재문의 드립니다"는 어떻게 보이나요?</h2>
+      <p class="desc">이런 문의에는 비슷한 사례(AI 추천)보다 <strong>"앞서 접수한 건이 무엇이었나"</strong>가 먼저 필요합니다. 그래서 AI 추천 서버가 재문의·연락 요청 문의로 판단하면, 접수·처리 정보의 <strong>「문의 내용 키워드 · 연관 이력」 블록을 맨 위로 올리고</strong> 안내 한 줄을 붙입니다. 이 블록에는 문의에 적힌 접수번호를 직접 찾은 결과와 같은 고객의 최근 1년 접수가 있습니다.</p>
+      <div class="screen">
+        <div class="mock" aria-label="재문의 판정 시 접수·처리 정보 예시">
+          <div class="mock-h"><span>접수·처리 정보</span></div>
+          <div class="mock-fu"><b>↻ 재문의·연락 요청</b>앞서 접수한 건을 먼저 확인하세요. 아래 연관 이력에 같은 고객의 이전 접수가 있습니다.</div>
+          <div class="mock-box">
+            <div class="mock-h"><span>문의 내용 키워드 · 연관 이력</span><em style="background:#e6f4f1;color:#1e7a68">위로 올라옴</em></div>
+            <div class="mock-i"><div><b>20260530013 · 산재 지사 선택란 항목 없음</b><small>문의에 적힌 접수번호 · 처리중</small></div></div>
+            <div class="mock-i"><div><b>같은 고객 최근 1년 접수 4건</b><small>5/28 처방전 출력 · 4/02 보험거래처코드 …</small></div></div>
+          </div>
+          <div class="mock-i mock-dim"><div><b>접수 정보</b><small>원래 맨 위에 있던 블록 — 아래로 내려감</small></div></div>
+          <div class="mock-f">AI 추천 팝업에도 같은 안내가 붙고, 안내에 마우스를 올리면 판단 근거가 보입니다</div>
+        </div>
+        <div>
+          <div class="whyk" style="grid-template-columns:1fr;margin-top:0">
+            <div><b>판단 ① 비슷한 과거 문의</b><br>뜻이 가장 가까운 과거 문의 10건 중 "처리현황 독촉" 문의가 2건 이상이면 재문의로 봅니다. 이런 문의는 전체의 0.6%뿐이라 10건 중 2건이면 평소의 30배입니다.</div>
+            <div><b>판단 ② 내용 없는 문의</b><br>문의의 모든 말이 <a href="#s-formal">인사·연락 요청 문구</a>이고 업무 말이 하나도 없으면 재문의·연락 요청으로 봅니다. 예) "담당자분 통화 원하십니다".</div>
+          </div>
+          <div class="note">왜 점수로 거르지 않나요? 이런 문의는 인덱스 안의 연락 요청 접수건과 실제로 비슷해서 리랭킹 원점수가 +2 안팎(88%)으로 높게 나옵니다. 모델이 틀린 게 아니라 질문에 업무 내용이 없는 것이므로, 추천을 억지로 0건으로 만들기보다 <strong>상담원이 먼저 봐야 할 곳을 바꿔 주는</strong> 쪽을 택했습니다. 추천 목록은 참고용으로 그대로 둡니다.</div>
+        </div>
+      </div>
+      <table class="cmp" style="margin-top:22px">
+        <thead><tr><th style="width:260px">검증</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td>연락 요청·재문의 문장 11개</td><td>8개 알아봄 ("앞전 ta청구관련 재문의 드립니다 … 연락이 없어 재문의 남깁니다", "어제 남긴 문의 아직 답변이 없습니다" 등)</td></tr>
+          <tr><td>일반 실제 문의 40건 + 업무 문의 문장</td><td>잘못 알아본 것 0건 ("안녕하세요 수납 화면에서 카드 취소가 안됩니다 빠른 연락 부탁" 같은 업무 문의는 일반 추천 그대로)</td></tr>
+          <tr><td>놓친 경우</td><td>"고객이 콜백 요청함"(콜백·고객이 통계에 없음), 업무 내용이 함께 있는 재촉 문의 — 이때는 일반 추천 화면 그대로입니다</td></tr>
+        </tbody>
+      </table>
+      <div class="note warn">이 표시는 CRM Java 3개 파일(<code>CombineAsAiClient</code>·<code>CombineAsAiVO</code>·<code>CombineAsAiServiceImpl</code>)을 다시 컴파일하고 WAS를 재기동한 뒤부터 나타납니다. 그 전에는 추천 서버가 판정을 내려도 CRM이 그 필드를 걸러 기존 화면 그대로입니다.</div>
+    </section>
+
+    <!-- 7. 안전장치 -->
     <section id="s-guard">
       <p class="kicker">안전장치</p>
       <h2>엉뚱하거나 위험한 결과를 막는 규칙</h2>
@@ -663,22 +857,24 @@
         <div class="g"><h3>과거사례는 3건까지</h3><p>과거사례(Tier2)가 목록을 다 차지하지 않도록 먼저 3건까지만 넣고, 자리가 남으면 더 채웁니다.</p></div>
         <div class="g"><h3>같은 내용 반복 금지</h3><p>주제와 업무 분류가 같은 자료는 2건까지만 보여 주는 <span class="t" data-term="dedup">중복 제거</span> 규칙입니다. 비슷한 답이 5개 나란히 뜨는 것을 막습니다.</p></div>
         <div class="g"><h3>너무 먼 자료는 버리기</h3><p><span class="t" data-term="cosine">코사인 유사도</span> 0.35 미만이거나 <span class="t" data-term="relevance">관련도</span> 30% 미만인 자료는 <span class="t" data-term="threshold">임계값</span>에 걸려 어떤 경우에도 보여 주지 않습니다.</p></div>
-        <div class="g"><h3>관련 없으면 칸을 채우지 않기</h3><p><span class="t" data-term="rerank">리랭킹</span> <span class="t" data-term="rawscore">원점수</span>가 -2.0 미만이거나 리랭킹을 거치지 않은 자료는 자리가 남아도 넣지 않습니다. 리랭킹 서버가 꺼졌을 때는 코사인 유사도 0.55 미만을 뺍니다. 그래서 건수가 0~5건으로 달라지고, 0건이면 "관련도가 충분한 사례가 없어 추천하지 않았습니다"라고 안내합니다.</p></div>
+        <div class="g"><h3>관련 없으면 칸을 채우지 않기</h3><p><span class="t" data-term="rerank">리랭킹</span> <span class="t" data-term="rawscore">원점수</span>가 -2.0(맞는 답일 가능성 약 12%) 미만이거나 리랭킹을 거치지 않은 자료는 자리가 남아도 넣지 않습니다. 리랭킹 서버가 꺼졌을 때는 코사인 유사도 0.55 미만을 뺍니다. <a href="#s-filter">자세히</a></p></div>
         <div class="g"><h3>개인정보 보호</h3><p>문의 속 개인정보는 <span class="t" data-term="masking">마스킹</span>한 뒤 AI에 보내고, 문의 내용은 저장하거나 <span class="t" data-term="log">로그</span>에 남기지 않습니다. 추천 결과에도 고객사 정보는 들어가지 않습니다.</p></div>
+        <div class="g"><h3>보조 기능은 멈춰도 추천은 계속</h3><p>리랭킹 서버, 형태소 분석기(Kiwi), 형식어 통계가 준비되지 않거나 꺼져도 <span class="t" data-term="fallback">폴백</span>으로 추천 자체는 계속됩니다. 정확도나 칩 품질만 조금 떨어집니다.</p></div>
+        <div class="g"><h3>시간 제한</h3><p>추천 전체 2.5초, 리랭킹 0.9초 <span class="t" data-term="timeout">타임아웃</span>. 늦으면 추천만 건너뛰고 CRM 화면은 멈추지 않습니다.</p></div>
       </div>
     </section>
 
-    <!-- 6. 데이터 -->
+    <!-- 8. 데이터 -->
     <section id="s-data">
       <p class="kicker">추천 자료</p>
       <h2>추천 자료는 어디서 오나요?</h2>
-      <p class="desc">추천 대상은 세 종류이고, AS 건이 종결되면 자동으로 추천 자료에 추가됩니다.</p>
+      <p class="desc">추천 대상은 세 종류이고, AS 건이 종결되면 자동으로 추천 자료에 추가됩니다. 이 과정이 <a href="#s-arch">아키텍처</a>의 "자료 준비 흐름"입니다.</p>
       <div class="data">
         <div>
           <h3>세 종류의 자료</h3>
           <ol>
             <li><span class="tierb tier1">표준답변</span> 자주 묻는 질문에 대해 정리해 둔 공식 답변. 가장 우선합니다.</li>
-            <li><span class="tierb tier2">과거사례</span> 실제로 처리가 끝난 AS 접수건과 상담원 답변.</li>
+            <li><span class="tierb tier2">과거사례</span> 실제로 처리가 끝난 AS 접수건과 상담원 답변. 칩의 <a href="#s-formal">형식어 통계</a>도 이 자료로 냅니다.</li>
             <li><span class="tierb tier3">공지</span> 라인어스 공지사항·안내 게시물.</li>
           </ol>
         </div>
@@ -695,8 +891,10 @@
       </div>
     </section>
 
-    <!-- 8. 개발자용 -->
+    <!-- 9. 개발자용 -->
     <section id="s-dev">
+      <p class="kicker">개발자용</p>
+      <h2>상세 산식 · 설정값 · 변경 이력</h2>
       <details>
         <summary>개발자용 상세 — 점수 산식, 설정값, 응답 필드</summary>
         <div class="dev">
@@ -706,22 +904,23 @@
 tier_weight          = Tier1 1.0 / Tier2 0.7 / Tier3 0.5
 product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.0 / inquiry_type 일치 0.6 / 그 외 0
 후보                 = dense 상위 60 ∪ BM25 상위 60, cosine &lt; 0.35 제외 → 재정렬 상위 20 (COMBINE_RERANK_TOP)
-노출 제외(10-16)     = 재정렬 성공: rerank_raw &lt; -2.0 (COMBINE_RERANK_MIN_SCORE) 또는 재정렬 상위 20 밖
+노출 제외            = 재정렬 성공: rerank_raw(logit) &lt; -2.0 (COMBINE_RERANK_MIN_SCORE, sigmoid ≈ 0.12) 또는 재정렬 상위 20 밖
                        재정렬 폴백: cosine &lt; 0.55 (COMBINE_FALLBACK_MIN_SIM)  → 건수 0~top_k
 제한                 = CRM readTimeout 2.5s · 재정렬 0.9s (COMBINE_RERANK_TIMEOUT_MS) · 실패 시 30초 회로 차단
-겹친 단어(10-16)     = Kiwi 명사 덩어리(붙어 있던 NNG/NNP/SL 재결합, 끝 의존명사 제거) ∩ embed_text, IDF ≥ 1.5, 최대 4개
+동의어 확장          = combine_synonyms.RULES (정규식, dense 덧붙임, lexical 덧붙임) · 질의에만 · 이미 있는 어절 제외
+겹친 단어            = Kiwi 명사 덩어리(붙어 있던 NNG/NNP/SL 재결합, 끝 의존명사 제거) ∩ embed_text, IDF ≥ 1.5, 최대 4개
                        사용자 사전 = 동의어 용어 + 화면명/프로그램명(3건↑, 명사만) + SEED_WORDS · Kiwi 준비 전/미설치 → 어절 규칙
-                       동의어 덩어리는 통째로만 · 정렬 = (동의어 여부, -IDF)                                         (10-16)
-형식어(10-16)        = Tier2 question_text 기준. 위치: 평균 가장자리 거리 ≤ 0.10 (25건↑)
+                       동의어 덩어리는 통째로만 · 정렬 = (동의어 여부, -IDF)
+형식어               = Tier2 question_text 기준. 위치: 평균 가장자리 거리 ≤ 0.10 (25건↑)
                        또는 처리현황독촉 쏠림: Wilson 하한(z=1.645) / 기준비율 ≥ 2.0 이고 3건↑     (문서 20건↑ 단어만)
                        드문 말·중립 말: 같은 문장에 형식어 있고 업무어(서비스구분 KL ≥ 0.08 · 문제유형 KL ≥ 0.15) 없으면 형식어
-재촉 문의(10-16)     = follow_up = (최근접 Tier2 10건 중 처리현황독촉 ≥ 2) or content_free(형식어만 있는 문의)</pre>
+재촉 문의            = follow_up = (최근접 Tier2 10건 중 처리현황독촉 ≥ 2) or content_free(형식어만 있는 문의)</pre>
           <table>
             <thead><tr><th>위치</th><th>구성 요소</th><th>파일</th></tr></thead>
             <tbody>
               <tr><td>상담원 PC</td><td>AI 추천 버튼·팝업·상세</td><td>jwcrm/.../js/combine-as-ai.js, css/combine-as-ai.css</td></tr>
-              <tr><td>CRM 서버 PC</td><td>WAS → 추천 API 호출</td><td>CombineAsAiServiceImpl.java, CombineAsAiClient.java, combine-ai.properties</td></tr>
-              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_live_index.py, combine_morph.py(Kiwi, 겹친 단어), combine_wordstats.py(형식어·재촉 문의)</td></tr>
+              <tr><td>CRM 서버 PC</td><td>WAS → 추천 API 호출</td><td>CombineAsAiServiceImpl.java, CombineAsAiClient.java, CombineAsAiVO.java, combine-ai.properties</td></tr>
+              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_synonyms.py(동의어), combine_live_index.py, combine_morph.py(Kiwi, 겹친 단어), combine_wordstats.py(형식어·재촉 문의)</td></tr>
               <tr><td>AI PC :11434</td><td>Ollama 임베딩</td><td>combine_embed_client.py (호출 측)</td></tr>
               <tr><td>AI PC :8766</td><td>리랭킹 서버</td><td>combine-rerank-server.py, combine-rerank-run.bat</td></tr>
               <tr><td>AX Lab PC</td><td>색인 배치·준실시간 동기화</td><td>analysis/combine_refresh.py, analysis/combine_live.py (저장소 미포함)</td></tr>
@@ -733,18 +932,33 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
               <tr><td>semantic_sim</td><td>bge-m3 코사인 원값</td><td>후보 제외, high/mid/low 판정, 재정렬 폴백 시 노출 하한 0.55</td></tr>
               <tr><td>lexical_score</td><td>BM25 원점수</td><td>희귀 용어 검색</td></tr>
               <tr><td>relevance</td><td>후보 안 상대 점수</td><td>화면 관련도 %, 노출 하한 0.30</td></tr>
-              <tr><td>rerank_score</td><td>재정렬 점수(0~1, 재정렬 성공 시에만)</td><td>최종 점수</td></tr>
-              <tr><td>rerank_raw</td><td>재정렬 원점수 logit(재정렬 성공 시에만)</td><td>노출 하한 -2.0, 임계 재조정</td></tr>
-              <tr><td>match_terms</td><td>[{term, synonym}] 문의와 자료(embed_text)에 함께 있는 말, IDF 순 최대 4개</td><td>화면 "겹친 단어" 칩 (동의어는 ≈)</td></tr>
-              <tr><td>match_reason</td><td>같은 업무분류 / 같은 프로그램·화면 / 같은 문의유형 / null</td><td>화면 일치 사유 칩</td></tr>
+              <tr><td>rerank_score</td><td>재정렬 점수(0~1, 후보 안 min-max, 재정렬 성공 시에만)</td><td>최종 점수</td></tr>
+              <tr><td>rerank_raw</td><td>재정렬 원점수 logit(재정렬 성공 시에만). sigmoid(raw) 가 "맞는 답일 가능성"</td><td>노출 하한 -2.0, 임계 재조정</td></tr>
+              <tr><td>match_terms</td><td>[{term, synonym}] 문의와 자료(embed_text)에 함께 있는 말, 최대 4개</td><td>화면 "겹친 단어" 칩 (동의어는 ≈)</td></tr>
+              <tr><td>match_reason</td><td>같은 업무분류 / 같은 프로그램·화면 / 같은 문의유형 / null — product_match_detail() 라벨(service_cate 완전 일치 → program_nm·screen_nm → inquiry_type 순)</td><td>응답에는 남아 있으나 화면 미표시 (10-19). CLI 출력·검증용</td></tr>
               <tr><td>score</td><td>최종 합산 점수</td><td>정렬</td></tr>
               <tr><td>confidence</td><td>high / mid / low</td><td>일반 추천 또는 참고 사례 표시</td></tr>
-              <tr><td>follow_up (응답 상단)</td><td>재문의·연락 요청 문의 여부 + follow_up_detail{nag_near, near_k, content_free}</td><td>「문의 내용 키워드 · 연관 이력」 맨 위로 (10-16)</td></tr>
+              <tr><td>follow_up (응답 상단)</td><td>재문의·연락 요청 문의 여부 + follow_up_detail{nag_near, near_k, content_free}</td><td>「문의 내용 키워드 · 연관 이력」 맨 위로</td></tr>
             </tbody>
           </table>
         </div>
       </details>
-      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine_morph.py · combine_wordstats.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-16). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
+      <details>
+        <summary>변경 이력 — 언제 무엇이 바뀌었나</summary>
+        <div class="dev">
+          <table class="plain">
+            <thead><tr><th style="width:110px">날짜</th><th>변경</th><th style="width:30%">이 문서에서</th></tr></thead>
+            <tbody>
+              <tr><td>2026-10-12</td><td>동의어 사전(쿼리 확장) 도입 · 절대 신뢰도(high/mid/low) 도입 · 연관 이력 그 자리에서 펼쳐 보기</td><td><a href="#s-synonym">동의어 사전</a> · <a href="#s-screen">화면</a></td></tr>
+              <tr><td>2026-10-15</td><td>리랭킹(Cross-Encoder) 서버 도입, 폴백·서킷 브레이커 · 참고 사례(low) 표시 정책 · 색인 준실시간 반영(핫 리로드)</td><td><a href="#s-arch">아키텍처</a> · <a href="#s-score">순위</a> · <a href="#s-data">자료</a></td></tr>
+              <tr><td>2026-10-16</td><td>관련 없는 추천 제외(항상 5건 → 0~5건, 원점수 -2.0) · 추천 근거 칩(겹친 단어·일치 사유) · 형태소 분석기 Kiwi · 칩 형식어 거르기 · 동의어 칩은 통째로만 · 재문의·연락 요청 문의 판정</td><td><a href="#s-filter">관련 없는 추천 빼기</a> · <a href="#s-terms">칩</a> · <a href="#s-followup">재문의</a></td></tr>
+              <tr><td>2026-10-18</td><td>이 문서를 추천이 만들어지는 순서대로 재구성. 동의어 사전 선정 기준, 원점수 -2.0의 뜻(확률 눈금), 아키텍처 이동 경로 표시 추가</td><td>전체</td></tr>
+              <tr><td>2026-10-19</td><td>일치 사유 칩("같은 업무분류" 등) 화면에서 제거 — 접수 시 고른 서비스구분 코드 일치 여부만 보는 값이라 근거로 정보가 적음. 점수 산식·서버 응답은 유지(<code>combine-as-ai.js</code>만 수정)</td><td><a href="#s-screen">화면</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine_synonyms.py · combine_morph.py · combine_wordstats.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-18). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
     </section>
   </main>
 </div>
@@ -783,12 +997,13 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
     masking:   { n:'마스킹', en:'Masking', d:'이름·전화번호 같은 개인정보를 [이름], [전화번호] 같은 표시로 가리는 것입니다. AI에는 가려진 문장만 전달됩니다.' },
     preprocess:{ n:'전처리', en:'Preprocessing', d:'검색하기 전에 문장을 다듬는 작업입니다. 쓸모없는 양식 문구를 지우고 개인정보를 가립니다.' },
     morph:     { n:'형태소 분석', en:'Morphological analysis · Kiwi', d:'문장을 뜻을 가진 가장 작은 조각(명사·조사·어미 등)으로 나누고 품사를 붙이는 일입니다. 한국어는 "진단서를"처럼 단어 뒤에 조사·어미가 붙고 띄어쓰기도 들쭉날쭉해서, 띄어쓰기만으로는 단어를 정확히 자를 수 없습니다. 여기서는 Kiwi라는 분석기로 겹친 단어 칩에 보여 줄 명사만 골라냅니다.', eg:'예: "신규및 D/C오더" → 신규 / 및 / D/C오더 → 칩에는 신규, D/C오더' },
-    qexpand:   { n:'쿼리 확장', en:'Query Expansion', d:'질문(쿼리)에 같은 뜻의 다른 표현이나 시스템 용어를 덧붙여 검색하는 것입니다. 현장 용어와 시스템 용어가 달라도 찾을 수 있게 합니다.' },
+    qexpand:   { n:'쿼리 확장', en:'Query Expansion', d:'질문(쿼리)에 같은 뜻의 다른 표현이나 시스템 용어를 덧붙여 검색하는 것입니다. 현장 용어와 시스템 용어가 달라도 찾을 수 있게 합니다. 이 시스템에서는 동의어 사전(combine_synonyms.py)의 규칙으로 합니다.', eg:'예: "보험회사" → 뒤에 "보험거래처코드"를 덧붙여 검색' },
     tier:      { n:'Tier', en:'자료 등급', d:'자료 종류별 우선순위입니다. Tier1 표준답변(1점) > Tier2 과거사례(0.7점) > Tier3 공지(0.5점) 순으로 가산점을 받습니다.' },
     weight:    { n:'가중치', en:'Weight', d:'여러 항목을 합칠 때 각 항목을 얼마나 중요하게 볼지 정한 비율입니다. 모두 더하면 100%입니다.', eg:'비유: 성적 산출 시 중간 30% · 기말 40% · 과제 30%' },
     dedup:     { n:'중복 제거', en:'Deduplication', d:'주제와 업무 분류가 같은 자료가 여러 건이면 2건까지만 남기는 것입니다. 비슷한 답이 나란히 뜨는 것을 막습니다.' },
     threshold: { n:'임계값', en:'Threshold', d:'통과와 탈락을 가르는 기준선입니다. 이 값보다 낮으면 결과에서 뺍니다.', eg:'이 서비스 기준: 리랭킹 원점수 -2.0 미만 제외 · 리랭킹 장애 시 코사인 0.55 미만 제외' },
-    rawscore:  { n:'원점수', en:'Raw score · logit', d:'리랭킹 모델이 "이 답이 이 질문에 맞는가"를 판단해 내놓는 원래 점수입니다. 다른 후보와 비교한 등수가 아니라 절대 점수라서, 후보가 전부 엉뚱하면 모두 낮게 나옵니다. 그래서 "관련 없음"을 가르는 기준으로 씁니다. 대략 -10 ~ +10 범위이고, 높을수록 잘 맞습니다.', eg:'비유: 반 등수가 아니라 면접 점수. 지원자가 다 별로면 1등도 불합격일 수 있습니다.' },
+    rawscore:  { n:'원점수', en:'Raw score · logit', d:'리랭킹 모델이 "이 답이 이 질문에 맞는가"를 판단해 내놓는 원래 점수입니다. 0을 가운데에 두고 플러스면 "맞는다", 마이너스면 "아니다" 쪽입니다. 다른 후보와 비교한 등수가 아니라 절대 점수라서, 후보가 전부 엉뚱하면 모두 낮게 나옵니다. 그래서 "관련 없음"을 가르는 기준으로 씁니다. 대략 -10 ~ +10 범위이고, 확률로 환산하면 -2는 12%, 0은 50%, +2는 88%입니다.', eg:'비유: 반 등수가 아니라 면접 점수. 지원자가 다 별로면 1등도 불합격일 수 있습니다.' },
+    sigmoid:   { n:'확률 환산', en:'Sigmoid', d:'양쪽으로 뻗는 원점수를 0~100% 사이 값으로 바꾸는 계산입니다. 0점은 50%, +2점은 88%, -2점은 12%, +5점은 99%가 됩니다. 모델이 "맞는 답 / 아닌 답"을 가르도록 학습된 방식에서 나오는 환산이라, 통계적으로 엄밀한 확률이라기보다 눈금을 읽기 쉽게 바꾼 것으로 보면 됩니다.', eg:'비유: 섭씨를 화씨로 바꾸듯 같은 값을 읽기 쉬운 단위로 바꾼 것' },
     confidence:{ n:'신뢰도', en:'Confidence', d:'추천 하나하나가 얼마나 확실한지를 high / mid / low 세 단계로 나눈 값입니다. 코사인 유사도로 판단합니다.' },
     batch:     { n:'배치', en:'Batch', d:'사람이 누르지 않아도 정해진 시간에 자동으로 한꺼번에 처리하는 작업입니다.', eg:'예: 매주 1회 전체 인덱스 재생성, 5분마다 신규 건 추가' },
     polling:   { n:'폴링', en:'Polling', d:'일정 간격으로 "새로 생긴 것이 있나?"를 확인하는 방식입니다. 여기서는 5분마다 DB를 확인합니다.' },
@@ -842,38 +1057,110 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
   var staticTerms = document.querySelectorAll('.t[data-term]');
   for(var st=0; st<staticTerms.length; st++) staticTerms[st].setAttribute('tabindex', '0');
 
-  /* ---------- 아키텍처 단계 ---------- */
+  /* ---------- 아키텍처 단계 ----------
+     path : 이 단계에서 무엇이 이동하는 경로 (구성 요소 id 순서). 길이 1이면 그 안에서만 처리.
+     carry: 화살표마다 무엇이 가는지 (path 길이 - 1 개) */
+  var BOX = {
+    browser:{ n:'웹 브라우저',      pc:'상담원 PC',      cls:'pc-agent' },
+    was:    { n:'CRM 웹 서버',      pc:'CRM 서버 PC',    cls:'pc-crm' },
+    rec:    { n:'AI 추천 서버',     pc:'CRM 서버 PC',    cls:'pc-crm' },
+    embed:  { n:'임베딩 서버',      pc:'AI PC',          cls:'pc-ai' },
+    rerank: { n:'리랭킹 서버',      pc:'AI PC',          cls:'pc-ai' },
+    llm:    { n:'자료 정리용 LLM',  pc:'AI PC',          cls:'pc-ai' },
+    db:     { n:'CRM DB',           pc:'DB 서버',        cls:'pc-db' },
+    batch:  { n:'인덱스 갱신 배치', pc:'AX Lab 개발 PC', cls:'pc-lab' }
+  };
   var FLOWS = {
     live: [
-      { t:'상담원이 AS 문의를 엽니다', d:'브라우저가 CRM 웹 서버([[WAS|was]])에 "이 접수건의 AI 추천을 주세요"라고 [[API|api]]로 요청합니다. 화면을 멈추지 않도록 뒤에서 조용히 요청합니다.', b:['browser','was'] },
-      { t:'CRM이 DB에서 문의 내용을 꺼냅니다', d:'[[DB|db]]에서 문의 원문, 업무 분류(예: 원무), 그리고 추천에서 빼야 할 자기 자신·연결 접수번호를 조회합니다.', b:['was','db'] },
-      { t:'CRM이 AI 추천 서버에 전달합니다', d:'같은 PC에 있는 AI 추천 서버([[포트|port]] 8765)로 문의를 보냅니다. CRM은 최대 2.5초 [[타임아웃|timeout]]까지만 기다립니다.', b:['was','rec'] },
-      { t:'문의 문장을 임베딩으로 바꿉니다', d:'추천 서버가 개인정보를 [[마스킹|masking]]한 문장을 AI PC의 [[Ollama|ollama]]로 보내 [[임베딩|embedding]]으로 바꿔 받습니다.', b:['rec','embed'] },
-      { t:'하이브리드 검색으로 후보를 찾고 관련도를 매깁니다', d:'[[메모리|memory]]에 올려 둔 1만 1천여 건의 [[인덱스|index]]에서 [[벡터 검색|vector]]과 [[BM25|bm25]]를 동시에 돌려 후보를 추리고 [[관련도|relevance]]를 계산합니다.', b:['rec'] },
-      { t:'리랭킹 서버가 상위 20건을 다시 채점합니다', d:'AI PC의 [[리랭킹|rerank]] 서버(포트 8766)가 문의와 후보를 나란히 읽어 채점합니다. 0.9초 안에 답이 없으면 [[폴백|fallback]]으로 이 단계를 건너뜁니다.', b:['rec','rerank'] },
-      { t:'최대 5건을 골라 화면에 보여 줍니다', d:'리랭킹 기준에 못 미치는 후보를 뺀 뒤 점수를 [[가중치|weight]]대로 합산하고 [[중복 제거|dedup]]·자기 자신 제외 후 최대 5건을 CRM을 거쳐 브라우저로 돌려줍니다. [AI 추천] 버튼의 건수는 관련 있는 자료 수라 0~5건으로 달라집니다.', b:['rec','was','browser'] }
+      { t:'상담원이 AS 문의를 엽니다', d:'브라우저가 CRM 웹 서버([[WAS|was]])에 "이 접수건의 AI 추천을 주세요"라고 [[API|api]]로 요청합니다. 화면을 멈추지 않도록 뒤에서 조용히 요청합니다.',
+        path:['browser','was'], carry:['접수번호 (추천 요청)'] },
+      { t:'CRM이 DB에서 문의 내용을 꺼냅니다', d:'[[DB|db]]에서 문의 원문, 업무 분류(예: 원무), 그리고 추천에서 빼야 할 자기 자신·연결 접수번호를 조회해 돌려받습니다.',
+        path:['was','db','was'], carry:['접수번호 조회', '문의 원문 · 업무 분류 · 연결 접수번호'] },
+      { t:'CRM이 AI 추천 서버에 전달합니다', d:'같은 PC에 있는 AI 추천 서버([[포트|port]] 8765)로 문의를 보냅니다. CRM은 최대 2.5초 [[타임아웃|timeout]]까지만 기다립니다.',
+        path:['was','rec'], carry:['문의 원문 + 제외할 접수번호'] },
+      { t:'문의 문장을 임베딩으로 바꿉니다', d:'추천 서버가 양식 문구를 떼고 개인정보를 [[마스킹|masking]]하고 [[쿼리 확장|qexpand]]을 한 문장을 AI PC의 [[Ollama|ollama]]로 보내 [[임베딩|embedding]]으로 바꿔 받습니다.',
+        path:['rec','embed','rec'], carry:['마스킹·확장한 문의 문장', '임베딩 (숫자 1,024개)'] },
+      { t:'하이브리드 검색으로 후보를 찾고 관련도를 매깁니다', d:'[[메모리|memory]]에 올려 둔 1만 1천여 건의 [[인덱스|index]]에서 [[벡터 검색|vector]]과 [[BM25|bm25]]를 동시에 돌려 후보를 추리고 [[관련도|relevance]]를 계산합니다. 다른 PC로 가지 않고 추천 서버 안에서 끝납니다.',
+        path:['rec'], carry:[] },
+      { t:'리랭킹 서버가 상위 20건을 다시 채점합니다', d:'AI PC의 [[리랭킹|rerank]] 서버(포트 8766)가 문의와 후보를 나란히 읽어 [[원점수|rawscore]]를 매겨 돌려줍니다. 0.9초 안에 답이 없으면 [[폴백|fallback]]으로 이 단계를 건너뜁니다.',
+        path:['rec','rerank','rec'], carry:['문의 + 후보 20건', '후보별 원점수 20개'] },
+      { t:'관련 없는 후보를 빼고 최대 5건을 고른 뒤, 근거를 붙입니다', d:'원점수 -2.0 미만을 빼고 점수를 [[가중치|weight]]대로 합산해 [[중복 제거|dedup]]·자기 자신 제외 후 최대 5건을 고릅니다. 자료마다 겹친 단어 칩·[[신뢰도|confidence]]를 붙이고, 문의가 재문의인지도 판정합니다. 역시 추천 서버 안에서 끝납니다.',
+        path:['rec'], carry:[] },
+      { t:'결과가 상담원 화면으로 돌아옵니다', d:'추천 서버 → CRM 웹 서버 → 브라우저 순으로 되돌아가 [AI 추천] 버튼에 건수가 표시됩니다. 건수는 관련 있는 자료 수라 0~5건으로 달라집니다.',
+        path:['rec','was','browser'], carry:['추천 0~5건 + 칩 + 재문의 판정', '같은 내용 그대로 전달'] }
     ],
     prep: [
-      { t:'5분마다 새로 종결된 AS 건을 찾습니다', d:'AX Lab 개발 PC의 [[배치|batch]] 프로그램이 [[폴링|polling]]으로 DB에서 최근 종결되거나 답변이 바뀐 접수건을 찾습니다.', b:['batch','db'] },
-      { t:'LLM이 자료를 정리합니다', d:'AI PC의 [[LLM|llm]]([[gemma|gemma]])이 주제를 분류하고 개인정보를 [[마스킹|masking]]합니다. 너무 짧거나 쓸모없는 답변은 이 단계에서 걸러집니다.', b:['batch','llm'] },
-      { t:'자료를 임베딩으로 바꿉니다', d:'추천 때와 똑같은 모델([[bge-m3|bgem3]])로 [[임베딩|embedding]]을 만들어야 문의와 자료를 서로 비교할 수 있습니다.', b:['batch','embed'] },
-      { t:'AI 추천 서버가 새 인덱스를 자동 반영합니다', d:'만든 [[인덱스|index]]를 추천 서버 폴더에 넣으면, 추천 서버가 30초 안에 [[핫 리로드|hotreload]]합니다. 재시작이 필요 없습니다. 주 1회는 전체 인덱스를 새로 만듭니다.', b:['batch','rec'] }
+      { t:'5분마다 새로 종결된 AS 건을 찾습니다', d:'AX Lab 개발 PC의 [[배치|batch]] 프로그램이 [[폴링|polling]]으로 DB에서 최근 종결되거나 답변이 바뀐 접수건을 찾아 가져옵니다.',
+        path:['batch','db','batch'], carry:['최근 종결·변경 건 조회', '접수 원문 · 상담원 답변'] },
+      { t:'LLM이 자료를 정리합니다', d:'AI PC의 [[LLM|llm]]([[gemma|gemma]])이 주제를 분류하고 개인정보를 [[마스킹|masking]]합니다. 너무 짧거나 쓸모없는 답변은 이 단계에서 걸러집니다.',
+        path:['batch','llm','batch'], carry:['접수 원문 · 답변', '주제 분류 · 마스킹된 본문'] },
+      { t:'자료를 임베딩으로 바꿉니다', d:'추천 때와 똑같은 모델([[bge-m3|bgem3]])로 [[임베딩|embedding]]을 만들어야 문의와 자료를 서로 비교할 수 있습니다.',
+        path:['batch','embed','batch'], carry:['정리된 문서', '문서별 임베딩'] },
+      { t:'AI 추천 서버가 새 인덱스를 자동 반영합니다', d:'만든 [[인덱스|index]]를 추천 서버 폴더에 넣으면, 추천 서버가 30초 안에 [[핫 리로드|hotreload]]합니다. 재시작이 필요 없습니다. 주 1회는 전체 인덱스를 새로 만듭니다.',
+        path:['batch','rec'], carry:['새 인덱스 파일 (델타 또는 전체)'] }
     ]
   };
   var flow = 'live', idx = 0, touched = false, timer = null;
   var arch = document.getElementById('arch');
   var btnPrev = document.getElementById('stPrev'), btnNext = document.getElementById('stNext'), btnAuto = document.getElementById('stAuto');
   function lastIdx(){ return FLOWS[flow].length - 1; }
+  function uniq(a){ var o = []; for(var i=0;i<a.length;i++) if(o.indexOf(a[i]) < 0) o.push(a[i]); return o; }
+  /* 각 구성 요소가 이 단계에서 맡는 역할 배지: 출발 / 도착 / 처리 후 회신 / 거쳐 감 / 안에서 처리 */
+  function rolesOf(path){
+    var r = {};
+    if(path.length === 1){ r[path[0]] = '안에서 처리'; return r; }
+    var round = path[0] === path[path.length - 1];
+    for(var i=0;i<path.length;i++){
+      var id = path[i], role;
+      if(i === 0) role = round ? '출발 · 회신 받음' : '출발';
+      else if(i === path.length - 1) role = round ? null : '도착';
+      else role = round ? '처리 후 회신' : '거쳐 감';
+      if(role && !r[id]) r[id] = role;
+    }
+    return r;
+  }
+  function routeHtml(s){
+    var h = '<span class="lbl">이동 경로</span>';
+    for(var i=0;i<s.path.length;i++){
+      var b = BOX[s.path[i]];
+      h += '<span class="nd ' + b.cls + '">' + b.n + '<small>' + b.pc + '</small></span>';
+      if(i < s.path.length - 1) h += '<span class="ar">→<small>' + esc(s.carry[i] || '') + '</small></span>';
+    }
+    if(s.path.length === 1) h += '<span class="stay">— 다른 PC로 가지 않고 이 서버 안에서 처리합니다</span>';
+    return h;
+  }
+  function renderPathbar(){
+    var nodes = [];
+    FLOWS[flow].forEach(function(s, si){
+      s.path.forEach(function(id){
+        var last = nodes[nodes.length - 1];
+        if(last && last.id === id){ if(last.steps.indexOf(si + 1) < 0) last.steps.push(si + 1); }
+        else nodes.push({ id:id, steps:[si + 1] });
+      });
+    });
+    var h = '<span class="lbl">전체 경로</span>';
+    nodes.forEach(function(nd, i){
+      h += '<span class="nd' + (nd.steps.indexOf(idx + 1) >= 0 ? ' on' : '') + '" title="' + BOX[nd.id].pc + '"><i>' + nd.steps.join('·') + '</i>' + BOX[nd.id].n + '</span>';
+      if(i < nodes.length - 1) h += '<span class="ar">→</span>';
+    });
+    document.getElementById('pathbar').innerHTML = h;
+  }
   function renderStep(){
     var s = FLOWS[flow][idx], n = FLOWS[flow].length;
     document.getElementById('stNum').textContent = idx + 1;
     document.getElementById('stTitle').textContent = s.t;
     document.getElementById('stDesc').innerHTML = termify(s.d);
     document.getElementById('stCount').textContent = '총 ' + n + '단계 중 ' + (idx + 1) + '단계';
+    document.getElementById('stRoute').innerHTML = routeHtml(s);
+    var lit = uniq(s.path), roles = rolesOf(s.path);
     var boxes = arch.querySelectorAll('.box');
     for(var i=0;i<boxes.length;i++){
-      boxes[i].classList.toggle('lit', s.b.indexOf(boxes[i].getAttribute('data-box')) >= 0);
+      var id = boxes[i].getAttribute('data-box'), on = lit.indexOf(id) >= 0;
+      boxes[i].classList.toggle('lit', on);
+      boxes[i].classList.toggle('from', on && s.path.length > 1 && s.path[0] === id);
+      if(on && roles[id]) boxes[i].setAttribute('data-role', roles[id]); else boxes[i].removeAttribute('data-role');
     }
+    renderPathbar();
     btnPrev.disabled = idx === 0;
     btnNext.textContent = idx === n - 1 ? '처음부터 다시 ↺' : '다음 단계 →';
     btnNext.classList.toggle('pulse', !touched);
@@ -901,7 +1188,7 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
     btnAuto.textContent = '❚❚ 멈춤';
     timer = setInterval(function(){
       if(idx < lastIdx()) go(idx + 1); else stopAuto();
-    }, 2800);
+    }, 3200);
   };
   var flowBtns = document.querySelectorAll('[data-flow]');
   for(var f=0; f<flowBtns.length; f++){
@@ -952,7 +1239,7 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
            { k:'q',   label:'답변 품질',  w:.10, c:'var(--s5)', d:'인덱스를 만들 때 미리 매겨 둔 답변의 충실도' } ]
   };
   var INSIGHT = {
-    on:'1차 [[관련도|relevance]]만 보면 과거사례가 1등이지만, [[리랭킹|rerank]]에서 "취소 방법을 정확히 설명하는" 표준답변이 1등으로 올라왔습니다. 단어만 겹치는 공지는 3등으로 크게 밀렸습니다. 만약 이 공지의 리랭킹 [[원점수|rawscore]]가 기준(-2.0)에 못 미쳤다면 3등이 아니라 목록에서 아예 빠지고 2건만 보입니다.',
+    on:'1차 [[관련도|relevance]]만 보면 과거사례가 1등이지만, [[리랭킹|rerank]]에서 "취소 방법을 정확히 설명하는" 표준답변이 1등으로 올라왔습니다. 단어만 겹치는 공지는 3등으로 크게 밀렸습니다. 만약 이 공지의 리랭킹 [[원점수|rawscore]]가 기준(-2.0, 맞는 답일 가능성 12%)에 못 미쳤다면 3등이 아니라 목록에서 아예 빠지고 2건만 보입니다.',
     off:'리랭킹이 빠지는 [[폴백|fallback]] 상태에서는 단어가 가장 많이 겹친 과거사례가 1등이 되고, 공지와의 점수 차이도 줄어듭니다. 결과는 여전히 나오지만, 리랭킹이 있을 때보다 덜 정확할 수 있습니다.'
   };
   function renderScore(mode){

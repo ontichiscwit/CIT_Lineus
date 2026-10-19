@@ -1583,8 +1583,9 @@
 <%-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): AI 재정렬·참고 사례 UX 반영 캐시 갱신
      [AX Lab] 수정 (2026-10-16 AX Lab): 관련 없는 추천 제외(0~5건) 표시 반영 캐시 갱신
      [AX Lab] 수정 (2026-10-16 AX Lab): 추천 근거(겹친 단어) 표시 반영 캐시 갱신 --%>
-<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 색인 불일치 시 원본 최신 직원답변 사용 반영 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-ai.js?v=20261017-2"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 색인 불일치 시 원본 최신 직원답변 사용 반영 캐시 갱신
+     [AX Lab] 수정 (2026-10-19 AX Lab): 일치 사유 칩("같은 업무분류") 화면 미표시 반영 캐시 갱신 (기존 v=20261017-2) --%>
+<script type="text/javascript" src="/js/combine-as-ai.js?v=20261019-1"></script>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>

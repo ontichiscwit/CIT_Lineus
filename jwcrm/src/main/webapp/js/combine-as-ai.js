@@ -79,7 +79,10 @@ function cai_whyHtml(it, max){
 		else          h += '<i class="cai-kw">' + cai_esc(m.term) + '</i>';
 	}
 	if(!terms.length) h += '<i class="cai-kw sem" title="겹치는 단어 없이 문장 뜻이 비슷해 추천되었습니다">뜻으로 찾음</i>';
-	if(it.match_reason) h += '<i class="cai-kw rsn">' + cai_esc(it.match_reason) + '</i>';
+	/* [AX Lab] 삭제 (2026-10-19 AX Lab): 일치 사유 칩("같은 업무분류" 등) 화면 미표시.
+	 * 접수 시 고른 서비스구분 코드가 같은지만 보는 값이라 근거 칩으로는 정보가 적고 자리만 차지한다는 현업 의견.
+	 * 서버 응답(match_reason)과 점수 산식(업무 분류 일치 15%)은 그대로 두고 화면에서만 뺀다. 원복: 아래 한 줄 주석 해제. */
+	// if(it.match_reason) h += '<i class="cai-kw rsn">' + cai_esc(it.match_reason) + '</i>';
 	return h;
 }
 /* [AX Lab] 수정 끝 */
