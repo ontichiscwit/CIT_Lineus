@@ -1287,7 +1287,8 @@ function caws_renderCompose(){
 	+   'title="드래그: 고객 답변 영역 높이 조절 / 더블클릭: 기본 높이"></div>'
 	+ '<div class="caws-chead">'
 	+   '<span class="caws-cbadge caws-tip-l" data-tip="이 글은 고객에게 그대로 노출됩니다.">고객 노출</span>'
-	+   '<span class="caws-cinfo caws-tip-l" data-tip="등록 시 고객에게 알림이 발송될 수 있습니다." aria-label="등록 시 고객에게 알림이 발송될 수 있습니다.">'+caws_cico('info')+'</span>'
+	// [AX Lab] 삭제 (2026-10-19 AX Lab): 넓게 보기 고객 노출 우측의 알림 발송 경고 안내 제거
+	// +   '<span class="caws-cinfo caws-tip-l" data-tip="등록 시 고객에게 알림이 발송될 수 있습니다." aria-label="등록 시 고객에게 알림이 발송될 수 있습니다.">'+caws_cico('info')+'</span>'
 	+   '<div class="caws-sp"></div>'
 	+   '<button type="button" class="caws-cicon caws-tip-r" id="cawsFoldBtn" onclick="caws_toggleCompose();" '
 	+     'data-tip="한 줄로 줄이기 (작성 내용은 유지됩니다)" aria-label="한 줄로 줄이기">'+caws_cico('shrink')+'</button>'
