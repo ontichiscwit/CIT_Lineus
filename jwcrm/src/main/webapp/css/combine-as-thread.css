@@ -368,7 +368,9 @@
    접어 두고, 쓸 때만 펼친다. 접힘여부는 sessionStorage 에 저장한다.
    ★ 접힘 토글은 innerHTML 을 다시 만들지 않고 이 클래스만 바꾼다.
      다시 그리면 작성 중이던 textarea 내용과 첨부 썸네일이 날아간다. (caws_toggleCompose 주석 참고) */
+/* [AX Lab] 삭제 (2026-10-19 AX Lab): .off 는 이제 "한 줄 모드"라 본문을 숨기지 않는다 (아래 2026-10-19 블록 참고)
 #asWorkspace .caws-comp.off .caws-cbody{display:none;}
+*/
 #asWorkspace .caws-ctabs .caws-sp{flex:1;}
 #asWorkspace .caws-cfold{
   display:inline-flex; align-items:center; gap:5px;
@@ -434,6 +436,87 @@
   font-size:11px; line-height:1; display:flex; align-items:center; justify-content:center;
 }
 #asWorkspace .caws-thumb .caws-tdel:hover{border-color:var(--red); color:var(--red);}
+
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객 답변 한 줄 모드(기본, .off) / 넓게 모드 2단 구조
+   -----------------------------------------------------------------------------
+   한 줄 모드 : [고객노출] 입력창(1~3줄) AI·게시물·첨부 ⤢ [등록]   → 약 48px
+   넓게 모드  : 헤더(고객 노출 ⓘ ⤡) / 입력창(3줄~240px, 이후 내부 스크롤) / 첨부 칩 / 도구 + [답변 등록]
+   입력창 높이 값은 combine-as-thread.js 의 CAWS_TA_* 상수와 같아야 한다. */
+#asWorkspace .caws-comp .caws-chead{display:flex; align-items:center; gap:6px; padding:6px 8px 0 11px;}
+#asWorkspace .caws-comp .caws-chead .caws-sp{flex:1;}
+#asWorkspace .caws-comp.caws-sized .caws-chead{flex-shrink:0;}
+#asWorkspace .caws-comp .caws-cbadge{
+  display:inline-flex; align-items:center; flex:0 0 auto; height:20px; padding:0 8px; border-radius:10px;
+  border:1px solid var(--accent-line); background:var(--accent-bg); color:var(--accent);
+  font-size:11px; font-weight:700; white-space:nowrap; cursor:default;
+}
+#asWorkspace .caws-comp .caws-cbadge-in{display:none;}
+#asWorkspace .caws-comp .caws-cinfo{display:inline-flex; align-items:center; color:var(--ink-3); cursor:help;}
+#asWorkspace .caws-comp .caws-cinfo .caws-ico{width:14px; height:14px;}
+
+#asWorkspace .caws-comp .caws-ico{
+  width:16px; height:16px; flex:0 0 auto;
+  fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;
+}
+#asWorkspace .caws-comp .caws-cicon{
+  display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto;
+  width:28px; height:28px; padding:0; border:1px solid transparent; border-radius:7px;
+  background:none; color:var(--ink-3);
+}
+#asWorkspace .caws-comp .caws-cicon:hover{border-color:var(--line); background:var(--surface); color:var(--accent);}
+
+#asWorkspace .caws-comp .caws-cbody{padding:6px 11px 9px;}
+#asWorkspace .caws-comp .caws-ta{min-height:72px; max-height:240px; resize:none;}
+#asWorkspace .caws-comp .caws-cbar{margin-top:7px; gap:6px;}
+#asWorkspace .caws-comp .caws-tools{margin-bottom:0; gap:2px; flex-wrap:nowrap;}
+#asWorkspace .caws-comp .caws-tool{
+  position:relative; display:inline-flex; align-items:center; gap:4px;
+  height:30px; padding:0 8px; border:1px solid transparent; border-radius:7px;
+  background:none; color:var(--ink-2); font-size:11.5px; font-weight:600; white-space:nowrap;
+}
+#asWorkspace .caws-comp .caws-tool:hover{border-color:var(--line); background:var(--surface); color:var(--accent);}
+#asWorkspace .caws-comp .caws-fcnt{display:none;}
+#asWorkspace .caws-comp .caws-cexp{display:none;}
+#asWorkspace .caws-comp .caws-send{height:30px; padding:0 16px; white-space:nowrap;}
+
+/* 한 줄 모드 */
+#asWorkspace .caws-comp.caws-sized.off{min-height:0;}
+#asWorkspace .caws-comp.off .caws-chead{display:none;}
+#asWorkspace .caws-comp.off .caws-cbody{
+  display:flex; align-items:flex-end; gap:6px; padding:7px 8px 7px 10px;
+  flex:none; overflow:visible;
+}
+#asWorkspace .caws-comp.off .caws-cbadge-in{display:inline-flex; margin-bottom:7px;}
+#asWorkspace .caws-comp.off .caws-drop{flex:1; min-width:0;}
+#asWorkspace .caws-comp.off .caws-ta{min-height:32px; max-height:72px; padding:6px 10px; line-height:1.5;}
+#asWorkspace .caws-comp.off .caws-thumbs{display:none;}
+#asWorkspace .caws-comp.off .caws-cbar{flex:0 0 auto; margin-top:0; gap:2px; padding-bottom:2px;}
+#asWorkspace .caws-comp.off .caws-tool{width:30px; padding:0; justify-content:center;}
+#asWorkspace .caws-comp.off .caws-tlbl{display:none;}
+#asWorkspace .caws-comp.off .caws-fcnt:not(:empty){
+  display:inline-block; position:absolute; top:0; right:-2px;
+  min-width:14px; height:14px; padding:0 3px; border-radius:7px; box-sizing:border-box;
+  background:var(--accent); color:#fff; font-size:9.5px; font-style:normal; font-weight:700;
+  line-height:14px; text-align:center;
+}
+#asWorkspace .caws-comp.off .caws-cexp{display:inline-flex; height:30px;}
+#asWorkspace .caws-comp.off .caws-send{padding:0 12px; margin-left:2px;}
+#asWorkspace .caws-comp.off .caws-sendx{display:none;}
+
+/* 마우스 호버 즉시 뜨는 기능 설명 (기본 title 툴팁은 늦게 뜨고 모양을 바꿀 수 없다) */
+#asWorkspace .caws-comp [data-tip]{position:relative;}
+#asWorkspace .caws-comp [data-tip]:hover::after{
+  content:attr(data-tip); position:absolute; z-index:30; bottom:calc(100% + 6px); left:50%;
+  transform:translateX(-50%); padding:5px 8px; border-radius:6px;
+  background:#1F2A30; color:#fff; font-size:11px; font-weight:500; line-height:1.4;
+  white-space:nowrap; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,.18);
+}
+/* 가장자리에서 잘리지 않도록 정렬 방향을 고정한다. 넓게 모드의 도구는 왼쪽, 한 줄 모드의 도구는 오른쪽에 붙어 있다. */
+#asWorkspace .caws-comp .caws-tip-l:hover::after,
+#asWorkspace .caws-comp .caws-tool:hover::after{left:0; transform:none;}
+#asWorkspace .caws-comp .caws-tip-r:hover::after,
+#asWorkspace .caws-comp.off .caws-tool:hover::after{left:auto; right:0; transform:none;}
+/* [AX Lab] 수정 끝 */
 
 /* =============================================================================
  * COL3 처리 패널 (편집 버튼 / 인라인 폼)

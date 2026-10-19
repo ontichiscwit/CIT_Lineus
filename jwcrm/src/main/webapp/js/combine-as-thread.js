@@ -95,6 +95,13 @@ var CAWS_CH_KEY = 'caws_compose_height';
 var CAWS_CH_MIN = 110;			/* 탭과 입력영역 일부가 보이는 최소 높이 */
 var CAWS_CH_DETAIL_MIN = 120;	/* 높이 조절 후에도 타임라인에 남겨 둘 최소 높이 */
 /* [AX Lab] 수정 끝 */
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객 답변 한 줄/넓게 모드별 입력창 높이 (CSS 와 같은 값)
+   한 줄 모드에서 3줄을 넘기면 넓게 모드로 자동 전환한다. */
+var CAWS_TA_LINE_MIN = 32;
+var CAWS_TA_LINE_MAX = 72;
+var CAWS_TA_WIDE_MIN = 72;
+var CAWS_TA_WIDE_MAX = 240;
+/* [AX Lab] 수정 끝 */
 
 /* 게시판 종류 카탈로그.
    notice/form.jsp 의 본문 링크 규칙을 그대로 이식했다. (토큰 텍스트 / board_gbn / 상세 URL)
@@ -1256,44 +1263,89 @@ function caws_lbDown(){
  * '처리' 탭(처리상태·담당자·조치메모)은 COL3 처리상태사항의 클릭 팝오버로 이동됐다.
  * (caws_fldOpen('proc_status') / caws_popStatusSave 참고)
  * ========================================================================== */
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객 답변 작성영역 단색 SVG 아이콘 */
+var CAWS_CICO = {
+	ai:     '<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+	board:  '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/>',
+	clip:   '<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9"/>',
+	expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
+	shrink: '<path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/>',
+	info:   '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>'
+};
+function caws_cico(name){
+	return '<svg class="caws-ico" viewBox="0 0 24 24" aria-hidden="true">'+(CAWS_CICO[name] || '')+'</svg>';
+}
+/* [AX Lab] 수정 끝 */
 function caws_renderCompose(){
 	var open = caws_composeOpen();
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객 답변 영역을 한 줄 모드(기본) / 넓게 모드 2단 구조로 변경
+	   - 한 줄 모드(.off) : [고객노출] 입력창 AI·게시물·첨부 ⤢ [등록]
+	   - 넓게 모드        : 헤더(고객 노출 ⓘ ⤡) / 입력창 / 첨부 / 도구 + [답변 등록]
+	   두 모드는 같은 DOM 을 쓰고 CSS 클래스만 바꾼다(작성 중인 글·첨부 보존). */
 	var h = ''
-	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 위쪽 경계를 드래그해 고객 답변 영역 높이 조절 */
 	+ '<div class="caws-cresize" onmousedown="caws_composeResizeStart(event);" ondblclick="caws_composeResizeReset();" '
 	+   'title="드래그: 고객 답변 영역 높이 조절 / 더블클릭: 기본 높이"></div>'
-	/* [AX Lab] 수정 끝 */
-	+ '<div class="caws-ctabs">'
-	+   '<span class="caws-ctab on" style="cursor:default; pointer-events:none;">고객 답변</span>'
-	+   '<span class="caws-cdraft" id="cawsDraftTag">작성 중</span>'
+	+ '<div class="caws-chead">'
+	+   '<span class="caws-cbadge caws-tip-l" data-tip="이 글은 고객에게 그대로 노출됩니다.">고객 노출</span>'
+	+   '<span class="caws-cinfo caws-tip-l" data-tip="등록 시 고객에게 알림이 발송될 수 있습니다." aria-label="등록 시 고객에게 알림이 발송될 수 있습니다.">'+caws_cico('info')+'</span>'
 	+   '<div class="caws-sp"></div>'
-	+   '<button type="button" class="caws-cfold" id="cawsFoldBtn" onclick="caws_toggleCompose();" '
-	+     'title="작성영역을 접으면 그만큼 위쪽 타임라인이 넓어집니다">'
-	+     '<span class="caws-cchev">&#9662;</span><span id="cawsFoldTxt">'+(open ? '접기' : '작성하기')+'</span>'
-	+   '</button>'
+	+   '<button type="button" class="caws-cicon caws-tip-r" id="cawsFoldBtn" onclick="caws_toggleCompose();" '
+	+     'data-tip="한 줄로 줄이기 (작성 내용은 유지됩니다)" aria-label="한 줄로 줄이기">'+caws_cico('shrink')+'</button>'
 	+ '</div>'
 	+ '<div class="caws-cbody">'
-	+   '<div class="caws-cnote ans">이 글은 고객에게 그대로 노출됩니다.</div>'
-	+   '<div class="caws-tools">'
-	+     '<button type="button" class="btn-s" onclick="caws_openAi();" title="작성 중인 문장을 다듬습니다">AI 문장 다듬기</button>'
-	+     '<button type="button" class="btn-s" onclick="caws_openLink();" title="본문에 게시물 링크를 삽입합니다">게시물 링크</button>'
-	/* [AX Lab] 수정 (2026-10-06 AX Lab): 고객 답변 첨부파일 개수 제한 안내 제거 */
-	+     '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다">파일 첨부</button>'
-	+     '<div class="caws-sp"></div>'
-	+   '</div>'
+	+   '<span class="caws-cbadge caws-cbadge-in caws-tip-l" data-tip="이 글은 고객에게 그대로 노출됩니다.">고객노출</span>'
 	+   '<div class="caws-drop" id="cawsDrop">'
-	+     '<textarea class="caws-ta" id="cawsText" oninput="caws_autoGrow(this);" placeholder="고객에게 보낼 답변 내용을 입력하세요. 파일을 이 영역에 끌어다 놓으면 첨부됩니다."></textarea>'
+	+     '<textarea class="caws-ta" id="cawsText" rows="1" oninput="caws_autoGrow(this);" placeholder="'+caws_composePh(open)+'"></textarea>'
 	+   '</div>'
 	+   '<div class="caws-thumbs" id="cawsThumbs"></div>'
 	+   '<div class="caws-cbar">'
-	+     '<span class="caws-chint">등록 시 고객에게 알림이 발송될 수 있습니다.</span>'
-	+     '<button type="button" class="caws-send" onclick="caws_send();">답변 등록</button>'
+	+     '<div class="caws-tools">'
+	+       '<button type="button" class="caws-tool" onclick="caws_openAi();" data-tip="AI 문장 다듬기 – 작성 중인 문장을 다듬습니다" aria-label="AI 문장 다듬기">'
+	+         caws_cico('ai')+'<span class="caws-tlbl">AI 다듬기</span></button>'
+	+       '<button type="button" class="caws-tool" onclick="caws_openLink();" data-tip="게시물 링크 삽입 – 공지·FAQ 등 게시물 링크를 본문에 넣습니다" aria-label="게시물 링크 삽입">'
+	+         caws_cico('board')+'<span class="caws-tlbl">게시물 링크</span></button>'
+	+       '<button type="button" class="caws-tool" onclick="caws_pickFile();" data-tip="파일 첨부 – 클릭하거나 입력창에 끌어다 놓으세요" aria-label="파일 첨부">'
+	+         caws_cico('clip')+'<span class="caws-tlbl">파일 첨부</span><em class="caws-fcnt" id="cawsFileCnt"></em></button>'
+	+     '</div>'
+	+     '<button type="button" class="caws-cicon caws-cexp caws-tip-r" onclick="caws_toggleCompose();" data-tip="넓게 열기" aria-label="넓게 열기">'+caws_cico('expand')+'</button>'
+	+     '<button type="button" class="caws-send" onclick="caws_send();"><span class="caws-sendx">답변 </span>등록</button>'
 	+   '</div>'
 	+ '</div>';
+	/* [AX Lab] 수정 끝 */
+	// [AX Lab] 삭제 (2026-10-19 AX Lab): 탭 줄·노출 안내 줄·도구 줄·안내문구 줄을 위 2단 구조로 통합
+	// var h = ''
+	// + '<div class="caws-ctabs">'
+	// +   '<span class="caws-ctab on" style="cursor:default; pointer-events:none;">고객 답변</span>'
+	// +   '<span class="caws-cdraft" id="cawsDraftTag">작성 중</span>'
+	// +   '<div class="caws-sp"></div>'
+	// +   '<button type="button" class="caws-cfold" id="cawsFoldBtn" onclick="caws_toggleCompose();" '
+	// +     'title="작성영역을 접으면 그만큼 위쪽 타임라인이 넓어집니다">'
+	// +     '<span class="caws-cchev">&#9662;</span><span id="cawsFoldTxt">'+(open ? '접기' : '작성하기')+'</span>'
+	// +   '</button>'
+	// + '</div>'
+	// + '<div class="caws-cbody">'
+	// +   '<div class="caws-cnote ans">이 글은 고객에게 그대로 노출됩니다.</div>'
+	// +   '<div class="caws-tools">'
+	// +     '<button type="button" class="btn-s" onclick="caws_openAi();" title="작성 중인 문장을 다듬습니다">AI 문장 다듬기</button>'
+	// +     '<button type="button" class="btn-s" onclick="caws_openLink();" title="본문에 게시물 링크를 삽입합니다">게시물 링크</button>'
+	// /* [AX Lab] 수정 (2026-10-06 AX Lab): 고객 답변 첨부파일 개수 제한 안내 제거 */
+	// +     '<button type="button" class="btn-s" onclick="caws_pickFile();" title="파일을 선택합니다">파일 첨부</button>'
+	// +     '<div class="caws-sp"></div>'
+	// +   '</div>'
+	// +   '<div class="caws-drop" id="cawsDrop">'
+	// +     '<textarea class="caws-ta" id="cawsText" oninput="caws_autoGrow(this);" placeholder="고객에게 보낼 답변 내용을 입력하세요. 파일을 이 영역에 끌어다 놓으면 첨부됩니다."></textarea>'
+	// +   '</div>'
+	// +   '<div class="caws-thumbs" id="cawsThumbs"></div>'
+	// +   '<div class="caws-cbar">'
+	// +     '<span class="caws-chint">등록 시 고객에게 알림이 발송될 수 있습니다.</span>'
+	// +     '<button type="button" class="caws-send" onclick="caws_send();">답변 등록</button>'
+	// +   '</div>'
+	// + '</div>';
 
 	caws_html('asCompose', h);
 	var comp = caws_el('asCompose');
 	if(comp) comp.classList.toggle('off', !open);
+	caws.cpPinLine = false;		/* [AX Lab] 2026-10-19 새로 그린 빈 입력창은 자동 넓히기 허용 */
 	/* [AX Lab] 수정 시작 (2026-10-14 AX Lab): 저장된 사용자 조절 높이 복원 */
 	caws_composeHeightRestore();
 	/* [AX Lab] 수정 끝 */
@@ -2490,13 +2542,25 @@ function caws_toggleCompose(){
 	var txt = caws_el('cawsFoldTxt');
 	if(txt) txt.innerHTML = open ? '접기' : '작성하기';
 
-	if(open){
-		var ta = caws_el('cawsText');
-		if(ta){ caws_autoGrow(ta); ta.focus(); }
-	}else{
-		caws_syncDraftTag();							/* 접을 때 '작성 중' 표시 갱신 */
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 한 줄/넓게 전환 시 placeholder 와 입력창 높이를 모드에 맞춘다 */
+	/* 사용자가 직접 한 줄로 줄였으면 입력이 길어도 다시 자동으로 넓히지 않는다(내부 스크롤). */
+	caws.cpPinLine = !open;
+	var ta = caws_el('cawsText');
+	if(ta){
+		ta.placeholder = caws_composePh(open);
+		caws_autoGrow(ta);
+		if(open) ta.focus();
 	}
+	if(!open) caws_syncDraftTag();						/* 한 줄로 줄일 때 첨부 개수 표시 갱신 */
+	if(box && atEnd) box.scrollTop = box.scrollHeight;
+	/* [AX Lab] 수정 끝 */
 }
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 모드별 placeholder (한 줄 모드는 좁은 폭에서도 한 줄에 들어가게 짧게) */
+function caws_composePh(open){
+	return open ? '고객에게 보낼 답변 내용을 입력하세요. 파일을 이 영역에 끌어다 놓으면 첨부됩니다.'
+	            : '고객에게 보낼 답변을 입력하세요…';
+}
+/* [AX Lab] 수정 끝 */
 function caws_openCompose(){
 	var comp = caws_el('asCompose');
 	if(comp && comp.classList.contains('off')) caws_toggleCompose();
@@ -2594,10 +2658,30 @@ function caws_syncDraftTag(){
 /* 입력량에 맞춰 textarea 높이를 늘린다. min 52px ~ max 200px (CSS 와 같은 값). */
 function caws_autoGrow(el){
 	if(!el) return;
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 고객 답변 입력창은 모드별 높이 범위를 쓰고,
+	   한 줄 모드에서 3줄을 넘기면 넓게 모드로 자동 전환한다. (다른 textarea 는 기존 52~200px) */
+	var min = 52, max = 200, line = false;
+	if(el.id === 'cawsText'){
+		var comp = caws_el('asCompose');
+		line = !!(comp && comp.classList.contains('off'));
+		min = line ? CAWS_TA_LINE_MIN : CAWS_TA_WIDE_MIN;
+		max = line ? CAWS_TA_LINE_MAX : CAWS_TA_WIDE_MAX;
+	}
 	el.style.height = 'auto';
-	var h = Math.min(200, Math.max(52, el.scrollHeight));
+	if(line && !caws.cpPinLine && el.scrollHeight > max){ caws_openCompose(); return; }	/* caws_toggleCompose 가 다시 autoGrow 한다 */
+	var h = Math.min(max, Math.max(min, el.scrollHeight));
+	/* [AX Lab] 수정 끝 */
 	el.style.height = h + 'px';
 }
+/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 한 줄 모드에서는 첨부 썸네일이 숨으므로 첨부 버튼에 개수를 표시 */
+function caws_syncFileCnt(){
+	var cnt = caws_el('cawsFileCnt');
+	if(!cnt) return;
+	var n = 0, slots = caws_slots();
+	for(var i=0; i<slots.length; i++){ if(slots[i].files && slots[i].files.length) n++; }
+	cnt.innerHTML = n > 0 ? String(n) : '';
+}
+/* [AX Lab] 수정 끝 */
 
 function caws_ctab(t){
 	/* '처리' 요청이 오면 COL3 의 처리상태 팝오버(조치내용 작성)를 연다. */
@@ -2671,7 +2755,12 @@ function caws_newSlot(){
 	var inp = document.createElement('input');
 	inp.type = 'file';
 	inp.name = 'uploadFile' + caws.fileSeq;
-	inp.onchange = caws_renderThumbs;
+	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 파일을 고르면 첨부 칩이 보이도록 넓게 모드로 전환 */
+	inp.onchange = function(){
+		caws_renderThumbs();
+		if(inp.files && inp.files.length) caws_openCompose();
+	};
+	/* [AX Lab] 수정 끝 */
 	box.appendChild(inp);
 	/* [AX Lab] 수정 끝 */
 	return inp;
@@ -2702,6 +2791,7 @@ function caws_addDropFiles(list){
 		}
 	}
 	caws_renderThumbs();
+	if(caws_el('cawsFileCnt') && caws_el('cawsFileCnt').innerHTML !== '') caws_openCompose();	/* [AX Lab] 2026-10-19 첨부 시 넓게 모드 */
 }
 function caws_delFile(name){
 	var slots = caws_slots();
@@ -2738,6 +2828,7 @@ function caws_renderThumbs(){
 	}
 	wrap.innerHTML = s;
 	caws_syncDraftTag();
+	caws_syncFileCnt();		/* [AX Lab] 2026-10-19 한 줄 모드 첨부 개수 */
 }
 
 /* ---- 전송 ---------------------------------------------------------------- */
@@ -2794,7 +2885,8 @@ function caws_afterAnswer(){
 	}
 	/* [AX Lab] 수정 끝 */
 	var ta = caws_el('cawsText');
-	if(ta) ta.value = '';
+	caws.cpPinLine = false;							/* [AX Lab] 2026-10-19 새 답변은 다시 자동 넓히기 허용 */
+	if(ta){ ta.value = ''; caws_autoGrow(ta); }		/* [AX Lab] 2026-10-19 비운 뒤 입력창 높이 원복 */
 	caws_clearFiles();
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 답변 필수 경고 후 작성한 경우 접수처리정보 임시값 유지 */
 	if(caws.batch){
@@ -2905,6 +2997,7 @@ function caws_aiRun(){
 }
 function caws_aiApply(){
 	if(caws_nvl(caws.ai.out,'') === ''){ alert('먼저 [문장 다듬기] 를 실행해주세요.'); return; }
+	caws_openCompose();		/* [AX Lab] 2026-10-19 AI 결과 반영 시 넓게 모드로 보여준다 */
 	var ta = caws_el('cawsText');
 	if(ta){ ta.value = caws.ai.out; caws_autoGrow(ta); ta.focus(); }
 	caws_closeModal('cawsAi');
