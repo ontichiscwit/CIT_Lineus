@@ -1830,6 +1830,17 @@ public class AdAsController {
 			return;
 		}
 		// [AX Lab] 수정 끝
+
+		// [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 문장 다듬기 (고객 답변 작성영역 [AI 문장 다듬기] 모달).
+		//   추천(aiRecommend)과 같은 이유로 신규 URL 대신 getAsInfo.do 의 pageType 분기를 쓴다.
+		//   본문(text)·톤(tone)은 AsVO 에 필드를 추가하지 않고 request 파라미터로 직접 읽는다
+		//   (AsVO 는 운영 중인 등록/수정 로직 전반이 쓰는 모델이라 건드리지 않는다).
+		//   실패(타임아웃·장애)는 result 코드로만 내려가고, 화면은 브라우저 안 기본 규칙으로 조용히 대체한다.
+		if("aiPolish".equals(SsStringUtil.normalizeNull(vo.getPageType()).trim())) {
+			CommonExecute.returnJson(response, combineAsAiService.polish(vo, request.getParameter("text"), request.getParameter("tone")));
+			return;
+		}
+		// [AX Lab] 수정 끝
 		
 		AsVO resultVO = asService.getSelectInfo(vo, "asDAO.getAsInfo") ;
 		

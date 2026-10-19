@@ -22,6 +22,8 @@ CRM(Java, `CombineAsAiClient`) 이 이 서버에 문의 원문을 보내면, 표
 | `combine_morph.py` | **추천 근거(겹친 단어) 표시용 형태소 분석** — Kiwi로 명사 덩어리 추출, 사용자 사전(동의어·화면명). 화면 표시 전용, 미설치 시 규칙 방식 폴백 (2026-10-16) |
 | `combine_wordstats.py` | **칩 형식어 판정 + 재촉 문의 판정** — 색인의 과거 문의에서 단어별 위치·재촉 문의 쏠림을 자동 계산(약 1분, `data/combine_wordstats.json` 캐시). 화면 표시 전용 (2026-10-16) |
 | `combine_synonyms.py` | 질의 도메인 동의어 확장 (현장어 ↔ 시스템어, 예: 산재 지사 → 산재조합/보험거래처코드). **질의에만** 적용, 색인 재생성 불필요 (2026-10-12) |
+<!-- [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 모듈 추가 -->
+| `combine_polish.py` | **AI 문장 다듬기** (2026-10-19) — 고객 답변 작성영역 [AI 문장 다듬기] 가 호출하는 `POST /api/polish`. Ollama `gemma4:26b` 로 정중하게/간결하게/오탈자만 3종 교정. 링크 토큰·URL 보호, 본문 비로깅. CLI 단독 실행 가능 (아래 8장) |
 | `combine_embed_client.py` | Ollama `bge-m3` 임베딩 호출 — 적재와 공용 |
 | `combine_live_index.py` | **색인 준실시간 반영** (2026-10-15) — 백그라운드 스레드가 `data/` 를 30초마다 보고 ① 배치가 새 색인을 배포하면 재기동 없이 다시 읽고 ② `data/combine_live.jsonl` 의 델타(종결 건 upsert/delete) 를 메모리 색인에 반영 |
 | `combine-rerank-server.py` | **AI PC 전용** Cross-Encoder 재정렬 API (`POST /api/rerank`, `GET /health`) |
@@ -148,6 +150,14 @@ LaunchAgent는 `axlab` 로그인 세션이 있어야 뜨므로 Mac 재부팅 후
 <!-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 관련 없는 추천 제외 임계 -->
 | `COMBINE_RERANK_MIN_SCORE` | `-2.0` | 재정렬 원점수(logit)가 이 값 미만인 후보는 추천하지 않음. 재정렬 상위 N 밖 후보도 제외. 아주 낮게(`-99`) 두면 사실상 끔 |
 | `COMBINE_FALLBACK_MIN_SIM` | `0.55` | 재정렬 장애·비활성 시 코사인이 이 값 미만인 후보는 추천하지 않음 |
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 문장 다듬기 설정 -->
+| `COMBINE_POLISH_ENABLED` | `Y` | `N`이면 `/api/polish` 를 503 으로 거절 → CRM 화면은 브라우저 기본 규칙으로 대체 |
+| `COMBINE_POLISH_MODEL` | `gemma4:26b` | 다듬기 LLM. `ollama list` 이름 그대로. 소형(`qwen3`, `gemma3`)은 빠르지만 한국어 격식체 품질 미검증 |
+| `COMBINE_POLISH_TIMEOUT_MS` | `20000` | Ollama 응답 제한. CRM `combine.ai.polish.readTimeoutMs`(25000) 보다 작아야 서버가 먼저 503 으로 답한다 |
+| `COMBINE_POLISH_NUM_PREDICT` | `1500` | 생성 토큰 상한 (폭주 방지) |
+| `COMBINE_POLISH_KEEP_ALIVE` | `30m` | 모델 메모리 유지 시간. 짧으면 매 호출마다 26B 재적재(수 초) |
+| `COMBINE_POLISH_WARMUP` | `Y` | 기동 시 백그라운드 1회 호출로 모델을 미리 올림 |
 <!-- [AX Lab] 수정 끝 -->
 
 ## 4. 데이터 (색인) 갱신
@@ -322,6 +332,11 @@ CRM 화면은 이때 「문의 내용 키워드 · 연관 이력」 블록을 �
 | AI 추천 서버가 설정되지 않았습니다 | 902 | `combine.ai.url` 비어 있음 | properties 확인 |
 | 서버에 AI 추천 모듈이 아직 반영되지 않았습니다 | 900 | CRM Java 가 구버전 (응답에 `result` 없음) | `mvn compile` + WAS 재기동 |
 | 추후 제공 (플레이스홀더) | 901 | `combine.ai.enabled=N` | 의도적 비활성 |
+<!-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 문장 다듬기 장애 -->
+| (다듬기 모달) AI 서버 응답을 받지 못해 (903/904/905) 기본 규칙 결과 | 903~906 | 추천과 동일 원인. 905 는 `/api/polish` 503 — `/health` 의 `polish.last_error` 확인 (Ollama 다운·모델 미설치·`COMBINE_POLISH_ENABLED=N`) | 모델 확인 `ollama list` / `python combine_polish.py --ping` |
+| (다듬기 모달) 기본 규칙 결과 (910) | 910 | 본문 없음·4,000자 초과·톤 값 오류 — CRM 이 호출 전에 거름 | 본문 길이 확인 |
+| (다듬기 모달) 기본 규칙 결과 (900) | 900 | CRM Java 가 구버전 (`pageType=aiPolish` 분기 없음) | `mvn compile` + WAS 재기동 |
+<!-- [AX Lab] 수정 끝 -->
 
 <!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): 재정렬 장애 확인 -->
 `/health`의 `rerank.last_error`가 있고 `circuit_open=true`이면 원격 재정렬 장애입니다. 추천 자체는 기존 하이브리드로 정상 응답합니다.
@@ -335,3 +350,48 @@ CRM 로그: `[AX Lab] AI 추천 호출 as_no=… result=… elapsed=…ms queryL
 - 이 서버만 끄면 CRM 은 903 으로 조용히 실패하고 나머지 기능은 영향 없다.
 - CRM 에서 버튼 자체를 숨기려면 `combine.ai.enabled=N` (재기동 필요).
 <!-- [AX Lab] 수정 (2026-10-15 AX Lab): 재정렬만 끄려면 추천 서버에 `COMBINE_RERANK_ENABLED=N`을 설정하고 재기동한다. -->
+<!-- [AX Lab] 수정 (2026-10-19 AX Lab): 문장 다듬기만 끄려면 CRM `combine.ai.polish.enabled=N`(WAS 재기동) 또는 서버 `COMBINE_POLISH_ENABLED=N`(서버 재기동). 어느 쪽이든 화면은 기본 규칙으로 대체되고 버튼은 유지된다. -->
+
+<!-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 문장 다듬기 -->
+## 8. AI 문장 다듬기 (`POST /api/polish`, 2026-10-19)
+
+고객 답변 작성영역의 [AI 문장 다듬기] 모달이 쓰는 기능입니다. 2026-10-19 이전에는 브라우저 안의 정규식 목업(종결어미 몇 개 치환 + 인사말 삽입)만 있었고,
+이제 같은 추천 서버의 `/api/polish` 가 사내 AI PC 의 Ollama `gemma4:26b`(적재 파이프라인 라벨링에 이미 쓰는 모델)로 실제 교정합니다.
+
+```
+CRM 화면 caws_aiPolish()  →  /ad/as/getAsInfo.do?pageType=aiPolish (text, tone, as_no)
+  →  AdAsController → CombineAsAiServiceImpl.polish → CombineAsAiClient.polish (combine.ai.polish.* 설정)
+  →  이 서버 POST /api/polish  →  combine_polish.polish()  →  Ollama /api/chat (think:false, temperature 0.2)
+```
+
+**계약**
+
+```
+POST /api/polish      X-Api-Key: dev-key
+{"text": "<작성 중인 답변 본문, 최대 4,000자>", "tone": "polite | brief | typo", "as_no": "<로그용>"}
+200 {"result":"000","text":"<다듬은 글>","tone":"polite","model":"gemma4:26b","elapsed_ms":1400,
+     "in_len":58,"out_len":139,"warnings":["link_lost"|"too_long"|"not_shorter"]}
+400 본문 없음·길이 초과·톤 오류 · 401 키 불일치 · 503 {"message":"polish unavailable: <code>"} (Ollama 장애·비활성·빈 결과)
+```
+
+- **톤**: `polite` 격식 존댓말 + 없을 때만 인사/맺음말 · `brief` 군더더기만 줄이고 증상·원인·조치·숫자는 유지 · `typo` 맞춤법·띄어쓰기·문장부호만(문체 유지).
+- **보호 구간**: `공지사항(12345)` 같은 게시물 링크 토큰(`combine-as-thread.js` `CAWS_BOARDS` 의 5종)과 URL 은 LLM 에 보내기 전 `【링크1】`/`【주소1】` 로
+  바꿨다가 결과에서 되돌립니다. 타임라인이 이 토큰을 정규식으로 링크화하므로 한 글자만 바뀌어도 링크가 사라지기 때문입니다. 되돌리지 못하면 `warnings: link_lost`.
+- **프롬프트 주입 방어**: 사용자 메시지는 "원문 그 자체"로 못 박아, 원문에 "위 지시를 무시하고 …" 같은 문장이 있어도 답하지 않고 다듬기만 합니다(실측: 해당 줄은 결과에서 빠짐).
+- **멱등성**: 이미 인사말/맺음말이 있으면 다시 넣지 않도록 지시. 교체 후 같은 톤으로 다시 돌려도 거의 그대로입니다(실측 샘플 2).
+- **로그 위생**: 본문은 서버·CRM 어디에도 남기지 않습니다. `polish ok as_no=… tone=… len=58->139 1425ms` 처럼 길이·톤·소요시간만.
+- **실측** (2026-10-19, M3 Ultra, gemma4:26b, 60~210자 본문): 0.9~2.6초. 모델이 내려간 상태의 첫 호출은 적재 3초가 더 걸리므로 기동 시 워밍업합니다.
+- **CRM 화면**: 결과는 원문과 단어 단위로 비교해 지워진 말(빨간 줄)·새 말(초록 바탕)을 표시하고, [이 문장으로 교체] 뒤 툴바 [다듬기 취소] 로 1회 되돌릴 수 있습니다.
+  서버 실패 시 모달 배지가 「기본 규칙」으로 바뀌고 예전 정규식 결과를 보여 줍니다(기능이 사라지지 않음).
+- **CRM Java 3개 파일(`CombineAsAiClient`·`CombineAsAiService(Impl)`·`AdAsController`) 재컴파일·WAS 재기동이 필요**합니다. 그 전에는 화면이 900 코드와 함께 기본 규칙으로 동작합니다.
+
+**품질 확인 (CRM 없이)**
+
+```
+combine-ai-server\.venv\Scripts\python.exe combine_polish.py --ping
+combine-ai-server\.venv\Scripts\python.exe combine_polish.py --all "문의하신 건 확인했어요. 캐시 좀 지우고 다시 로그인 해줘. 공지사항(12345) 참고"
+combine-ai-server\.venv\Scripts\python.exe combine_polish.py --tone brief --file sample.txt
+```
+
+프롬프트는 `combine_polish.py` 의 `_SYSTEM_COMMON` / `_SYSTEM_TONE` 에 있습니다. 바꾼 뒤에는 서버만 재기동하면 됩니다(색인 무관).
+<!-- [AX Lab] 수정 끝 -->
