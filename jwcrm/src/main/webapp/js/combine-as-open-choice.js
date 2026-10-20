@@ -7,6 +7,39 @@
 	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 평소 즉시 전환, 미저장 변경만 보호하고 브라우저 뒤로가기로 이전 AS 복원 */
 	var historyReady = false;
 	var historyIndex = 0;
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 미저장 항목 위치 안내 및 포커스 복원 */
+	var dirtyFocusItem = null;
+	var recordFieldInfo = {
+		accept_route:{ label:'접수정보 > 접수경로', acc:'accept' },
+		rl_apply_nm:{ label:'접수정보 > A/S신청자 이름', acc:'accept' },
+		apply_tel:{ label:'접수정보 > A/S신청자 연락처', acc:'accept' },
+		send_sms:{ label:'접수정보 > SMS수신동의여부', acc:'accept' },
+		request_type:{ label:'접수정보 > 문의유형', acc:'accept' },
+		service_cate:{ label:'접수정보 > 시스템유형', acc:'accept', editKey:'systype' },
+		inquiry_type:{ label:'접수정보 > 시스템유형', acc:'accept', editKey:'systype' },
+		version_info:{ label:'접수정보 > 버전정보', acc:'accept' },
+		proc_status:{ label:'처리상태사항 > 현재 처리상태', acc:'proc' },
+		assign_id:{ label:'처리상태사항 > 처리담당자', acc:'proc', editKey:'assign' },
+		inportance:{ label:'처리상태사항 > 중요도', acc:'proc' },
+		tel_confirm:{ label:'처리상태사항 > 전화확인', acc:'proc' },
+		tel_absence:{ label:'처리상태사항 > 전화부재중', acc:'proc' },
+		tel_absence_cnt:{ label:'처리상태사항 > 전화부재중 횟수', acc:'proc' },
+		proc_dt:{ label:'처리완료사항 > 처리예정일자', acc:'done' },
+		proc_time:{ label:'처리완료사항 > 예정시각', acc:'done' },
+		cause_type:{ label:'처리완료사항 > 원인유형', acc:'done' },
+		action_type:{ label:'처리완료사항 > 조치유형', acc:'done' },
+		work_time:{ label:'처리완료사항 > 작업시간', acc:'done' },
+		complete_dt:{ label:'처리완료사항 > 처리완료일', acc:'done' },
+		proc_gubun:{ label:'처리완료 상세 > 처리구분', acc:'donedt' },
+		proc_build_info:{ label:'처리완료 상세 > 빌드순번', acc:'donedt' },
+		proc_test_info:{ label:'처리완료 상세 > 개발처리서', acc:'donedt' },
+		proc_process_sp:{ label:'처리완료 상세 > 프로세스 정의서', acc:'donedt' },
+		proc_screen_sp:{ label:'처리완료 상세 > 화면 정의서', acc:'donedt' },
+		proc_table_sp:{ label:'처리완료 상세 > 테이블 정의서', acc:'donedt' },
+		proc_function_sp:{ label:'처리완료 상세 > 기능분해도', acc:'donedt' },
+		proc_interface_sp:{ label:'처리완료 상세 > 인터페이스 정의서', acc:'donedt' }
+	};
+	/* [AX Lab] 수정 끝 */
 
 	function currentSelection(){
 		return {
@@ -15,18 +48,23 @@
 		};
 	}
 
-	function liveRecordChanged(){
-		if(typeof caws === 'undefined' || !caws || !caws.fld) return false;
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): boolean 대신 변경 필드 위치를 반환 */
+	function liveRecordChange(){
+		if(typeof caws === 'undefined' || !caws || !caws.fld) return null;
 		var key = String(caws.fld);
 		var vo = caws.vo || {};
 		if(key === 'systype'){
 			var cate = document.getElementById('cawsFldCate');
 			var sub = document.getElementById('cawsFldSub');
-			return String(cate ? cate.value : '') !== String(vo.service_cate || '')
-				|| String(sub ? sub.value : '') !== String(vo.inquiry_type || '');
+			if(String(cate ? cate.value : '') !== String(vo.service_cate || '')
+			   || String(sub ? sub.value : '') !== String(vo.inquiry_type || '')){
+				return { id:'record-systype', kind:'record', key:'systype', live:true,
+					label:'접수정보 > 시스템유형', acc:'accept', elementId:'cawsFldCate' };
+			}
+			return null;
 		}
 		var el = document.getElementById('cawsFldIn');
-		if(!el) return false;
+		if(!el) return null;
 		var field = (key === 'assign') ? 'assign_id' : key;
 		var live = String(el.value || '').trim();
 		var saved = String(vo[field] || '');
@@ -34,52 +72,188 @@
 			live = live.replace(/[^0-9]/g,'');
 			saved = saved.replace(/[^0-9]/g,'');
 		}
-		return live !== saved;
+		if(live === saved) return null;
+		var info = recordFieldInfo[field] || { label:'접수·처리 정보', acc:'' };
+		return { id:'record-'+field, kind:'record', key:key, live:true,
+			label:info.label, acc:info.acc, elementId:'cawsFldIn' };
 	}
+	/* [AX Lab] 수정 끝 */
 
 	function dirtyState(){
-		var state = { answer:false, record:false };
+		/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 미저장 종류와 실제 위치를 함께 수집 */
+		var state = { answer:false, inquiry:false, history:false, historySeq:'', record:false, items:[] };
+		var seen = {};
+		function add(item){
+			if(!item || seen[item.id]) return;
+			seen[item.id] = true;
+			state.items.push(item);
+		}
+
+		/* 현재 열려 있는 편집창을 우선해 가장 먼저 그 위치로 돌아가게 한다. */
+		var inquiry = document.getElementById('cawsQTa');
+		if(inquiry){
+			var inquiryChanged = String(inquiry.value || '').trim()
+				!== String((typeof caws !== 'undefined' && caws && caws.vo) ? (caws.vo.call_content || '') : '').trim();
+			var deleted = document.querySelector('#cawsQBody .caws-qdel:checked');
+			var inquiryFiles = document.querySelectorAll('#cawsQNewFiles input[type=file]');
+			for(var qf=0; qf<inquiryFiles.length; qf++){
+				if(inquiryFiles[qf].files && inquiryFiles[qf].files.length){ inquiryChanged = true; break; }
+			}
+			if(deleted || inquiryChanged){
+				state.inquiry = true;
+				add({ id:'inquiry', kind:'inquiry', label:'상세내용 > 문의내용', elementId:'cawsQTa' });
+			}
+		}
+
+		var hist = document.getElementById('cawsHistEditTa');
+		if(hist && !hist.disabled){
+			var histBtn = document.querySelector('#cawsHistEditModal [onclick*="caws_histEditSave"]');
+			var histCall = histBtn ? String(histBtn.getAttribute('onclick') || '') : '';
+			var histMatch = /caws_histEditSave\('([^']+)'\)/.exec(histCall);
+			var histSeq = histMatch ? histMatch[1] : '';
+			var histEvent = (histSeq !== '' && typeof caws_histEvent === 'function') ? caws_histEvent(histSeq) : null;
+			if(!histEvent || String(hist.value || '').trim() !== String(histEvent.text || '').trim()){
+				state.history = true;
+				state.historySeq = histSeq;
+				add({ id:'history', kind:'history', label:'상세내용 > 작업처리 의견', elementId:'cawsHistEditTa', seq:histSeq });
+			}
+		}
+
+		var liveChange = liveRecordChange();
+		if(liveChange){ state.record = true; add(liveChange); }
+
 		var answer = document.getElementById('cawsText');
-		if(answer && String(answer.value || '').replace(/\s/g, '') !== '') state.answer = true;
+		if(answer && String(answer.value || '').replace(/\s/g, '') !== ''){
+			state.answer = true;
+			add({ id:'answer', kind:'answer', label:'상세내용 > 고객 답변', elementId:'cawsText' });
+		}
 
 		if(typeof caws_slots === 'function'){
 			var slots = caws_slots();
 			for(var i=0; i<slots.length; i++){
-				if(slots[i].files && slots[i].files.length){ state.answer = true; break; }
+				if(slots[i].files && slots[i].files.length){
+					state.answer = true;
+					add({ id:'answer', kind:'answer', label:'상세내용 > 고객 답변 첨부파일', elementId:'cawsText' });
+					break;
+				}
 			}
 		}
 
-		/* 접수·처리 정보의 전체 편집 필드, 조치이력, 첨부 변경을 기존 비교 함수로 한 번에 확인한다. */
 		if(typeof caws !== 'undefined' && caws && caws.batch
 		   && typeof caws_batchHasChanges === 'function'){
-			try{ state.record = caws_batchHasChanges(); }catch(e){}
+			try{
+				if(typeof CAWS_BATCH_FIELDS !== 'undefined' && typeof caws_batchChanged === 'function'){
+					for(var bi=0; bi<CAWS_BATCH_FIELDS.length; bi++){
+						var field = CAWS_BATCH_FIELDS[bi];
+						if(!caws_batchChanged(field)) continue;
+						state.record = true;
+						var info = recordFieldInfo[field] || { label:'접수·처리 정보', acc:'' };
+						add({ id:'record-'+(info.editKey || field), kind:'record', key:(info.editKey || field),
+							label:info.label, acc:info.acc });
+					}
+				}
+				if(String(caws.batchMemo || '').trim() !== ''){
+					state.record = true;
+					add({ id:'record-memo', kind:'record', label:'처리상태사항 > 조치이력',
+						acc:'proc', elementId:'cawsBatchMemo' });
+				}
+				if(caws.batchFiles && caws.batchFiles.length){
+					state.record = true;
+					add({ id:'record-files', kind:'record', label:'처리상태사항 > 조치이력 첨부파일',
+						acc:'proc', selector:'.caws-batchfiles-head button' });
+				}
+				if(caws_batchHasChanges()) state.record = true;
+			}catch(e){}
 		}
-		/* 날짜를 아직 완성하지 않은 상태처럼 vo에 반영되기 전인 현재 입력값도 놓치지 않는다. */
-		if(!state.record) state.record = liveRecordChanged();
+		if(state.record){
+			var hasRecordItem = false;
+			for(var ri=0; ri<state.items.length; ri++){
+				if(state.items[ri].kind === 'record'){ hasRecordItem = true; break; }
+			}
+			if(!hasRecordItem) add({ id:'record', kind:'record', label:'접수·처리 정보', elementId:'asRecord' });
+		}
+		/* [AX Lab] 수정 끝 */
 		return state;
 	}
 
 	function hasUnsavedChanges(){
 		var state = dirtyState();
-		return state.answer || state.record;
+		return state.answer || state.inquiry || state.history || state.record;
 	}
 
-	function closeModal(){
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 경고 닫기 후 미저장 위치로 이동·강조 */
+	function closeModal(skipRestore){
 		if(!modal) return;
 		document.removeEventListener('keydown', onKeyDown);
 		if(modal.parentNode) modal.parentNode.removeChild(modal);
 		modal = null;
-		if(previousFocus && typeof previousFocus.focus === 'function'){
+		if(!skipRestore && previousFocus && typeof previousFocus.focus === 'function'){
 			try{ previousFocus.focus(); }catch(e){}
 		}
 		previousFocus = null;
 	}
 
+	function openAccordion(key){
+		if(!key) return;
+		var acc = document.getElementById('cawsAcc_'+key);
+		if(acc && acc.classList.contains('off') && typeof caws_accToggle === 'function') caws_accToggle(key);
+	}
+
+	function highlightAndFocus(el){
+		if(!el) return;
+		var target = el;
+		if(el.closest){
+			target = el.closest('.kv, .caws-batchmemo-wrap, .caws-compose, .caws-btxt, .caws-modal') || el;
+		}
+		target.classList.add('asoc-focus-target');
+		try{ target.scrollIntoView({ behavior:'smooth', block:'center' }); }
+		catch(e){ try{ target.scrollIntoView(false); }catch(ignore){} }
+		setTimeout(function(){
+			try{ el.focus(); }catch(e){}
+			target.classList.add('asoc-focus-pulse');
+		}, 180);
+		setTimeout(function(){
+			target.classList.remove('asoc-focus-target');
+			target.classList.remove('asoc-focus-pulse');
+		}, 2600);
+	}
+
+	function focusDirty(item){
+		if(!item) return;
+		openAccordion(item.acc);
+		if(item.kind === 'answer' && typeof caws_openCompose === 'function') caws_openCompose();
+
+		/* 확정된 접수·처리 필드는 편집창을 다시 열어 실제 입력 컨트롤에 포커스한다. */
+		if(item.kind === 'record' && item.key && !item.live && typeof caws_fldOpen === 'function'){
+			try{ caws_fldOpen(item.key); }catch(e){}
+			setTimeout(function(){
+				var opened = document.getElementById('cawsFldIn')
+					|| document.getElementById('cawsFldCate')
+					|| document.querySelector('#cawsAcc_'+item.acc+' .caws-fe');
+				highlightAndFocus(opened);
+			}, 30);
+			return;
+		}
+
+		var el = item.elementId ? document.getElementById(item.elementId) : null;
+		if(!el && item.selector) el = document.querySelector(item.selector);
+		if(!el && item.acc) el = document.getElementById('cawsAcc_'+item.acc);
+		highlightAndFocus(el);
+	}
+
+	function goToDirty(){
+		var item = dirtyFocusItem;
+		closeModal(true);
+		dirtyFocusItem = null;
+		setTimeout(function(){ focusDirty(item); }, 20);
+	}
+	/* [AX Lab] 수정 끝 */
+
 	function onKeyDown(e){
 		if(!modal) return;
 		if(e.key === 'Escape' || e.keyCode === 27){
 			e.preventDefault();
-			closeModal();
+			goToDirty();
 		}
 	}
 
@@ -148,11 +322,16 @@
 
 	function saveDirty(){
 		var state = dirtyState();
-		if(!state.answer && !state.record){ closeModal(); return; }
+		if(!state.answer && !state.inquiry && !state.history && !state.record){ closeModal(); return; }
 
 		/* 저장 함수의 자체 검증 메시지와 입력 포커스가 가려지지 않도록 선택창부터 닫는다.
 		   답변과 접수처리정보가 모두 변경됐으면 서로 다른 기존 저장 API를 각각 호출한다. */
-		closeModal();
+		closeModal(true);
+		dirtyFocusItem = null;
+		/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 문의내용·조치이력 편집도 경고창 저장 대상에 포함 */
+		if(state.inquiry && typeof caws_qSave === 'function') caws_qSave();
+		if(state.history && state.historySeq !== '' && typeof caws_histEditSave === 'function') caws_histEditSave(state.historySeq);
+		/* [AX Lab] 수정 끝 */
 		if(state.answer && typeof caws_send === 'function') caws_send();
 		if(state.record && typeof caws_batchSave === 'function') caws_batchSave();
 	}
@@ -162,6 +341,13 @@
 		var workspace = document.getElementById('asWorkspace');
 		if(!workspace) return;
 
+		var state = dirtyState();
+		dirtyFocusItem = state.items.length ? state.items[0] : null;
+		var names = [];
+		for(var i=0; i<state.items.length && i<3; i++) names.push(state.items[i].label);
+		var locationText = names.join(', ');
+		if(state.items.length > 3) locationText += ' 외 '+(state.items.length-3)+'곳';
+
 		previousFocus = document.activeElement;
 		modal = document.createElement('div');
 		modal.className = 'asoc-backdrop';
@@ -169,17 +355,20 @@
 		modal.innerHTML = ''
 			+ '<div class="asoc-dialog" role="dialog" aria-modal="true" aria-labelledby="asocTitle" aria-describedby="asocMessage">'
 			+   '<h3 class="asoc-title" id="asocTitle">저장하지 않은 내용이 있습니다.</h3>'
-			+   '<p class="asoc-message" id="asocMessage">변경한 내용을 저장하거나 취소한 후 다시 선택해 주세요.</p>'
+			+   '<p class="asoc-message" id="asocMessage">변경한 내용을 저장하거나 수정 위치로 돌아간 후 다시 선택해 주세요.</p>'
+			+   (locationText ? '<div class="asoc-location"><strong>미저장 위치</strong><span></span></div>' : '')
 			+   '<div class="asoc-actions">'
-			+     '<button type="button" data-asoc="cancel">취소</button>'
+			+     '<button type="button" data-asoc="cancel">수정 위치로 이동</button>'
 			+     '<button type="button" class="asoc-current" data-asoc="save">저장</button>'
 			+   '</div>'
 			+ '</div>';
+		var location = modal.querySelector('.asoc-location span');
+		if(location) location.textContent = locationText;
 
 		modal.addEventListener('click', function(e){
-			if(e.target === modal){ closeModal(); return; }
+			if(e.target === modal){ goToDirty(); return; }
 			var action = e.target.getAttribute ? e.target.getAttribute('data-asoc') : '';
-			if(action === 'cancel') closeModal();
+			if(action === 'cancel') goToDirty();
 			else if(action === 'save') saveDirty();
 		});
 		workspace.appendChild(modal);

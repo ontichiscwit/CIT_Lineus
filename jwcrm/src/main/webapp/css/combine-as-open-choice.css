@@ -73,6 +73,45 @@
 	outline: 2px solid #74aee2;
 	outline-offset: 2px;
 }
+
+/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 미저장 위치 안내 및 복귀 위치 강조 */
+#asWorkspace .asoc-location {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-top: 12px;
+	padding: 10px 12px;
+	border: 1px solid #f0c36d;
+	border-radius: 6px;
+	background: #fff8e1;
+	color: #6d4c00;
+	line-height: 1.45;
+}
+
+#asWorkspace .asoc-location strong {
+	font-size: 12px;
+}
+
+#asWorkspace .asoc-location span {
+	font-weight: 600;
+	word-break: keep-all;
+}
+
+#asWorkspace .asoc-actions [data-asoc="cancel"] {
+	min-width: 132px;
+}
+
+#asWorkspace .asoc-focus-target {
+	border-radius: 5px;
+	box-shadow: 0 0 0 3px rgba(255, 179, 0, .45);
+	transition: box-shadow .2s ease, background-color .2s ease;
+}
+
+#asWorkspace .asoc-focus-target.asoc-focus-pulse {
+	background-color: #fff8d8;
+	box-shadow: 0 0 0 4px rgba(255, 143, 0, .72);
+}
+/* [AX Lab] 수정 끝 */
 /* [AX Lab] 신규 파일 (2026-10-16 AX Lab): AS 목록에서 다른 접수건 선택 시 열기 방식 선택 */
 #asWorkspace .asoc-backdrop {
 	position: fixed;
