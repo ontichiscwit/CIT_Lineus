@@ -1496,7 +1496,9 @@
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): KPI 카드별 A/S 목록 팝업 스타일 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-kpi-popup.css?v=20261019-1" />
+<%-- [AX Lab] 수정 시작 (2026-10-20 AX Lab): KPI 상세 목록 컬럼 정렬 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-kpi-popup.css?v=20261020-1" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): AS 목록의 현재 페이지를 굵게 강조 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-pagination.css" />
@@ -1511,7 +1513,9 @@
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): KPI 카드 클릭 목록 팝업 + 처리상태 칩 색상 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-kpi-popup.js?v=20261019-2"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-20 AX Lab): KPI 상세 목록 컬럼 정렬 스크립트 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-kpi-popup.js?v=20261020-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-20 AX Lab): 미저장 위치 안내·포커스 기능 캐시 갱신 --%>

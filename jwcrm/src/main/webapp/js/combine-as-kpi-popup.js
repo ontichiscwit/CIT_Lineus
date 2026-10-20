@@ -12,6 +12,19 @@
 	};
 	var akpXhr = null;
 	var akpType = '';
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): KPI 상세 목록 컬럼 클릭 정렬 상태/정의 */
+	var akpRows = [];
+	var akpSort = { key:'', direction:'' };
+	var AKP_COLUMNS = [
+		{ key:'AS_NO',         label:'접수번호',    type:'text' },
+		{ key:'PROC_STATUS_NM',label:'처리상태',    type:'text' },
+		{ key:'CUST_KOR_NAME', label:'거래처명',    type:'text' },
+		{ key:'CALL_CONTENT',  label:'요청사항',    type:'text' },
+		{ key:'ACCEPT_DT',     label:'접수일',      type:'date' },
+		{ key:'TARGET_DT',     label:'예정·완료일', type:'date' },
+		{ key:'EMP_NM',        label:'담당자',      type:'text' }
+	];
+	/* [AX Lab] 수정 끝 */
 
 	function akpEsc(value){
 		if(typeof window.asws_esc === 'function') return window.asws_esc(value == null ? '' : String(value));
@@ -48,6 +61,19 @@
 			if(typeof window.asoc_selectFromList === 'function') window.asoc_selectFromList(asNo, cnAsNo);
 			else if(typeof window.asws_openDetail === 'function') window.asws_openDetail(asNo, cnAsNo);
 		});
+		/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 같은 컬럼은 오름차순/내림차순을 번갈아 적용 */
+		$('#akpBody').on('click', '.akp-sort-button', function(){
+			var key = String($(this).attr('data-sort-key') || '');
+			if(!key) return;
+			if(akpSort.key === key){
+				akpSort.direction = akpSort.direction === 'asc' ? 'desc' : 'asc';
+			}else{
+				akpSort.key = key;
+				akpSort.direction = 'asc';
+			}
+			akpRender();
+		});
+		/* [AX Lab] 수정 끝 */
 	}
 
 	function akpClose(){
@@ -59,8 +85,56 @@
 		$(document).off('keydown.akp');
 	}
 
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 문자/날짜 컬럼 정렬, 빈 값은 방향과 무관하게 마지막에 배치 */
+	function akpSortValue(row, key){
+		if(key === 'TARGET_DT'){
+			return akpType === 'DONE_TODAY' ? akpVal(row, 'COMPLETE_DT') : akpVal(row, 'PROC_DT');
+		}
+		return akpVal(row, key);
+	}
+
+	function akpSortedRows(){
+		if(!akpSort.key || !akpSort.direction) return akpRows.slice(0);
+		var type = 'text';
+		for(var c=0; c<AKP_COLUMNS.length; c++){
+			if(AKP_COLUMNS[c].key === akpSort.key){
+				type = AKP_COLUMNS[c].type;
+				break;
+			}
+		}
+		var wrapped = [];
+		for(var i=0; i<akpRows.length; i++) wrapped.push({ row:akpRows[i], index:i });
+		wrapped.sort(function(a, b){
+			var av = $.trim(akpSortValue(a.row, akpSort.key));
+			var bv = $.trim(akpSortValue(b.row, akpSort.key));
+			var aEmpty = av === '' || av === '-';
+			var bEmpty = bv === '' || bv === '-';
+			if(aEmpty || bEmpty){
+				if(aEmpty && bEmpty) return a.index - b.index;
+				return aEmpty ? 1 : -1;
+			}
+			if(type === 'date'){
+				av = av.replace(/[^0-9]/g, '');
+				bv = bv.replace(/[^0-9]/g, '');
+			}else{
+				av = av.toLowerCase();
+				bv = bv.toLowerCase();
+			}
+			var result = av < bv ? -1 : (av > bv ? 1 : 0);
+			if(result === 0) return a.index - b.index;
+			return akpSort.direction === 'desc' ? -result : result;
+		});
+		var sorted = [];
+		for(var j=0; j<wrapped.length; j++) sorted.push(wrapped[j].row);
+		return sorted;
+	}
+	/* [AX Lab] 수정 끝 */
+
 	function akpRender(rows){
-		rows = $.isArray(rows) ? rows : [];
+		/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 최초 응답은 보관하고 헤더 클릭 때 정렬된 복사본만 렌더링 */
+		if($.isArray(rows)) akpRows = rows.slice(0);
+		rows = akpSortedRows();
+		/* [AX Lab] 수정 끝 */
 		$('#akpCount').text(rows.length + '건');
 		if(!rows.length){
 			$('#akpBody').html('<div class="akp-empty">해당하는 A/S가 없습니다.</div>');
@@ -71,8 +145,20 @@
 			+ '<table class="akp-table">'
 			+ '<colgroup><col style="width:112px"><col style="width:82px"><col style="width:145px">'
 			+ '<col><col style="width:88px"><col style="width:102px"><col style="width:76px"></colgroup>'
-			+ '<thead><tr><th>접수번호</th><th>처리상태</th><th>거래처명</th><th>요청사항</th>'
-			+ '<th>접수일</th><th>예정·완료일</th><th>담당자</th></tr></thead><tbody>';
+			+ '<thead><tr>';
+		/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 접근 가능한 정렬 버튼과 현재 방향 표시 */
+		for(var h=0; h<AKP_COLUMNS.length; h++){
+			var column = AKP_COLUMNS[h];
+			var active = akpSort.key === column.key;
+			var ariaSort = active ? (akpSort.direction === 'desc' ? 'descending' : 'ascending') : 'none';
+			var indicator = active ? (akpSort.direction === 'desc' ? '&#9660;' : '&#9650;') : '&#8645;';
+			html += '<th aria-sort="'+ariaSort+'"><button type="button" class="akp-sort-button'
+				+ (active ? ' is-active' : '') + '" data-sort-key="'+akpEsc(column.key)
+				+ '" title="'+akpEsc(column.label)+' 정렬">'+akpEsc(column.label)
+				+ '<span class="akp-sort-indicator" aria-hidden="true">'+indicator+'</span></button></th>';
+		}
+		html += '</tr></thead><tbody>';
+		/* [AX Lab] 수정 끝 */
 
 		for(var i=0; i<rows.length; i++){
 			var row = rows[i];
@@ -102,6 +188,10 @@
 	function akpOpen(config){
 		akpMount();
 		akpType = config.type;
+		/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): KPI 팝업을 새로 열 때 서버 기본 정렬(접수번호 내림차순)로 초기화 */
+		akpRows = [];
+		akpSort = { key:'', direction:'' };
+		/* [AX Lab] 수정 끝 */
 		$('#akpTitle').text('나의 A/S - ' + config.title);
 		$('#akpCount').text('');
 		$('#akpBody').html('<div class="akp-loading">목록을 불러오는 중입니다.</div>');
