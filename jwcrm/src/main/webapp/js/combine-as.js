@@ -86,6 +86,17 @@ function asws_initKpiCollapse(){
 /* ===== 목록 행 클릭 -> 상세/처리정보 로드 ===== */
 function asws_openDetail(asNo, cnAsNo){
 	if(asws_nvl(asNo,'')=='') return;
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 목록 넓게 보기에서 AS 선택 시 3분할 상세 화면 복원
+	   실제 상세 조회가 시작될 때 목록 전체폭 모드를 해제하고, 접수·처리 정보가 접혀 있으면 함께 펼친다. */
+	var detailGrid = document.getElementById('asGrid');
+	if(detailGrid && detailGrid.classList.contains('list-wide')){
+		detailGrid.classList.remove('list-wide');
+		var recordCol = document.getElementById('col-c3');
+		if(recordCol && recordCol.classList.contains('is-collapsed')) asws_toggleCol('c3');
+		if(typeof asws_syncListWideBtn === 'function') asws_syncListWideBtn(false);
+		try{ sessionStorage.setItem('asws_list_wide', 'N'); }catch(e){}
+	}
+	/* [AX Lab] 수정 끝 */
 	asws.asNo = asNo;
 	asws.cnAsNo = asws_nvl(cnAsNo,'');
 	asws.curRow = asws.rowMap[asNo] || null;
