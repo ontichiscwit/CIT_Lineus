@@ -527,8 +527,13 @@ function caws_renderHead(){
 	+ '</div>'
 	+ '<div class="caws-hinfo">'
 	+   caws_headInfo('신청자', applyNm)
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 신청자 연락처 클립보드 복사 버튼 추가 */
 	+   '<div class="caws-hi caws-hi-contact"><span>신청자 연락처 · 수신동의</span><b>'+caws_esc(applyTel)
+	+     (applyTel !== '-' ? '<button type="button" class="caws-copy-tel" data-tel="'+caws_esc(applyTel)
+	+       '" data-copy-message="복사 완료" onclick="caws_copyApplyTel(this);" title="신청자 연락처 복사" aria-label="신청자 연락처 복사">'
+	+       caws_cico('copy')+'</button>' : '')
 	+     ' <em class="caws-sms '+(smsYn === 'Y' ? 'on' : '')+'">'+caws_esc(smsTxt)+'</em></b></div>'
+	/* [AX Lab] 수정 끝 */
 	+   caws_headInfo('문의유형', reqTypeNm)
 	+   caws_headInfo('시스템구분', sysType)
 	+   caws_headInfo('처리예정일', procDt)
@@ -549,6 +554,47 @@ function caws_renderHead(){
 /* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 헤더 요약정보 셀 공통 렌더 */
 function caws_headInfo(label, value){
 	return '<div class="caws-hi"><span>'+caws_esc(label)+'</span><b title="'+caws_esc(value)+'">'+caws_esc(value)+'</b></div>';
+}
+/* [AX Lab] 수정 끝 */
+
+/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 신청자 연락처 클립보드 복사 및 구형 브라우저 대체 처리 */
+function caws_copyApplyTel(btn){
+	var tel = btn ? caws_nvl(btn.getAttribute('data-tel'),'') : '';
+	if(tel === '' || tel === '-') return;
+
+	function copied(){
+		if(!btn) return;
+		if(btn._cawsCopyTimer) clearTimeout(btn._cawsCopyTimer);
+		btn.classList.add('copied');
+		btn.setAttribute('aria-label','신청자 연락처 복사 완료');
+		btn._cawsCopyTimer = setTimeout(function(){
+			btn.classList.remove('copied');
+			btn.setAttribute('aria-label','신청자 연락처 복사');
+		}, 600);
+	}
+
+	function legacyCopy(){
+		var ta = document.createElement('textarea');
+		ta.value = tel;
+		ta.setAttribute('readonly','readonly');
+		ta.style.position = 'fixed';
+		ta.style.left = '-9999px';
+		document.body.appendChild(ta);
+		ta.select();
+		try{
+			if(document.execCommand('copy')) copied();
+			else alert('연락처를 복사하지 못했습니다.');
+		}catch(e){
+			alert('연락처를 복사하지 못했습니다.');
+		}
+		document.body.removeChild(ta);
+	}
+
+	if(navigator.clipboard && window.isSecureContext){
+		navigator.clipboard.writeText(tel).then(copied, legacyCopy);
+	}else{
+		legacyCopy();
+	}
 }
 /* [AX Lab] 수정 끝 */
 
@@ -1290,6 +1336,9 @@ var CAWS_CICO = {
 	/* [AX Lab] 수정 끝 */
 	board:  '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/>',
 	clip:   '<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9"/>',
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 연락처 복사 아이콘 */
+	copy:   '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+	/* [AX Lab] 수정 끝 */
 	expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
 	shrink: '<path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/>',
 	info:   '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>'

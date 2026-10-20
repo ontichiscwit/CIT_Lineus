@@ -53,6 +53,40 @@
   display:block; overflow:hidden; color:var(--ink); font-size:11.5px; font-weight:700;
   text-overflow:ellipsis; white-space:nowrap;
 }
+/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 신청자 연락처 복사 아이콘 버튼 */
+#asWorkspace .caws-hi-contact > b{overflow:visible;}
+#asWorkspace .caws-copy-tel{
+  position:relative; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
+  margin-left:2px; padding:2px; border:0; border-radius:4px; background:transparent;
+  color:var(--ink-3); vertical-align:-4px; cursor:pointer;
+}
+#asWorkspace .caws-copy-tel:hover,
+#asWorkspace .caws-copy-tel:focus{background:var(--surface-1); color:var(--accent); outline:none;}
+#asWorkspace .caws-copy-tel .caws-ico{
+  width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+#asWorkspace .caws-copy-tel::before,
+#asWorkspace .caws-copy-tel::after{
+  position:absolute; left:50%; z-index:20; pointer-events:none;
+  opacity:0; visibility:hidden; transition:opacity .12s ease, transform .12s ease;
+}
+#asWorkspace .caws-copy-tel::before{
+  content:""; bottom:calc(100% + 2px); margin-left:-4px;
+  border:4px solid transparent; border-top-color:#31363F;
+  transform:translateY(2px);
+}
+#asWorkspace .caws-copy-tel::after{
+  content:attr(data-copy-message); bottom:calc(100% + 10px);
+  padding:4px 7px; border-radius:4px; background:#31363F; color:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.16); font-size:10px; font-weight:600;
+  line-height:1.2; white-space:nowrap; transform:translate(-50%,2px);
+}
+#asWorkspace .caws-copy-tel.copied::before,
+#asWorkspace .caws-copy-tel.copied::after{opacity:1; visibility:visible;}
+#asWorkspace .caws-copy-tel.copied::before{transform:translateY(0);}
+#asWorkspace .caws-copy-tel.copied::after{transform:translate(-50%,0);}
+/* [AX Lab] 수정 끝 */
 #asWorkspace .caws-sms{
   display:inline-flex; align-items:center; margin-left:4px; padding:1px 5px;
   border:1px solid var(--line); border-radius:3px; background:var(--surface-1);
