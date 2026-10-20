@@ -3757,6 +3757,10 @@ function caws_renderRecord(){
 	var custNm = caws_nvl(ci.cust_kor_name, caws_nvl(row.cust_kor_name,'-'));
 	var b2 = caws_detailKv('고객사명', custNm, 'cust')
 	   + caws_kv('고객사코드', caws_nvl(row.cust_code, caws_nvl(vo.cust_code,'-')))
+	   /* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 고객사 ERP 영업담당자 표시 */
+	   + caws_kv('영업담당자', caws_nvl(vo.sales_emp_nm,'-')
+	     + (caws_nvl(vo.sales_emp_cd,'') !== '' ? ' ('+vo.sales_emp_cd+')' : ''))
+	   /* [AX Lab] 수정 끝 */
 	   /* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 우선처를 접수정보에서 고객사코드 아래로 이동 */
 	   + caws_kv('우선처', (caws_nvl(row.priority,'') === 'Y') ? '★ 우선' : '-')
 	   /* [AX Lab] 수정 끝 */

@@ -60,6 +60,10 @@ public class AsVO extends PagingVO implements Serializable {
 	private String action_content2 = "" ;
 	private String happy_call_yn = "" ;
 	private String cust_kor_name = "" ;
+	// [AX Lab] 수정 시작 (2026-10-20 AX Lab): 고객사 ERP 영업담당자 정보
+	private String sales_emp_cd = "";
+	private String sales_emp_nm = "";
+	// [AX Lab] 수정 끝
 	private String file_cnt = "";
 	private String send_sms = "";
 	private String template_code = "";
@@ -914,6 +918,24 @@ public class AsVO extends PagingVO implements Serializable {
 	public void setCust_kor_name(String cust_kor_name) {
 		this.cust_kor_name = cust_kor_name;
 	}
+
+	// [AX Lab] 수정 시작 (2026-10-20 AX Lab): 고객사 ERP 영업담당자 정보
+	public String getSales_emp_cd() {
+		return sales_emp_cd;
+	}
+
+	public void setSales_emp_cd(String sales_emp_cd) {
+		this.sales_emp_cd = sales_emp_cd;
+	}
+
+	public String getSales_emp_nm() {
+		return sales_emp_nm;
+	}
+
+	public void setSales_emp_nm(String sales_emp_nm) {
+		this.sales_emp_nm = sales_emp_nm;
+	}
+	// [AX Lab] 수정 끝
 
 	public String getSearch_as() {
 		return search_as;
