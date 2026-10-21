@@ -1537,7 +1537,9 @@
 <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 스타일 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 스타일 캐시 갱신
      [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(비교 표시·배지·되돌리기) 스타일 캐시 갱신 (기존 v=20261019-1) --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261019-2" />
+<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 답변창 단독/통합 저장 버튼 배치 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261021-1" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
@@ -1551,7 +1553,9 @@
      [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(getAsInfo.do?pageType=aiPolish) 캐시 갱신 (기존 v=20261019-3)
      [AX Lab] 수정 (2026-10-19 AX Lab): 고객답변 UI 기준 버전 반영 캐시 갱신 (기존 v=20261019-4) --%>
 <%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 답변/처리정보 3가지 고정 저장 동작 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261021-1"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 사용자 작업순서에 맞춘 통합 저장 버튼 이동 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261021-2"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>

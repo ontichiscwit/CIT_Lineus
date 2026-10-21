@@ -1390,8 +1390,10 @@ function caws_renderCompose(){
 	+         caws_cico('clip')+'<span class="caws-tlbl">파일 첨부</span><em class="caws-fcnt" id="cawsFileCnt"></em></button>'
 	+     '</div>'
 	+     '<button type="button" class="caws-cicon caws-cexp caws-tip-r" onclick="caws_toggleCompose();" data-tip="넓게 열기" aria-label="넓게 열기">'+caws_cico('expand')+'</button>'
-	/* [AX Lab] 수정 (2026-10-21 AX Lab): 처리정보/통합 저장과 구분되는 고정 문구 */
-	+     '<button type="button" class="caws-send" onclick="caws_send(\'answer\');">답변만 등록</button>'
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리정보 수정 후 답변을 작성하는 업무 순서에 맞춰 두 답변 저장 동작을 함께 배치 */
+	+     '<button type="button" class="caws-send secondary" onclick="caws_send(\'answer\');" title="접수처리정보는 저장하지 않고 고객 답변만 등록합니다">답변만 등록</button>'
+	+     '<button type="button" class="caws-send" onclick="caws_saveCombined();" title="작성한 고객 답변과 접수처리정보를 함께 저장합니다">답변+처리정보 저장</button>'
+	/* [AX Lab] 수정 끝 */
 	+   '</div>'
 	+ '</div>';
 	/* [AX Lab] 수정 끝 */
@@ -1681,11 +1683,10 @@ function caws_syncBatchHead(){
 	var box = caws_el('cawsBatchHead');
 	if(!box) return;
 	if(caws_nvl(caws.asNo,'') === ''){ box.innerHTML = ''; return; }
-	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 사용 빈도가 높은 처리정보 저장을 기본으로 두고 통합 저장을 항상 함께 표시 */
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리정보 헤더에는 가장 자주 쓰는 처리정보 단독 저장만 고정 표시 */
 	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 필드 blur 재렌더 중 버튼 DOM이 교체되어 click이 유실되지 않게 유지 */
 	if(!box.querySelector('button')){
-		box.innerHTML = '<button type="button" class="btn-s primary" onclick="caws_batchSave(\'record\');" title="답변은 등록하지 않고 접수처리정보만 저장합니다">처리정보 저장</button>'
-			+ '<button type="button" class="btn-s" onclick="caws_saveCombined();" title="작성한 고객 답변과 접수처리정보를 함께 저장합니다">답변+처리정보 저장</button>';
+		box.innerHTML = '<button type="button" class="btn-s primary" onclick="caws_batchSave(\'record\');" title="답변은 등록하지 않고 접수처리정보만 저장합니다">처리정보 저장</button>';
 	}
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 끝 */
@@ -1712,7 +1713,16 @@ function caws_batchPrepare(includePendingAnswer){
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 상태별·조건별 필수값을 저장 전에 일괄 검증 */
 	var validationMsg = caws_batchValidate(includePendingAnswer);
 	if(validationMsg !== ''){
-		alert(validationMsg);
+		/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리완료에 답변이 부족하면 업무의 다음 순서인 답변창으로 바로 안내 */
+		if(validationMsg.indexOf('답변내역') >= 0){
+			alert('처리완료하려면 고객 답변을 먼저 등록하거나\n[답변+처리정보 저장]을 이용해주세요.');
+			caws_openCompose();
+			var answerEl = caws_el('cawsText');
+			if(answerEl) answerEl.focus();
+		}else{
+			alert(validationMsg);
+		}
+		/* [AX Lab] 수정 끝 */
 		var memoEl = caws_el('cawsBatchMemo');
 		if(memoEl && validationMsg.indexOf('조치이력') >= 0) memoEl.focus();
 		return false;
