@@ -183,9 +183,9 @@ function cai_load(asNo){
 
 	var c = cai.cache[asNo];
 	/* [AX Lab] 수정 (2026-10-16 AX Lab): 재촉 판정도 캐시에서 복원. 키워드 블록이 그려진 뒤(setTimeout) 위로 옮긴다 */
-	if(c){ cai.status = c.status; cai.items = c.items; cai.result = c.result; cai.fu = c.fu || null; cai_syncButton(); cai_fuLater(); return; }
+	if(c){ cai.status = c.status; cai.items = c.items; cai.result = c.result; cai.fu = c.fu || null; cai.link = c.link || null; cai_syncButton(); cai_fuLater(); return; }
 
-	cai.status = 'loading'; cai.items = []; cai.result = '';
+	cai.status = 'loading'; cai.items = []; cai.result = ''; cai.link = null;
 	cai_syncButton();
 
 	var mySeq = ++cai.seq;
@@ -202,7 +202,8 @@ function cai_load(asNo){
 			 * 아직 컴파일/배포되지 않아 일반 getAsInfo 응답(resultVO…)이 돌아온 경우다. 900 으로 구분한다. */
 			cai.result = (data && data.result != null) ? String(data.result) : '900';
 			cai.fu = ok ? cai_fuOf(data) : null;	/* [AX Lab] 2026-10-16 */
-			cai.cache[asNo] = { status:cai.status, items:items, result:cai.result, fu:cai.fu };
+			cai.link = cai_linkOf(data);			/* [AX Lab] 2026-10-21 AI PC 연결 상태 */
+			cai.cache[asNo] = { status:cai.status, items:items, result:cai.result, fu:cai.fu, link:cai.link };
 			cai_syncButton();
 			cai_fuApply();							/* [AX Lab] 2026-10-16 응답 시점엔 키워드 블록이 이미 그려져 있다 */
 		},
@@ -249,6 +250,10 @@ function cai_popHtml(){
 			return h;
 		}
 		if(cai.fu && cai.fu.on) h += cai_fuPopHtml();	/* [AX Lab] 2026-10-16 재촉·연락 요청 문의 안내 */
+		if(cai.link && cai.link.noRerank){				/* [AX Lab] 2026-10-21 AI 재채점이 빠진 요청 */
+			h += '<span class="cai-lownote">' + (cai.link.rerankDown ? 'AI PC(Mac) 재정렬 서버 연결이 끊겨 ' : '')
+			   + 'AI 재채점 없이 기본 점수로 정렬했습니다.</span>';
+		}
 		if(allLow) h += '<span class="cai-lownote">직접 일치하는 답변 대신 유사한 업무 사례를 함께 보여드립니다. 내용을 확인한 후 활용해주세요.</span>';
 		for(var j=0; j<cai.items.length; j++){
 			var it = cai.items[j], t = cai_tier(it);
@@ -282,6 +287,8 @@ function cai_popHtml(){
 /* CombineAsAiClient / ServiceImpl 결과코드 → 사용자 문구 */
 function cai_failMsg(code){
 	code = String(code || '');
+	/* [AX Lab] 2026-10-21 추천 서버가 AI PC 끊김으로 판정한 실패 — CRM PC 쪽 문제(903/904)와 구분해 원인만 알린다 */
+	if(cai.link && cai.link.down) return { tag:'AI PC 끊김', text:'AI PC(Mac) 연결이 끊겨 AI 추천을 불러오지 못했습니다.', retry:true };
 	if(code === '900') return { tag:'미배포', text:'서버에 AI 추천 모듈이 아직 반영되지 않았습니다. (Java 재컴파일 · WAS 재기동 필요)', retry:false };
 	if(code === '907') return { tag:'불가', text:'문의 내용이 너무 짧아 비슷한 사례를 찾을 수 없습니다.', retry:false };
 	if(code === '908') return { tag:'불가', text:'접수건 정보를 찾을 수 없어 추천을 건너뜁니다.', retry:false };
@@ -289,6 +296,17 @@ function cai_failMsg(code){
 	if(code === '903') return { tag:'지연', text:'AI 추천 서버 응답이 지연되어 건너뛰었습니다.', retry:true };
 	return { tag:'오류', text:'AI 추천을 불러오지 못했습니다. (' + code + ')', retry:true };
 }
+/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 추천 서버가 내려준 AI PC 연결 상태(ai_link · reason · rerank_applied) → 화면 표시용.
+ * 구 서버/구 Java 응답(필드 없음)이면 null — 기존 표시 그대로. */
+function cai_linkOf(data){
+	if(!data) return null;
+	var l = data.ai_link || {};
+	var down = data.reason === 'ai_pc_down' || l.ollama === 'down';
+	var noRerank = data.rerank_applied === false && !!l.rerank && l.rerank !== 'off';
+	if(!down && !noRerank) return null;
+	return { down:down, noRerank:noRerank, rerankDown:l.rerank === 'down' };
+}
+/* [AX Lab] 수정 끝 */
 function cai_retry(ev){
 	if(ev) ev.stopPropagation();
 	var asNo = cai.asNo;

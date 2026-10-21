@@ -3105,7 +3105,8 @@ function caws_aiRenderResult(src, out, meta){
 			+ '숫자·날짜·메뉴 경로·게시물 링크가 그대로인지 확인 후 사용해주세요.');
 	}else{
 		caws_aiSetBadge('local');
-		caws_aiSetNote('has-warn', 'AI 서버 응답을 받지 못해' + (meta && meta.code ? ' (' + caws_esc(meta.code) + ')' : '')
+		caws_aiSetNote('has-warn', (meta && meta.down ? 'AI PC(Mac) 연결이 끊겨' : 'AI 서버 응답을 받지 못해')	/* [AX Lab] 2026-10-21 원인 구분 */
+			+ (meta && meta.code ? ' (' + caws_esc(meta.code) + ')' : '')
 			+ ' 브라우저 안의 기본 문장 정리 규칙으로 만든 결과입니다. 맞춤법·문맥 교정은 되지 않았으니 내용을 직접 확인해주세요. '
 			+ '<a href="javascript:void(0);" onclick="caws_aiRun();">다시 시도</a>');
 	}
@@ -3139,7 +3140,11 @@ function caws_aiUndo(){
 function caws_aiPolish(text, tone, cb){
 	var t = String(caws_nvl(text,''));
 	var done = function(out, meta){ if(typeof cb === 'function') cb(out, meta); };
-	var local = function(code){ done(caws_aiPolishLocal(t, tone), { source:'local', code:code }); };
+	/* [AX Lab] 수정 (2026-10-21 AX Lab): down — 추천 서버가 AI PC(Mac) 끊김으로 판정한 실패 (reason / ai_link) */
+	var local = function(code, data){
+		var down = !!data && (data.reason === 'ai_pc_down' || (data.ai_link && data.ai_link.ollama === 'down'));
+		done(caws_aiPolishLocal(t, tone), { source:'local', code:code, down:down });
+	};
 
 	if(t.length > 4000){ local('길이 초과'); return; }	/* 서버 상한(CombineAsAiClient.POLISH_MAX_CHARS)과 같다 */
 
@@ -3148,7 +3153,7 @@ function caws_aiPolish(text, tone, cb){
 		data:{ as_no:caws_nvl(caws.asNo,''), pageType:'aiPolish', text:t, tone:tone },
 		success:function(data){
 			var ok = data && String(data.result) === '000' && typeof data.text === 'string' && data.text.replace(/\s/g,'') !== '';
-			if(!ok){ local((data && data.result != null) ? String(data.result) : '900'); return; }
+			if(!ok){ local((data && data.result != null) ? String(data.result) : '900', data); return; }
 			done(String(data.text), { source:'ai', model:data.model, elapsed:data.elapsed_ms, warnings:data.warnings || [] });
 		},
 		error:function(xhr){ local('HTTP ' + (xhr ? xhr.status : '')); }

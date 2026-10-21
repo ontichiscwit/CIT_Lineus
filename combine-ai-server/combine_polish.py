@@ -49,6 +49,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from combine_embed_client import OLLAMA_HOST  # noqa: E402
+import combine_ailink  # noqa: E402  [AX Lab] 2026-10-21 AI PC 연결 감시
 
 POLISH_ENABLED = os.getenv("COMBINE_POLISH_ENABLED", "Y").upper() not in ("N", "NO", "FALSE", "0")
 POLISH_MODEL = os.getenv("COMBINE_POLISH_MODEL", "gemma4:26b")
@@ -222,7 +223,9 @@ def _chat(system, user, timeout=POLISH_TIMEOUT, model=POLISH_MODEL, num_predict=
             return _chat(system, user, timeout=timeout, model=model, num_predict=num_predict)
         raise PolishError("http", "ollama HTTP %s %s" % (e.code, msg[:200]))
     except Exception as e:
+        combine_ailink.suspect("ollama")       # [AX Lab] 2026-10-21 연결 문제인지 생성 지연인지 가벼운 점검으로 확인
         raise PolishError("io", "%s: %s" % (type(e).__name__, e))
+    combine_ailink.report("ollama", True)      # [AX Lab] 2026-10-21
     msg = (res.get("message") or {}).get("content")
     if not isinstance(msg, str):
         raise PolishError("parse", "ollama 응답에 message.content 가 없습니다")
@@ -243,6 +246,10 @@ def polish(text, tone="polite", timeout=POLISH_TIMEOUT):
     if len(src) > MAX_CHARS:
         raise PolishError("bad_request", "text too long (max %d)" % MAX_CHARS)
 
+    # [AX Lab] 수정 (2026-10-21 AX Lab): AI PC 끊김이 확인된 동안은 20초 기다리지 않고 바로 실패 → 화면이 'AI PC 연결 끊김' 으로 표시
+    if combine_ailink.is_down("ollama"):
+        _record(False, error="ai_pc_down")
+        raise PolishError("ai_pc_down", "AI PC(Ollama) 연결 끊김")
     protected, mapping = _protect(src)
     try:
         raw = _chat(system_prompt(tone), protected, timeout=timeout)
