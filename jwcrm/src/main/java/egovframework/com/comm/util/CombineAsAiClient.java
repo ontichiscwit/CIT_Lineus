@@ -150,6 +150,9 @@ public class CombineAsAiClient {
 			String text = readAll(is);
 
 			if (status < 200 || status >= 300) {
+				// [AX Lab] 수정 시작 (2026-10-21 AX Lab): 503 본문의 원인(reason)·AI PC 연결 상태(ai_link)를 화면에 넘긴다 (AI PC 끊김 구분 표시)
+				vo.setExtra(failExtra(text));
+				// [AX Lab] 수정 끝
 				return fail(vo, RESULT_HTTP, "HTTP " + status + " " + abbreviate(text, 200), t0);
 			}
 
@@ -272,6 +275,7 @@ public class CombineAsAiClient {
 			String resText = readAll(is);
 
 			if (status < 200 || status >= 300) {
+				out.putAll(failExtra(resText));	/* [AX Lab] 2026-10-21 reason · ai_link (AI PC 끊김 구분 표시) */
 				return polishFail(out, RESULT_HTTP, "HTTP " + status + " " + abbreviate(resText, 200), asNo, tn, t.length(), t0);
 			}
 
@@ -295,6 +299,7 @@ public class CombineAsAiClient {
 			out.put("warnings", res.get("warnings") instanceof List ? res.get("warnings") : new ArrayList<Object>());
 			out.put("elapsed_ms", System.currentTimeMillis() - t0);
 			out.put("message", "server_elapsed_ms=" + res.get("elapsed_ms"));
+			if (res.get("ai_link") instanceof Map) out.put("ai_link", res.get("ai_link"));	/* [AX Lab] 2026-10-21 */
 			if (logger.isInfoEnabled()) {
 				logger.info("[AX Lab] AI 다듬기 호출 as_no={} tone={} inLen={} outLen={} elapsed={}ms",
 						asNo, tn, t.length(), ((String) polished).length(), out.get("elapsed_ms"));
@@ -324,6 +329,20 @@ public class CombineAsAiClient {
 	// [AX Lab] 수정 끝
 
 	/* ------------------------------------------------------------------ 보조 */
+
+	// [AX Lab] 수정 시작 (2026-10-21 AX Lab): 실패 응답 본문에서 화면 표시용 두 필드만 꺼낸다. 본문이 JSON 이 아니면 빈 Map.
+	private static Map<String, Object> failExtra(String text) {
+		Map<String, Object> m = new HashMap<String, Object>();
+		try {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> body = om.readValue(text, Map.class);
+			if (body.get("reason") != null) m.put("reason", String.valueOf(body.get("reason")));
+			if (body.get("ai_link") instanceof Map) m.put("ai_link", body.get("ai_link"));
+		} catch (Exception ignore) {
+		}
+		return m;
+	}
+	// [AX Lab] 수정 끝
 
 	private static CombineAsAiVO fail(CombineAsAiVO vo, String code, String reason, long t0) {
 		vo.setResult(code);

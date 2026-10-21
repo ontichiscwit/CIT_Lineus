@@ -41,10 +41,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# [AX Lab] 수정 (2026-10-21 AX Lab): .env(메일 비밀번호 등)를 가장 먼저 읽는다 — 아래 모듈들이 import 시점에 환경변수를 읽기 때문
+import combine_env  # noqa: E402
+_ENV_LOADED = combine_env.load()
 # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 재정렬 상태를 health에 함께 제공한다.
 from combine_recommend import (LocalIndex, Recommender, OUT_DIR, index_info,  # noqa: E402,F401
                                ping_rerank, rerank_status)
 # [AX Lab] 수정 끝
+from combine_recommend import RERANK_URL, RERANK_ENABLED  # noqa: E402  [AX Lab] 2026-10-21 AI PC 연결 감시 대상
+import combine_ailink  # noqa: E402  [AX Lab] 2026-10-21 AI PC 연결 감시 (끊김/복구 로그 · 관리자 메일 · 응답 ai_link)
 from combine_embed_client import OLLAMA_HOST, EMBED_MODEL, ping  # noqa: E402
 import combine_morph  # noqa: E402  [AX Lab] 2026-10-16 /health 의 morph 상태
 import combine_wordstats  # noqa: E402  [AX Lab] 2026-10-16 /health 의 wordstats 상태 · 기동 시 통계 준비
@@ -91,7 +96,9 @@ class Handler(BaseHTTPRequestHandler):
                                # [AX Lab] 수정 (2026-10-16 AX Lab): 칩 형식어 통계 준비 상태. 준비 전이면 거르기 없이 동작
                                "wordstats": combine_wordstats.status(),
                                # [AX Lab] 수정 (2026-10-19 AX Lab): 문장 다듬기 LLM 상태 (ready · last_error · avg_ms). 장애여도 추천은 영향 없음
-                               "polish": combine_polish.status()})
+                               "polish": combine_polish.status(),
+                               # [AX Lab] 수정 (2026-10-21 AX Lab): AI PC 연결 감시 (대상별 state · since · last_error · 메일 설정)
+                               "ai_link": combine_ailink.status()})
         self._json(404, {"result": "404", "message": "not found"})
 
     def do_POST(self):
@@ -129,9 +136,16 @@ class Handler(BaseHTTPRequestHandler):
                                      service_cate=req.get("service_cate"), inquiry_type=req.get("inquiry_type"),
                                      request_type=req.get("request_type"), program_nm=req.get("program_nm"),
                                      screen_nm=req.get("screen_nm"), top_k=top_k, tiers=tiers)
+        # [AX Lab] 수정 시작 (2026-10-21 AX Lab): 503 에 원인(reason)과 AI PC 연결 상태(ai_link)를 실어 화면이 'AI PC 연결 끊김' 을 구분하게 한다.
+        except combine_ailink.AiPcDown:
+            return self._json(503, {"result": "503", "reason": "ai_pc_down", "message": "embedding unavailable: ai pc down",
+                                    "ai_link": combine_ailink.snapshot()})
         except Exception as e:  # 임베딩 서버 장애 등
             traceback.print_exc()
-            return self._json(503, {"result": "503", "message": f"embedding unavailable: {type(e).__name__}"})
+            return self._json(503, {"result": "503", "message": f"embedding unavailable: {type(e).__name__}",
+                                    "reason": "ai_pc_down" if combine_ailink.is_down("ollama") else "embed_error",
+                                    "ai_link": combine_ailink.snapshot()})
+        # [AX Lab] 수정 끝
         self._json(200 if res["result"] == "000" else 400, res)
 
     # [AX Lab] 수정 시작 (2026-10-19 AX Lab): AI 문장 다듬기 처리. 본문은 로그에 남기지 않는다(길이·톤·소요시간만).
@@ -145,14 +159,19 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write("polish fail as_no=%s tone=%s len=%d code=%s\n" % (as_no, tone, len(text), e.code))
             if e.code == "bad_request":
                 return self._json(400, {"result": "400", "message": str(e)})
-            return self._json(503, {"result": "503", "message": "polish unavailable: %s" % e.code})
+            # [AX Lab] 수정 (2026-10-21 AX Lab): 원인(reason)·AI PC 연결 상태(ai_link) 추가
+            down = e.code == "ai_pc_down" or combine_ailink.is_down("ollama")
+            return self._json(503, {"result": "503", "message": "polish unavailable: %s" % e.code,
+                                    "reason": "ai_pc_down" if down else e.code, "ai_link": combine_ailink.snapshot()})
         except Exception as e:  # 예상 밖 오류 — 추천 쪽과 같이 503
             traceback.print_exc()
-            return self._json(503, {"result": "503", "message": "polish unavailable: %s" % type(e).__name__})
+            return self._json(503, {"result": "503", "message": "polish unavailable: %s" % type(e).__name__,
+                                    "reason": type(e).__name__, "ai_link": combine_ailink.snapshot()})
         sys.stderr.write("polish ok as_no=%s tone=%s len=%d->%d %dms%s\n" % (
             as_no, res["tone"], res["in_len"], res["out_len"], res["elapsed_ms"],
             (" warnings=%s" % ",".join(res["warnings"])) if res["warnings"] else ""))
         res.pop("lost", None)   # 되돌리지 못한 링크 원문 — 본문 조각이므로 응답에만 두지 않고 지운다 (warnings 로 충분)
+        res["ai_link"] = combine_ailink.snapshot()   # [AX Lab] 2026-10-21
         return self._json(200, res)
     # [AX Lab] 수정 끝
 
@@ -163,6 +182,8 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     args = ap.parse_args()
     log = lambda m: print(m, file=sys.stderr, flush=True)  # noqa: E731
+    if _ENV_LOADED:   # [AX Lab] 2026-10-21 값은 찍지 않는다 (비밀번호)
+        log(f".env 적용 · {', '.join(_ENV_LOADED)}")
 
     if not (OUT_DIR / "combine_index.npz").exists():
         log(f"[오류] 색인 파일이 없습니다: {OUT_DIR / 'combine_index.npz'}  (README '데이터' 참조)")
@@ -189,6 +210,11 @@ def main():
     rr_ok, rr_msg = ping_rerank()
     log(("rerank ok · " if rr_ok else "[경고] rerank 연결 실패 — 기존 하이브리드로 동작합니다 · ") + rr_msg)
     # [AX Lab] 수정 끝
+    # [AX Lab] 수정 (2026-10-21 AX Lab): AI PC 연결 감시 시작 — 30초 점검, 끊김/복구 시 로그 + 관리자 메일
+    combine_ailink.start(ollama_host=OLLAMA_HOST,
+                         ollama_models=[EMBED_MODEL] + ([combine_polish.POLISH_MODEL] if combine_polish.POLISH_ENABLED else []),
+                         rerank_health_url=RERANK_URL.rsplit("/api/rerank", 1)[0] + "/health",
+                         rerank_enabled=RERANK_ENABLED, log=log)
     # [AX Lab] 수정 (2026-10-19 AX Lab): 문장 다듬기 모델 워밍업(백그라운드). 26B 모델 첫 적재가 수 초라 첫 사용자가 기다리지 않게 한다.
     combine_polish.warmup(log)
     log(f"listening on http://{args.host}:{args.port}  (X-Api-Key={'***' if API_KEY != 'dev-key' else 'dev-key'})")

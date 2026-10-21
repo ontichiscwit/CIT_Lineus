@@ -24,6 +24,10 @@ CRM(Java, `CombineAsAiClient`) 이 이 서버에 문의 원문을 보내면, 표
 | `combine_synonyms.py` | 질의 도메인 동의어 확장 (현장어 ↔ 시스템어, 예: 산재 지사 → 산재조합/보험거래처코드). **질의에만** 적용, 색인 재생성 불필요 (2026-10-12) |
 <!-- [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 모듈 추가 -->
 | `combine_polish.py` | **AI 문장 다듬기** (2026-10-19) — 고객 답변 작성영역 [AI 문장 다듬기] 가 호출하는 `POST /api/polish`. Ollama `gemma4:26b` 로 정중하게/간결하게/오탈자만 3종 교정. 링크 토큰·URL 보호, 본문 비로깅. CLI 단독 실행 가능 (아래 8장) |
+<!-- [AX Lab] 수정 (2026-10-21 AX Lab): AI PC 연결 감시 모듈 추가 -->
+| `combine_ailink.py` | **AI PC(Mac) 연결 감시** (2026-10-21) — Ollama·재정렬 서버를 30초마다 점검, 끊김/복구 시 로그 + 관리자 메일, 응답의 `ai_link`, 끊김 동안 빠른 실패 (아래 9장) |
+| `combine-ailink-test.py` | 연결 감시 회귀 테스트 (네트워크·메일 서버 불필요) |
+| `combine_env.py` · `.env.example` | 서버 기동 시 `.env`(메일 비밀번호 등) 읽기 (2026-10-21). `.env` 자체는 git 제외 |
 | `combine_embed_client.py` | Ollama `bge-m3` 임베딩 호출 — 적재와 공용 |
 | `combine_live_index.py` | **색인 준실시간 반영** (2026-10-15) — 백그라운드 스레드가 `data/` 를 30초마다 보고 ① 배치가 새 색인을 배포하면 재기동 없이 다시 읽고 ② `data/combine_live.jsonl` 의 델타(종결 건 upsert/delete) 를 메모리 색인에 반영 |
 | `combine-rerank-server.py` | **AI PC 전용** Cross-Encoder 재정렬 API (`POST /api/rerank`, `GET /health`) |
@@ -158,6 +162,17 @@ LaunchAgent는 `axlab` 로그인 세션이 있어야 뜨므로 Mac 재부팅 후
 | `COMBINE_POLISH_NUM_PREDICT` | `1500` | 생성 토큰 상한 (폭주 방지) |
 | `COMBINE_POLISH_KEEP_ALIVE` | `30m` | 모델 메모리 유지 시간. 짧으면 매 호출마다 26B 재적재(수 초) |
 | `COMBINE_POLISH_WARMUP` | `Y` | 기동 시 백그라운드 1회 호출로 모델을 미리 올림 |
+<!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): AI PC 연결 감시 설정 -->
+| `COMBINE_AILINK_INTERVAL_SEC` | `30` | AI PC 점검 간격(초). `0` 이면 백그라운드 점검 끔 |
+| `COMBINE_AILINK_DOWN_AFTER` | `2` | 연속 몇 번 실패하면 '끊김' 으로 볼지 (순간 지연 오탐 방지) |
+| `COMBINE_ALERT_MAIL_TO` | `hyerin.yu@cwit.co.kr` | 끊김/복구 알림 받는 사람 (쉼표로 여러 명). 비우면 메일 끔 |
+| `COMBINE_ALERT_SMTP_HOST` / `_PORT` | `gw.cwit.co.kr` / `25` | 사내 그룹웨어 메일 서버(사내망 전용, 25만 열림, AUTH LOGIN·TLS 없음). CRM 설정의 `smtp.worksmobile.com` 은 로그인 거절돼 쓰지 않음 |
+| `COMBINE_ALERT_SMTP_SECURITY` | 포트로 결정 | `465`=ssl · `587`=starttls · 그 외 none |
+| `COMBINE_ALERT_SMTP_USER` | `25022` | 그룹웨어 로그인 ID(사번) |
+| `COMBINE_ALERT_MAIL_FROM` | `hyerin.yu@cwit.co.kr` | 보내는 주소 |
+| `COMBINE_ALERT_SMTP_PASSWORD` | (없음) | **설정해야 메일이 나간다** (그룹웨어 비밀번호). 없으면 끊김/복구를 로그에만 남긴다. 파일에 적지 말고 환경변수로 |
+| `COMBINE_ALERT_REPEAT_MIN` | `180` | 끊김이 계속되면 이 간격(분)으로 재알림. `0` 이면 재알림 없음 |
 <!-- [AX Lab] 수정 끝 -->
 
 ## 4. 데이터 (색인) 갱신
@@ -337,6 +352,11 @@ CRM 화면은 이때 「문의 내용 키워드 · 연관 이력」 블록을 �
 | (다듬기 모달) 기본 규칙 결과 (910) | 910 | 본문 없음·4,000자 초과·톤 값 오류 — CRM 이 호출 전에 거름 | 본문 길이 확인 |
 | (다듬기 모달) 기본 규칙 결과 (900) | 900 | CRM Java 가 구버전 (`pageType=aiPolish` 분기 없음) | `mvn compile` + WAS 재기동 |
 <!-- [AX Lab] 수정 끝 -->
+<!-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): AI PC 연결 끊김 표시 -->
+| [AI PC 끊김] AI PC(Mac) 연결이 끊겨 AI 추천을 불러오지 못했습니다 | 905 + `reason=ai_pc_down` | 추천 서버가 AI PC Ollama 끊김을 확인 | 9장 확인 순서. 관리자에게는 메일이 이미 감 |
+| (다듬기 모달) AI PC(Mac) 연결이 끊겨 … 기본 규칙 결과 | 905 + `reason=ai_pc_down` | 위와 같음 | 위와 같음 |
+| (AI 추천 목록 위) AI PC(Mac) 재정렬 서버 연결이 끊겨 AI 재채점 없이 기본 점수로 정렬했습니다 | 정상(000) + `rerank_applied=false` | 재정렬 서버(8766) 끊김. 추천 자체는 정상 | AI PC 의 `launchctl kickstart -k gui/$(id -u)/com.axlab.combine-rerank` |
+<!-- [AX Lab] 수정 끝 -->
 
 <!-- [AX Lab] 수정 시작 (2026-10-15 AX Lab): 재정렬 장애 확인 -->
 `/health`의 `rerank.last_error`가 있고 `circuit_open=true`이면 원격 재정렬 장애입니다. 추천 자체는 기존 하이브리드로 정상 응답합니다.
@@ -379,6 +399,8 @@ POST /api/polish      X-Api-Key: dev-key
   바꿨다가 결과에서 되돌립니다. 타임라인이 이 토큰을 정규식으로 링크화하므로 한 글자만 바뀌어도 링크가 사라지기 때문입니다. 되돌리지 못하면 `warnings: link_lost`.
 - **프롬프트 주입 방어**: 사용자 메시지는 "원문 그 자체"로 못 박아, 원문에 "위 지시를 무시하고 …" 같은 문장이 있어도 답하지 않고 다듬기만 합니다(실측: 해당 줄은 결과에서 빠짐).
 - **멱등성**: 이미 인사말/맺음말이 있으면 다시 넣지 않도록 지시. 교체 후 같은 톤으로 다시 돌려도 거의 그대로입니다(실측 샘플 2).
+<!-- [AX Lab] 수정 (2026-10-21 AX Lab): 회사 고정 인사말·맺음말 -->
+- **고정 인사말·맺음말 (2026-10-21)**: 「안녕하세요 중외정보기술입니다.」와 「추가적으로 더 필요하시거나 … 감사합니다.」 블록은 LLM 에 보내지 않고 글자 그대로 둔 채 가운데 본문만 다듬어 다시 붙입니다. 원문에 없으면 톤과 관계없이 붙입니다. 마침표·띄어쓰기·줄바꿈 차이는 같은 문구로 보지만, 상담원 이름이 들어간 인사말(「… 중외정보기술 홍길동입니다」)은 본문으로 취급합니다. 문구는 `combine_polish.py` `FRAME_HEAD`/`FRAME_FOOT` 와 `combine-as-thread.js` `CAWS_AI_HEAD`/`CAWS_AI_FOOT`(AI 서버 실패 시 브라우저 기본 규칙) 두 곳에 있으니 바꿀 때 함께 바꾸세요. 본문이 비었거나 `--답변내용--` 자리표시자뿐이면 화면이 호출 전에 막습니다(서버는 400).
 - **로그 위생**: 본문은 서버·CRM 어디에도 남기지 않습니다. `polish ok as_no=… tone=… len=58->139 1425ms` 처럼 길이·톤·소요시간만.
 - **실측** (2026-10-19, M3 Ultra, gemma4:26b, 60~210자 본문): 0.9~2.6초. 모델이 내려간 상태의 첫 호출은 적재 3초가 더 걸리므로 기동 시 워밍업합니다.
 - **CRM 화면**: 결과는 원문과 단어 단위로 비교해 지워진 말(빨간 줄)·새 말(초록 바탕)을 표시하고, [이 문장으로 교체] 뒤 툴바 [다듬기 취소] 로 1회 되돌릴 수 있습니다.
@@ -394,4 +416,48 @@ combine-ai-server\.venv\Scripts\python.exe combine_polish.py --tone brief --file
 ```
 
 프롬프트는 `combine_polish.py` 의 `_SYSTEM_COMMON` / `_SYSTEM_TONE` 에 있습니다. 바꾼 뒤에는 서버만 재기동하면 됩니다(색인 무관).
+<!-- [AX Lab] 수정 끝 -->
+
+<!-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): AI PC 연결 감시 -->
+## 9. AI PC(Mac) 연결 감시 (`combine_ailink.py`, 2026-10-21)
+
+이 서버는 AI PC(`192.168.19.141`, Mac)의 **Ollama `:11434`**(AI 추천 임베딩 bge-m3 · AI 문장 다듬기 gemma4)와
+**재정렬 서버 `:8766`**에 기댑니다. 예전에는 AI PC 가 끊겨도 화면에는 CRM PC 쪽 문제와 같은 "응답 지연(903)" 만 떴고
+(임베딩이 20초를 기다리는 동안 CRM 2.5초 제한이 먼저 끝남), 재정렬 장애는 아무 표시가 없었습니다. 원인을 아는 곳은 이 서버뿐이라 여기서 관리합니다.
+
+| 항목 | 동작 |
+|---|---|
+| 점검 | 30초마다 `GET /api/tags`(모델을 올리지 않는 가벼운 호출 — 필요한 모델 `bge-m3`·`gemma4:26b` 설치 여부까지 확인) · 재정렬 `GET /health` |
+| 판정 | 연속 2회 실패 → **끊김**, 1회 성공 → **복구**. 실제 요청이 실패하면 즉시 점검을 한 번 더 돌린다(26B 생성 지연을 끊김으로 오판하지 않도록 실제 실패를 그대로 세지 않음) |
+| 로그 | 바뀌는 순간에만 `[ai-link] ollama 끊김 · … · 오류` / `[ai-link] ollama 복구 · 끊김 3분 12초` |
+| 메일 | 끊김·복구 시 `COMBINE_ALERT_MAIL_TO`(기본 hyerin.yu@cwit.co.kr). 끊김이 이어지면 3시간마다 재알림. 본문에 확인 순서 포함 |
+| 빠른 실패 | 끊김 동안 추천·다듬기는 20초 기다리지 않고 바로 503 `reason=ai_pc_down` → CRM 화면이 'AI PC 연결 끊김' 으로 구분 |
+| 응답 | 추천·다듬기 응답에 `ai_link:{"ollama":…, "rerank":…, "down_since":…}`(값 ok / down / off / unknown), 추천에는 `rerank_applied`(이 요청에 AI 재채점이 실제로 반영됐는지) |
+| 상태 | `GET /health` 의 `ai_link` (대상별 state · since · last_ok · last_error · fails · 메일 설정) |
+
+**메일을 켜려면** `combine-ai-server\.env` 에 그룹웨어(25022) 비밀번호를 넣고 서버를 (재)기동합니다.
+`.env` 는 루트 `.gitignore` 에 걸려 git 에 올라가지 않습니다(형식은 `.env.example`, 읽는 코드는 `combine_env.py` — 표준 라이브러리만).
+
+```
+COMBINE_ALERT_SMTP_PASSWORD='그룹웨어 비밀번호'
+```
+
+기동 로그에 `.env 적용 · COMBINE_ALERT_SMTP_PASSWORD` 가 찍힙니다(값은 찍지 않음). 터미널에서 `set`/`$env:` 로 준 값이 있으면 그쪽이 우선합니다.
+
+설정이 없으면 기동 로그에 `관리자 메일 꺼짐 — COMBINE_ALERT_SMTP_PASSWORD 미설정` 이 찍히고 끊김/복구는 로그에만 남습니다.
+
+**CRM 화면** (상담원에게는 원인만, 연락 요청 문구 없음):
+- AI 추천 실패 시 태그 `AI PC 끊김` · "AI PC(Mac) 연결이 끊겨 AI 추천을 불러오지 못했습니다." (CRM PC 쪽 문제인 903/904 문구와 구분)
+- 재정렬만 빠진 요청은 목록 위에 "(AI PC(Mac) 재정렬 서버 연결이 끊겨) AI 재채점 없이 기본 점수로 정렬했습니다."
+- 다듬기 모달 실패 안내 "AI PC(Mac) 연결이 끊겨 (905) 브라우저 안의 기본 문장 정리 규칙으로 만든 결과입니다…"
+- 실패 응답의 `reason`·`ai_link` 가 화면까지 가려면 **CRM `CombineAsAiClient.java` 재컴파일·WAS 재기동**이 필요합니다(성공 응답의 `ai_link` 는 기존 Java 로도 통과).
+
+**함께 넣은 출처 기록**
+- 답변 저장 로그: AS 통합화면에서 [AI 문장 다듬기 → 이 문장으로 교체] 후 답변을 등록하면 CRM 로그에
+  `[AX Lab] 답변 저장 as_no=… result=000 ai_polish=ai:gemma4:26b len=…` (기본 규칙이면 `rule:905`, 교체 뒤 직접 고쳤으면 `+edited`). 본문은 남기지 않습니다.
+  `AdAsController.awsProc` 재컴파일 필요.
+- 적재 라벨: `analysis/combine_refresh.py decide_label()` 이 `final_results.jsonl` 라벨에 `label_source`(`rule` | `llm:gemma4:26b` | `llm:…+rule`)를 남깁니다.
+  예전 라벨에는 없고, 다음 배치·동기화부터 새로 붙습니다.
+
+시험: `python combine-ailink-test.py` (네트워크·메일 없이). 끊김 재현은 `set COMBINE_OLLAMA_HOST=http://127.0.0.1:59999` 로 다른 포트에 띄워 보면 됩니다.
 <!-- [AX Lab] 수정 끝 -->
