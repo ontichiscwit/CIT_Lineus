@@ -920,10 +920,11 @@ public class AdAsController {
 
 		boolean statusChanged = !"".equals(newStatus) && !newStatus.equals(curStatus) ;
 		boolean assignChanged = !"".equals(newAssign) && !newAssign.equals(curAssign) ;
-		// [AX Lab] 수정 시작 (2026-10-12 AX Lab): 변경 후 상태·담당자를 기준으로 ORIGIN 검증
+		// [AX Lab] 수정 시작 (2026-10-21 AX Lab): 변경 전/후 상태 중 하나가 접수·처리중이면 담당자 변경 허용
 		String targetStatus = statusChanged ? newStatus : curStatus ;
 		String targetAssign = assignChanged ? newAssign : curAssign ;
-		if(assignChanged && !isAswsAssignEditableStatus(targetStatus)) return 0 ;
+		if(assignChanged && !isAswsAssignEditableStatus(curStatus)
+				&& !isAswsAssignEditableStatus(targetStatus)) return 0 ;
 		if((!"".equals(targetAssign) && !targetAssign.equals(empNo) && "".equals(comment))
 				|| (("C005".equals(targetStatus) || "C006".equals(targetStatus)) && "".equals(comment))) return 0 ;
 		if(!statusChanged && !assignChanged && "".equals(comment)) return 0 ;

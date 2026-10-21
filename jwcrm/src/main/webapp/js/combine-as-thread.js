@@ -1583,6 +1583,11 @@ function caws_batchHistoryChanged(){
 function caws_assignEditableStatus(status){
 	return status === 'C001' || status === 'C004';
 }
+/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 변경 전/후 상태 중 하나가 접수·처리중이면 담당자 변경 허용 */
+function caws_assignChangeAllowed(fromStatus, toStatus){
+	return caws_assignEditableStatus(fromStatus) || caws_assignEditableStatus(toStatus);
+}
+/* [AX Lab] 수정 끝 */
 function caws_batchMemoRequired(){
 	var vo = caws.vo || {};
 	var st = caws_nvl(vo.proc_status,'');
@@ -1621,15 +1626,15 @@ function caws_batchValidate(includePendingAnswer){
 	if(caws_blank(st)) return '처리상태를 선택하세요.';
 	if(caws_blank(vo.inportance)) return '중요도를 선택하세요.';
 	if(caws_blank(vo.assign_id)) return '담당자 선택은 필수입니다.';
-	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 허용 상태 외 담당자 변경 및 조치의견 길이 차단 */
-	if(caws_batchChanged('assign_id') && !caws_assignEditableStatus(st)){
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 접수·처리중에서 완료로 바꾸면서 담당자도 변경할 수 있도록 전후 상태로 검증 */
+	var oldSt = caws_batchValue(caws.batchOriginal,'proc_status');
+	if(caws_batchChanged('assign_id') && !caws_assignChangeAllowed(oldSt, st)){
 		return '접수 또는 처리중 상태에서만 담당자를 변경할 수 있습니다.';
 	}
 	if(memo.length > 1300) return '조치의견은 최대 1,300자까지 입력할 수 있습니다.';
 	/* [AX Lab] 수정 끝 */
 
 	if(caws_batchChanged('proc_status')){
-		var oldSt = caws_batchValue(caws.batchOriginal,'proc_status');
 		if(oldSt === 'C006') return '철회된 A/S건은 처리상태 변경이 불가합니다.';
 		if(caws.cnAsList.length > 0) return '하위작업이 있는 A/S건은 처리상태 변경이 불가합니다.';
 	}
@@ -1858,8 +1863,9 @@ function caws_fldOpen(key){
 		return;
 	}
 	/* [AX Lab] 수정 끝 */
-	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN처럼 접수/처리중 상태에서만 담당자 변경 */
-	if(key === 'assign' && !caws_assignEditableStatus(caws_stCode())){
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 운영 화면처럼 변경 전/후 상태 중 하나가 접수·처리중이면 담당자 선택 허용 */
+	var originalSt = caws.batch ? caws_batchValue(caws.batchOriginal,'proc_status') : caws_stCode();
+	if(key === 'assign' && !caws_assignChangeAllowed(originalSt, caws_stCode())){
 		alert('접수 또는 처리중 상태에서만 담당자를 변경할 수 있습니다.');
 		return;
 	}
