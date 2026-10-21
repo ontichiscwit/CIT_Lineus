@@ -835,6 +835,9 @@
 #asWorkspace .caws-ainote.has-warn{color:var(--ink-2);}
 #asWorkspace .caws-ainote .warn{color:#B3261E; font-weight:700;}
 #asWorkspace .caws-ainote a{color:var(--accent); text-decoration:underline; cursor:pointer;}
+/* [AX Lab] 수정 (2026-10-21 AX Lab): '다듬은 결과' 제목 옆 출처 문구 */
+#asWorkspace .caws-aimeta{margin-left:6px; font-size:11px; font-weight:400; color:var(--ink-3);}
+#asWorkspace .caws-aimeta.ai{color:var(--accent);}
 #asWorkspace .caws-tools .caws-aiundo{color:#B3261E; border-color:#F1C4C0; background:#FFF7F6;}
 /* [AX Lab] 수정 끝 */
 

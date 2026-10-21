@@ -67,7 +67,8 @@
       <div class="caws-aiout caws-aisrc" id="cawsAiSrc"></div>
     </div>
     <div class="caws-fld">
-      <label>다듬은 결과</label>
+      <%-- [AX Lab] 수정 (2026-10-21 AX Lab): 결과 출처 문구(#cawsAiMeta — 예: AI(gemma4:26b)가 0.8초 만에 다듬은 결과입니다)를 제목 옆에 표시 --%>
+      <label>다듬은 결과 <span class="caws-aimeta" id="cawsAiMeta"></span></label>
       <div class="caws-aiout wait" id="cawsAiOut"></div>
     </div>
     <div class="caws-mnote caws-ainote" id="cawsAiNote">AI가 다듬은 결과는 반드시 직접 확인 후 사용해주세요.</div>
