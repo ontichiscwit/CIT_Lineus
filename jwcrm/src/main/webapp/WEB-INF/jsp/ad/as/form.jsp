@@ -1710,7 +1710,15 @@
 		
 		
 		
-		if(gubun == '4' || confirm('저장 하시겠습니까?')){
+		// [AX Lab] 수정 시작 (2026-10-21 AX Lab): 전화확인 없이 처리완료로 변경할 때 확인
+		var saveConfirmMessage = '저장 하시겠습니까?';
+		if ($('#proc_status').val() == 'C005'
+				&& proc_status_current != 'C005'
+				&& !$('#tel_confirm').is(':checked')) {
+			saveConfirmMessage = '전화확인이 체크되어 있지 않습니다.\n정말 처리완료 하시겠습니까?';
+		}
+		if(gubun == '4' ? (saveConfirmMessage == '저장 하시겠습니까?' || confirm(saveConfirmMessage)) : confirm(saveConfirmMessage)){
+		// [AX Lab] 수정 끝
 			
 			if( $('#proc_status').val() == "C005") {
 				if(common.isEmpty($('#proc_dt').val())){

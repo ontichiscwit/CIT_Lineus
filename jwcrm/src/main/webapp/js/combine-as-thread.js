@@ -1702,7 +1702,7 @@ function caws_syncBatchHead(){
 	/* [AX Lab] 수정 끝 */
 }
 /* 열린 편집값을 확정하고 접수처리정보 저장 가능 여부를 확인한다. */
-function caws_batchPrepare(includePendingAnswer){
+function caws_batchPrepare(includePendingAnswer, skipCompletionConfirm){
 	if(!caws.batch){ alert('변경된 내용이 없습니다.'); return false; }
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 열린 시스템유형 선택값을 최종 저장 전에 임시값으로 확정 */
 	if(caws.fld === 'systype') caws_pairCommit();
@@ -1738,12 +1738,23 @@ function caws_batchPrepare(includePendingAnswer){
 		return false;
 	}
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 전화확인 없이 처리완료로 변경할 때 확인 */
+	var currentSt = caws_nvl((caws.vo||{}).proc_status,'');
+	var originalSt = caws_batchValue(caws.batchOriginal,'proc_status');
+	if(!skipCompletionConfirm
+	   && currentSt === 'C005'
+	   && originalSt !== 'C005'
+	   && caws_nvl((caws.vo||{}).tel_confirm,'') !== 'Y'
+	   && !confirm('전화확인이 체크되어 있지 않습니다.\n정말 처리완료 하시겠습니까?')){
+		return false;
+	}
+	/* [AX Lab] 수정 끝 */
 	return true;
 }
 function caws_batchSave(mode, internal){
 	mode = mode || 'record';
 	if(caws.saveBusy && !internal) return;
-	if(!caws_batchPrepare(mode === 'combined')) return;
+	if(!caws_batchPrepare(mode === 'combined', internal === true)) return;
 	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리정보만 저장할 때 작성 중인 고객 답변을 재조회 후 복원 */
 	if(mode === 'record') caws_captureAnswerDraft();
 	caws.saveBusy = true;
