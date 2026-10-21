@@ -729,6 +729,9 @@
 	
 	/* [AX Lab] 수정 시작 (2026-07-23 AX Lab): 답변 등록 콜백을 팝업(#awsInfoList)과 인라인 상세(#asThread) 양쪽에서 공유 */
 	function awsProcReturn(resultCode){
+		<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 통합화면의 답변만/답변+처리정보 저장은 전용 완료 흐름으로 위임 --%>
+		if(typeof caws_handleAnswerReturn === 'function' && caws_handleAnswerReturn(resultCode)) return;
+		<%-- [AX Lab] 수정 끝 --%>
 		if(resultCode == "000"){
 			alert('정상처리 되었습니다.') ;
 			$('#w_content').val('') ;
@@ -1547,7 +1550,9 @@
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신
      [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(getAsInfo.do?pageType=aiPolish) 캐시 갱신 (기존 v=20261019-3)
      [AX Lab] 수정 (2026-10-19 AX Lab): 고객답변 UI 기준 버전 반영 캐시 갱신 (기존 v=20261019-4) --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-5"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 답변/처리정보 3가지 고정 저장 동작 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261021-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
