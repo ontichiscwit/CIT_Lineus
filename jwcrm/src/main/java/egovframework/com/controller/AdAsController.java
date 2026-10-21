@@ -922,11 +922,12 @@ public class AdAsController {
 		boolean assignChanged = !"".equals(newAssign) && !newAssign.equals(curAssign) ;
 		// [AX Lab] 수정 시작 (2026-10-21 AX Lab): 변경 전/후 상태 중 하나가 접수·처리중이면 담당자 변경 허용
 		String targetStatus = statusChanged ? newStatus : curStatus ;
-		String targetAssign = assignChanged ? newAssign : curAssign ;
 		if(assignChanged && !isAswsAssignEditableStatus(curStatus)
 				&& !isAswsAssignEditableStatus(targetStatus)) return 0 ;
-		if((!"".equals(targetAssign) && !targetAssign.equals(empNo) && "".equals(comment))
+		// [AX Lab] 수정 시작 (2026-10-21 AX Lab): 자동/수동 구분 없이 실제 담당자 변경 시 사용자 의견 필수
+		if((assignChanged && "".equals(comment))
 				|| (("C005".equals(targetStatus) || "C006".equals(targetStatus)) && "".equals(comment))) return 0 ;
+		// [AX Lab] 수정 끝
 		if(!statusChanged && !assignChanged && "".equals(comment)) return 0 ;
 		// [AX Lab] 수정 끝
 

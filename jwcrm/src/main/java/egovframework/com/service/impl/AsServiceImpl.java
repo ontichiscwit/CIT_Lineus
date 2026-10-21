@@ -1094,8 +1094,9 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		String comment = rawComment.trim();
 
 		if (rawComment.length() > 1300) return 0;
-		if (!newAssign.equals(SsStringUtil.normalizeNull(adUserInfo.getEmp_no()).trim())
-				&& "".equals(comment)) return 0;
+		// [AX Lab] 수정 시작 (2026-10-21 AX Lab): 자동/수동 구분 없이 실제 담당자 변경 시 사용자 의견 필수
+		if (assignChanged && "".equals(comment)) return 0;
+		// [AX Lab] 수정 끝
 		// [AX Lab] 수정 끝
 
 		/* 문의유형/시스템유형은 기존 화면과 동일하게 관리자만 변경할 수 있다. */
@@ -1177,11 +1178,13 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		// [AX Lab] 수정 끝
 
 		if ("C004".equals(newStatus) && "".equals(newProcDt)) return 0;
+		// [AX Lab] 수정 시작 (2026-10-21 AX Lab): 상태를 실제 변경할 때만 완료/철회 의견 필수
 		if ("C005".equals(newStatus)) {
 			/* 원본과 동일하게 처리예정일이 없으면 처리완료일로 자동 보정 */
 			if ("".equals(newProcDt) && !"".equals(completeDt)) newProcDt = completeDt;
 			if ("".equals(causeType) || "".equals(actionType) || "".equals(workTime)
-					|| "".equals(completeDt) || "".equals(comment)) return 0;
+					|| "".equals(completeDt)
+					|| (statusChanged && "".equals(comment))) return 0;
 			if (commonDAO.selectOneInt(key, "asDAO.getAsAdminAnswerCount") < 1) return 0;
 
 			if ("C001".equals(actionType) || "C002".equals(actionType)) {
@@ -1196,9 +1199,10 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_function_sp()).trim())
 						&& "".equals(SsStringUtil.normalizeNull(vo.getProc_interface_sp()).trim())) return 0;
 			}
-		} else if ("C006".equals(newStatus) && "".equals(comment)) {
+		} else if ("C006".equals(newStatus) && statusChanged && "".equals(comment)) {
 			return 0;
 		}
+		// [AX Lab] 수정 끝
 		// [AX Lab] 수정 끝
 
 		boolean procDtChanged = !newProcDt.equals(curProcDt);

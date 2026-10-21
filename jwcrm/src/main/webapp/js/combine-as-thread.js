@@ -389,6 +389,8 @@ function caws_buildEvents(){
 		return Number(caws_nvl(x.seq,0)) - Number(caws_nvl(y.seq,0));
 	});
 
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): DB 이력은 유지하고 조치 관련 변경만 화면에 노출 */
+	var prevHist = null;
 	for(var h=0; h<hist.length; h++){
 		var hi   = hist[h];
 		var acc  = caws_nvl(hi.acceptor,'');
@@ -400,6 +402,16 @@ function caws_buildEvents(){
 		/* 이관 코멘트 접두어 판별 */
 		var hasPrefix = (raw.indexOf(CAWS_TR_PREFIX) === 0);
 		var comment   = hasPrefix ? raw.substr(CAWS_TR_PREFIX.length) : raw;
+		var hasActionChange = (prevHist === null)
+			|| acc !== caws_nvl(prevHist.acceptor,'')
+			|| caws_nvl(hi.proc_status,'') !== caws_nvl(prevHist.proc_status,'')
+			|| caws_nvl(hi.inportance,'') !== caws_nvl(prevHist.inportance,'')
+			|| String(comment).replace(/\s/g,'') !== ''
+			|| files.length > 0
+			|| Number(caws_nvl(hi.file_seq, caws_nvl(hi.attach_seq2,'0'))) > 0;
+		prevHist = hi;
+		if(!hasActionChange) continue;
+		/* [AX Lab] 수정 끝 */
 
 		/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 담당자 변경 설명을 덧붙이지 않고 입력 메모만 표시 */
 		var histText = comment;
@@ -1593,11 +1605,10 @@ function caws_assignChangeAllowed(fromStatus, toStatus){
 function caws_batchMemoRequired(){
 	var vo = caws.vo || {};
 	var st = caws_nvl(vo.proc_status,'');
-	var loginEmpNo = (typeof CAWS_LOGIN_EMP_NO !== 'undefined') ? caws_nvl(CAWS_LOGIN_EMP_NO,'') : '';
-	var assignId = caws_nvl(vo.assign_id,'');
-	/* ORIGIN goSave: 로그인 사용자 아닌 담당자를 지정한 경우, 처리완료/철회인 경우 조치의견 필수 */
-	return (loginEmpNo !== '' && assignId !== '' && assignId !== loginEmpNo)
-	    || st === 'C005' || st === 'C006';
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 자동/수동 구분 없이 담당자 변경 사유는 사용자가 직접 입력 */
+	return caws_batchChanged('assign_id')
+	    || (caws_batchChanged('proc_status') && (st === 'C005' || st === 'C006'));
+	/* [AX Lab] 수정 끝 */
 }
 /* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp goSave의 필수값 규칙을 통합화면 일괄저장에 적용 */
@@ -1652,7 +1663,7 @@ function caws_batchValidate(includePendingAnswer){
 		if(caws_blank(vo.action_type)) return '조치유형을 선택하세요.';
 		if(caws_blank(vo.work_time)) return '작업시간을 입력하세요.';
 		if(caws_blank(vo.complete_dt)) return '처리 완료 일자를 입력하세요.';
-		if(memo === '') return '조치이력을 남겨주세요. 처리이력을 파악하는 데 꼭 필요합니다.';
+		/* [AX Lab] 삭제 (2026-10-21 AX Lab): 이미 완료된 건의 접수정보만 수정할 때 조치의견을 강제하던 조건 제거 */
 		if(caws_adminAnswerCount(includePendingAnswer) < 1) return '처리상태가 "처리완료"인 경우 답변내역을 1건 이상 남겨주세요.';
 
 		if(vo.action_type === 'C001' || vo.action_type === 'C002'){
@@ -1666,9 +1677,8 @@ function caws_batchValidate(includePendingAnswer){
 				return '처리구분이 "형상변경"인 경우 아래 목록 중\n한가지 이상의 정의서가 필수입니다.\n-프로세스정의서\n-화면정의서\n-테이블정의서\n-기능분해도\n-인터페이스정의서';
 			}
 		}
-	}else if(st === 'C006' && memo === ''){
-		return '조치이력을 남겨주세요. 처리이력을 파악하는 데 꼭 필요합니다.';
 	}
+	/* [AX Lab] 삭제 (2026-10-21 AX Lab): 이미 철회된 건의 접수정보만 수정할 때 조치의견을 강제하던 조건 제거 */
 	return '';
 }
 /* [AX Lab] 수정 끝 */
@@ -2370,7 +2380,7 @@ function caws_inquiryCommit(reqType, cate, inq){
 		} else if(sc !== '' && iq !== ''){
 			w = caws_worker({ request_type: rt, service_cate: sc, inquiry_type: iq, val2: val2 });
 		}
-		if(w && caws_nvl(w.wk_emp_no,'') !== ''){
+		if(w && caws_nvl(w.wk_emp_no,'') !== '' && caws_nvl(w.wk_emp_no,'') !== oldAssignId){
 			caws._autoAssign = { id: w.wk_emp_no, nm: caws_nvl(w.wk_emp_nm,'') };
 		}
 	}
@@ -2381,14 +2391,33 @@ function caws_inquiryCommit(reqType, cate, inq){
 		if(caws._autoAssign){
 			vo.assign_id = caws._autoAssign.id;
 			vo.assign_nm = caws._autoAssign.nm;
-			if(caws._autoAssign.id !== oldAssignId && caws_nvl(caws.batchMemo,'') === ''){
-				caws.batchMemo = '문의유형/시스템유형 변경에 따른 처리담당자 자동배정';
-			}
+			/* [AX Lab] 삭제 (2026-10-21 AX Lab): 자동배정 고정 메모 대신 사용자가 변경 의견을 직접 입력 */
 		}
 		caws._autoAssign = null;
 		caws.fld = '';
 		caws_renderRecord();
 		return;
+	}
+	/* [AX Lab] 수정 끝 */
+
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 즉시 저장 경로도 자동 문구 없이 사용자가 변경 사유를 직접 입력 */
+	if(caws._autoAssign){
+		var autoAssignMemo = window.prompt('처리담당자가 변경됩니다.\n담당자 변경 의견을 입력해주세요.', '');
+		if(autoAssignMemo === null || String(autoAssignMemo).replace(/\s/g,'') === ''){
+			alert('담당자 변경 의견은 필수입니다.');
+			caws._autoAssign = null;
+			caws.fld = '';
+			caws_renderRecord();
+			return;
+		}
+		if(String(autoAssignMemo).length > 1300){
+			alert('조치의견은 최대 1,300자까지 입력할 수 있습니다.');
+			caws._autoAssign = null;
+			caws.fld = '';
+			caws_renderRecord();
+			return;
+		}
+		caws._autoAssign.memo = String(autoAssignMemo).trim();
 	}
 	/* [AX Lab] 수정 끝 */
 
@@ -2417,7 +2446,7 @@ function caws_inqReturn(data){
 			proc_status: '',	/* 상태는 바꾸지 않음(빈 값 = 유지) */
 			proc_dt: '',
 			assign_id: w.id,
-			action_content: '문의유형/시스템유형 변경에 따른 처리담당자 자동배정'
+			action_content: caws_nvl(w.memo,'')
 		}, '/ad/as/histProc.do', 'caws_autoAssignReturn');
 	}
 	caws_reload(true);
