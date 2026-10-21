@@ -101,6 +101,18 @@
 	min-width: 132px;
 }
 
+/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 미저장 수정내용 초기화 버튼 구분 */
+#asWorkspace .asoc-actions [data-asoc="discard"] {
+	min-width: 126px;
+	border-color: #d46a6a;
+	color: #b42318;
+}
+
+#asWorkspace .asoc-actions [data-asoc="discard"]:hover {
+	background: #fff1f0;
+}
+/* [AX Lab] 수정 끝 */
+
 #asWorkspace .asoc-focus-target {
 	border-radius: 5px;
 	box-shadow: 0 0 0 3px rgba(255, 179, 0, .45);

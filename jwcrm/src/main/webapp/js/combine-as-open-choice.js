@@ -7,6 +7,9 @@
 	/* [AX Lab] 수정 시작 (2026-10-18 AX Lab): 평소 즉시 전환, 미저장 변경만 보호하고 브라우저 뒤로가기로 이전 AS 복원 */
 	var historyReady = false;
 	var historyIndex = 0;
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 미저장 내용 초기화 후 이동할 AS 대상 보관 */
+	var pendingOpen = null;
+	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 미저장 항목 위치 안내 및 포커스 복원 */
 	var dirtyFocusItem = null;
 	var recordFieldInfo = {
@@ -245,6 +248,9 @@
 		var item = dirtyFocusItem;
 		closeModal(true);
 		dirtyFocusItem = null;
+		/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 취소 시 보관한 이동 대상 제거 */
+		pendingOpen = null;
+		/* [AX Lab] 수정 끝 */
 		setTimeout(function(){ focusDirty(item); }, 20);
 	}
 	/* [AX Lab] 수정 끝 */
@@ -328,6 +334,9 @@
 		   답변과 접수처리정보가 모두 변경됐으면 서로 다른 기존 저장 API를 각각 호출한다. */
 		closeModal(true);
 		dirtyFocusItem = null;
+		/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 저장 선택 시 초기화 이동 대상 제거 */
+		pendingOpen = null;
+		/* [AX Lab] 수정 끝 */
 		/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 문의내용·조치이력 편집도 경고창 저장 대상에 포함 */
 		if(state.inquiry && typeof caws_qSave === 'function') caws_qSave();
 		if(state.history && state.historySeq !== '' && typeof caws_histEditSave === 'function') caws_histEditSave(state.historySeq);
@@ -335,6 +344,27 @@
 		if(state.answer && typeof caws_send === 'function') caws_send();
 		if(state.record && typeof caws_batchSave === 'function') caws_batchSave();
 	}
+
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 미저장 수정내용을 폐기하고 사용자가 선택한 AS로 이동 */
+	function discardDirtyAndOpen(){
+		var target = pendingOpen;
+		closeModal(true);
+		dirtyFocusItem = null;
+		pendingOpen = null;
+		if(!target) return;
+
+		if(target.replaceHistory){
+			historyIndex = Number(target.index) || 0;
+			try{
+				window.history.replaceState(
+					historyState(target.asNo,target.cnAsNo,historyIndex),
+					'', historyUrl(target.asNo,target.cnAsNo)
+				);
+			}catch(e){}
+		}
+		openDetail(target.asNo, target.cnAsNo, !!target.addHistory);
+	}
+	/* [AX Lab] 수정 끝 */
 
 	function showDirtyModal(){
 		closeModal();
@@ -352,13 +382,15 @@
 		modal = document.createElement('div');
 		modal.className = 'asoc-backdrop';
 		modal.setAttribute('role', 'presentation');
+		/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 수정내용 초기화 버튼과 이동 안내 추가 */
 		modal.innerHTML = ''
 			+ '<div class="asoc-dialog" role="dialog" aria-modal="true" aria-labelledby="asocTitle" aria-describedby="asocMessage">'
 			+   '<h3 class="asoc-title" id="asocTitle">저장하지 않은 내용이 있습니다.</h3>'
-			+   '<p class="asoc-message" id="asocMessage">변경한 내용을 저장하거나 수정 위치로 돌아간 후 다시 선택해 주세요.</p>'
+			+   '<p class="asoc-message" id="asocMessage">변경한 내용을 저장하거나 수정 위치로 돌아갈 수 있습니다. 수정내용을 초기화하면 선택한 AS로 이동합니다.</p>'
 			+   (locationText ? '<div class="asoc-location"><strong>미저장 위치</strong><span></span></div>' : '')
 			+   '<div class="asoc-actions">'
 			+     '<button type="button" data-asoc="cancel">수정 위치로 이동</button>'
+			+     '<button type="button" data-asoc="discard">수정내용 초기화</button>'
 			+     '<button type="button" class="asoc-current" data-asoc="save">저장</button>'
 			+   '</div>'
 			+ '</div>';
@@ -369,8 +401,10 @@
 			if(e.target === modal){ goToDirty(); return; }
 			var action = e.target.getAttribute ? e.target.getAttribute('data-asoc') : '';
 			if(action === 'cancel') goToDirty();
+			else if(action === 'discard') discardDirtyAndOpen();
 			else if(action === 'save') saveDirty();
 		});
+		/* [AX Lab] 수정 끝 */
 		workspace.appendChild(modal);
 		document.addEventListener('keydown', onKeyDown);
 
@@ -392,16 +426,21 @@
 		cnAsNo = String(cnAsNo || '');
 		if(asNo === '') return;
 
+		/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 초기화 선택 시 이동할 목록 AS 보관 */
 		var current = currentSelection();
 		if(current.asNo === asNo && current.cnAsNo === cnAsNo){
+			pendingOpen = null;
 			openDetail(asNo, cnAsNo, false);
 			return;
 		}
 		if(current.asNo !== '' && hasUnsavedChanges()){
+			pendingOpen = { asNo:asNo, cnAsNo:cnAsNo, addHistory:true, replaceHistory:false };
 			showDirtyModal();
 			return;
 		}
+		pendingOpen = null;
 		openDetail(asNo, cnAsNo, true);
+		/* [AX Lab] 수정 끝 */
 	};
 
 	window.addEventListener('popstate', function(e){
@@ -418,10 +457,22 @@
 					'', historyUrl(current.asNo,current.cnAsNo)
 				);
 			}catch(ignore){}
+			/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 뒤로가기 대상도 초기화 후 이동 대상으로 보관 */
+			pendingOpen = {
+				asNo:String(state.asNo || ''),
+				cnAsNo:String(state.cnAsNo || ''),
+				addHistory:false,
+				replaceHistory:true,
+				index:Number(state.index) || 0
+			};
+			/* [AX Lab] 수정 끝 */
 			showDirtyModal();
 			return;
 		}
 
+		/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 미저장 내용이 없으면 보관 대상 제거 */
+		pendingOpen = null;
+		/* [AX Lab] 수정 끝 */
 		historyIndex = Number(state.index) || 0;
 		var asNo = String(state.asNo || '');
 		var cnAsNo = String(state.cnAsNo || '');
