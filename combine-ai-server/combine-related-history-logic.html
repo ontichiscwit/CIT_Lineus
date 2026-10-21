@@ -6,6 +6,8 @@
 <title>AS 통합화면 연관 이력 — 어떻게 동작하나요?</title>
 <!-- [AX Lab] 신규 파일 (2026-10-19 AX Lab): 「문의 내용 키워드 · 연관 이력」 로직 설명용 독립 HTML (비전공자 대상).
      짝 문서: combine-ai-recommend-logic.html (AI 추천). 기준 코드: jwcrm/src/main/webapp/js/combine-as-keyword.js -->
+<!-- [AX Lab] 수정 (2026-10-21 AX Lab): AI PC 연결 감시 도입에 따른 영향 반영 — #s-vsai "서버가 꺼지면" · #s-screen 재문의 행 · #s-guard 한계 표 · 변경 이력.
+     연관 이력 랭킹 로직(combine-as-keyword.js)은 변경 없음 -->
 
 <style>
   :root{
@@ -268,7 +270,7 @@
           <tr><td>주로 쓰는 때</td><td>재촉·재문의("지난번 그 건 어떻게 됐나요"), 같은 문제가 반복되는지 확인</td><td>처음 보는 문제의 해결 방법·답변 초안 찾기</td></tr>
           <tr><td>계산 위치</td><td>상담원 <b>브라우저</b> 안 (<code>combine-as-keyword.js</code>)</td><td>AI 추천 서버 + AI PC (임베딩·리랭킹)</td></tr>
           <tr><td>비교 방법</td><td>본문 <span class="t" data-term="token">토큰</span> 겹침(<span class="t" data-term="idf">IDF</span> 가중) + 최근성 + 코드·프로그램·증상·신청자 일치</td><td>문장 뜻(임베딩) + 단어(BM25) + AI 재채점(리랭킹)</td></tr>
-          <tr><td>서버가 꺼지면</td><td>CRM만 살아 있으면 동작 (AI PC와 무관)</td><td>AI 추천만 건너뜀</td></tr>
+          <tr><td>서버가 꺼지면</td><td>CRM만 살아 있으면 동작 (AI PC와 무관). 단 AI PC가 끊기면 재문의 판정이 없어 이 블록이 <b>맨 위로 올라가지 않습니다</b></td><td>AI 추천만 건너뜀. AI PC 끊김이면 "AI PC 끊김"으로 구분해 표시하고 관리자에게 메일 (<a href="combine-ai-recommend-logic.html#s-aipc">연결 감시</a>)</td></tr>
           <tr><td>서로 연결</td><td colspan="2">AI 추천 서버가 문의를 <a href="combine-ai-recommend-logic.html#s-followup">재문의·연락 요청</a>으로 판정하면, 이 블록이 접수·처리 정보 <b>맨 위로 올라가고</b> 안내 한 줄이 붙습니다(<a href="#s-screen">화면</a>).</td></tr>
         </tbody>
       </table>
@@ -494,6 +496,7 @@
           <tr><td>거래처 정보 없음</td><td>"거래처 정보가 없어 연관 이력을 찾을 수 없습니다." (조회하지 않음)</td></tr>
           <tr><td>조회 실패 · 60초 초과</td><td>"과거 이력을 불러오지 못했습니다 (HTTP …)" 또는 "조회가 오래 걸려 중단했습니다." + [다시 시도]</td></tr>
           <tr><td>재문의·연락 요청 문의</td><td>AI 추천 서버가 재문의로 판정하면 이 블록이 접수·처리 정보 <b>맨 위로</b> 올라가고 "↻ 재문의·연락 요청 — 앞서 접수한 건을 먼저 확인하세요" 안내가 붙습니다(<code>combine-as-ai.js</code>, <a href="combine-ai-recommend-logic.html#s-followup">판정 방법</a>).</td></tr>
+          <tr><td>AI 추천 실패 (AI PC 끊김 포함)</td><td>재문의 판정 자체가 없으므로 블록은 원래 자리(「과거 상담이력」 위)에 그대로 있고, 칩·목록은 정상으로 나옵니다. 재문의 문의라도 안내 줄은 붙지 않습니다. AI 추천 팝업에는 "AI PC 끊김" 등 실패 사유가 뜹니다.</td></tr>
         </tbody>
       </table>
     </section>
@@ -518,6 +521,7 @@
           <tr><td>뜻은 같고 단어가 다른 경우</td><td>단어 겹침 기반이라 "결제 취소 안 됨" ↔ "수납 취소 불가"처럼 표현만 다른 건은 약합니다. 이런 건 AI 추천(문장 뜻 검색)이 맡습니다.</td></tr>
           <tr><td>형태소 분석기 없음</td><td>조사를 끝 글자 모양으로 떼는 규칙 방식이라 "검사결과"가 "검사결"로 잘리는 식의 오차가 있습니다. 과거 건도 똑같이 잘려 비교 자체는 맞습니다. (AI 추천의 칩은 형태소 분석기 Kiwi를 씁니다)</td></tr>
           <tr><td>본문이 빈 문의</td><td>요청내용이 비어 있으면 본문 겹침이 0이라 분류 코드 일치나 직접 참조로만 뜹니다.</td></tr>
+          <tr><td>AI PC가 끊겼을 때</td><td>연관 이력 계산은 브라우저와 CRM만 쓰므로 그대로 동작합니다. 다만 "재문의·연락 요청" 판정은 AI 추천 서버가 하므로, 그동안은 재문의 문의여도 이 블록이 맨 위로 올라가지 않습니다. 상담원이 접수번호 칩이나 목록을 직접 확인해야 합니다.</td></tr>
         </tbody>
       </table>
     </section>
@@ -614,11 +618,12 @@ score         = overlap
               <tr><td>2026-10-12</td><td>조회 기준일을 오늘 → 이 건 접수일로(나중 건 제외) · 항목 클릭 시 그 자리에서 펼쳐 보기</td><td><a href="#s-steps">3단계</a> · <a href="#s-screen">화면</a></td></tr>
               <tr><td>2026-10-16</td><td>AI 추천의 재문의 판정 시 이 블록을 맨 위로 올리고 안내 표시(<code>combine-as-ai.js</code>)</td><td><a href="#s-screen">화면</a></td></tr>
               <tr><td>2026-10-19</td><td>항목에 시스템유형(대/소) · 처리담당자 표시 · <b>같은 신청자 가점</b>(0.5 × e<sup>-경과일/90</sup>) 추가 · 이 문서 작성</td><td><a href="#s-applicant">같은 신청자</a> · <a href="#s-screen">화면</a></td></tr>
+              <tr><td>2026-10-21</td><td>AI 추천 쪽에 AI PC(Mac) 연결 감시 도입. 연관 이력 로직은 변경 없음. AI PC가 끊기면 재문의 판정이 없어 이 블록이 맨 위로 올라가지 않는 점을 문서에 명시</td><td><a href="#s-vsai">AI 추천과 차이</a> · <a href="#s-screen">화면</a> · <a href="#s-guard">한계</a></td></tr>
             </tbody>
           </table>
         </div>
       </details>
-      <p class="foot">기준: combine-as-keyword.js · combine-as-past-inline.js · combine-as-ai.js · egov-as-query.xml(getAsList) (2026-10-19). 「순위는 어떻게 정하나요?」의 예시 점수는 설명을 위해 만든 값이고, 「같은 신청자 가점」 표와 「근거」 표는 실측값입니다.</p>
+      <p class="foot">기준: combine-as-keyword.js · combine-as-past-inline.js · combine-as-ai.js · egov-as-query.xml(getAsList) (2026-10-19, AI PC 끊김 영향은 2026-10-21 반영). 「순위는 어떻게 정하나요?」의 예시 점수는 설명을 위해 만든 값이고, 「같은 신청자 가점」 표와 「근거」 표는 실측값입니다.</p>
     </section>
   </main>
 </div>

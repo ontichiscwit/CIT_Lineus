@@ -14,6 +14,8 @@
      · 동의어 사전 섹션 신설(#s-synonym, 선정 기준·규칙 표) · 리랭킹 원점수 -2.0 을 확률 눈금으로 설명(#s-filter)
      · 아키텍처 단계마다 "어디서 → 어디로 무엇이" 가는지 경로 표시(#s-arch) · 칩 만드는 과정(#s-terms)과 재문의(#s-followup)를 독립 섹션으로
      · 본문 안의 날짜 배지는 #s-dev 변경 이력 표로 모았다. 기존 앵커(#s-morph · #s-formal · #s-synchip · #s-followup)는 그대로 유지. -->
+<!-- [AX Lab] 수정 (2026-10-21 AX Lab): AI PC(Mac) 연결 감시(combine_ailink.py) 반영 — #s-aipc 신설(점검·판정·메일·빠른 실패),
+     #s-arch "PC가 꺼지면" 문구 · #s-screen 화면 경우 표 · #s-guard · #s-data(label_source) · #s-dev 응답 필드·파일·변경 이력 -->
 
 
 <style>
@@ -325,6 +327,7 @@
     <b>목차</b>
     <a href="#s-overview">한눈에 보기</a>
     <a href="#s-arch">어느 PC에서 무엇을?</a>
+    <a href="#s-aipc" class="sub">AI PC 연결 감시</a>
     <a href="#s-steps">추천이 만들어지는 과정</a>
     <a href="#s-synonym" class="sub">① 현장 말 → 시스템 말</a>
     <a href="#s-score" class="sub">② 순위는 어떻게 정하나</a>
@@ -426,13 +429,13 @@
         <div class="zone">
           <div class="zone-h"><b>CRM 서버 PC</b><span>현재는 두 <span class="t" data-term="server">서버</span> 프로그램이 같은 PC에서 동작</span></div>
           <div class="box" data-box="was"><b>CRM 웹 서버 <small class="muted">(<span class="t" data-term="was">WAS</span>)</small></b><span>문의 내용을 <span class="t" data-term="db">DB</span>에서 꺼내 추천 서버 API를 호출하고, 최대 2.5초 <span class="t" data-term="timeout">타임아웃</span>까지 결과를 기다립니다.</span></div>
-          <div class="box" data-box="rec"><b>AI 추천 서버 <small class="muted">(<span class="t" data-term="port">포트</span> 8765)</small></b><span>추천의 두뇌. 자료 1만 1천 건의 <span class="t" data-term="index">인덱스</span>를 <span class="t" data-term="memory">메모리</span>에 올려 두고 <span class="t" data-term="hybrid">하이브리드 검색</span>·점수 계산·최종 선택·근거 칩 만들기를 합니다.</span></div>
+          <div class="box" data-box="rec"><b>AI 추천 서버 <small class="muted">(<span class="t" data-term="port">포트</span> 8765)</small></b><span>추천의 두뇌. 자료 1만 1천 건의 <span class="t" data-term="index">인덱스</span>를 <span class="t" data-term="memory">메모리</span>에 올려 두고 <span class="t" data-term="hybrid">하이브리드 검색</span>·점수 계산·최종 선택·근거 칩 만들기를 합니다. AI PC 연결도 30초마다 점검해 끊기면 관리자에게 메일을 보냅니다(<a href="#s-aipc">연결 감시</a>).</span></div>
         </div>
         <div class="zone">
           <div class="zone-h"><b>AI PC</b><span><span class="t" data-term="ip">IP</span> 192.168.19.141 · AI 모델 전용</span></div>
           <div class="box" data-box="embed"><b>임베딩 서버 <small class="muted">(<span class="t" data-term="ollama">Ollama</span> · <span class="t" data-term="bgem3">bge-m3</span>)</small></b><span>문의 문장을 뜻을 담은 숫자 묶음인 <span class="t" data-term="embedding">임베딩</span>으로 바꿔 줍니다.</span></div>
           <div class="box" data-box="rerank"><b><span class="t" data-term="rerank">리랭킹</span> 서버 <small class="muted">(포트 8766 · <span class="t" data-term="bgerr">bge-reranker-v2-m3</span>)</small></b><span>후보 상위 20건을 문의와 나란히 놓고 직접 읽어 다시 채점합니다. 꺼져 있어도 <span class="t" data-term="fallback">폴백</span>으로 추천은 정상 동작합니다.</span></div>
-          <div class="box" data-box="llm"><b>자료 정리용 <span class="t" data-term="llm">LLM</span> <small class="muted">(Ollama · <span class="t" data-term="gemma">gemma</span>)</small></b><span>새 AS 건이 들어오면 주제 분류와 개인정보 <span class="t" data-term="masking">마스킹</span>을 도와줍니다. 자료 준비 때만 씁니다.</span></div>
+          <div class="box" data-box="llm"><b>자료 정리용 <span class="t" data-term="llm">LLM</span> <small class="muted">(Ollama · <span class="t" data-term="gemma">gemma</span>)</small></b><span>새 AS 건이 들어오면 주제 분류와 개인정보 <span class="t" data-term="masking">마스킹</span>을 도와줍니다. 자료 준비와 고객 답변의 [AI 문장 다듬기]에 쓰고, AI 추천 순위 계산에는 쓰지 않습니다.</span></div>
         </div>
         <div class="zone">
           <div class="zone-h"><b>DB 서버</b><span>CRM 데이터 저장소</span></div>
@@ -448,10 +451,50 @@
       <p class="muted small" style="margin-bottom:4px">어떤 경우에도 CRM의 다른 기능은 영향을 받지 않습니다. 추천 기능만 영향을 받습니다.</p>
       <div class="down">
         <div><span class="st bad">추천 중단</span><b>AI 추천 서버가 꺼지면</b><p>화면에 "AI 추천 서버 응답이 지연되어 건너뛰었습니다 [다시 시도]"가 뜹니다.</p></div>
-        <div><span class="st bad">추천 중단</span><b>AI PC(<span class="t" data-term="ollama">Ollama</span>)가 꺼지면</b><p>문의 문장을 <span class="t" data-term="embedding">임베딩</span>으로 바꿀 수 없어 "AI 추천을 불러오지 못했습니다"가 뜹니다.</p></div>
-        <div><span class="st mid">정확도만 조금 하락</span><b>리랭킹 서버만 꺼지면</b><p><span class="t" data-term="fallback">폴백</span>으로 정밀 채점을 건너뛰고 기존 방식으로 추천합니다. 이후 30초간은 <span class="t" data-term="circuit">서킷 브레이커</span>가 호출을 쉬어 추천이 느려지지 않습니다. 관련 없는 자료를 거르는 기준도 덜 정확한 코사인 0.55로 바뀌어, 엉뚱한 추천이 조금 더 섞일 수 있습니다.</p></div>
+        <div><span class="st bad">추천 중단</span><b>AI PC(<span class="t" data-term="ollama">Ollama</span>)가 꺼지면</b><p>문의 문장을 <span class="t" data-term="embedding">임베딩</span>으로 바꿀 수 없어 추천이 멈춥니다. 화면에는 <strong>AI PC 끊김</strong> 태그와 "AI PC(Mac) 연결이 끊겨 AI 추천을 불러오지 못했습니다 [다시 시도]"가 뜨고, 관리자에게 메일이 갑니다(<a href="#s-aipc">연결 감시</a>).</p></div>
+        <div><span class="st mid">정확도만 조금 하락</span><b>리랭킹 서버만 꺼지면</b><p><span class="t" data-term="fallback">폴백</span>으로 정밀 채점을 건너뛰고 기존 방식으로 추천합니다. 이후 30초간은 <span class="t" data-term="circuit">서킷 브레이커</span>가 호출을 쉬어 추천이 느려지지 않습니다. 관련 없는 자료를 거르는 기준도 덜 정확한 코사인 0.55로 바뀌어, 엉뚱한 추천이 조금 더 섞일 수 있습니다. 목록 위에 "AI 재채점 없이 기본 점수로 정렬했습니다"가 붙고 관리자에게 메일이 갑니다.</p></div>
         <div><span class="st ok">추천 정상</span><b>AX Lab 개발 PC가 꺼지면</b><p>추천은 그대로 됩니다. 다만 새로 종결된 AS 건이 추천 자료에 추가되지 않습니다.</p></div>
       </div>
+    </section>
+
+    <!-- 1-1. AI PC 연결 감시 -->
+    <section id="s-aipc">
+      <p class="kicker">아키텍처 · 자세히</p>
+      <h2>AI PC 연결이 끊기면 누가, 어떻게 알아채나요?</h2>
+      <p class="desc">AI 추천은 AI PC(Mac, 192.168.19.141)의 두 서비스에 기댑니다. <span class="t" data-term="ollama">Ollama</span>(포트 11434, 추천 질의 <span class="t" data-term="embedding">임베딩</span> · AI 문장 다듬기)와 <span class="t" data-term="rerank">리랭킹</span> 서버(포트 8766)입니다. 이 연결을 AI 추천 서버가 직접 지켜보다가, 끊기면 화면에 원인을 알리고 관리자에게 메일을 보냅니다(<code>combine_ailink.py</code>).</p>
+
+      <div class="why2">
+        <div>
+          <span class="lbl st bad">예전</span>
+          <h3>끊겨도 "지연"으로만 보였습니다</h3>
+          <p>AI PC가 끊기면 추천 서버는 임베딩 응답을 최대 20초 기다리는데, CRM은 2.5초만 기다립니다. 그래서 CRM이 먼저 포기해 화면에는 <strong>"AI 추천 서버 응답이 지연되어 건너뛰었습니다(903)"</strong>가 떴습니다. CRM 서버 PC 쪽 문제와 같은 문구라 원인을 알 수 없었고, 리랭킹 서버만 끊긴 경우는 아무 표시도 없었습니다. 원인을 아는 곳은 추천 서버뿐이었습니다.</p>
+        </div>
+        <div>
+          <span class="lbl st ok">지금</span>
+          <h3>추천 서버가 연결 상태를 들고 있다가 알려 줍니다</h3>
+          <p>추천 서버가 30초마다 AI PC를 가볍게 점검해 "연결됨 / 끊김"을 기억합니다. 끊김이 확인되면 추천 요청에 20초를 기다리지 않고 바로 "AI PC 끊김"으로 답해(<span class="t" data-term="fastfail">빠른 실패</span>) 화면이 원인을 구분해 보여 주고, 끊긴 순간과 복구된 순간에 관리자에게 메일을 보냅니다.</p>
+        </div>
+      </div>
+
+      <div class="rule3">
+        <div class="card"><b>1. 점검</b><span class="v">30초마다</span><p>Ollama에는 모델 목록 조회(<code>GET /api/tags</code>)를 보내 필요한 모델(bge-m3 · gemma4:26b)이 설치돼 있는지까지 봅니다. 모델을 메모리에 올리지 않는 가벼운 호출입니다. 리랭킹 서버에는 <code>GET /health</code>를 보냅니다. 실제 추천 요청이 성공하면 그 결과도 바로 "연결됨"으로 반영합니다.</p></div>
+        <div class="card"><b>2. 판정</b><span class="v">연속 2회 실패 = 끊김</span><p>한 번 실패는 순간 지연일 수 있어 끊김으로 보지 않습니다. 실제 요청이 실패하면 그 실패를 그대로 세지 않고 점검을 즉시 한 번 더 돌려 확인합니다. AI 문장 다듬기(26B 모델)의 생성이 길어 시간이 초과된 것을 "끊김"으로 잘못 알리지 않기 위해서입니다. 한 번 성공하면 복구로 봅니다.</p></div>
+        <div class="card"><b>3. 알림</b><span class="v">로그 + 메일</span><p>상태가 바뀌는 순간에만 서버 로그에 한 줄을 남기고(<code>[ai-link] ollama 끊김 · …</code> / <code>복구 · 끊김 3분 12초</code>), 관리자에게 메일을 보냅니다. 끊김이 이어지면 3시간마다 다시 알립니다. 메일 본문에는 확인 순서(ping, Ollama, 리랭킹 재기동 명령)가 들어 있습니다.</p></div>
+      </div>
+
+      <h3>끊겼을 때 화면 문구</h3>
+      <p class="muted small" style="margin-bottom:12px">상담원에게는 원인만 알리고 "관리자에게 연락하세요" 같은 요청 문구는 넣지 않습니다. 관리자에게는 이미 메일이 갔기 때문입니다.</p>
+      <table class="cmp">
+        <thead><tr><th style="width:190px">상황</th><th>화면</th><th style="width:250px">추천 서버 응답</th></tr></thead>
+        <tbody>
+          <tr><td>Ollama 끊김 (AI 추천)</td><td>태그 <b>AI PC 끊김</b> · "AI PC(Mac) 연결이 끊겨 AI 추천을 불러오지 못했습니다." [다시 시도]</td><td class="num">503 · reason=ai_pc_down</td></tr>
+          <tr><td>Ollama 끊김 (AI 문장 다듬기)</td><td>"AI PC(Mac) 연결이 끊겨 (905) 브라우저 안의 기본 문장 정리 규칙으로 만든 결과입니다…"</td><td class="num">503 · reason=ai_pc_down</td></tr>
+          <tr><td>리랭킹 서버만 끊김</td><td>추천 목록은 정상. 목록 위에 "AI PC(Mac) 재정렬 서버 연결이 끊겨 AI 재채점 없이 기본 점수로 정렬했습니다."</td><td class="num">200 · rerank_applied=false</td></tr>
+          <tr><td>리랭킹이 이번 요청만 빠짐</td><td>목록 위에 "AI 재채점 없이 기본 점수로 정렬했습니다." (0.9초 초과·서킷 브레이커 등, 끊김 판정 전)</td><td class="num">200 · rerank_applied=false</td></tr>
+          <tr><td>CRM 서버 PC 쪽 지연·오류</td><td>예전과 같이 "AI 추천 서버 응답이 지연되어 건너뛰었습니다(903)" 등</td><td class="num">—</td></tr>
+        </tbody>
+      </table>
+      <div class="note warn"><b>알아둘 점</b> — ① 끊김은 연속 2회 실패로 판정하므로, 끊긴 직후 <strong>최대 1분 안팎</strong>은 예전처럼 "지연(903)"이나 "오류"로 보일 수 있습니다. ② 실패 응답의 원인(<code>reason</code>)이 화면까지 오려면 CRM <code>CombineAsAiClient.java</code>를 다시 컴파일하고 WAS를 재기동해야 합니다. 그 전에는 "AI PC 끊김" 대신 "오류(905)"로 보입니다. 리랭킹 안내는 성공 응답에 실려 오므로 기존 Java로도 보입니다. ③ 메일은 서버 폴더의 <code>.env</code>에 그룹웨어 메일 비밀번호(<code>COMBINE_ALERT_SMTP_PASSWORD</code>)를 넣어야 나갑니다. 없으면 끊김/복구가 로그에만 남습니다.</div>
     </section>
 
     <!-- 2. 단계 -->
@@ -478,7 +521,7 @@
         <div class="stage">
           <div class="no">04</div>
           <div><h3><span class="t" data-term="rerank">리랭킹</span> — AI가 직접 읽고 다시 채점</h3><p>1차 상위 20건을 AI PC의 <span class="t" data-term="crossenc">Cross-Encoder</span> 모델로 보냅니다. 1·2단계는 문장을 따로따로 비교했다면, 여기서는 문의와 답변을 <strong>나란히 놓고 함께 읽어</strong> 판단하므로 더 정확합니다. 이때 나오는 <span class="t" data-term="rawscore">원점수</span>는 등수가 아닌 절대 점수라서, 다음 단계에서 "관련 없음"을 가르는 기준이 됩니다.</p></div>
-          <div class="eg"><b><span class="t" data-term="timeout">타임아웃</span> 0.9초</b>0.9초 안에 답이 없으면 기다리지 않고 1차 점수만으로 다음 단계로 갑니다(<span class="t" data-term="fallback">폴백</span>).</div>
+          <div class="eg"><b><span class="t" data-term="timeout">타임아웃</span> 0.9초</b>0.9초 안에 답이 없으면 기다리지 않고 1차 점수만으로 다음 단계로 갑니다(<span class="t" data-term="fallback">폴백</span>). 리랭킹 서버 끊김이 확인된 동안은 0.9초도 기다리지 않습니다. 이렇게 빠진 요청은 화면 목록 위에 안내가 붙습니다.</div>
         </div>
         <div class="stage">
           <div class="no">05</div>
@@ -711,7 +754,7 @@
       </div>
       <div class="note">예전에는 <span class="kw rsn">같은 업무분류</span> 칩(일치 사유)도 함께 붙었습니다. 이 칩은 내용을 보고 판단한 것이 아니라 <strong>접수할 때 고른 "서비스구분" 코드(원무·진료·청구 …)가 같은지</strong>만 본 것이라 근거로서 정보가 적고, 과거 문의의 약 21%는 서비스구분이 비어 있어 붙지도 않았습니다. 그래서 2026-10-19부터 화면에서 뺐습니다. 순위 계산의 "업무 분류 일치"(<a href="#s-score">15%</a>)와 서버 응답은 그대로입니다.</div>
 
-      <h3 class="sub-h">화면이 달라지는 네 가지 경우</h3>
+      <h3 class="sub-h">화면이 달라지는 여섯 가지 경우</h3>
       <table class="cmp">
         <thead><tr><th style="width:190px">경우</th><th>화면</th><th style="width:220px">판단 기준</th></tr></thead>
         <tbody>
@@ -719,6 +762,8 @@
           <tr><td>참고 사례</td><td>관련도 % 대신 <span class="refb">참고 사례</span> 표시. 전부 참고 사례면 안내 한 줄 추가</td><td>신뢰도 low (코사인 0.58 미만)</td></tr>
           <tr><td>0건</td><td>버튼 숫자가 흐려지고 "관련도가 충분한 사례가 없어 추천하지 않았습니다"</td><td><a href="#s-filter">원점수 -2.0 미만 전부 제외</a></td></tr>
           <tr><td>재문의·연락 요청</td><td>팝업에 안내 한 줄 + 접수·처리 정보의 「문의 내용 키워드 · 연관 이력」 블록이 맨 위로</td><td><a href="#s-followup">재문의 판정</a></td></tr>
+          <tr><td>AI 재채점 빠짐</td><td>추천 목록은 그대로, 목록 위에 "AI 재채점 없이 기본 점수로 정렬했습니다" (리랭킹 서버 끊김이면 앞에 "AI PC(Mac) 재정렬 서버 연결이 끊겨")</td><td>응답 <code>rerank_applied=false</code> (<a href="#s-aipc">연결 감시</a>)</td></tr>
+          <tr><td>AI PC 끊김</td><td>태그 <b>AI PC 끊김</b> · "AI PC(Mac) 연결이 끊겨 AI 추천을 불러오지 못했습니다" [다시 시도]. 재문의 판정도 없으므로 연관 이력 블록은 원래 자리</td><td>응답 <code>reason=ai_pc_down</code> 또는 <code>ai_link.ollama=down</code></td></tr>
         </tbody>
       </table>
     </section>
@@ -861,6 +906,7 @@
         <div class="g"><h3>개인정보 보호</h3><p>문의 속 개인정보는 <span class="t" data-term="masking">마스킹</span>한 뒤 AI에 보내고, 문의 내용은 저장하거나 <span class="t" data-term="log">로그</span>에 남기지 않습니다. 추천 결과에도 고객사 정보는 들어가지 않습니다.</p></div>
         <div class="g"><h3>보조 기능은 멈춰도 추천은 계속</h3><p>리랭킹 서버, 형태소 분석기(Kiwi), 형식어 통계가 준비되지 않거나 꺼져도 <span class="t" data-term="fallback">폴백</span>으로 추천 자체는 계속됩니다. 정확도나 칩 품질만 조금 떨어집니다.</p></div>
         <div class="g"><h3>시간 제한</h3><p>추천 전체 2.5초, 리랭킹 0.9초 <span class="t" data-term="timeout">타임아웃</span>. 늦으면 추천만 건너뛰고 CRM 화면은 멈추지 않습니다.</p></div>
+        <div class="g"><h3>AI PC 끊김은 바로 알리기</h3><p>AI PC 연결을 30초마다 점검하고, 연속 2회 실패하면 끊김으로 봅니다. 끊긴 동안은 기다리지 않고 바로 실패(<span class="t" data-term="fastfail">빠른 실패</span>)해 화면에 "AI PC 끊김"으로 알리고, 관리자에게 메일을 보냅니다. <a href="#s-aipc">자세히</a></p></div>
       </div>
     </section>
 
@@ -883,7 +929,7 @@
           <p class="big">종결 후 5~10분</p>
           <ol>
             <li>5분마다 <span class="t" data-term="polling">폴링</span>으로 새로 종결되거나 답변이 바뀐 AS 건을 DB에서 찾습니다.</li>
-            <li><span class="t" data-term="llm">LLM</span>이 주제를 분류하고 개인정보를 <span class="t" data-term="masking">마스킹</span>한 뒤 <span class="t" data-term="embedding">임베딩</span>으로 바꿉니다.</li>
+            <li><span class="t" data-term="llm">LLM</span>이 주제를 분류하고 개인정보를 <span class="t" data-term="masking">마스킹</span>한 뒤 <span class="t" data-term="embedding">임베딩</span>으로 바꿉니다. 분류를 규칙으로 했는지 LLM으로 했는지는 자료마다 <code>label_source</code>로 남습니다(2026-10-21부터 새로 처리하는 자료).</li>
             <li>AI 추천 서버가 30초 안에 <span class="t" data-term="hotreload">핫 리로드</span>합니다. 재시작이 필요 없습니다.</li>
             <li>주 1회는 <span class="t" data-term="batch">배치</span>로 전체 <span class="t" data-term="index">인덱스</span>를 처음부터 다시 만듭니다.</li>
           </ol>
@@ -914,13 +960,18 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
 형식어               = Tier2 question_text 기준. 위치: 평균 가장자리 거리 ≤ 0.10 (25건↑)
                        또는 처리현황독촉 쏠림: Wilson 하한(z=1.645) / 기준비율 ≥ 2.0 이고 3건↑     (문서 20건↑ 단어만)
                        드문 말·중립 말: 같은 문장에 형식어 있고 업무어(서비스구분 KL ≥ 0.08 · 문제유형 KL ≥ 0.15) 없으면 형식어
-재촉 문의            = follow_up = (최근접 Tier2 10건 중 처리현황독촉 ≥ 2) or content_free(형식어만 있는 문의)</pre>
+재촉 문의            = follow_up = (최근접 Tier2 10건 중 처리현황독촉 ≥ 2) or content_free(형식어만 있는 문의)
+AI PC 연결 감시      = combine_ailink — 대상 ollama(GET /api/tags, 필요 모델 설치 확인) · rerank(GET /health), 점검 3초 제한
+                       30초마다 점검 (COMBINE_AILINK_INTERVAL_SEC) · 연속 2회 실패 → down (COMBINE_AILINK_DOWN_AFTER) · 1회 성공 → ok
+                       실제 요청 성공 → report(ok) · 실패 → suspect() = 즉시 점검 1회 (실패를 그대로 세지 않음)
+                       down 동안: 임베딩 전 ensure_up → AiPcDown → 503 reason=ai_pc_down · 재정렬 호출 생략(폴백)
+                       상태 전환 시 로그 1줄 + 메일(gw.cwit.co.kr:25, 비밀번호 .env) · down 지속 시 180분마다 재알림 (COMBINE_ALERT_REPEAT_MIN)</pre>
           <table>
             <thead><tr><th>위치</th><th>구성 요소</th><th>파일</th></tr></thead>
             <tbody>
               <tr><td>상담원 PC</td><td>AI 추천 버튼·팝업·상세</td><td>jwcrm/.../js/combine-as-ai.js, css/combine-as-ai.css</td></tr>
               <tr><td>CRM 서버 PC</td><td>WAS → 추천 API 호출</td><td>CombineAsAiServiceImpl.java, CombineAsAiClient.java, CombineAsAiVO.java, combine-ai.properties</td></tr>
-              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_synonyms.py(동의어), combine_live_index.py, combine_morph.py(Kiwi, 겹친 단어), combine_wordstats.py(형식어·재촉 문의)</td></tr>
+              <tr><td>CRM 서버 PC :8765</td><td>추천 서버</td><td>combine_recommend_server.py, combine_recommend.py, combine_lexical.py, combine_synonyms.py(동의어), combine_live_index.py, combine_morph.py(Kiwi, 겹친 단어), combine_wordstats.py(형식어·재촉 문의), combine_ailink.py(AI PC 연결 감시 · 메일), combine_env.py(.env 읽기, 형식은 .env.example · .env는 git 제외), combine-ailink-test.py(연결 감시 회귀 테스트)</td></tr>
               <tr><td>AI PC :11434</td><td>Ollama 임베딩</td><td>combine_embed_client.py (호출 측)</td></tr>
               <tr><td>AI PC :8766</td><td>리랭킹 서버</td><td>combine-rerank-server.py, combine-rerank-run.bat</td></tr>
               <tr><td>AX Lab PC</td><td>색인 배치·준실시간 동기화</td><td>analysis/combine_refresh.py, analysis/combine_live.py (저장소 미포함)</td></tr>
@@ -939,6 +990,10 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
               <tr><td>score</td><td>최종 합산 점수</td><td>정렬</td></tr>
               <tr><td>confidence</td><td>high / mid / low</td><td>일반 추천 또는 참고 사례 표시</td></tr>
               <tr><td>follow_up (응답 상단)</td><td>재문의·연락 요청 문의 여부 + follow_up_detail{nag_near, near_k, content_free}</td><td>「문의 내용 키워드 · 연관 이력」 맨 위로</td></tr>
+              <tr><td>ai_link (응답 상단)</td><td>{ollama, rerank, down_since} — 값 ok / down / off(재정렬 꺼짐 설정) / unknown(기동 직후). 실패(503) 응답에도 실림</td><td>"AI PC 끊김" 태그 · 재정렬 끊김 안내</td></tr>
+              <tr><td>rerank_applied (응답 상단)</td><td>이 요청에 AI 재채점이 실제로 반영됐는지</td><td>false 이고 rerank ≠ off 이면 "AI 재채점 없이 기본 점수로 정렬했습니다"</td></tr>
+              <tr><td>reason (503 응답)</td><td>ai_pc_down(끊김 확인) / embed_error(그 외 임베딩 실패)</td><td>ai_pc_down 이면 "AI PC 끊김". 화면까지 오려면 CombineAsAiClient 재컴파일 필요</td></tr>
+              <tr><td>/health · ai_link</td><td>대상별 state · target · since · last_check · last_ok · last_error · fails, 점검 간격, 메일 설정(받는 사람 · 사용 여부)</td><td>운영 상태 확인</td></tr>
             </tbody>
           </table>
         </div>
@@ -954,11 +1009,12 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
               <tr><td>2026-10-16</td><td>관련 없는 추천 제외(항상 5건 → 0~5건, 원점수 -2.0) · 추천 근거 칩(겹친 단어·일치 사유) · 형태소 분석기 Kiwi · 칩 형식어 거르기 · 동의어 칩은 통째로만 · 재문의·연락 요청 문의 판정</td><td><a href="#s-filter">관련 없는 추천 빼기</a> · <a href="#s-terms">칩</a> · <a href="#s-followup">재문의</a></td></tr>
               <tr><td>2026-10-18</td><td>이 문서를 추천이 만들어지는 순서대로 재구성. 동의어 사전 선정 기준, 원점수 -2.0의 뜻(확률 눈금), 아키텍처 이동 경로 표시 추가</td><td>전체</td></tr>
               <tr><td>2026-10-19</td><td>일치 사유 칩("같은 업무분류" 등) 화면에서 제거 — 접수 시 고른 서비스구분 코드 일치 여부만 보는 값이라 근거로 정보가 적음. 점수 산식·서버 응답은 유지(<code>combine-as-ai.js</code>만 수정)</td><td><a href="#s-screen">화면</a></td></tr>
+              <tr><td>2026-10-21</td><td>AI PC(Mac) 연결 감시 도입(<code>combine_ailink.py</code>) — 30초 점검, 연속 2회 실패 시 끊김, 끊김/복구 로그 + 관리자 메일(3시간 재알림), 끊김 동안 빠른 실패(503 <code>reason=ai_pc_down</code>). 응답에 <code>ai_link</code> · <code>rerank_applied</code> 추가, 화면에 "AI PC 끊김" 태그와 재채점 빠짐 안내. 메일 비밀번호용 <code>.env</code>(<code>combine_env.py</code>). 적재 라벨에 <code>label_source</code>(rule / llm:모델) 기록. 점수 산식·추천 결과는 그대로</td><td><a href="#s-aipc">연결 감시</a> · <a href="#s-arch">꺼지면</a> · <a href="#s-screen">화면</a> · <a href="#s-data">자료</a></td></tr>
             </tbody>
           </table>
         </div>
       </details>
-      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine_synonyms.py · combine_morph.py · combine_wordstats.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · combine-as-ai.js (2026-10-18). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
+      <p class="foot">기준: combine_recommend.py · combine_recommend_server.py · combine_synonyms.py · combine_morph.py · combine_wordstats.py · combine_ailink.py · combine-rerank-server.py · CombineAsAiServiceImpl.java · CombineAsAiClient.java · combine-as-ai.js (2026-10-21). 예시 점수는 설명을 위해 만든 값입니다. AWS 이관 후에는 CRM 서버 PC의 추천 서버 역할이 사내 AI 서버(ai.cwit.co.kr)로 옮겨질 예정입니다.</p>
     </section>
   </main>
 </div>
@@ -993,6 +1049,7 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
     crossenc:  { n:'Cross-Encoder', d:'질문과 답변을 한 쌍으로 묶어 동시에 읽는 AI 모델 구조입니다. 따로 읽고 비교하는 벡터 검색보다 문맥을 훨씬 정확하게 이해합니다.', eg:'비유: 벡터 검색은 두 사람의 이력서를 따로 보고 비교하는 것, Cross-Encoder는 두 사람을 마주 앉혀 대화를 들어 보는 것' },
     fallback:  { n:'폴백', en:'Fallback', d:'어떤 기능이 실패하면 미리 정해 둔 예비 방식으로 자동 전환하는 것입니다.', eg:'예: 리랭킹 서버가 꺼지면 1차 점수만으로 추천' },
     timeout:   { n:'타임아웃', en:'Timeout', d:'정해진 시간 안에 답이 없으면 더 기다리지 않고 포기하는 것입니다. 화면이 멈추지 않게 해 줍니다.', eg:'추천 전체 2.5초 · 리랭킹 0.9초' },
+    fastfail:  { n:'빠른 실패', en:'Fail fast', d:'상대가 끊긴 것을 이미 알고 있으면 응답을 기다리지 않고 바로 "실패"로 답하는 것입니다. 추천 서버는 AI PC 끊김이 확인된 동안 임베딩 응답을 20초 기다리지 않고 즉시 "AI PC 끊김"으로 돌려줘, CRM의 2.5초 제한에 걸려 "지연"으로 보이는 일을 막습니다.', eg:'비유: 정전된 가게에 전화를 계속 거는 대신 "지금 정전입니다"라고 바로 안내하는 것' },
     circuit:   { n:'서킷 브레이커', en:'Circuit Breaker', d:'리랭킹 서버 호출이 실패하면 30초 동안은 아예 부르지 않고 바로 폴백하는 장치입니다. 고장 난 곳을 계속 두드리느라 매번 느려지는 것을 막습니다.', eg:'비유: 누전 차단기. 문제가 생기면 잠시 끊었다가 다시 연결' },
     masking:   { n:'마스킹', en:'Masking', d:'이름·전화번호 같은 개인정보를 [이름], [전화번호] 같은 표시로 가리는 것입니다. AI에는 가려진 문장만 전달됩니다.' },
     preprocess:{ n:'전처리', en:'Preprocessing', d:'검색하기 전에 문장을 다듬는 작업입니다. 쓸모없는 양식 문구를 지우고 개인정보를 가립니다.' },
@@ -1078,7 +1135,7 @@ product_match        = service_cate 일치 1.0 / program_nm·screen_nm 일치 1.
         path:['was','db','was'], carry:['접수번호 조회', '문의 원문 · 업무 분류 · 연결 접수번호'] },
       { t:'CRM이 AI 추천 서버에 전달합니다', d:'같은 PC에 있는 AI 추천 서버([[포트|port]] 8765)로 문의를 보냅니다. CRM은 최대 2.5초 [[타임아웃|timeout]]까지만 기다립니다.',
         path:['was','rec'], carry:['문의 원문 + 제외할 접수번호'] },
-      { t:'문의 문장을 임베딩으로 바꿉니다', d:'추천 서버가 양식 문구를 떼고 개인정보를 [[마스킹|masking]]하고 [[쿼리 확장|qexpand]]을 한 문장을 AI PC의 [[Ollama|ollama]]로 보내 [[임베딩|embedding]]으로 바꿔 받습니다.',
+      { t:'문의 문장을 임베딩으로 바꿉니다', d:'추천 서버가 양식 문구를 떼고 개인정보를 [[마스킹|masking]]하고 [[쿼리 확장|qexpand]]을 한 문장을 AI PC의 [[Ollama|ollama]]로 보내 [[임베딩|embedding]]으로 바꿔 받습니다. AI PC 끊김이 확인된 동안에는 보내지 않고 바로 "AI PC 끊김"으로 답합니다([[빠른 실패|fastfail]]).',
         path:['rec','embed','rec'], carry:['마스킹·확장한 문의 문장', '임베딩 (숫자 1,024개)'] },
       { t:'하이브리드 검색으로 후보를 찾고 관련도를 매깁니다', d:'[[메모리|memory]]에 올려 둔 1만 1천여 건의 [[인덱스|index]]에서 [[벡터 검색|vector]]과 [[BM25|bm25]]를 동시에 돌려 후보를 추리고 [[관련도|relevance]]를 계산합니다. 다른 PC로 가지 않고 추천 서버 안에서 끝납니다.',
         path:['rec'], carry:[] },
