@@ -27,16 +27,20 @@
   COMBINE_ALERT_MAIL_FROM       기본 hyerin.yu@cwit.co.kr — 보내는 주소 (로그인 ID 가 메일 주소가 아니어서 따로 둔다)
   COMBINE_ALERT_SMTP_PASSWORD   기본 없음 — 없으면 메일을 보내지 않고 로그에만 남긴다 (비밀번호를 파일에 두지 않는다)
   COMBINE_ALERT_REPEAT_MIN      기본 180  — 끊김이 계속되면 이 간격(분)으로 다시 알린다. 0 이면 재알림 없음
+  COMBINE_ALERT_RETRY_MIN       기본 5    — 끊김 메일 자체가 실패하면 이 간격(분)으로 다시 시도한다
 """
 import json
+import html
 import os
 import smtplib
 import socket
 import sys
+import textwrap
 import threading
 import time
 import urllib.request
 from email.header import Header
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr, formatdate
 
@@ -52,6 +56,9 @@ SMTP_USER = os.getenv("COMBINE_ALERT_SMTP_USER", "25022")
 MAIL_FROM = os.getenv("COMBINE_ALERT_MAIL_FROM", "hyerin.yu@cwit.co.kr")
 SMTP_PASSWORD = os.getenv("COMBINE_ALERT_SMTP_PASSWORD", "")
 REPEAT_SEC = max(0, int(os.getenv("COMBINE_ALERT_REPEAT_MIN", "180"))) * 60
+# [AX Lab] 수정 시작 (2026-10-23 AX Lab): 실패한 끊김 메일 재시도 간격. 발송 성공 전에는 복구 메일 대상이라고 간주하지 않는다.
+ALERT_RETRY_SEC = max(1, int(os.getenv("COMBINE_ALERT_RETRY_MIN", "5"))) * 60
+# [AX Lab] 수정 끝
 
 LABEL = {"ollama": "Ollama (AI 추천 임베딩 · AI 문장 다듬기)", "rerank": "재정렬 서버 (AI 추천 순위 재채점)"}
 IMPACT = {
@@ -107,7 +114,9 @@ def register(name, check_fn, target, enabled=True):
     with _LOCK:
         _T[name] = {"check": check_fn, "target": target, "enabled": bool(enabled),
                     "state": "unknown" if enabled else "off", "since": _now(), "fails": 0,
-                    "last_check": None, "last_ok": None, "last_error": None, "alerted_at": None}
+                    "last_check": None, "last_ok": None, "last_error": None, "alerted_at": None,
+                    # [AX Lab] 수정 (2026-10-23 AX Lab): SMTP 실패 시 재시도 시각을 제어한다.
+                    "alert_attempt_at": None}
 
 
 def report(name, ok, error=None):
@@ -135,8 +144,14 @@ def report(name, ok, error=None):
             if t["state"] != "down" and t["fails"] >= DOWN_AFTER:
                 t["state"], t["since"] = "down", now
                 event = ("down", 0, False)
-            elif t["state"] == "down" and REPEAT_SEC and t["alerted_at"] and now - t["alerted_at"] >= REPEAT_SEC:
-                event = ("repeat", now - t["since"], False)
+            # [AX Lab] 수정 시작 (2026-10-23 AX Lab): 끊김 메일이 실제 성공하지 않았으면 5분마다 재시도한다.
+            elif t["state"] == "down":
+                if (t["alerted_at"] is None and _mail_enabled()
+                        and (not t["alert_attempt_at"] or now - t["alert_attempt_at"] >= ALERT_RETRY_SEC)):
+                    event = ("retry", now - t["since"], False)
+                elif REPEAT_SEC and t["alerted_at"] and now - t["alerted_at"] >= REPEAT_SEC:
+                    event = ("repeat", now - t["since"], False)
+            # [AX Lab] 수정 끝
         snap = dict(t)
     if event:
         _on_event(name, snap, *event)
@@ -210,14 +225,144 @@ def check_now(name=None):
 
 
 # ----------------------------------------------------------------------------- 알림
+# [AX Lab] 수정 시작 (2026-10-23 AX Lab): 장애 오류와 다른 AI 서비스를 함께 보고 메일에 예상 원인·판단 근거를 제공한다.
+def _mail_enabled():
+    return bool(_CFG["mailer"] is not None or (MAIL_TO and SMTP_PASSWORD))
+
+
+def _probe_other(name):
+    """같은 AI PC의 다른 서비스를 부작용 없이 1회 확인한다. 원인 추정용이며 상태 카운트는 바꾸지 않는다."""
+    other = "rerank" if name == "ollama" else "ollama"
+    with _LOCK:
+        t = _T.get(other)
+        if not t or not t["enabled"]:
+            return other, None, "감시 대상이 꺼져 있어 확인하지 못함"
+        fn = t["check"]
+    try:
+        ok, err = fn()
+        return other, bool(ok), str(err or "")
+    except Exception as e:
+        return other, False, "%s: %s" % (type(e).__name__, e)
+
+
+def _is_transport_error(error):
+    low = str(error or "").lower()
+    return any(x in low for x in (
+        "connectionrefused", "connection refused", "10061", "연결하지 못했",
+        "timeout", "timed out", "10060", "시간이 초과",
+        "no route", "network is unreachable", "host is unreachable", "10051", "10064", "10065",
+        "connectionreset", "connection reset", "connectionaborted", "10053", "10054",
+    ))
+
+
+def _diagnose(name, error):
+    """(예상 원인, 판단 근거). 단정하지 않고 운영자가 확인할 우선순위를 제시한다."""
+    raw = str(error or "알 수 없는 오류")
+    low = raw.lower()
+    other, other_ok, other_error = _probe_other(name)
+    other_label = "재정렬 서버" if other == "rerank" else "Ollama"
+
+    if "모델 없음:" in raw:
+        missing = raw.split("모델 없음:", 1)[1].strip()
+        return (f"AI PC의 Ollama에 필요한 모델({missing})이 없거나 모델명이 설정과 다를 가능성이 큽니다.",
+                f"Ollama /api/tags는 응답했지만 필수 모델 확인에 실패했습니다. {other_label} 확인 결과: "
+                + ("정상" if other_ok else (other_error or "확인 불가")))
+    if "401" in low or "403" in low:
+        return ("서비스 인증 정보 또는 접근 권한 설정이 맞지 않을 가능성이 큽니다.",
+                f"HTTP 인증/권한 오류가 감지되었습니다: {raw}")
+    if "404" in low:
+        return ("점검 URL 또는 서비스 경로가 변경되었을 가능성이 큽니다.",
+                f"대상 서버가 HTTP 404를 반환했습니다: {raw}")
+    if "jsondecode" in low or "expecting value" in low:
+        return ("대상 포트에 다른 서비스가 떠 있거나 서비스가 비정상 응답을 반환했을 가능성이 큽니다.",
+                f"상태 응답을 JSON으로 해석하지 못했습니다: {raw}")
+
+    refused = any(x in low for x in ("connectionrefused", "connection refused", "10061", "연결하지 못했"))
+    timeout = any(x in low for x in ("timeout", "timed out", "10060", "시간이 초과"))
+    unreachable = any(x in low for x in ("no route", "network is unreachable", "host is unreachable", "10051", "10064", "10065"))
+    reset = any(x in low for x in ("connectionreset", "connection reset", "connectionaborted", "10053", "10054"))
+
+    if other_ok is False and _is_transport_error(other_error) and (timeout or unreachable or refused):
+        return ("AI PC 전원 꺼짐·절전, 네트워크 단절 또는 공통 방화벽 문제일 가능성이 큽니다.",
+                f"{LABEL[name]}와 {other_label}가 모두 응답하지 않습니다. 현재 오류: {raw} / 다른 서비스: {other_error}")
+    if other_ok:
+        if refused:
+            return (f"AI PC와 네트워크는 살아 있지만 {LABEL[name]} 프로세스가 중지됐거나 해당 포트를 열지 못한 가능성이 큽니다.",
+                    f"같은 PC의 {other_label}는 정상이나 대상 연결이 거부되었습니다: {raw}")
+        if timeout:
+            return (f"{LABEL[name]} 프로세스가 멈췄거나 해당 포트만 방화벽에 막힌 가능성이 큽니다.",
+                    f"같은 PC의 {other_label}는 정상이지만 대상 응답 시간이 초과되었습니다: {raw}")
+        if reset:
+            return (f"{LABEL[name]} 재시작·비정상 종료 또는 중간 보안 프로그램에 의한 연결 종료 가능성이 있습니다.",
+                    f"같은 PC의 {other_label}는 정상이나 연결 도중 강제로 종료되었습니다: {raw}")
+        return (f"AI PC 전체가 아니라 {LABEL[name]} 자체의 상태·설정 문제일 가능성이 큽니다.",
+                f"같은 PC의 {other_label}는 정상입니다. 대상 오류: {raw}")
+    if other_ok is False and not _is_transport_error(other_error):
+        return ("AI PC 네트워크는 살아 있지만 두 서비스가 각각 비정상 상태일 가능성이 큽니다.",
+                f"{other_label} 포트는 응답했으나 상태 점검에 실패했습니다: {other_error} / 대상 오류: {raw}")
+    if timeout or unreachable:
+        return ("AI PC 전원·절전·네트워크 또는 방화벽 상태를 우선 확인해야 합니다.",
+                f"대상에 도달하지 못했으며 다른 서비스도 정상 여부를 확인하지 못했습니다: {raw}")
+    if refused:
+        return (f"{LABEL[name]} 프로세스가 실행되지 않았거나 수신 포트가 열리지 않았을 가능성이 큽니다.",
+                f"대상 연결이 거부되었습니다: {raw}")
+    if reset:
+        return ("서비스 재시작·비정상 종료 또는 네트워크 보안 프로그램이 연결을 중단했을 가능성이 있습니다.",
+                f"연결 도중 강제로 종료되었습니다: {raw}")
+    return ("서비스 상태 또는 네트워크를 추가 확인해야 합니다. 현재 오류만으로 원인을 한 가지로 단정할 수 없습니다.",
+            f"감지 오류: {raw} / {other_label}: {other_error or '확인 불가'}")
+# [AX Lab] 수정 끝
+
+
+# [AX Lab] 수정 시작 (2026-10-23 AX Lab): 그룹웨어가 긴 한글 문장을 글자 중간에서 자르지 않도록 공백 기준으로 줄을 나눈다.
+def _mail_paragraph(title, value, width=46):
+    wrapped = textwrap.wrap(str(value or "-"), width=width, break_long_words=False, break_on_hyphens=False) or ["-"]
+    return [title] + ["  " + line for line in wrapped]
+# [AX Lab] 수정 끝
+
+
+# [AX Lab] 수정 시작 (2026-10-23 AX Lab): 끊김·복구 메일의 안내문과 소제목을 HTML 볼드체로 표시한다.
+_MAIL_BOLD_HEADINGS = {"마지막 오류", "예상 원인", "판단 근거", "영향", "확인 순서"}
+_MAIL_BOLD_FIELDS = {"대상", "주소", "감지 서버", "시각", "끊긴 시각"}
+
+
+def _html_body(body):
+    rows = []
+    first_text = True
+    for raw in body.splitlines():
+        stripped = raw.strip()
+        if not stripped:
+            rows.append('<div style="height:10px"></div>')
+            continue
+        safe = html.escape(stripped)
+        if first_text:
+            rows.append(f'<div style="margin-bottom:12px"><strong>{safe}</strong></div>')
+            first_text = False
+            continue
+        if stripped in _MAIL_BOLD_HEADINGS:
+            rows.append(f'<div style="margin-top:12px;margin-bottom:4px"><strong>{safe}</strong></div>')
+            continue
+        if ":" in stripped:
+            label, value = stripped.split(":", 1)
+            if label.strip() in _MAIL_BOLD_FIELDS:
+                rows.append(f'<div><strong>{html.escape(label.strip())}</strong> : {html.escape(value.strip())}</div>')
+                continue
+        indent = "padding-left:18px;" if raw.startswith("  ") else ""
+        rows.append(f'<div style="{indent}">{safe}</div>')
+    return ('<!doctype html><html><body style="font-family:Arial,Malgun Gothic,sans-serif;'
+            'font-size:14px;line-height:1.55;color:#222">' + "".join(rows) + "</body></html>")
+# [AX Lab] 수정 끝
+
+
 def _on_event(name, t, kind, duration, was_alerted):
     host = socket.gethostname()
     if kind == "down":
-        _log(f"{name} 끊김 · {t['target']} · {t['last_error']} — {IMPACT[name]}")
         subject = f"[AX Lab][AI PC 연결 끊김] {LABEL[name]}"
         lead = "AI PC 와의 연결이 끊겼습니다."
+    elif kind == "retry":
+        subject = f"[AX Lab][AI PC 연결 끊김] {LABEL[name]}"
+        lead = f"AI PC 와의 연결이 {_dur(duration)} 째 끊겨 있습니다. 이전 끊김 메일 발송이 실패하여 다시 시도합니다."
     elif kind == "repeat":
-        _log(f"{name} 끊김 계속 · {_dur(duration)} 경과 · {t['last_error']}")
         subject = f"[AX Lab][AI PC 연결 끊김 계속 — {_dur(duration)}] {LABEL[name]}"
         lead = f"AI PC 와의 연결이 {_dur(duration)} 째 끊겨 있습니다."
     else:
@@ -226,6 +371,18 @@ def _on_event(name, t, kind, duration, was_alerted):
             return
         subject = f"[AX Lab][AI PC 연결 복구] {LABEL[name]}"
         lead = f"AI PC 연결이 복구되었습니다. (끊김 {_dur(duration)})"
+    # [AX Lab] 수정 시작 (2026-10-23 AX Lab): 끊김 로그와 메일에 예상 원인·판단 근거를 함께 남긴다.
+    if kind != "up":
+        cause, evidence = _diagnose(name, t["last_error"])
+        if kind == "down":
+            _log(f"{name} 끊김 · {t['target']} · {t['last_error']} — 예상 원인: {cause}")
+        elif kind == "retry":
+            _log(f"{name} 끊김 메일 재시도 · {_dur(duration)} 경과 · 예상 원인: {cause}")
+        else:
+            _log(f"{name} 끊김 계속 · {_dur(duration)} 경과 · {t['last_error']} — 예상 원인: {cause}")
+    else:
+        cause, evidence = None, None
+    # [AX Lab] 수정 끝
     lines = [
         lead, "",
         f"대상      : {LABEL[name]}",
@@ -235,7 +392,13 @@ def _on_event(name, t, kind, duration, was_alerted):
         f"끊긴 시각 : {_ts(t['since']) if kind != 'up' else _ts(_now() - duration)}",
     ]
     if kind != "up":
-        lines += [f"마지막 오류: {t['last_error'] or '-'}", f"영향      : {IMPACT[name]}"]
+        # [AX Lab] 수정 시작 (2026-10-23 AX Lab): 장애 메일에서 원인 추정과 근거를 문장 중간 잘림 없이 확인한다.
+        lines += [""]
+        lines += _mail_paragraph("마지막 오류", t["last_error"])
+        lines += _mail_paragraph("예상 원인", cause)
+        lines += _mail_paragraph("판단 근거", evidence)
+        lines += _mail_paragraph("영향", IMPACT[name])
+        # [AX Lab] 수정 끝
     body = "\n".join(lines + [
         "",
         "확인 순서",
@@ -246,28 +409,42 @@ def _on_event(name, t, kind, duration, was_alerted):
         "",
         "이 메일은 combine-ai-server(combine_ailink.py) 가 자동 발송했습니다.",
     ])
-    if kind in ("down", "repeat"):
+    # [AX Lab] 수정 시작 (2026-10-23 AX Lab): SMTP 결과를 확인한 뒤에만 발송 성공 시각을 기록한다.
+    # 비동기 데몬 스레드가 프로세스 종료 때 사라져 끊김 메일만 유실되는 일을 막기 위해 상태 감시 스레드에서 완료까지 기다린다.
+    if not _mail_enabled():
+        return
+    if kind in ("down", "retry", "repeat"):
         with _LOCK:
             if name in _T:
-                _T[name]["alerted_at"] = _now()
+                _T[name]["alert_attempt_at"] = _now()
     mailer = _CFG["mailer"] or send_mail
-    threading.Thread(target=_safe_send, args=(mailer, subject, body), name="ailink-mail", daemon=True).start()
+    sent = _safe_send(mailer, subject, body)
+    if sent and kind in ("down", "retry", "repeat"):
+        with _LOCK:
+            if name in _T and _T[name]["state"] == "down":
+                _T[name]["alerted_at"] = _now()
+    # [AX Lab] 수정 끝
 
 
 def _safe_send(mailer, subject, body):
     try:
-        mailer(subject, body)
+        return mailer(subject, body) is not False
     except Exception as e:
         _log(f"메일 발송 실패 · {type(e).__name__}: {e}")
+        return False
 
 
 def send_mail(subject, body):
     if not MAIL_TO:
-        return
+        return False
     if not SMTP_PASSWORD:
         _log("메일 미발송 — COMBINE_ALERT_SMTP_PASSWORD 미설정 (알림 내용은 위 로그 참조)")
-        return
-    msg = MIMEText(body, "plain", "utf-8")
+        return False
+    # [AX Lab] 수정 시작 (2026-10-23 AX Lab): 텍스트 호환 본문과 소제목 볼드체 HTML 본문을 함께 보낸다.
+    msg = MIMEMultipart("alternative")
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+    msg.attach(MIMEText(_html_body(body), "html", "utf-8"))
+    # [AX Lab] 수정 끝
     msg["Subject"] = Header(subject, "utf-8")
     msg["From"] = formataddr((str(Header("AX Lab AI 서버", "utf-8")), MAIL_FROM))
     msg["To"] = ", ".join(MAIL_TO)
@@ -279,6 +456,7 @@ def send_mail(subject, body):
         s.login(SMTP_USER, SMTP_PASSWORD)
         s.sendmail(MAIL_FROM, MAIL_TO, msg.as_string())
     _log(f"메일 발송 · {', '.join(MAIL_TO)} · {subject}")
+    return True
 
 
 # ----------------------------------------------------------------------------- 기동
