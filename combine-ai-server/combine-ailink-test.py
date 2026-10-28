@@ -57,6 +57,81 @@ class AiLinkTest(unittest.TestCase):
         self.assertIn("복구", self.mails[1][0])
         self.assertTrue(any("복구" in m for m in self.logs))
 
+    # [AX Lab] 수정 시작 (2026-10-23 AX Lab): 장애 원인 안내와 끊김 메일 실패 재시도 회귀 테스트
+    def test_down_mail_contains_probable_cause_and_evidence(self):
+        al.register("rerank", lambda: (True, None), "http://x:8766/health")
+        for _ in range(al.DOWN_AFTER):
+            al.report("ollama", False, "URLError: [WinError 10061] connection refused")
+        self.assertEqual(len(self.mails), 1)
+        subject, body = self.mails[0]
+        self.assertIn("연결 끊김", subject)
+        self.assertIn("\n예상 원인\n  ", body)
+        self.assertIn("\n판단 근거\n  ", body)
+        self.assertIn("네트워크는 살아", body)
+        self.assertIn("재정렬 서버는 정상", body)
+
+    def test_mail_paragraph_wraps_at_spaces_not_inside_korean_word(self):
+        lines = al._mail_paragraph("판단 근거", "같은 PC의 재정렬 서버는 정상이나 대상 연결이 거부되었습니다.", width=18)
+        self.assertEqual(lines[0], "판단 근거")
+        self.assertTrue(any("거부되었습니다." in line for line in lines))
+        self.assertNotIn("거부되었습니", "\n".join(line.rstrip() for line in lines[:-1]))
+
+    def test_html_mail_bolds_down_and_recovery_headings(self):
+        down = al._html_body(
+            "AI PC 와의 연결이 끊겼습니다.\n\n"
+            "대상      : Ollama\n\n마지막 오류\n  refused\n예상 원인\n  service down\n"
+            "\n판단 근거\n  reason\n영향\n  unavailable\n\n확인 순서\n  1) ping"
+        )
+        self.assertIn("<strong>AI PC 와의 연결이 끊겼습니다.</strong>", down)
+        for heading in ("대상", "마지막 오류", "예상 원인", "판단 근거", "영향", "확인 순서"):
+            self.assertIn("<strong>%s</strong>" % heading, down)
+
+        recovery = al._html_body(
+            "AI PC 연결이 복구되었습니다. (끊김 1분 2초)\n\n"
+            "대상      : Ollama\n주소      : http://x\n감지 서버 : CRM\n시각      : now\n"
+            "끊긴 시각 : before\n\n확인 순서\n  1) health"
+        )
+        self.assertIn("<strong>AI PC 연결이 복구되었습니다. (끊김 1분 2초)</strong>", recovery)
+        for heading in ("대상", "주소", "감지 서버", "시각", "끊긴 시각", "확인 순서"):
+            self.assertIn("<strong>%s</strong>" % heading, recovery)
+
+    def test_both_services_timeout_suggests_pc_or_network(self):
+        al.register("rerank", lambda: (False, "URLError: timed out"), "http://x:8766/health")
+        cause, evidence = al._diagnose("ollama", "URLError: [WinError 10060] timed out")
+        self.assertIn("전원 꺼짐·절전", cause)
+        self.assertIn("모두 응답하지 않습니다", evidence)
+
+    def test_other_service_health_error_does_not_claim_pc_is_off(self):
+        al.register("rerank", lambda: (False, "health status=loading"), "http://x:8766/health")
+        cause, evidence = al._diagnose("ollama", "URLError: [WinError 10060] timed out")
+        self.assertIn("네트워크는 살아", cause)
+        self.assertNotIn("전원 꺼짐", cause)
+        self.assertIn("health status=loading", evidence)
+
+    def test_failed_down_mail_retries_and_only_then_mails_recovery(self):
+        attempts = []
+
+        def fail_mail(subject, body):
+            attempts.append(subject)
+            raise OSError("smtp unavailable")
+
+        al._CFG["mailer"] = fail_mail
+        for _ in range(al.DOWN_AFTER):
+            al.report("ollama", False, "refused")
+        self.assertEqual(len(attempts), 1)
+        self.assertIsNone(al._T["ollama"]["alerted_at"])
+
+        al._CFG["mailer"] = lambda s, b: self.mails.append((s, b))
+        al._T["ollama"]["alert_attempt_at"] = 0
+        al.report("ollama", False, "refused")
+        self.assertEqual(len(self.mails), 1)
+        self.assertIsNotNone(al._T["ollama"]["alerted_at"])
+
+        al.report("ollama", True)
+        self.assertEqual(len(self.mails), 2)
+        self.assertIn("복구", self.mails[1][0])
+    # [AX Lab] 수정 끝
+
     def test_check_now_counts_exceptions_as_failure(self):
         al.register("rerank", lambda: (_ for _ in ()).throw(ConnectionRefusedError("no")), "http://x:8766/health")
         for _ in range(al.DOWN_AFTER):

@@ -3042,6 +3042,7 @@ function caws_clearAnswerDraft(){
 	caws.ai.prev = null;
 	var aiUndo = caws_el('cawsAiUndoBtn');
 	if(aiUndo) aiUndo.style.display = 'none';
+	caws.ai.applied = null;		/* [AX Lab] 2026-10-28 다듬기 출처 기록도 비운다 (통합 저장 경로 포함) */
 }
 function caws_saveCombined(){
 	if(caws_nvl(caws.asNo,'') === ''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
@@ -3150,13 +3151,6 @@ function caws_afterAnswer(){
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 (2026-10-21 AX Lab): 답변 초안 상태까지 한 곳에서 함께 초기화 */
 	caws_clearAnswerDraft();
-	var ta = caws_el('cawsText');
-	caws.cpPinLine = false;							/* [AX Lab] 2026-10-19 새 답변은 다시 자동 넓히기 허용 */
-	if(ta){ ta.value = ''; caws_autoGrow(ta); }		/* [AX Lab] 2026-10-19 비운 뒤 입력창 높이 원복 */
-	caws_clearFiles();
-	/* [AX Lab] 수정 (2026-10-19 AX Lab): 답변 등록 후에는 AI 다듬기 되돌리기 대상이 없다 */
-	caws.ai.prev = null; var aiUndo = caws_el('cawsAiUndoBtn'); if(aiUndo) aiUndo.style.display = 'none';
-	caws.ai.applied = null;		/* [AX Lab] 2026-10-21 다듬기 출처 기록도 비운다 */
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 답변 필수 경고 후 작성한 경우 접수처리정보 임시값 유지 */
 	if(caws.batch){
 		caws.answerBatchDraft = {
