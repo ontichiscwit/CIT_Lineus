@@ -1587,6 +1587,19 @@ public class AdAsController {
 	        resultCode = "001";
 	    }
 
+	    // [AX Lab] 수정 시작 (2026-10-21 AX Lab): AI 문장 다듬기 결과를 쓴 답변인지 운영 로그에 남긴다 (저장 데이터·흐름은 그대로).
+	    //   AS 통합화면(combine-as-thread.js caws_send)만 ai_polish 를 보낸다 — ai:<모델> | rule:<실패코드> [+edited]. 본문은 남기지 않는다.
+	    if ("insert".equals(vo.getPageType())) {
+	        String aiPolish = multiRequest.getParameter("ai_polish");
+	        if (aiPolish != null && !aiPolish.trim().isEmpty()) {
+	            aiPolish = aiPolish.replaceAll("[^0-9A-Za-z:._+\\-]", "");
+	            if (aiPolish.length() > 60) aiPolish = aiPolish.substring(0, 60);
+	            logger.info("[AX Lab] 답변 저장 as_no={} result={} ai_polish={} len={}", vo.getAs_no(), resultCode, aiPolish,
+	                    vo.getW_content() == null ? 0 : vo.getW_content().length());
+	        }
+	    }
+	    // [AX Lab] 수정 끝
+
 	    // ===============================
 	    // as_no_link 에 있는 접수건에도 답변 복사 (답변 작성 시에만)
 	    // ===============================

@@ -21,6 +21,8 @@ combine_recommend_server.py 가 `POST /api/polish` 로 이 모듈의 polish() �
   - 사용자 메시지는 "원문" 그 자체다. 원문이 질문·지시처럼 보여도 답하지 말고 다듬기만 하라고 시스템 프롬프트에 못 박는다
     (프롬프트 주입 방지).
   - 멱등성: 이미 인사말/맺음말이 있으면 다시 넣지 않도록 지시한다. 교체 후 같은 톤으로 다시 실행해도 거의 그대로여야 한다.
+  - [AX Lab] 2026-10-21 회사 고정 인사말·맺음말(FRAME_HEAD / FRAME_FOOT)은 LLM 에 보내지 않고 본문만 다듬어 다시 붙인다.
+    원문에 없으면 톤과 관계없이 붙인다.
 
 환경변수
   COMBINE_POLISH_ENABLED      Y(기본) / N — N 이면 서버가 /api/polish 를 503 으로 거절한다 (운영 중 끄기)
@@ -49,6 +51,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from combine_embed_client import OLLAMA_HOST  # noqa: E402
+import combine_ailink  # noqa: E402  [AX Lab] 2026-10-21 AI PC 연결 감시
 
 POLISH_ENABLED = os.getenv("COMBINE_POLISH_ENABLED", "Y").upper() not in ("N", "NO", "FALSE", "0")
 POLISH_MODEL = os.getenv("COMBINE_POLISH_MODEL", "gemma4:26b")
@@ -85,7 +88,10 @@ _SYSTEM_COMMON = (
     "사람 이름은 글자 그대로 유지하세요. 원문에 없는 대상이나 수식어를 덧붙여 구체화하지 마세요"
     "(예: '캐시'를 '브라우저 캐시'로, '패치'를 '서버 패치'로 바꾸지 말 것).\n"
     "2. 【링크1】【주소1】 같은 자리표시자는 글자 하나도 바꾸지 말고 같은 위치에 그대로 두세요.\n"
-    "3. 원문에 이미 인사말이나 맺음말이 있으면 다시 추가하지 마세요. 같은 뜻의 문장을 두 번 쓰지 마세요.\n"
+    # [AX Lab] 수정 (2026-10-21 AX Lab): 회사 고정 인사말·맺음말은 polish() 가 떼어 두었다가 다시 붙인다 → LLM 은 본문만 받는다
+    "3. 원문은 고객 답변의 본문 부분만입니다. 회사 고정 인사말과 맺음말은 시스템이 따로 붙이므로 "
+    "인사말('안녕하세요' 등)이나 맺음말('감사합니다', '추가로 궁금한 점이 있으시면…' 등)을 새로 추가하지 마세요. "
+    "같은 뜻의 문장을 두 번 쓰지 마세요.\n"
     "4. 줄바꿈·문단 구조·번호나 기호 목록은 가능한 한 원문을 따르세요.\n"
     "5. 결과는 다듬은 본문 텍스트만 출력하세요. 제목, 설명, 따옴표, 코드 블록, '다듬은 결과:' 같은 머리말을 붙이지 마세요.\n"
     "6. 원문이 이미 규칙에 맞으면 거의 그대로 돌려주세요.\n"
@@ -96,15 +102,14 @@ _SYSTEM_TONE = {
         "이번 작업: 정중하게.\n"
         "고객에게 보내는 격식 있는 존댓말(~습니다/~입니다 체)로 바꾸세요. 반말·구어체·줄임말·이모티콘은 정중한 표현으로 고치고, "
         "명령형은 '~해 주시기 바랍니다' 처럼 부드럽게 바꾸세요. "
-        "원문에 인사말이 없으면 첫 줄에 '안녕하세요.' 한 줄을, 맺음말이 없으면 마지막에 "
-        "'추가로 궁금한 점이 있으시면 언제든 문의해 주시기 바랍니다.' 한 줄을 넣어도 됩니다. 이미 있으면 넣지 마세요."
+        "인사말·맺음말은 시스템이 붙이므로 넣지 마세요."      # [AX Lab] 2026-10-21 고정 문구 사용으로 인사말 삽입 지시 제거
     ),
     "brief": (
         "이번 작업: 간결하게.\n"
         "뜻을 유지하면서 더 짧고 명확하게 정리하세요. 중복·군더더기·불필요한 수식어·구어체 추임새만 지우세요. "
         "'어떤 화면/기능에서 무슨 증상이', '원인이 무엇이고', '고객이 무엇을 하면 되는지' 세 가지와 "
         "절차·조건·숫자·연락처는 반드시 남기세요. 길이를 줄이기 위해 정보를 빼면 안 됩니다. 존댓말은 유지하세요. "
-        "인사말·맺음말은 있으면 한 줄로 줄이고, 없으면 추가하지 마세요."
+        "인사말·맺음말은 추가하지 마세요."      # [AX Lab] 2026-10-21 고정 문구 사용
     ),
     "typo": (
         "이번 작업: 오탈자만.\n"
@@ -147,6 +152,40 @@ def _restore(text, mapping):
     # LLM 이 만들어 낸(원문에 없던) 자리표시자는 지운다
     out = _PH_RE.sub("", out)
     return out, lost
+
+
+# [AX Lab] 수정 시작 (2026-10-21 AX Lab): 회사 고정 인사말·맺음말
+#   원문 맨 앞/맨 끝에 있으면 글자 그대로 떼어 두고(LLM 에 보내지 않음), 본문만 다듬은 뒤 다시 붙인다.
+#   없으면 톤과 관계없이 붙인다. 인사말은 이 문구만 인정한다(상담원 이름이 들어간 변형은 본문으로 취급).
+#   combine-as-thread.js CAWS_AI_HEAD / CAWS_AI_FOOT 와 같아야 한다 (AI 서버 실패 시 브라우저 기본 규칙이 같은 처리를 한다).
+FRAME_HEAD = "안녕하세요 중외정보기술입니다."
+FRAME_FOOT = ("추가적으로 더 필요하시거나 궁금하신 사항은\n"
+              "새로 A/S문의 등록 부탁 드립니다.\n"
+              "※ 요청 내용을 조금 더 구체적으로 작성해 주시면 보다 빠르고 정확한 안내가 가능하니 참고 부탁드립니다.\n"
+              "또한, Line Us내의 AI챗봇 많은 활용 부탁드립니다.\n"
+              "감사합니다.")
+# 인사말 뒤 마침표·띄어쓰기 차이, 맺음말 줄바꿈·띄어쓰기 차이는 같은 문구로 본다
+_HEAD_RE = re.compile(r"^\s*안녕하세요[.,!]?\s*중외정보기술입니다[.!]?\s*")
+_FOOT_RE = re.compile(r"\s*" + r"\s*".join(re.escape(c) for c in re.sub(r"\s+", "", FRAME_FOOT)) + r"\s*$")
+_BODY_PLACEHOLDER_RE = re.compile(r"^-*\s*답변\s*내용\s*-*$")
+
+
+def split_frame(text):
+    """(인사말 부분, 본문, 맺음말 부분). 없는 쪽은 None. 인사말·맺음말 부분은 앞뒤 공백까지 원문 그대로다."""
+    head = foot = None
+    m = _HEAD_RE.match(text)
+    if m:
+        head, text = m.group(0), text[m.end():]
+    m = _FOOT_RE.search(text)
+    if m:
+        foot, text = text[m.start():], text[:m.start()]
+    return head, text, foot
+
+
+def join_frame(head, body, foot):
+    return (head if head is not None else FRAME_HEAD + "\n\n") + body.strip("\n") \
+        + (foot if foot is not None else "\n\n" + FRAME_FOOT)
+# [AX Lab] 수정 끝
 
 
 # ----------------------------------------------------------------------------- 출력 정리
@@ -222,7 +261,9 @@ def _chat(system, user, timeout=POLISH_TIMEOUT, model=POLISH_MODEL, num_predict=
             return _chat(system, user, timeout=timeout, model=model, num_predict=num_predict)
         raise PolishError("http", "ollama HTTP %s %s" % (e.code, msg[:200]))
     except Exception as e:
+        combine_ailink.suspect("ollama")       # [AX Lab] 2026-10-21 연결 문제인지 생성 지연인지 가벼운 점검으로 확인
         raise PolishError("io", "%s: %s" % (type(e).__name__, e))
+    combine_ailink.report("ollama", True)      # [AX Lab] 2026-10-21
     msg = (res.get("message") or {}).get("content")
     if not isinstance(msg, str):
         raise PolishError("parse", "ollama 응답에 message.content 가 없습니다")
@@ -242,8 +283,16 @@ def polish(text, tone="polite", timeout=POLISH_TIMEOUT):
         raise PolishError("bad_request", "text required")
     if len(src) > MAX_CHARS:
         raise PolishError("bad_request", "text too long (max %d)" % MAX_CHARS)
+    # [AX Lab] 수정 (2026-10-21 AX Lab): 고정 인사말·맺음말을 떼고 본문만 다듬는다
+    head, body, foot = split_frame(src)
+    if not body.strip() or _BODY_PLACEHOLDER_RE.match(body.strip()):
+        raise PolishError("bad_request", "answer body required")
 
-    protected, mapping = _protect(src)
+    # [AX Lab] 수정 (2026-10-21 AX Lab): AI PC 끊김이 확인된 동안은 20초 기다리지 않고 바로 실패 → 화면이 'AI PC 연결 끊김' 으로 표시
+    if combine_ailink.is_down("ollama"):
+        _record(False, error="ai_pc_down")
+        raise PolishError("ai_pc_down", "AI PC(Ollama) 연결 끊김")
+    protected, mapping = _protect(body)
     try:
         raw = _chat(system_prompt(tone), protected, timeout=timeout)
     except PolishError as e:
@@ -255,12 +304,14 @@ def polish(text, tone="polite", timeout=POLISH_TIMEOUT):
     if not out:
         _record(False, error="empty")
         raise PolishError("empty", "모델이 빈 결과를 돌려주었습니다")
+    # [AX Lab] 수정 (2026-10-21 AX Lab): 길이 경고는 본문끼리 비교 (붙인 고정 문구 길이는 빼고)
     if lost:
         warnings.append("link_lost")               # 링크 토큰/URL 이 결과에서 빠짐 — 화면에서 경고
-    if len(out) > max(len(src) * 1.6, len(src) + 200):
+    if len(out) > max(len(body) * 1.6, len(body) + 200):
         warnings.append("too_long")                # 원문보다 지나치게 길어짐 (내용 추가 의심)
-    if tone == "brief" and len(out) > len(src):
+    if tone == "brief" and len(out) > len(body.strip()):
         warnings.append("not_shorter")
+    out = join_frame(head, out, foot)
     elapsed = int((time.time() - t0) * 1000)
     _record(True, elapsed_ms=elapsed)
     return {"result": "000", "text": out, "tone": tone, "model": POLISH_MODEL, "elapsed_ms": elapsed,

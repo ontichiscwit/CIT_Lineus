@@ -58,6 +58,7 @@ from combine_synonyms import expand as expand_synonyms         # noqa: E402  [AX
 import combine_morph                                           # noqa: E402  [AX Lab] 2026-10-16 겹친 단어 형태소 분석 (Kiwi)
 from combine_morph import units as morph_units                 # noqa: E402
 import combine_wordstats                                       # noqa: E402  [AX Lab] 2026-10-16 형식어·재촉 문의 판정
+import combine_ailink                                          # noqa: E402  [AX Lab] 2026-10-21 AI PC 연결 감시
 
 BASE_DIR = Path(__file__).resolve().parent
 # 색인 데이터 위치. 기본은 이 패키지의 data/ (analysis/combine_embed.py 가 색인을 만들고 여기로 복사한다).
@@ -120,6 +121,11 @@ def confidence_of(sim):
 
 # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 원격 재정렬 호출·상태.
 def _set_rerank_status(*, ok, error=None):
+    # [AX Lab] 수정 (2026-10-21 AX Lab): AI PC 연결 감시에 실제 호출 결과 반영 (실패는 즉시 점검으로 확인)
+    if ok:
+        combine_ailink.report("rerank", True)
+    else:
+        combine_ailink.suspect("rerank")
     with _RERANK_LOCK:
         if ok:
             _RERANK_STATUS["last_ok"] = int(time.time())
@@ -165,6 +171,7 @@ def rerank_texts(query, documents):
     with _RERANK_LOCK:
         if _RERANK_STATUS["disabled_until"] > time.time():
             raise RuntimeError("rerank circuit open")
+    combine_ailink.ensure_up("rerank")      # [AX Lab] 2026-10-21 끊김 확인된 동안은 0.9초도 기다리지 않는다
     body = json.dumps({"query": query, "documents": documents}, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         RERANK_URL, data=body,
@@ -632,7 +639,16 @@ class Recommender:
         # [AX Lab] 수정 (2026-10-15 AX Lab): 준실시간 반영 — 처리 도중 self.index 가 새 객체로 바뀌어도
         #   이 요청은 처음 잡은 객체만 본다 (search 결과 doc_id 를 get() 에서 못 찾는 일 방지)
         index = self.index
-        qvec = self.embed_fn(q_text)
+        # [AX Lab] 수정 시작 (2026-10-21 AX Lab): AI PC 끊김이 확인된 동안은 임베딩 20초 대기 없이 바로 실패(AiPcDown → 서버가 503 ai_pc_down).
+        #   예전에는 기다리는 사이 CRM 2.5초 제한이 먼저 끝나 화면에 CRM PC 쪽 문제와 같은 '지연(903)' 이 떴다.
+        combine_ailink.ensure_up("ollama")
+        try:
+            qvec = self.embed_fn(q_text)
+        except Exception:
+            combine_ailink.suspect("ollama")
+            raise
+        combine_ailink.report("ollama", True)
+        # [AX Lab] 수정 끝
         cands = index.search_hybrid(qvec, q_lex, tiers, excl, CANDIDATES)
         # [AX Lab] 수정 시작 (2026-10-15 AX Lab): 하이브리드 상위 후보만 원격 Cross-Encoder로 정밀 재정렬.
         #   원격 서버가 느리거나 실패하면 rerank_by_doc을 비워 아래 기존 score 산식으로 즉시 폴백한다.
@@ -713,6 +729,8 @@ class Recommender:
                 "follow_up": nag_near >= combine_wordstats.FOLLOW_MIN or content_free,
                 "follow_up_detail": {"nag_near": nag_near, "near_k": combine_wordstats.FOLLOW_K,
                                      "content_free": content_free},
+                # [AX Lab] 2026-10-21 AI PC 연결 상태(ollama/rerank: ok|down|off|unknown) · 이 요청에서 AI 재채점이 실제로 반영됐는지
+                "ai_link": combine_ailink.snapshot(), "rerank_applied": bool(rerank_by_doc),
                 "index": index_info(index)}
 
     @staticmethod

@@ -71,7 +71,8 @@ var caws = {
 	reqVal2: '',
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 (2026-10-19 AX Lab): seq(요청 순번 — 늦게 온 응답 무시) · timer(경과시간 표시) · prev(교체 전 본문, 되돌리기) · meta(결과 출처) 추가 */
-	ai:{ target:'', src:'', out:'', tone:'polite', seq:0, timer:null, prev:null, meta:null },
+	/* [AX Lab] 수정 (2026-10-21 AX Lab): applied(교체한 결과의 출처 {asNo, out, tag} — 답변 전송 시 ai_polish 로 실어 운영 로그에 남김) 추가 */
+	ai:{ target:'', src:'', out:'', tone:'polite', seq:0, timer:null, prev:null, meta:null, applied:null },
 	/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 링크 목록/선택/페이징 상태 */
 	link:{ page:1, pageCount:0, totalCount:0, selectedNum:'', keyword:'', request:null, previewRequest:null }
 	/* [AX Lab] 수정 끝 */
@@ -3081,6 +3082,14 @@ function caws_send(mode){
 	f.pageType.value = 'insert';
 	caws.saveBusy = true;
 	caws.saveFlow = mode;
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): AI 문장 다듬기 결과를 썼는지 운영 로그용으로 함께 보낸다 (저장 데이터는 그대로).
+	   값: ai:<모델> | rule:<실패코드> — 교체 뒤 직접 고쳤으면 +edited. 쓰지 않았으면 빈 값. answerForm(list.jsp)은 손대지 않고 숨은 필드를 붙인다. */
+	var ap = caws.ai.applied, apTag = '';
+	if(ap && ap.asNo === caws.asNo) apTag = ap.tag + (txt === ap.out ? '' : '+edited');
+	var apIn = f.ai_polish;
+	if(!apIn){ apIn = document.createElement('input'); apIn.type = 'hidden'; apIn.name = 'ai_polish'; f.appendChild(apIn); }
+	apIn.value = apTag;
+	/* [AX Lab] 수정 끝 */
 
 	try{ $('#awsFrame').remove(); }catch(e){}
 	$('<iframe id="awsFrame" name="awsFrame" style="width:0;height:0;display:none;"></iframe>').appendTo('body');
@@ -3141,6 +3150,13 @@ function caws_afterAnswer(){
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 (2026-10-21 AX Lab): 답변 초안 상태까지 한 곳에서 함께 초기화 */
 	caws_clearAnswerDraft();
+	var ta = caws_el('cawsText');
+	caws.cpPinLine = false;							/* [AX Lab] 2026-10-19 새 답변은 다시 자동 넓히기 허용 */
+	if(ta){ ta.value = ''; caws_autoGrow(ta); }		/* [AX Lab] 2026-10-19 비운 뒤 입력창 높이 원복 */
+	caws_clearFiles();
+	/* [AX Lab] 수정 (2026-10-19 AX Lab): 답변 등록 후에는 AI 다듬기 되돌리기 대상이 없다 */
+	caws.ai.prev = null; var aiUndo = caws_el('cawsAiUndoBtn'); if(aiUndo) aiUndo.style.display = 'none';
+	caws.ai.applied = null;		/* [AX Lab] 2026-10-21 다듬기 출처 기록도 비운다 */
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 답변 필수 경고 후 작성한 경우 접수처리정보 임시값 유지 */
 	if(caws.batch){
 		caws.answerBatchDraft = {
@@ -3245,6 +3261,10 @@ function caws_openAi(){
 	if(caws_nvl(src,'').replace(/\s/g,'') === ''){
 		alert('다듬을 문장을 먼저 작성해주세요.'); if(ta) ta.focus(); return;
 	}
+	/* [AX Lab] 수정 (2026-10-21 AX Lab): 고정 인사말·맺음말만 있고 본문이 없으면 다듬을 것이 없다 */
+	if(caws_aiBodyEmpty(caws_aiFrame(src).body)){
+		alert('답변 내용을 먼저 작성해주세요.\n(고정 인사말·맺음말은 다듬기 결과에 자동으로 붙습니다)'); if(ta) ta.focus(); return;
+	}
 	caws.ai.src = src;
 	caws.ai.out = '';
 	caws.ai.meta = null;
@@ -3273,7 +3293,13 @@ function caws_aiSetNote(cls, html){
 	var n = caws_el('cawsAiNote');
 	if(n){ n.className = 'caws-mnote caws-ainote' + (cls ? ' ' + cls : ''); n.innerHTML = html; }
 }
+/* [AX Lab] 2026-10-21 '다듬은 결과' 제목 옆 출처 문구 (cls: 'ai' | '' ) */
+function caws_aiSetMeta(cls, html){
+	var m = caws_el('cawsAiMeta');
+	if(m){ m.className = 'caws-aimeta' + (cls ? ' ' + cls : ''); m.innerHTML = html || ''; }
+}
 function caws_aiSetBadge(kind){
+	caws_aiSetMeta('', '');		/* [AX Lab] 2026-10-21 배지를 바꿀 때(열기·재실행·결과) 출처 문구도 같이 초기화 */
 	var b = caws_el('cawsAiBadge');
 	if(!b) return;
 	if(kind === 'ai'){ b.style.display = ''; b.className = 'caws-aibadge ai'; b.innerHTML = 'AI'; }
@@ -3325,13 +3351,17 @@ function caws_aiRenderResult(src, out, meta){
 
 	if(meta && meta.source === 'ai'){
 		caws_aiSetBadge('ai');
+		/* [AX Lab] 수정 (2026-10-21 AX Lab): 출처 문장은 안내문 대신 '다듬은 결과' 제목 옆에 */
+		caws_aiSetMeta('ai', 'AI(' + caws_esc(caws_nvl(meta.model,'LLM')) + ')가 ' + (meta.elapsed ? (Math.round(meta.elapsed/100)/10) + '초 만에 ' : '')
+			+ '다듬은 결과입니다.');
 		caws_aiSetNote(warnHtml ? 'has-warn' : '', warnHtml
-			+ 'AI(' + caws_esc(caws_nvl(meta.model,'LLM')) + ')가 ' + (meta.elapsed ? (Math.round(meta.elapsed/100)/10) + '초 만에 ' : '')
-			+ '다듬은 결과입니다. <span class="caws-aidel">빨간 줄</span>은 지워진 말, <span class="caws-aiins">초록 바탕</span>은 새로 들어간 말입니다. '
+			+ '<span class="caws-aidel">빨간 줄</span>은 지워진 말, <span class="caws-aiins">초록 바탕</span>은 새로 들어간 말입니다. '
 			+ '숫자·날짜·메뉴 경로·게시물 링크가 그대로인지 확인 후 사용해주세요.');
 	}else{
 		caws_aiSetBadge('local');
-		caws_aiSetNote('has-warn', 'AI 서버 응답을 받지 못해' + (meta && meta.code ? ' (' + caws_esc(meta.code) + ')' : '')
+		caws_aiSetMeta('', '기본 규칙으로 만든 결과입니다.');		/* [AX Lab] 2026-10-21 */
+		caws_aiSetNote('has-warn', (meta && meta.down ? 'AI PC(Mac) 연결이 끊겨' : 'AI 서버 응답을 받지 못해')	/* [AX Lab] 2026-10-21 원인 구분 */
+			+ (meta && meta.code ? ' (' + caws_esc(meta.code) + ')' : '')
 			+ ' 브라우저 안의 기본 문장 정리 규칙으로 만든 결과입니다. 맞춤법·문맥 교정은 되지 않았으니 내용을 직접 확인해주세요. '
 			+ '<a href="javascript:void(0);" onclick="caws_aiRun();">다시 시도</a>');
 	}
@@ -3343,6 +3373,10 @@ function caws_aiApply(){
 	if(ta){
 		caws.ai.prev = ta.value;			/* 되돌리기용 */
 		ta.value = caws.ai.out; caws_autoGrow(ta); ta.focus();
+		/* [AX Lab] 2026-10-21 교체한 결과의 출처 — 답변 전송 시 ai_polish 로 운영 로그에 남긴다 */
+		var mt = caws.ai.meta || {};
+		caws.ai.applied = { asNo:caws.asNo, out:caws.ai.out,
+			tag: mt.source === 'ai' ? 'ai:' + caws_nvl(mt.model,'llm') : 'rule:' + caws_nvl(mt.code,'local') };
 		var u = caws_el('cawsAiUndoBtn'); if(u) u.style.display = '';
 	}
 	caws_closeModal('cawsAi');
@@ -3355,6 +3389,7 @@ function caws_aiUndo(){
 	if(ta.value !== caws.ai.out && !confirm('교체 후 직접 수정한 내용이 있습니다. 다듬기 전 내용으로 되돌리면 수정한 내용은 사라집니다. 되돌릴까요?')) return;
 	ta.value = caws.ai.prev; caws_autoGrow(ta); ta.focus();
 	caws.ai.prev = null;
+	caws.ai.applied = null;		/* [AX Lab] 2026-10-21 되돌렸으면 다듬기 결과를 쓰지 않은 것 */
 	if(u) u.style.display = 'none';
 }
 
@@ -3365,7 +3400,11 @@ function caws_aiUndo(){
 function caws_aiPolish(text, tone, cb){
 	var t = String(caws_nvl(text,''));
 	var done = function(out, meta){ if(typeof cb === 'function') cb(out, meta); };
-	var local = function(code){ done(caws_aiPolishLocal(t, tone), { source:'local', code:code }); };
+	/* [AX Lab] 수정 (2026-10-21 AX Lab): down — 추천 서버가 AI PC(Mac) 끊김으로 판정한 실패 (reason / ai_link) */
+	var local = function(code, data){
+		var down = !!data && (data.reason === 'ai_pc_down' || (data.ai_link && data.ai_link.ollama === 'down'));
+		done(caws_aiPolishLocal(t, tone), { source:'local', code:code, down:down });
+	};
 
 	if(t.length > 4000){ local('길이 초과'); return; }	/* 서버 상한(CombineAsAiClient.POLISH_MAX_CHARS)과 같다 */
 
@@ -3374,7 +3413,7 @@ function caws_aiPolish(text, tone, cb){
 		data:{ as_no:caws_nvl(caws.asNo,''), pageType:'aiPolish', text:t, tone:tone },
 		success:function(data){
 			var ok = data && String(data.result) === '000' && typeof data.text === 'string' && data.text.replace(/\s/g,'') !== '';
-			if(!ok){ local((data && data.result != null) ? String(data.result) : '900'); return; }
+			if(!ok){ local((data && data.result != null) ? String(data.result) : '900', data); return; }
 			done(String(data.text), { source:'ai', model:data.model, elapsed:data.elapsed_ms, warnings:data.warnings || [] });
 		},
 		error:function(xhr){ local('HTTP ' + (xhr ? xhr.status : '')); }
@@ -3384,7 +3423,9 @@ function caws_aiPolish(text, tone, cb){
 /* 폴백 : 서버 없이 쓰는 기본 문장 정리 규칙 (2026-10-19 이전의 목업 로직).
    [AX Lab] 수정 (2026-10-19 AX Lab): 반복 적용 시 인사말·맺음말이 겹치던 문제 수정 — 이미 있으면 붙이지 않는다. */
 function caws_aiPolishLocal(text, tone){
-	var t = String(caws_nvl(text,''));
+	/* [AX Lab] 수정 (2026-10-21 AX Lab): 고정 인사말·맺음말을 떼고 본문에만 규칙을 적용한 뒤 다시 붙인다 (서버 combine_polish 와 같은 처리) */
+	var fr = caws_aiFrame(String(caws_nvl(text,'')).replace(/\r\n?/g,'\n'));
+	var t = fr.body;
 	var out = t;
 
 	if(tone === 'brief'){
@@ -3394,16 +3435,52 @@ function caws_aiPolishLocal(text, tone){
 		/* 오탈자만 : 공백/문장부호 정리 */
 		out = t.replace(/[ \t]+/g,' ').replace(/\s+([.,!?])/g,'$1').replace(/([.,!?])(?=[^\s.,!?\d)\]])/g,'$1 ').trim();
 	}else{
-		/* 정중하게 : 반말/구어 종결을 격식체로 바꾸고, 없을 때만 인사말·맺음말을 붙인다. */
+		/* 정중하게 : 반말/구어 종결을 격식체로 바꾼다. */
 		out = t.replace(/[ \t]+/g,' ').trim()
 		       .replace(/했어요?\./g,'하였습니다.').replace(/했어\b/g,'하였습니다')
 		       .replace(/해요\./g,'합니다.').replace(/해줘\b/g,'해주시기 바랍니다')
 		       .replace(/됐어요?\./g,'되었습니다.').replace(/줄게\b/g,'드리겠습니다');
+		/* [AX Lab] 삭제 (2026-10-21 AX Lab): 고정 인사말·맺음말(caws_aiFrameJoin)로 대체
 		if(!/^\s*안녕하(세요|십니까)/.test(out)) out = '안녕하세요. 문의 주신 내용 확인하였습니다.\n\n' + out;
 		if(!/(문의해\s*주시기 바랍니다|문의\s*바랍니다|감사합니다)[.!]?\s*$/.test(out)) out += '\n\n추가로 궁금한 점이 있으시면 언제든 문의해주시기 바랍니다.';
+		*/
 	}
-	return out;
+	return caws_aiFrameJoin(fr, out.trim());
 }
+
+/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 회사 고정 인사말·맺음말
+   combine-ai-server/combine_polish.py FRAME_HEAD / FRAME_FOOT 와 같아야 한다.
+   원문 맨 앞/맨 끝에 있으면 글자 그대로 두고, 없으면 톤과 관계없이 붙인다.
+   인사말은 이 문구만 인정(마침표·띄어쓰기 차이만 허용) — 상담원 이름이 들어간 변형은 본문으로 취급한다. */
+var CAWS_AI_HEAD = '안녕하세요 중외정보기술입니다.';
+var CAWS_AI_FOOT = '추가적으로 더 필요하시거나 궁금하신 사항은\n'
+	+ '새로 A/S문의 등록 부탁 드립니다.\n'
+	+ '※ 요청 내용을 조금 더 구체적으로 작성해 주시면 보다 빠르고 정확한 안내가 가능하니 참고 부탁드립니다.\n'
+	+ '또한, Line Us내의 AI챗봇 많은 활용 부탁드립니다.\n'
+	+ '감사합니다.';
+var CAWS_AI_HEAD_RE = /^\s*안녕하세요[.,!]?\s*중외정보기술입니다[.!]?\s*/;
+var CAWS_AI_FOOT_RE = new RegExp('\\s*' + CAWS_AI_FOOT.replace(/\s+/g,'').split('').map(function(c){
+	return c.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+}).join('\\s*') + '\\s*$');
+/* {head, body, foot} — 없는 쪽은 null. head/foot 은 앞뒤 공백까지 원문 그대로 */
+function caws_aiFrame(t){
+	var r = { head:null, body:String(caws_nvl(t,'')), foot:null }, m;
+	m = CAWS_AI_HEAD_RE.exec(r.body);
+	if(m){ r.head = m[0]; r.body = r.body.substring(m[0].length); }
+	m = CAWS_AI_FOOT_RE.exec(r.body);
+	if(m){ r.foot = r.body.substring(m.index); r.body = r.body.substring(0, m.index); }
+	return r;
+}
+function caws_aiFrameJoin(fr, body){
+	return (fr.head != null ? fr.head : CAWS_AI_HEAD + '\n\n') + String(body).replace(/^\n+|\n+$/g,'')
+		+ (fr.foot != null ? fr.foot : '\n\n' + CAWS_AI_FOOT);
+}
+/* 본문 없음 — 빈 값 또는 양식 자리표시자(--답변내용--)만 있음 */
+function caws_aiBodyEmpty(body){
+	var b = String(caws_nvl(body,'')).replace(/^\s+|\s+$/g,'');
+	return b === '' || /^-*\s*답변\s*내용\s*-*$/.test(b);
+}
+/* [AX Lab] 수정 끝 */
 
 /* 단어 단위 비교 (LCS). 공백·줄바꿈을 토큰으로 유지해 줄 구조를 그대로 그린다.
    반환 {src: 원문 HTML(지워진 말 <del>), out: 결과 HTML(새 말 <ins>)} — 토큰이 너무 많으면 null(그냥 이스케이프해서 표시). */
