@@ -577,10 +577,20 @@
             ,(SELECT VAL2 FROM CRM_CODE_DETAIL WHERE CODE_GROUP = 'AS' AND P_CODE = 'CD07' AND CODE = A.REQUEST_TYPE) AS VAL2
             ,(SELECT EMP_NM FROM CRM_EMP_MGT WHERE EMP_NO = A.ASSIGN_ID) AS ASSIGN_NM
             ,(SELECT CASE WHEN EXISTS (SELECT 1 FROM CRM_ROLE_USER WHERE 1=1 AND EMP_NO = #{reg_id, jdbcType=VARCHAR} AND (ROLE_CODE = 'ROLE_AS_ADMIN' OR ROLE_CODE = 'ROLE_AS_SUPERVISOR')) THEN 'Y' ELSE 'N' END AS AS_ADMIN FROM DUAL) AS AS_ADMIN
+			/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 고객사 ERP 영업담당자 정보 조회 */
+			,C.KY_SALE_EMP_CD AS SALES_EMP_CD
+			,E.EMP_NM AS SALES_EMP_NM
+			/* [AX Lab] 수정 끝 */
         FROM CRM_AS_MGT A
-           , CRM_CUST_MGT B
+        INNER JOIN CRM_CUST_MGT B
+                ON A.CUST_CODE = B.CRM_CODE
+        /* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 영업담당자 미지정 고객사도 조회되도록 LEFT JOIN */
+        LEFT OUTER JOIN KYERP.TB_CM_CUSTOMER C
+                     ON C.CUST_CD = B.ERP_CODE
+        LEFT OUTER JOIN KYERP.TB_HR_EMPLOYEE E
+                     ON E.EMP_CD = C.KY_SALE_EMP_CD
+        /* [AX Lab] 수정 끝 */
 		WHERE A.AS_NO = #{as_no, jdbcType=VARCHAR}
-		AND A.CUST_CODE = B.CRM_CODE
 	]]>
 	</select>
 	

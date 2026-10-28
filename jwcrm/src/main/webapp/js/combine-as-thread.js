@@ -50,6 +50,9 @@ var caws = {
 	/* [AX Lab] 수정 시작 (2026-10-17 AX Lab): 답변 삭제 콜백에서 작성 중 초안 보존 여부 판별 */
 	answerDeletePending:false,
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 답변/처리정보 개별·통합 저장 상태와 처리정보 저장 중 답변 초안 보존 */
+	saveFlow:'', saveBusy:false, answerDraft:null,
+	/* [AX Lab] 수정 끝 */
 	restoreScroll:null,
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 수정 시작 (2026-07-31 AX Lab): 필드 단위 클릭 즉시 수정(click-to-edit).
@@ -387,6 +390,8 @@ function caws_buildEvents(){
 		return Number(caws_nvl(x.seq,0)) - Number(caws_nvl(y.seq,0));
 	});
 
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): DB 이력은 유지하고 조치 관련 변경만 화면에 노출 */
+	var prevHist = null;
 	for(var h=0; h<hist.length; h++){
 		var hi   = hist[h];
 		var acc  = caws_nvl(hi.acceptor,'');
@@ -398,6 +403,16 @@ function caws_buildEvents(){
 		/* 이관 코멘트 접두어 판별 */
 		var hasPrefix = (raw.indexOf(CAWS_TR_PREFIX) === 0);
 		var comment   = hasPrefix ? raw.substr(CAWS_TR_PREFIX.length) : raw;
+		var hasActionChange = (prevHist === null)
+			|| acc !== caws_nvl(prevHist.acceptor,'')
+			|| caws_nvl(hi.proc_status,'') !== caws_nvl(prevHist.proc_status,'')
+			|| caws_nvl(hi.inportance,'') !== caws_nvl(prevHist.inportance,'')
+			|| String(comment).replace(/\s/g,'') !== ''
+			|| files.length > 0
+			|| Number(caws_nvl(hi.file_seq, caws_nvl(hi.attach_seq2,'0'))) > 0;
+		prevHist = hi;
+		if(!hasActionChange) continue;
+		/* [AX Lab] 수정 끝 */
 
 		/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 담당자 변경 설명을 덧붙이지 않고 입력 메모만 표시 */
 		var histText = comment;
@@ -528,8 +543,13 @@ function caws_renderHead(){
 	+ '</div>'
 	+ '<div class="caws-hinfo">'
 	+   caws_headInfo('신청자', applyNm)
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 신청자 연락처 클립보드 복사 버튼 추가 */
 	+   '<div class="caws-hi caws-hi-contact"><span>신청자 연락처 · 수신동의</span><b>'+caws_esc(applyTel)
+	+     (applyTel !== '-' ? '<button type="button" class="caws-copy-tel" data-tel="'+caws_esc(applyTel)
+	+       '" data-copy-message="복사 완료" onclick="caws_copyApplyTel(this);" title="신청자 연락처 복사" aria-label="신청자 연락처 복사">'
+	+       caws_cico('copy')+'</button>' : '')
 	+     ' <em class="caws-sms '+(smsYn === 'Y' ? 'on' : '')+'">'+caws_esc(smsTxt)+'</em></b></div>'
+	/* [AX Lab] 수정 끝 */
 	+   caws_headInfo('문의유형', reqTypeNm)
 	+   caws_headInfo('시스템구분', sysType)
 	+   caws_headInfo('처리예정일', procDt)
@@ -550,6 +570,47 @@ function caws_renderHead(){
 /* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 헤더 요약정보 셀 공통 렌더 */
 function caws_headInfo(label, value){
 	return '<div class="caws-hi"><span>'+caws_esc(label)+'</span><b title="'+caws_esc(value)+'">'+caws_esc(value)+'</b></div>';
+}
+/* [AX Lab] 수정 끝 */
+
+/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 신청자 연락처 클립보드 복사 및 구형 브라우저 대체 처리 */
+function caws_copyApplyTel(btn){
+	var tel = btn ? caws_nvl(btn.getAttribute('data-tel'),'') : '';
+	if(tel === '' || tel === '-') return;
+
+	function copied(){
+		if(!btn) return;
+		if(btn._cawsCopyTimer) clearTimeout(btn._cawsCopyTimer);
+		btn.classList.add('copied');
+		btn.setAttribute('aria-label','신청자 연락처 복사 완료');
+		btn._cawsCopyTimer = setTimeout(function(){
+			btn.classList.remove('copied');
+			btn.setAttribute('aria-label','신청자 연락처 복사');
+		}, 600);
+	}
+
+	function legacyCopy(){
+		var ta = document.createElement('textarea');
+		ta.value = tel;
+		ta.setAttribute('readonly','readonly');
+		ta.style.position = 'fixed';
+		ta.style.left = '-9999px';
+		document.body.appendChild(ta);
+		ta.select();
+		try{
+			if(document.execCommand('copy')) copied();
+			else alert('연락처를 복사하지 못했습니다.');
+		}catch(e){
+			alert('연락처를 복사하지 못했습니다.');
+		}
+		document.body.removeChild(ta);
+	}
+
+	if(navigator.clipboard && window.isSecureContext){
+		navigator.clipboard.writeText(tel).then(copied, legacyCopy);
+	}else{
+		legacyCopy();
+	}
 }
 /* [AX Lab] 수정 끝 */
 
@@ -1291,6 +1352,9 @@ var CAWS_CICO = {
 	/* [AX Lab] 수정 끝 */
 	board:  '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/>',
 	clip:   '<path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9"/>',
+	/* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 연락처 복사 아이콘 */
+	copy:   '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+	/* [AX Lab] 수정 끝 */
 	expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
 	shrink: '<path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/>',
 	info:   '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>'
@@ -1321,7 +1385,7 @@ function caws_renderCompose(){
 	+   '<span class="caws-cbadge caws-cbadge-in caws-tip-l" data-tip="이 글은 고객에게 그대로 노출됩니다.">고객노출</span>'
 	/* [AX Lab] 수정 끝 */
 	+   '<div class="caws-drop" id="cawsDrop">'
-	+     '<textarea class="caws-ta" id="cawsText" rows="1" oninput="caws_autoGrow(this);" placeholder="'+caws_composePh(open)+'"></textarea>'
+	+     '<textarea class="caws-ta" id="cawsText" rows="1" oninput="caws_answerDraftInput(this);caws_autoGrow(this);" placeholder="'+caws_composePh(open)+'"></textarea>'
 	+   '</div>'
 	+   '<div class="caws-thumbs" id="cawsThumbs"></div>'
 	+   '<div class="caws-cbar">'
@@ -1339,7 +1403,10 @@ function caws_renderCompose(){
 	+         caws_cico('clip')+'<span class="caws-tlbl">파일 첨부</span><em class="caws-fcnt" id="cawsFileCnt"></em></button>'
 	+     '</div>'
 	+     '<button type="button" class="caws-cicon caws-cexp caws-tip-r" onclick="caws_toggleCompose();" data-tip="넓게 열기" aria-label="넓게 열기">'+caws_cico('expand')+'</button>'
-	+     '<button type="button" class="caws-send" onclick="caws_send();"><span class="caws-sendx">답변 </span>등록</button>'
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리정보 수정 후 답변을 작성하는 업무 순서에 맞춰 두 답변 저장 동작을 함께 배치 */
+	+     '<button type="button" class="caws-send secondary" onclick="caws_send(\'answer\');" title="접수처리정보는 저장하지 않고 고객 답변만 등록합니다">답변만 등록</button>'
+	+     '<button type="button" class="caws-send" onclick="caws_saveCombined();" title="작성한 고객 답변과 접수처리정보를 함께 저장합니다">답변+처리정보 저장</button>'
+	/* [AX Lab] 수정 끝 */
 	+   '</div>'
 	+ '</div>';
 	/* [AX Lab] 수정 끝 */
@@ -1385,7 +1452,12 @@ function caws_renderCompose(){
 	caws.cpPinLine = false;		/* [AX Lab] 2026-10-19 새로 그린 빈 입력창은 자동 넓히기 허용 */
 	/* [AX Lab] 수정 시작 (2026-10-19 AX Lab): 최초 렌더링 때도 한 줄 모드 입력창 높이(32px)를 즉시 적용 */
 	var composeTa = caws_el('cawsText');
-	if(composeTa) caws_autoGrow(composeTa);
+	if(composeTa){
+		/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리정보만 저장한 뒤 재조회되어도 작성 중 답변 복원 */
+		if(caws.answerDraft && caws.answerDraft.asNo === caws.asNo) composeTa.value = caws.answerDraft.text;
+		/* [AX Lab] 수정 끝 */
+		caws_autoGrow(composeTa);
+	}
 	/* [AX Lab] 수정 끝 */
 	/* [AX Lab] 삭제 (2026-10-19 AX Lab): 이전 화면의 사용자 조절 높이가 넓게 보기 내용을 자르므로 복원하지 않는다.
 	caws_composeHeightRestore();
@@ -1526,26 +1598,32 @@ function caws_batchHistoryChanged(){
 function caws_assignEditableStatus(status){
 	return status === 'C001' || status === 'C004';
 }
+/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 변경 전/후 상태 중 하나가 접수·처리중이면 담당자 변경 허용 */
+function caws_assignChangeAllowed(fromStatus, toStatus){
+	return caws_assignEditableStatus(fromStatus) || caws_assignEditableStatus(toStatus);
+}
+/* [AX Lab] 수정 끝 */
 function caws_batchMemoRequired(){
 	var vo = caws.vo || {};
 	var st = caws_nvl(vo.proc_status,'');
-	var loginEmpNo = (typeof CAWS_LOGIN_EMP_NO !== 'undefined') ? caws_nvl(CAWS_LOGIN_EMP_NO,'') : '';
-	var assignId = caws_nvl(vo.assign_id,'');
-	/* ORIGIN goSave: 로그인 사용자 아닌 담당자를 지정한 경우, 처리완료/철회인 경우 조치의견 필수 */
-	return (loginEmpNo !== '' && assignId !== '' && assignId !== loginEmpNo)
-	    || st === 'C005' || st === 'C006';
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 자동/수동 구분 없이 담당자 변경 사유는 사용자가 직접 입력 */
+	return caws_batchChanged('assign_id')
+	    || (caws_batchChanged('proc_status') && (st === 'C005' || st === 'C006'));
+	/* [AX Lab] 수정 끝 */
 }
 /* [AX Lab] 수정 끝 */
 /* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 기존 form.jsp goSave의 필수값 규칙을 통합화면 일괄저장에 적용 */
 function caws_blank(v){ return String(caws_nvl(v,'')).replace(/\s/g,'') === ''; }
-function caws_adminAnswerCount(){
+function caws_adminAnswerCount(includePendingAnswer){
 	var n = 0;
 	for(var i=0; i<caws.aws.length; i++){
 		if(caws_nvl(caws.aws[i].w_gubun,'') === 'A') n++;
 	}
+	/* [AX Lab] 수정 (2026-10-21 AX Lab): 통합 저장에서는 이번에 등록할 답변도 완료 필수 답변 건수에 포함 */
+	if(includePendingAnswer) n++;
 	return n;
 }
-function caws_batchValidate(){
+function caws_batchValidate(includePendingAnswer){
 	var vo = caws.vo || {};
 	var st = caws_nvl(vo.proc_status,'');
 	var memo = caws_nvl(caws.batchMemo,'').trim();
@@ -1562,15 +1640,15 @@ function caws_batchValidate(){
 	if(caws_blank(st)) return '처리상태를 선택하세요.';
 	if(caws_blank(vo.inportance)) return '중요도를 선택하세요.';
 	if(caws_blank(vo.assign_id)) return '담당자 선택은 필수입니다.';
-	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): 허용 상태 외 담당자 변경 및 조치의견 길이 차단 */
-	if(caws_batchChanged('assign_id') && !caws_assignEditableStatus(st)){
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 접수·처리중에서 완료로 바꾸면서 담당자도 변경할 수 있도록 전후 상태로 검증 */
+	var oldSt = caws_batchValue(caws.batchOriginal,'proc_status');
+	if(caws_batchChanged('assign_id') && !caws_assignChangeAllowed(oldSt, st)){
 		return '접수 또는 처리중 상태에서만 담당자를 변경할 수 있습니다.';
 	}
 	if(memo.length > 1300) return '조치의견은 최대 1,300자까지 입력할 수 있습니다.';
 	/* [AX Lab] 수정 끝 */
 
 	if(caws_batchChanged('proc_status')){
-		var oldSt = caws_batchValue(caws.batchOriginal,'proc_status');
 		if(oldSt === 'C006') return '철회된 A/S건은 처리상태 변경이 불가합니다.';
 		if(caws.cnAsList.length > 0) return '하위작업이 있는 A/S건은 처리상태 변경이 불가합니다.';
 	}
@@ -1586,8 +1664,8 @@ function caws_batchValidate(){
 		if(caws_blank(vo.action_type)) return '조치유형을 선택하세요.';
 		if(caws_blank(vo.work_time)) return '작업시간을 입력하세요.';
 		if(caws_blank(vo.complete_dt)) return '처리 완료 일자를 입력하세요.';
-		if(memo === '') return '조치이력을 남겨주세요. 처리이력을 파악하는 데 꼭 필요합니다.';
-		if(caws_adminAnswerCount() < 1) return '처리상태가 "처리완료"인 경우 답변내역을 1건 이상 남겨주세요.';
+		/* [AX Lab] 삭제 (2026-10-21 AX Lab): 이미 완료된 건의 접수정보만 수정할 때 조치의견을 강제하던 조건 제거 */
+		if(caws_adminAnswerCount(includePendingAnswer) < 1) return '처리상태가 "처리완료"인 경우 답변내역을 1건 이상 남겨주세요.';
 
 		if(vo.action_type === 'C001' || vo.action_type === 'C002'){
 			if(caws_blank(vo.proc_gubun)) return '처리구분을 선택하세요.';
@@ -1600,9 +1678,8 @@ function caws_batchValidate(){
 				return '처리구분이 "형상변경"인 경우 아래 목록 중\n한가지 이상의 정의서가 필수입니다.\n-프로세스정의서\n-화면정의서\n-테이블정의서\n-기능분해도\n-인터페이스정의서';
 			}
 		}
-	}else if(st === 'C006' && memo === ''){
-		return '조치이력을 남겨주세요. 처리이력을 파악하는 데 꼭 필요합니다.';
 	}
+	/* [AX Lab] 삭제 (2026-10-21 AX Lab): 이미 철회된 건의 접수정보만 수정할 때 조치의견을 강제하던 조건 제거 */
 	return '';
 }
 /* [AX Lab] 수정 끝 */
@@ -1617,15 +1694,17 @@ function caws_syncBatchHead(){
 	var box = caws_el('cawsBatchHead');
 	if(!box) return;
 	if(caws_nvl(caws.asNo,'') === ''){ box.innerHTML = ''; return; }
-	/* [AX Lab] 수정 (2026-09-30 AX Lab): 상태에 따라 수정/취소로 바꾸지 않고 저장 버튼 하나만 유지 */
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리정보 헤더에는 가장 자주 쓰는 처리정보 단독 저장만 고정 표시 */
 	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 필드 blur 재렌더 중 버튼 DOM이 교체되어 click이 유실되지 않게 유지 */
 	if(!box.querySelector('button')){
-		box.innerHTML = '<button type="button" class="btn-s primary" onclick="caws_batchSave();">저장</button>';
+		box.innerHTML = '<button type="button" class="btn-s primary" onclick="caws_batchSave(\'record\');" title="답변은 등록하지 않고 접수처리정보만 저장합니다">처리정보 저장</button>';
 	}
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 끝 */
 }
-function caws_batchSave(){
-	if(!caws.batch){ alert('변경된 내용이 없습니다.'); return; }
+/* 열린 편집값을 확정하고 접수처리정보 저장 가능 여부를 확인한다. */
+function caws_batchPrepare(includePendingAnswer, skipCompletionConfirm){
+	if(!caws.batch){ alert('변경된 내용이 없습니다.'); return false; }
 	/* [AX Lab] 수정 시작 (2026-10-07 AX Lab): 열린 시스템유형 선택값을 최종 저장 전에 임시값으로 확정 */
 	if(caws.fld === 'systype') caws_pairCommit();
 	/* [AX Lab] 수정 끝 */
@@ -1636,23 +1715,53 @@ function caws_batchSave(){
 		if(dateVal !== '' && dateVal.length !== 8){
 			alert('날짜를 YYYY/MM/DD 형식으로 입력하거나 전체 삭제해 주세요.');
 			try{ dateEl.focus(); dateEl.select(); }catch(e){}
-			return;
+			return false;
 		}
 		(caws.vo||{})[caws.fld] = dateVal;
 	}
 	/* [AX Lab] 수정 끝 */
-	if(!caws_batchHasChanges()){ alert('변경된 내용이 없습니다.'); return; }
-	var memo = caws_nvl(caws.batchMemo,'').trim();
+	if(!caws_batchHasChanges()){ alert('변경된 내용이 없습니다.'); return false; }
 	/* [AX Lab] 수정 시작 (2026-10-06 AX Lab): 상태별·조건별 필수값을 저장 전에 일괄 검증 */
-	var validationMsg = caws_batchValidate();
+	var validationMsg = caws_batchValidate(includePendingAnswer);
 	if(validationMsg !== ''){
-		alert(validationMsg);
+		/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리완료에 답변이 부족하면 업무의 다음 순서인 답변창으로 바로 안내 */
+		if(validationMsg.indexOf('답변내역') >= 0){
+			alert('처리완료하려면 고객 답변을 먼저 등록하거나\n[답변+처리정보 저장]을 이용해주세요.');
+			caws_openCompose();
+			var answerEl = caws_el('cawsText');
+			if(answerEl) answerEl.focus();
+		}else{
+			alert(validationMsg);
+		}
+		/* [AX Lab] 수정 끝 */
 		var memoEl = caws_el('cawsBatchMemo');
 		if(memoEl && validationMsg.indexOf('조치이력') >= 0) memoEl.focus();
-		return;
+		return false;
 	}
-	memo = caws_nvl(caws.batchMemo,'').trim();
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 전화확인 없이 처리완료로 변경할 때 확인 */
+	var currentSt = caws_nvl((caws.vo||{}).proc_status,'');
+	var originalSt = caws_batchValue(caws.batchOriginal,'proc_status');
+	if(!skipCompletionConfirm
+	   && currentSt === 'C005'
+	   && originalSt !== 'C005'
+	   && caws_nvl((caws.vo||{}).tel_confirm,'') !== 'Y'
+	   && !confirm('전화확인이 체크되어 있지 않습니다.\n정말 처리완료 하시겠습니까?')){
+		return false;
+	}
+	/* [AX Lab] 수정 끝 */
+	return true;
+}
+function caws_batchSave(mode, internal){
+	mode = mode || 'record';
+	if(caws.saveBusy && !internal) return;
+	if(!caws_batchPrepare(mode === 'combined', internal === true)) return;
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 처리정보만 저장할 때 작성 중인 고객 답변을 재조회 후 복원 */
+	if(mode === 'record') caws_captureAnswerDraft();
+	caws.saveBusy = true;
+	caws.saveFlow = mode;
+	/* [AX Lab] 수정 끝 */
+	var memo = caws_nvl(caws.batchMemo,'').trim();
 	/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 복수 첨부를 포함해 multipart로 일괄 저장 */
 	var fd = new FormData();
 	fd.append('as_no', caws.asNo);
@@ -1666,16 +1775,33 @@ function caws_batchSave(){
 	}
 	$.ajax({
 		url:'/ad/as/histProc.do', type:'POST', data:fd, processData:false, contentType:false, dataType:'json',
-		success:caws_batchReturn,
-		error:function(){ alert('변경사항 또는 첨부파일 저장 중 오류가 발생했습니다.'); }
+		success:function(data){ caws_batchReturn(data, mode); },
+		error:function(){ caws_batchError(mode); }
 	});
 	/* [AX Lab] 수정 끝 */
 }
-function caws_batchReturn(data){
+function caws_batchError(mode){
+	caws.saveBusy = false;
+	caws.saveFlow = '';
+	if(mode === 'combined'){
+		alert('답변은 등록되었지만 처리정보 저장 중 오류가 발생했습니다.\n처리정보 변경사항을 확인한 뒤 다시 저장해주세요.');
+		caws_afterAnswer();
+		return;
+	}
+	alert('변경사항 또는 첨부파일 저장 중 오류가 발생했습니다.');
+}
+function caws_batchReturn(data, mode){
 	var code = (data && typeof data.returnCode != 'undefined') ? data.returnCode : '';
-	if(code !== '000'){ alert('변경사항 저장 중 오류가 발생했습니다.'); return; }
+	if(code !== '000'){ caws_batchError(mode); return; }
 	caws.batch = false; caws.batchOriginal = null; caws.batchRowOriginal = null; caws.batchMemo = ''; caws.batchFiles = []; caws.fld = '';
-	alert('변경사항을 저장했습니다.');
+	caws.saveBusy = false;
+	caws.saveFlow = '';
+	if(mode === 'combined'){
+		caws_clearAnswerDraft();
+		alert('답변과 처리정보를 저장했습니다.');
+	}else{
+		alert('처리정보를 저장했습니다.');
+	}
 	caws_reload(true);
 }
 function caws_batchMemoInput(el){
@@ -1769,8 +1895,9 @@ function caws_fldOpen(key){
 		return;
 	}
 	/* [AX Lab] 수정 끝 */
-	/* [AX Lab] 수정 시작 (2026-10-12 AX Lab): ORIGIN처럼 접수/처리중 상태에서만 담당자 변경 */
-	if(key === 'assign' && !caws_assignEditableStatus(caws_stCode())){
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 운영 화면처럼 변경 전/후 상태 중 하나가 접수·처리중이면 담당자 선택 허용 */
+	var originalSt = caws.batch ? caws_batchValue(caws.batchOriginal,'proc_status') : caws_stCode();
+	if(key === 'assign' && !caws_assignChangeAllowed(originalSt, caws_stCode())){
 		alert('접수 또는 처리중 상태에서만 담당자를 변경할 수 있습니다.');
 		return;
 	}
@@ -2265,7 +2392,7 @@ function caws_inquiryCommit(reqType, cate, inq){
 		} else if(sc !== '' && iq !== ''){
 			w = caws_worker({ request_type: rt, service_cate: sc, inquiry_type: iq, val2: val2 });
 		}
-		if(w && caws_nvl(w.wk_emp_no,'') !== ''){
+		if(w && caws_nvl(w.wk_emp_no,'') !== '' && caws_nvl(w.wk_emp_no,'') !== oldAssignId){
 			caws._autoAssign = { id: w.wk_emp_no, nm: caws_nvl(w.wk_emp_nm,'') };
 		}
 	}
@@ -2276,14 +2403,33 @@ function caws_inquiryCommit(reqType, cate, inq){
 		if(caws._autoAssign){
 			vo.assign_id = caws._autoAssign.id;
 			vo.assign_nm = caws._autoAssign.nm;
-			if(caws._autoAssign.id !== oldAssignId && caws_nvl(caws.batchMemo,'') === ''){
-				caws.batchMemo = '문의유형/시스템유형 변경에 따른 처리담당자 자동배정';
-			}
+			/* [AX Lab] 삭제 (2026-10-21 AX Lab): 자동배정 고정 메모 대신 사용자가 변경 의견을 직접 입력 */
 		}
 		caws._autoAssign = null;
 		caws.fld = '';
 		caws_renderRecord();
 		return;
+	}
+	/* [AX Lab] 수정 끝 */
+
+	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 즉시 저장 경로도 자동 문구 없이 사용자가 변경 사유를 직접 입력 */
+	if(caws._autoAssign){
+		var autoAssignMemo = window.prompt('처리담당자가 변경됩니다.\n담당자 변경 의견을 입력해주세요.', '');
+		if(autoAssignMemo === null || String(autoAssignMemo).replace(/\s/g,'') === ''){
+			alert('담당자 변경 의견은 필수입니다.');
+			caws._autoAssign = null;
+			caws.fld = '';
+			caws_renderRecord();
+			return;
+		}
+		if(String(autoAssignMemo).length > 1300){
+			alert('조치의견은 최대 1,300자까지 입력할 수 있습니다.');
+			caws._autoAssign = null;
+			caws.fld = '';
+			caws_renderRecord();
+			return;
+		}
+		caws._autoAssign.memo = String(autoAssignMemo).trim();
 	}
 	/* [AX Lab] 수정 끝 */
 
@@ -2312,7 +2458,7 @@ function caws_inqReturn(data){
 			proc_status: '',	/* 상태는 바꾸지 않음(빈 값 = 유지) */
 			proc_dt: '',
 			assign_id: w.id,
-			action_content: '문의유형/시스템유형 변경에 따른 처리담당자 자동배정'
+			action_content: caws_nvl(w.memo,'')
 		}, '/ad/as/histProc.do', 'caws_autoAssignReturn');
 	}
 	caws_reload(true);
@@ -2876,15 +3022,56 @@ function caws_renderThumbs(){
 }
 
 /* ---- 전송 ---------------------------------------------------------------- */
-function caws_send(){
-	if(caws_nvl(caws.asNo,'') === ''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
+/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): 답변/처리정보 3가지 고정 저장 동작 */
+function caws_answerText(){
 	var ta = caws_el('cawsText');
-	var txt = ta ? ta.value : '';
+	return ta ? String(ta.value||'') : '';
+}
+function caws_answerDraftInput(el){
+	caws.answerDraft = { asNo:caws.asNo, text:el ? String(el.value||'') : '' };
+}
+function caws_captureAnswerDraft(){
+	caws.answerDraft = { asNo:caws.asNo, text:caws_answerText() };
+}
+function caws_clearAnswerDraft(){
+	caws.answerDraft = null;
+	var ta = caws_el('cawsText');
+	caws.cpPinLine = false;
+	if(ta){ ta.value = ''; caws_autoGrow(ta); }
+	caws_clearFiles();
+	caws.ai.prev = null;
+	var aiUndo = caws_el('cawsAiUndoBtn');
+	if(aiUndo) aiUndo.style.display = 'none';
+}
+function caws_saveCombined(){
+	if(caws_nvl(caws.asNo,'') === ''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
+	if(caws.saveBusy) return;
+	var hasAnswer = !caws_blank(caws_answerText());
+	var hasRecord = !!(caws.batch && caws_batchHasChanges());
+	if(!hasAnswer && !hasRecord){ alert('저장할 답변이나 처리정보 변경사항이 없습니다.'); return; }
+	if(!hasAnswer){
+		if(confirm('작성된 답변이 없습니다.\n처리정보만 저장할까요?')) caws_batchSave('record');
+		return;
+	}
+	if(!hasRecord){
+		if(confirm('처리정보 변경사항이 없습니다.\n답변만 등록할까요?')) caws_send('answer');
+		return;
+	}
+	caws_send('combined');
+}
+function caws_send(mode){
+	mode = mode || 'answer';
+	if(caws_nvl(caws.asNo,'') === ''){ alert('먼저 목록에서 접수건을 선택해주세요.'); return; }
+	if(caws.saveBusy) return;
+	var ta = caws_el('cawsText');
+	var txt = caws_answerText();
 	if(caws_nvl(txt,'').replace(/\s/g,'') === ''){
 		alert('답변 내용을 입력해 주세요.');
 		if(ta) ta.focus();
 		return;
 	}
+	/* 답변 저장 전에 처리정보도 먼저 검증해 답변만 부분 저장되는 일반적인 입력 오류를 막는다. */
+	if(mode === 'combined' && !caws_batchPrepare(true)) return;
 
 	/* 고객 답변 : 기존 answerForm(멀티파트) + 숨은 iframe 방식을 그대로 쓴다.
 	   응답 JSP 가 parent.awsProcReturn(resultCode) 를 호출한다. (list.jsp 에서 caws_afterAnswer 로 연결) */
@@ -2893,6 +3080,8 @@ function caws_send(){
 	f.w_content.value = txt;
 	f.as_no.value = caws.asNo;
 	f.pageType.value = 'insert';
+	caws.saveBusy = true;
+	caws.saveFlow = mode;
 	/* [AX Lab] 수정 시작 (2026-10-21 AX Lab): AI 문장 다듬기 결과를 썼는지 운영 로그용으로 함께 보낸다 (저장 데이터는 그대로).
 	   값: ai:<모델> | rule:<실패코드> — 교체 뒤 직접 고쳤으면 +edited. 쓰지 않았으면 빈 값. answerForm(list.jsp)은 손대지 않고 숨은 필드를 붙인다. */
 	var ap = caws.ai.applied, apTag = '';
@@ -2910,6 +3099,29 @@ function caws_send(){
 	f.action = '/ad/as/awsProc.do';
 	f.submit();
 }
+
+/* list.jsp 의 공용 iframe 콜백이 통합화면에서 시작한 답변 저장만 이 함수로 위임한다. */
+function caws_handleAnswerReturn(resultCode){
+	if(caws.saveFlow !== 'answer' && caws.saveFlow !== 'combined') return false;
+	var mode = caws.saveFlow;
+	if(resultCode !== '000'){
+		caws.saveBusy = false;
+		caws.saveFlow = '';
+		alert('답변 등록 중 오류가 발생했습니다.');
+		return true;
+	}
+	if(mode === 'combined'){
+		/* 답변 저장 성공을 확인한 뒤 처리정보 저장을 이어서 실행한다. 임의 지연시간은 사용하지 않는다. */
+		caws_batchSave('combined', true);
+		return true;
+	}
+	caws.saveBusy = false;
+	caws.saveFlow = '';
+	alert('답변을 등록했습니다.');
+	caws_afterAnswer();
+	return true;
+}
+/* [AX Lab] 수정 끝 */
 
 /* histProc.do 공통 콜백 (처리상태/담당자 팝오버 저장 — 이력이 남는 저장이라 알림을 띄운다) */
 function caws_histReturn(data){
@@ -2936,6 +3148,8 @@ function caws_afterAnswer(){
 		return;
 	}
 	/* [AX Lab] 수정 끝 */
+	/* [AX Lab] 수정 (2026-10-21 AX Lab): 답변 초안 상태까지 한 곳에서 함께 초기화 */
+	caws_clearAnswerDraft();
 	var ta = caws_el('cawsText');
 	caws.cpPinLine = false;							/* [AX Lab] 2026-10-19 새 답변은 다시 자동 넓히기 허용 */
 	if(ta){ ta.value = ''; caws_autoGrow(ta); }		/* [AX Lab] 2026-10-19 비운 뒤 입력창 높이 원복 */
@@ -3779,6 +3993,10 @@ function caws_renderRecord(){
 	var custNm = caws_nvl(ci.cust_kor_name, caws_nvl(row.cust_kor_name,'-'));
 	var b2 = caws_detailKv('고객사명', custNm, 'cust')
 	   + caws_kv('고객사코드', caws_nvl(row.cust_code, caws_nvl(vo.cust_code,'-')))
+	   /* [AX Lab] 수정 시작 (2026-10-20 AX Lab): 고객사 ERP 영업담당자 표시 */
+	   + caws_kv('영업담당자', caws_nvl(vo.sales_emp_nm,'-')
+	     + (caws_nvl(vo.sales_emp_cd,'') !== '' ? ' ('+vo.sales_emp_cd+')' : ''))
+	   /* [AX Lab] 수정 끝 */
 	   /* [AX Lab] 수정 시작 (2026-10-08 AX Lab): 우선처를 접수정보에서 고객사코드 아래로 이동 */
 	   + caws_kv('우선처', (caws_nvl(row.priority,'') === 'Y') ? '★ 우선' : '-')
 	   /* [AX Lab] 수정 끝 */

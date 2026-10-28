@@ -729,6 +729,9 @@
 	
 	/* [AX Lab] 수정 시작 (2026-07-23 AX Lab): 답변 등록 콜백을 팝업(#awsInfoList)과 인라인 상세(#asThread) 양쪽에서 공유 */
 	function awsProcReturn(resultCode){
+		<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 통합화면의 답변만/답변+처리정보 저장은 전용 완료 흐름으로 위임 --%>
+		if(typeof caws_handleAnswerReturn === 'function' && caws_handleAnswerReturn(resultCode)) return;
+		<%-- [AX Lab] 수정 끝 --%>
 		if(resultCode == "000"){
 			alert('정상처리 되었습니다.') ;
 			$('#w_content').val('') ;
@@ -1496,7 +1499,9 @@
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): KPI 카드별 A/S 목록 팝업 스타일 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-kpi-popup.css?v=20261019-1" />
+<%-- [AX Lab] 수정 시작 (2026-10-20 AX Lab): KPI 상세 목록 컬럼 정렬 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-kpi-popup.css?v=20261020-1" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-12 AX Lab): AS 목록의 현재 페이지를 굵게 강조 --%>
 <link rel="stylesheet" type="text/css" href="/css/combine-as-pagination.css" />
@@ -1504,17 +1509,23 @@
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 처리담당자 다중선택 스크립트 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 처리담당자 필터 UI 배치 수정 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 우선 표시 캡션 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as.js?v=20261019-1"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-20 AX Lab): 목록 넓게 보기에서 AS 선택 시 3분할 상세 화면 복원 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as.js?v=20261020-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): KPI 카드 클릭 목록 팝업 + 처리상태 칩 색상 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-kpi-popup.js?v=20261019-2"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-20 AX Lab): KPI 상세 목록 컬럼 정렬 스크립트 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-kpi-popup.js?v=20261020-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-16 AX Lab): 다른 AS 선택 시 새 탭/현재 화면 열기 방식 선택 --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-open-choice.css?v=20261016-1" />
+<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 미저장 수정내용 초기화 후 AS 이동 기능 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-open-choice.css?v=20261021-1" />
 <%-- [AX Lab] 수정 시작 (2026-10-18 AX Lab): 미저장 변경 보호·즉시 전환·브라우저 뒤로가기 반영 캐시 갱신 --%>
-<script type="text/javascript" src="/js/combine-as-open-choice.js?v=20261018-1"></script>
+<script type="text/javascript" src="/js/combine-as-open-choice.js?v=20261021-1"></script>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 시작 (2026-07-30 AX Lab): AS 통합화면(통합 타임라인 / 작성영역 / 모달 / 아코디언 / 과거이력).
@@ -1526,7 +1537,9 @@
 <%-- [AX Lab] 수정 시작 (2026-10-17 AX Lab): 게시물 검색/본문 미리보기 스타일 캐시 갱신 --%>
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 과거 상담이력 시스템유형 표시 스타일 캐시 갱신
      [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(비교 표시·배지·되돌리기) 스타일 캐시 갱신 (기존 v=20261019-1) --%>
-<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261019-2" />
+<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 답변창 단독/통합 저장 버튼 배치 스타일 캐시 갱신 --%>
+<link rel="stylesheet" type="text/css" href="/css/combine-as-thread.css?v=20261021-1" />
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
@@ -1539,7 +1552,11 @@
 <%-- [AX Lab] 수정 시작 (2026-10-19 AX Lab): 처리담당자 이름 위치 변경 캐시 갱신
      [AX Lab] 수정 (2026-10-19 AX Lab): AI 문장 다듬기 실제 연동(getAsInfo.do?pageType=aiPolish) 캐시 갱신 (기존 v=20261019-3)
      [AX Lab] 수정 (2026-10-19 AX Lab): 고객답변 UI 기준 버전 반영 캐시 갱신 (기존 v=20261019-4) --%>
-<script type="text/javascript" src="/js/combine-as-thread.js?v=20261019-5"></script>
+<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 답변/처리정보 3가지 고정 저장 동작 캐시 갱신 --%>
+<%-- [AX Lab] 수정 시작 (2026-10-21 AX Lab): 사용자 작업순서에 맞춘 통합 저장 버튼 이동 캐시 갱신 --%>
+<script type="text/javascript" src="/js/combine-as-thread.js?v=20261021-2"></script>
+<%-- [AX Lab] 수정 끝 --%>
+<%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
 <%-- [AX Lab] 수정 끝 --%>
