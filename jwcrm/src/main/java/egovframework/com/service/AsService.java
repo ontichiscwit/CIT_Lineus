@@ -54,6 +54,12 @@ public interface AsService {
 	// [AX Lab] 수정 시작 (2026-09-30 AX Lab): 통합화면 접수처리정보 일괄 저장
 	public int updateAsRecordBatch(AsVO vo, UserVO adUserInfo) throws Exception;
 	// [AX Lab] 수정 끝
+	// [AX Lab] 수정 시작 (2026-10-29 AX Lab): 통합화면 처리 저장 시 기존 상세화면과 동일한 알림톡 발송
+	/** 변경 여부를 비교해야 하므로 CRM_AS_MGT 를 UPDATE 하기 전에 호출한다. */
+	public Map<String, Object> selectAswsMsgCheck(AsVO vo) throws Exception;
+	/** selectAswsMsgCheck 결과로 HUR_TALK_MSG 발송요청을 등록한다. UPDATE 이후에 호출한다. */
+	public void insertAswsMsgInfo(AsVO vo, Map<String, Object> chk) throws Exception;
+	// [AX Lab] 수정 끝
 	public int deleteAsProc(AsVO vo , HttpServletRequest request) throws Exception;
 	public int deleteAsProcAllLinked(AsVO vo , HttpServletRequest request) throws Exception;
 	public List<AsVO> getList(AsVO vo, String query) throws Exception;

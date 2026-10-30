@@ -1228,8 +1228,18 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		// [AX Lab] 수정 끝
 		vo.setComplete_dt(completeDt);
 
+		// [AX Lab] 수정 시작 (2026-10-29 AX Lab): 기존 상세화면(updateAsInfo)과 동일한 알림톡 발송
+		AsVO msgVo = newAswsMsgVo(cur, asNo, newStatus, newProcDt, newAssign, newImportance,
+				sendSms, applyTel, adUserInfo.getEmp_no());
+		SmsCheck msgChk = getSmsCheck(msgVo);
+		// [AX Lab] 수정 끝
+
 		int returnValue = commonDAO.update(vo, "asDAO.updateAsRecordBatch");
 		if (returnValue <= 0) return returnValue;
+
+		// [AX Lab] 수정 시작 (2026-10-29 AX Lab): 판단값은 UPDATE 전, 발송 등록은 UPDATE 후
+		sendSms(msgVo, msgChk);
+		// [AX Lab] 수정 끝
 
 		/* [AX Lab] 수정 시작 (2026-10-02 AX Lab): 조치이력 컬럼/메모/첨부 중 하나라도 바뀌면 한 건으로 기록 */
 		if (historyColumnChanged || !"".equals(comment) || vo.getAttach_seq2() > 0) {
@@ -1251,6 +1261,57 @@ public class AsServiceImpl extends EgovAbstractServiceImpl implements AsService 
 		/* [AX Lab] 수정 끝 */
 
 		return returnValue;
+	}
+	// [AX Lab] 수정 끝
+
+	// [AX Lab] 수정 시작 (2026-10-29 AX Lab): 통합화면 처리 저장 알림톡 발송 (기존 getSmsCheck/sendSms 재사용)
+	/**
+	 * 발송 판단 쿼리는 CRM_AS_MGT 현재값과 비교하므로 처리상태/예정일/담당자/중요도는 저장될 새 값,
+	 * 메시지 본문용 고객사명·접수일시는 현재 DB값(cur)으로 채운다.
+	 */
+	private AsVO newAswsMsgVo(AsVO cur, String asNo, String procStatus, String procDt, String assignId,
+			String inportance, String sendSms, String applyTel, String empNo) {
+		AsVO m = new AsVO();
+		m.setAs_no(asNo);
+		m.setProc_status(procStatus);
+		m.setProc_dt(procDt);
+		m.setAssign_id(assignId);
+		m.setInportance(inportance);
+		m.setSend_sms(sendSms);
+		m.setApply_tel(applyTel);
+		m.setReg_id(empNo);
+		m.setCust_kor_name(SsStringUtil.normalizeNull(cur.getCust_kor_name()));
+		m.setAccept_dt(SsStringUtil.normalizeNull(cur.getAccept_dt()));
+		m.setAccept_time(SsStringUtil.normalizeNull(cur.getAccept_time()));
+		return m;
+	}
+
+	@Override
+	public Map<String, Object> selectAswsMsgCheck(AsVO vo) throws Exception {
+		SmsCheck chk = getSmsCheck(vo);
+		Map<String, Object> m = new HashMap<String, Object>();
+		m.put("init_yn", chk.init_yn);
+		m.put("change_yn", chk.change_yn);
+		m.put("assign_change_yn", chk.assign_change_yn);
+		m.put("inportance_change_yn", chk.inportance_change_yn);
+		m.put("procstatus_change_yn", chk.procstatus_change_yn);
+		m.put("sms_send_yn", chk.sms_send_yn);
+		m.put("msgCnt", chk.msgCnt);
+		return m;
+	}
+
+	@Override
+	public void insertAswsMsgInfo(AsVO vo, Map<String, Object> chkMap) throws Exception {
+		if (vo == null || chkMap == null) return;
+		SmsCheck chk = new SmsCheck();
+		chk.init_yn = (String) chkMap.get("init_yn");
+		chk.change_yn = (String) chkMap.get("change_yn");
+		chk.assign_change_yn = (String) chkMap.get("assign_change_yn");
+		chk.inportance_change_yn = (String) chkMap.get("inportance_change_yn");
+		chk.procstatus_change_yn = (String) chkMap.get("procstatus_change_yn");
+		chk.sms_send_yn = (String) chkMap.get("sms_send_yn");
+		chk.msgCnt = chkMap.get("msgCnt") instanceof Integer ? (Integer) chkMap.get("msgCnt") : 0;
+		sendSms(vo, chk);
 	}
 	// [AX Lab] 수정 끝
 	

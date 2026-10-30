@@ -958,6 +958,26 @@ public class AdAsController {
 
 		int returnValue = 1 ;		/* 메모만 남기는 케이스(상태/담당자 모두 그대로)도 이력 추가는 성공 */
 
+		// [AX Lab] 수정 시작 (2026-10-29 AX Lab): 기존 상세화면과 동일한 알림톡 발송 — 판단값은 UPDATE 전에 조회
+		AsVO msgVo = null ;
+		Map<String, Object> msgChk = null ;
+		if(statusChanged || assignChanged || gradeChanged) {
+			msgVo = new AsVO() ;
+			msgVo.setAs_no(asNo) ;
+			msgVo.setProc_status(statusChanged ? newStatus : curStatus) ;
+			msgVo.setProc_dt((statusChanged && !"".equals(newProcDt)) ? newProcDt : SsStringUtil.normalizeNull(cur.getProc_dt())) ;
+			msgVo.setAssign_id(assignChanged ? newAssign : curAssign) ;
+			msgVo.setInportance(gradeChanged ? newGrade : curGrade) ;
+			msgVo.setSend_sms(SsStringUtil.normalizeNull(cur.getSend_sms()).trim()) ;
+			msgVo.setApply_tel(SsStringUtil.normalizeNull(cur.getApply_tel()).trim()) ;
+			msgVo.setReg_id(empNo) ;
+			msgVo.setCust_kor_name(SsStringUtil.normalizeNull(cur.getCust_kor_name())) ;
+			msgVo.setAccept_dt(SsStringUtil.normalizeNull(cur.getAccept_dt())) ;
+			msgVo.setAccept_time(SsStringUtil.normalizeNull(cur.getAccept_time())) ;
+			msgChk = asService.selectAswsMsgCheck(msgVo) ;
+		}
+		// [AX Lab] 수정 끝
+
 		if(statusChanged || assignChanged) {
 
 			/* read-modify-write : updateAsInfoAll 이 20여 개 컬럼을 무조건 덮어쓰므로
@@ -1025,6 +1045,12 @@ public class AdAsController {
 			hist.setSeq(String.valueOf(commonDAO.selectOneInt(hist, "asDAO.getAsHistMaxSeq"))) ;
 			commonDAO.insert(hist, "asDAO.insertAsInfoHist") ;
 		}
+
+		// [AX Lab] 수정 시작 (2026-10-29 AX Lab): 마스터 반영 후 알림톡 발송요청 등록
+		if(returnValue > 0 && msgVo != null) {
+			asService.insertAswsMsgInfo(msgVo, msgChk) ;
+		}
+		// [AX Lab] 수정 끝
 
 		return returnValue ;
 	}
